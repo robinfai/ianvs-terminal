@@ -1,0 +1,10 @@
+{
+  "example/lib/ui/foundation/app_theme.dart": "a65570053eda780db5e566d0342cf9c861ba6b4bda36234bc9cb439ee24b07a2",
+  "example/lib/features/profiles/profile_editor.dart": "3d2f862a8189ae0a8ae63f847a4f01b07c56fd444b88b17369a5a8f066e9e195",
+  "example/lib/features/shell/defaults_appearance_dialog.dart": "c0389743855ddc01ff50798770e7039b81e8de8d4a6dc469527af76785c8ae4b",
+  "example/lib/features/ai/ai_settings_dialog.dart": "6c3839f44c7cb142e29c386b69f285e452f95d31321368cec9c145cf493f81bf",
+  "example/lib/features/ai/terminal_ai_workspace.dart": "042c1eec3da12e9bf3b169dfecae23d4aaddf1c393c24641524dab7a6536b28a",
+  "example/lib/features/recording/mobile_replay_player.dart": "aef5c4ff9aed63573018d8a18c78fbeb7f768fd6bb7e7b9ca6a23801a1c5766b",
+  "packages/ianvs_terminal/lib/src/composer/terminal_composer_view.dart": "936a0d86c2899972e518f011a3a4c98df1bdbf59846a93d48784b904ccd04488",
+  "packages/ianvs_terminal_core/lib/src/composer/terminal_composer_view.dart": "936a0d86c2899972e518f011a3a4c98df1bdbf59846a93d48784b904ccd04488"
+}

@@ -1,0 +1,29 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/ui/app_theme_contract_test.dart
+00:00 +0: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/ui/app_theme_contract_test.dart: Trail retains the shared design theme and terminal surfaces
+00:00 +1: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/ui/app_notifications_test.dart: desktop notices stay above readline without taking focus
+00:00 +2: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/ui/app_notifications_test.dart: desktop notices stay above readline without taking focus
+00:00 +3: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/ui/app_notifications_test.dart: desktop notices stay above readline without taking focus
+00:00 +4: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/ui/app_notifications_test.dart: desktop notices stay above readline without taking focus
+00:00 +5: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/ui/sftp_touch_layout_test.dart: SFTP touch actions remain reachable at 1.0x
+00:00 +6: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/ui/sftp_touch_layout_test.dart: SFTP touch actions remain reachable at 1.0x
+00:00 +7: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/ui/sftp_touch_layout_test.dart: SFTP touch actions remain reachable at 1.0x
+00:00 +8: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/ui/sftp_touch_layout_test.dart: SFTP touch actions remain reachable at 1.0x
+00:00 +9: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/ui/sftp_touch_layout_test.dart: SFTP touch actions remain reachable at 1.0x
+00:00 +10: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/ui/sftp_touch_layout_test.dart: SFTP touch actions remain reachable at 1.0x
+00:00 +11: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/ui/sftp_touch_layout_test.dart: SFTP touch actions remain reachable at 1.0x
+00:00 +12: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/ui/sftp_touch_layout_test.dart: SFTP touch actions remain reachable at 1.0x
+00:00 +13: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/ui/sftp_touch_layout_test.dart: SFTP touch actions remain reachable at 1.0x
+00:01 +14: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/ui/sftp_touch_layout_test.dart: SFTP touch actions remain reachable at 1.0x
+00:01 +15: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/shell/mobile_session_list_test.dart: MobileSessionList groups split panes by current status and routes each explicit action
+00:01 +16: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/shell/mobile_session_list_test.dart: MobileSessionList groups split panes by current status and routes each explicit action
+00:01 +17: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/ui/sftp_touch_layout_test.dart: SFTP touch actions remain reachable at 3.0x
+00:01 +18: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/shell/mobile_session_list_test.dart: MobileSessionList updates visible groups and callbacks from replacement session state
+00:01 +19: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/shell/mobile_session_list_test.dart: MobileSessionList opens the current replacement without changing the retained row target
+00:01 +20: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/shell/mobile_session_list_test.dart: MobileSessionList protects referenced output while keeping viewing and reconnect available
+00:01 +21: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/shell/mobile_session_list_test.dart: MobileSessionList uses each tab root pane when no split layout exists
+00:01 +22: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/shell/mobile_session_list_test.dart: MobileSessionList keeps actions reachable at 320px in dark and en
+00:01 +23: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/shell/mobile_session_list_test.dart: MobileSessionList keeps actions reachable at 320px in dark and zh
+00:01 +24: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/shell/mobile_session_list_test.dart: MobileSessionList keeps actions reachable at 320px in light and en
+00:01 +25: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/shell/mobile_session_list_test.dart: MobileSessionList keeps actions reachable at 320px in light and zh
+00:01 +26: All tests passed!

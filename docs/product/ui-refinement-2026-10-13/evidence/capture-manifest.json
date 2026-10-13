@@ -1,0 +1,4294 @@
+{
+  "renderer": "Flutter host widget test with actual TargetPlatformVariant and deterministic substitute fonts; not native iOS screenshots",
+  "path": "build/full-ui-review/current-platform",
+  "captures": [
+    {
+      "name": "iOS-dark-landscape-ai-block-defaultState.png",
+      "sha256": "a51c8a282265140610a327a4176375f78f43de35af519bf43325e7d1cf4f5723",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-ai-block-error.png",
+      "sha256": "77d08c7e77f61efd5cfd2c5ada52214a90a72cc84325b0490314c549dfb3ee77",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-ai-block-unknown.png",
+      "sha256": "1b4dac0e36e7effbbbfa31f0ba97ef3b74baa72c8845d9274b3ac6f79ed9c857",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-ai-composerShell-defaultState.png",
+      "sha256": "0aaf0de3fa4c2eb590f9bc859a3693b9b0c00935e4dd9c06d7100f3644edeac4",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-ai-composerShell-error.png",
+      "sha256": "3ac482299a9ad94d4dc390111409835cc23005ea94370afd671bc9f559372acd",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-ai-composerShell-unknown.png",
+      "sha256": "073620a91ed3922362c0e144246df803ac428f281df76e80b0667406716730f3",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-ai-contextChip-defaultState.png",
+      "sha256": "6868ced0a4b2a51fda3277cc6b4a2386b0947db91384220e993a0da7691746b5",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-ai-contextChip-error.png",
+      "sha256": "6868ced0a4b2a51fda3277cc6b4a2386b0947db91384220e993a0da7691746b5",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-ai-contextChip-unknown.png",
+      "sha256": "6868ced0a4b2a51fda3277cc6b4a2386b0947db91384220e993a0da7691746b5",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-ai-emptyError-defaultState.png",
+      "sha256": "681be1294b5e7d2380e8eb15daac2bceffed504f40d52a17ae3f772659000d3e",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-ai-emptyError-error.png",
+      "sha256": "0711dc7d53910932eb389465f8a995169cbc4d160f2a7750a6f95d0ac64aeab7",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-ai-emptyError-unknown.png",
+      "sha256": "773feec464347566c811f63dd1e535e9c36afda13d1a38dc62b90bb0ff94b0a0",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-ai-proposalCard-defaultState.png",
+      "sha256": "384f0bc20138eada43ccb72ebb023f275111c53621dc33cf3187f759d49d9cd3",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-ai-proposalCard-error.png",
+      "sha256": "2c2e82733782638703af19012b731cacdc7e9b3093c862522ee3100e7c5f8cbf",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-ai-proposalCard-unknown.png",
+      "sha256": "945870b24c4c8de18ff6c36889eea9f3e34d0d7ef7abebac3586f915b0a18df7",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-ai-readerHeader-defaultState.png",
+      "sha256": "8608f43a3667a79798bc8500e2d376ad7b973badf86cfa16348f8d0b57e2b94b",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-ai-readerHeader-error.png",
+      "sha256": "20692cc52adf70de894468b8325b2c850d67468a85da643d1d2d3fcdc00e3a54",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-ai-readerHeader-unknown.png",
+      "sha256": "01a6aae5dd8584be9cd991319d1bf62e885de4e4d4b8a22f6ed207976c82e8e4",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-ai-reviewPage-defaultState.png",
+      "sha256": "82ea4b17ad4a50a03a23072f5b3d26560f6af674f5a5e6cf2b7e95cb67774974",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-ai-reviewPage-error.png",
+      "sha256": "9bb2329d2b298f8fc10a01c5da479510e769f9885a8bc5baa2fc4a2884a65a31",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-ai-reviewPage-unknown.png",
+      "sha256": "3e1a2317229bfdb07b29129770196578691375ed9515d8bd4fe809876fcc44ea",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-ai-taskHeader-defaultState.png",
+      "sha256": "162355fd957086c005e23d1d4f03299a1b0001fe2d95a661a0b69d1d3265a46c",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-ai-taskHeader-error.png",
+      "sha256": "cbd7eed2f1a692033b31f2b1ffa8c98178771ac7c4b7d6d77bb2d717c08c4eee",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-ai-taskHeader-unknown.png",
+      "sha256": "124cce972c4bb15d485de3ef7c0fe71c45ec35a20945dc05a725410de8297b40",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-ai-taskStatus-defaultState.png",
+      "sha256": "7150640d752cb03edc636db1b3bed87bb4c18782a631867e51cec413233ed411",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-ai-taskStatus-error.png",
+      "sha256": "fd541f4ab39ccc73772a65d7ff5e8ec716c8c3415ceaad2501fe4708bbd39945",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-ai-taskStatus-unknown.png",
+      "sha256": "fff4ebf69db0dfaf4f8dd78baaa39844b84a15f55bdf20812f144f1701e31812",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-aisettings-bottom.png",
+      "sha256": "cbfc49c7af122f6e1f862b5541735f5b942b19db960b83331bba46714be6c76e",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-aisettings-middle.png",
+      "sha256": "734107bca2e88ea7e8ac0b6d85f07b1b023b1d1b3d559bda658cba0880acfcb1",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-aisettings.png",
+      "sha256": "0b56cd769236fdf1f0ece738a5f2f56b32836142fa72ffc4ce2d2d8b798b33ee",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-authentication.png",
+      "sha256": "e596b4d2786b6564b18e549a9cb13d496136f33981a3f67bca0b56e4bf026f31",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-blocks.png",
+      "sha256": "7b857d9deb25175815d7046fce7902dfb91c6007be62de11d428167c45175bd7",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-capabilities-bottom.png",
+      "sha256": "5f25b5092712fffd40f169004731f5f420d677c09adad5ed405a2c63b50d47b3",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-capabilities-middle.png",
+      "sha256": "0f9119a3d1460f17147cf89cac7e6b8a22260a6b041681b10e2dbb1641b5a475",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-capabilities.png",
+      "sha256": "855902da87e92780c9cfc06e5081af7ac1bf1d34b64985e6b910bf42625e24a3",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-disconnected.png",
+      "sha256": "7dce289a9f15ba2fb2794e2d41c9f031aaf19890d614df34d940aecdfd76ad77",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-hostkey-bottom.png",
+      "sha256": "7054335e6e954e3250d319e8767dfcb13ce22a48b2464c9cdd58dbfa3abfcbd7",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-hostkey-changed-bottom.png",
+      "sha256": "4db38489d0f659d86c509e5b415171424d690d0f9245824969fd805cea2441ca",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-hostkey-changed-middle.png",
+      "sha256": "c6bcd0c771912510bfcbed52fa69c0437d9d15b2475a12a4ad772e0feeb7c122",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-hostkey-changed.png",
+      "sha256": "bb7ae2fd8385b0b58d82cf274c888c83b10638d9f64ebb76fb3d000dc0e22d15",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-hostkey-middle.png",
+      "sha256": "23d4cae853bdfb4e94b8b9ff3d53ea4c0329dcac7a0950f5aa1ff11d40fa0e57",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-hostkey.png",
+      "sha256": "d2bda950cbe69120df8548dce618bf05308f7d5ddf7bcdebdb7e3b38e516fc4d",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-keyboard.png",
+      "sha256": "f37729b7861b5b4de456d4d600d5f3bbd75e0fd33bf0c9b42b71ff855c84ae41",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-masterkey.png",
+      "sha256": "f76231c4b1d3eeda24d0dbb759f9a52e503890d23c50000573b7cc94ec1c2b8f",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-notifications.png",
+      "sha256": "1a0c48900070370395e998c070a707666506080f640190fe5ce4fc1ece38d1fc",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-profile-advanced-bottom.png",
+      "sha256": "481fb96b39b3611d73ed295cd43052a50edad8869da4b4e70f8419a97ecb22b4",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-profile-advanced-middle.png",
+      "sha256": "cbebde67b492b2aaf1caa54807ffe2f5c423aafed29fb2f5082522cef161b30d",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-profile-advanced.png",
+      "sha256": "481fb96b39b3611d73ed295cd43052a50edad8869da4b4e70f8419a97ecb22b4",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-profile-appearance-bottom.png",
+      "sha256": "1d81e7fa1079e55afbf44cc9e47ee5560071ef29a0119f6911c21a05d2bfa9c9",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-profile-appearance-middle.png",
+      "sha256": "f900b339d37c21cebfa6b0778820e1dd84a84eb832a3f080a005758ecb6d2db8",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-profile-appearance.png",
+      "sha256": "c6d38639437c04ace2c521e4aa78a57a33c199a362da11a0c88b279c99b0e3b1",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-profile-automation-bottom.png",
+      "sha256": "c031fc2ecfec29a1a8d05fdafd2045eec758e2b2433ffe0ed8daa38e5e58f327",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-profile-automation-middle.png",
+      "sha256": "1f4b7e74f2338597cc0a607d1c6891702c3fdf58e793feff749f49d2c19d3fba",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-profile-automation.png",
+      "sha256": "40ccd2149c82e5d1670d6162bb847a6baa84ffd1f95866e55c24300d7bc809d4",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-profile-general-bottom.png",
+      "sha256": "eae0fa5012db99f2799d417c17de7c9dc542649184f134988d0b1cfc2c16276e",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-profile-general-middle.png",
+      "sha256": "0224de27c276efc820531e98621298547f6b793dff0148c1c60e1b33a35794d1",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-profile-general.png",
+      "sha256": "25e564cc269a9da757b56c7021584fe82015eba871d7d4bfe9853d18fa7d0065",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-profile-keys-bottom.png",
+      "sha256": "b4a0ae9c01bed3304f760cb9ab4d7a6e521ca5d256de76dd8704edef9d5db0ed",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-profile-keys-middle.png",
+      "sha256": "764d03ad04a33342a6db238b86e844439928e51693929a7d5236149a3c201cac",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-profile-keys.png",
+      "sha256": "bf6c33429d42856b38d81d5b0173fb4a4160455820d2e40b00a3214ce8f8bac9",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-profile-startup-bottom.png",
+      "sha256": "cebf1ca735d90609510c5cc75f86e568b888e100ffb96f5053dd2adff926c23b",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-profile-startup-middle.png",
+      "sha256": "7288f22f46ddc93d2eea37d22a295e8ffd1d7873a640caf8c741ae9e9950001f",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-profile-startup.png",
+      "sha256": "16343a48b4d26c9338d6194d434ea6b5d9d5b851d18e899247cb38b196b3d3dc",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-profile-terminal-bottom.png",
+      "sha256": "14ca48be071d1aa0f2670d902ce08c269798fba89c5671ce35fca4ef0af7e7f6",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-profile-terminal-middle.png",
+      "sha256": "cc38ecfacfd51438fc61f8709f7f2c49e5af50c2c60d49ee0661dbac09981966",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-profile-terminal.png",
+      "sha256": "d970f3b034246d7edc900b31d8108a9292713bbdb8a6f705a43fe8503efd7eb0",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-replay-options-bottom.png",
+      "sha256": "7bf8d11796be92161168d3a62392762bea8b6e415b5d01e4411ac5420f86b85f",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-replay-options-middle.png",
+      "sha256": "957a0010a052d064a5d8822a661fb8bb35d646417930f12b660a137dfc4b1a80",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-replay-options.png",
+      "sha256": "0098c53ff9ad07f99469855e45645d1db5517cd8bb29281b59bb22d9d4ff6a27",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-replay.png",
+      "sha256": "066d764791624ce07471f14c2d82b63461decacc39f3bec3d5c4721520e0ea6e",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-sessions-disconnected-bottom.png",
+      "sha256": "69fc96f139025ff885a141d58c0143d9782bc96f1d97699c459b48c2a918ad0c",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-sessions-disconnected-middle.png",
+      "sha256": "e1d899f082f53da4309e7920b6155898d01b22e004ba1b40fb607bae81debdb0",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-sessions-disconnected.png",
+      "sha256": "d354f3120133dbab1dc44a26106a1e43ffeffab4b4c85341c399fd018ae24f92",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-sessions.png",
+      "sha256": "f560ed28bb2c69698866160163329031be5d59b9791b4cad6eef6f1020682339",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-settings-appearance-bottom.png",
+      "sha256": "52e4ba74013d2afc72b3ed261159e612394929a3a394aea6da421141dd1231cb",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-settings-appearance-middle.png",
+      "sha256": "4fdf57df414ba0230a071b4ac5e23711647374866ee67dfbf1e6652379977950",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-settings-appearance.png",
+      "sha256": "c8230007255039c036b649911a7fbafa68dd131dd0ff9370a7d3df1cb147ac24",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-settings-data.png",
+      "sha256": "445e95b7fe835e1d29770528c1a7a7c1c94381ee444d35037324331524a0f813",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-settings-general-bottom.png",
+      "sha256": "8570a8a67a82d6c45a101cf5040f80c3624f6fb25efcc6fc80548a04fff27075",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-settings-general-middle.png",
+      "sha256": "2f97419badae735275b5362a8da6100c5faf8bb23d8ab3fde32ac649ad3dc177",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-settings-general.png",
+      "sha256": "4d790fdc18ca94b8a782da39d7bc194e923ed19ec856c807e36b16e98c32ed5a",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-settings-security-bottom.png",
+      "sha256": "e1eafba84be7545331bff9ad52e49704c6760b5b6f8e6112b27c58c49fe74d56",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-settings-security-middle.png",
+      "sha256": "b8c87b5613f5e6d650a3253cdcc7f7371f48b0bac2fa9cdb8bf4cc659879baed",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-settings-security.png",
+      "sha256": "d7574a082e3563521d206bd7e2f476f9dce244f9bec2a84436b2a93a19c16713",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-settings-shortcuts-bottom.png",
+      "sha256": "3f44557bf16c870c2b82157d8c7fc529abf100ae5b9955c5ad27f537d0af85b4",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-settings-shortcuts-middle.png",
+      "sha256": "5e78ae7cfabff39a44ae48ccd96cb8d3b1ce322e9178de293f81706468cc79ee",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-settings-shortcuts.png",
+      "sha256": "1fb7a9f83d0a439f851559dcae05432cbe63e1976bf4cf9089d79099d935c630",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-settings.png",
+      "sha256": "f3ad4dc5fe9a34aa5714de7d0f48c1e04d85749ea82216b1b6806caf8c5d2c4b",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-sftp-menu.png",
+      "sha256": "db7e7533756cfdb61e5344194b6a4d9b94b3e85dfcfc519a8b57799d1b28855e",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-sftp.png",
+      "sha256": "efb4fccc1c07e3ebacefd092b895041fccae34fe84be878f80f96a3b9c5600db",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-shell-home.png",
+      "sha256": "7e4d6be8a2cf76645967f0fb12d33fac7063ccc5d33e6700777a3d5b4042c418",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-shell-menu.png",
+      "sha256": "bed0d7eeb26ca95c6fe1c28393faca60c78166634ff3da672aaba4f7d575dcc3",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-shell-profiles.png",
+      "sha256": "0af0a43b1a67f39d856b4727ee2e3050857f2e91d5d2259f516a76d662861195",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-shell-recordings.png",
+      "sha256": "d87a5312c4248bc2bafa2c86fd78f34eba042739c04749abef08736cdf3bb6d6",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-ssh-advanced-bottom.png",
+      "sha256": "ba61bacb603e248b610ff8661f13791ffd49174a40ab521070849bc94b49198d",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-ssh-advanced-middle.png",
+      "sha256": "1e1920bd397cde540b374e1d9c8492be0a896b27187d20f21577963f6b6d9f63",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-ssh-advanced.png",
+      "sha256": "7de6e61bb5e22756f496533098b564d405f205266f1b8a22915aef492c01f23c",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-ssh-bottom.png",
+      "sha256": "2188e677cb10620e54ddb9a701de9a96c732b693b8debda16a8607304a260a42",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-ssh-middle.png",
+      "sha256": "9a202df429cdd3ae366637333c0c932ef126c27580652c646f03ad001d159bd3",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-ssh.png",
+      "sha256": "4926b65ce1cbb0fa7a044c564b49e32d98a2fb5339da321020f7d71ffce21729",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-startup-failure.png",
+      "sha256": "85c147c15add5f6accc2ae9fa7fea5f4c6d84981834ea11832add612459c9ea6",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-landscape-startup-onboarding.png",
+      "sha256": "50f873e1bc502db97780308f03040d083d52367b9699fbdffff5456d79ba7e24",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-ai-block-defaultState.png",
+      "sha256": "7ded0d456498f0fc541c5502a5ab0c5097fa5dc388af8358dbaba7baca6c2551",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-ai-block-error.png",
+      "sha256": "33536ff327346eec4a75a9dda02a232b08d990a5c82ea178275a9631530fafb2",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-ai-block-unknown.png",
+      "sha256": "4fbe829f12c05261237e1b68ee8d08afe93cec43b086c4868388796475b2f8ac",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-ai-composerShell-defaultState.png",
+      "sha256": "f587415140d237179af2cc98bc22e45d9ddd23fae4a23d2a6a70b11f696727da",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-ai-composerShell-error.png",
+      "sha256": "9b79a779c84ffc8909eab3bc261e00492be1f9f2160562edf12c773393c99c43",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-ai-composerShell-unknown.png",
+      "sha256": "a3e842a2f28e19ca7ce9c9f5f341675d482fc4bb3c0df814234434a1b42d151f",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-ai-contextChip-defaultState.png",
+      "sha256": "bdfdeaebe8e79f7afea088e76b7a770308c6ab94b098e32141b1731c1919140c",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-ai-contextChip-error.png",
+      "sha256": "bdfdeaebe8e79f7afea088e76b7a770308c6ab94b098e32141b1731c1919140c",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-ai-contextChip-unknown.png",
+      "sha256": "bdfdeaebe8e79f7afea088e76b7a770308c6ab94b098e32141b1731c1919140c",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-ai-emptyError-defaultState.png",
+      "sha256": "70155c1c961b12cd3f6133a72aea6e17019119e09bb9c8e106b770741ea328f8",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-ai-emptyError-error.png",
+      "sha256": "23abdf7c79cc95318a58e74501f9d33c7029de826e561ed97d5b0c27309d1c26",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-ai-emptyError-unknown.png",
+      "sha256": "8beb9c0efe550af720bc453a3fe5a93a0b98f5cdaadc63517b25d26104b318ec",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-ai-proposalCard-defaultState.png",
+      "sha256": "a311a9885d95a8565f740681ea7e06ab10e7a2437dbc032b8c95d285a4ad51e8",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-ai-proposalCard-error.png",
+      "sha256": "b322257ec7767ec3109c12f36aa1e97c10ecdfde5605302fb80a531bb053e08d",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-ai-proposalCard-unknown.png",
+      "sha256": "82d39274c510a9d01ff7f10bfb542e1f945bb300e18c1add4a6b97b5fe6c9f92",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-ai-readerHeader-defaultState.png",
+      "sha256": "57d81b1faf3e2e3e1b3f42e8e424cccfe2d23ef9011ae95112751480c04b6100",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-ai-readerHeader-error.png",
+      "sha256": "9e7d62356feea66d8c05b4690a1bc0c243d14bbc711d592b051630ebda4b6e81",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-ai-readerHeader-unknown.png",
+      "sha256": "9b0d39dacbaeefd14edab9f620ae2cbb87a41a03f22f1aa46b046d927bd9fd68",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-ai-reviewPage-defaultState.png",
+      "sha256": "60378bfe1a2ea3df626d4abbc6e824b78f47075efd7e3fb769881c016f3415bc",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-ai-reviewPage-error.png",
+      "sha256": "9ab96a66ccce66db37b2f62d469cab7cf06c73754a2df6d7f6d903125cbc875d",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-ai-reviewPage-unknown.png",
+      "sha256": "2e6e3bb5e67d590eddb72b1e209d9a552ddbff42b5a84a8fa5eabdc9a36639bb",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-ai-taskHeader-defaultState.png",
+      "sha256": "9e37d49e11cdc5180629f50bf888bfc5abbf705e1d72f9b28bdc4baeaad3f785",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-ai-taskHeader-error.png",
+      "sha256": "45cbce2123e5f12495de8c4e88c718553033f7aca82bf34240f8b01353411f14",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-ai-taskHeader-unknown.png",
+      "sha256": "8bbd4b6dc4ff1c294b0d7e949d9c87022b58cc26f7d743635902af4d98a02351",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-ai-taskStatus-defaultState.png",
+      "sha256": "882cb8edec1da557e0beb01266154303aba6c4854d06dce1141e2e6fe3d22a31",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-ai-taskStatus-error.png",
+      "sha256": "fa88152e377b197c91d0e6a6d7e4cbc3f40b69b343b36a3380c26b841e0fcf51",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-ai-taskStatus-unknown.png",
+      "sha256": "1ed8eef320f1d2bb978cb8828b0e635b4eb96db5ce6a5f3b36eb8e3b53c09a99",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-aisettings-bottom.png",
+      "sha256": "cd2c784abb848edac896ddb7f94cbfdc59e245712ed92d05348ab1c7866a97b4",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-aisettings-middle.png",
+      "sha256": "1278bd5c484fb1a7395a585ab800c77da3fbac27e9a32940e8029dc2813d4af2",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-aisettings.png",
+      "sha256": "59b0173f5c7c411a2a81e5fa99612e3a9eda67897d6ac8d80ca945b0a122ebeb",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-authentication.png",
+      "sha256": "a79342314a5d3cd6a050b9591afc214e7afedcedccb18246d4d33bb7afd1bc9f",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-blocks.png",
+      "sha256": "226798d4a60c269b80395e4d720f834623ea5ef3b94e5b9f457a5331c10fa8cf",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-capabilities-bottom.png",
+      "sha256": "23e45fefe803624a4f549c13e40d34e83576f915166d651b4212832d1ca21c85",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-capabilities-middle.png",
+      "sha256": "0d5e59cc514fbffe0ec7b98d93e34db114e8d7ffd60570d499e23bc39aedb70e",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-capabilities.png",
+      "sha256": "89fc58a1b754a5136a1d4bdef74818200a6a7e729c39f501eb6809b3ca21acb0",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-disconnected.png",
+      "sha256": "af25b0776b8c0c756479e08f65188eaebd130fb4d1fe3fe103f6bcb204758e68",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-hostkey-changed.png",
+      "sha256": "291ba4149cf6b207a7c1bd9783a0358980a50e42a1216b673155fc42b89fb8f3",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-hostkey.png",
+      "sha256": "e07625d8dc5ba84088c41973a6c41483a3985f5a91ae072afb6abf080b8292fe",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-keyboard.png",
+      "sha256": "6f11369950d0c3a28237c6779f113d52e9b4a95499267fe8ac2da86f5b362e3c",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-masterkey.png",
+      "sha256": "0227c0aacd058ac2fe72f41e06693a9702341fb5f5e9cdcd2d09791bb945e8c2",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-notifications.png",
+      "sha256": "9ec55f10be91b04aeff55d1457e5783adb6ae01e55c7462b2f7f7cd27bc8bc4e",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-profile-advanced.png",
+      "sha256": "b96cea951b65491e65c2f0a32f84e6ef7fea230de93ee3f1c2ea430315a7eb7a",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-profile-appearance-bottom.png",
+      "sha256": "eb066e4a5b4b3f95af407e17c9cc56d3ba9eb173bb25c1e39c881df6bac70a49",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-profile-appearance-middle.png",
+      "sha256": "4f2b72530861ead84635313ca9d9e12771ef6094c4f7ca9c55ee37e006898fbe",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-profile-appearance.png",
+      "sha256": "149f61c763481e4b84456fc12d7834c3b14f6ad46e47616ad8c3e1f8acad643d",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-profile-automation-bottom.png",
+      "sha256": "8ef30656069ed68a2b3f6de5bebce9056a7a75ce2ca1782414bb978d5ae15367",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-profile-automation-middle.png",
+      "sha256": "3a3eb55f9a139745e2a21e7e24fa8507c2ac8cf98bfa22bc6c361bb1cb59a305",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-profile-automation.png",
+      "sha256": "be5f404aa150482cb22e41842c50a0eb579b40415c890a450bf9f78b8d2ec7bb",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-profile-general.png",
+      "sha256": "4cb93c51e31f7d1c63ea5e9dd1b494ba6b4b4598568b9e7c26ce5bae8d93ad95",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-profile-keys.png",
+      "sha256": "6f2339c29b53b0c8490efd57c9e5408d955a4c9f361682f1cdb53b1201c71a12",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-profile-startup-bottom.png",
+      "sha256": "6fe19e57f44319f42fa53e68a4d9d79e1162884d5bad4af20eda781192b750c3",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-profile-startup-middle.png",
+      "sha256": "177066c01df893e738fb9a608f09490cebc554e4be651fe55c1427cd2e1b7d5c",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-profile-startup.png",
+      "sha256": "933672cdf2e8354414ccc92573eedd48bb50b84db046657b2391b63538bf3a03",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-profile-terminal.png",
+      "sha256": "0a25c0d19479ca18e8af3a4ca1bb12b7548814386d3b815b3d07d4680b40325c",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-replay-options.png",
+      "sha256": "14ee540831c1063f7a4b1bb8b92f0012945ebe55686adeba50f7b1fac165ad50",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-replay.png",
+      "sha256": "7cf412486bf885c87e073c575bc15d4cb5d57dbf8af301d39c4c1590c0c0c162",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-sessions-disconnected.png",
+      "sha256": "b59eebe1b3998b74ac1c9b1a799394e54778bcaf28266ea8cca6831f27b5dcbd",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-sessions.png",
+      "sha256": "dedca2ec7f53e0a7d311c732ed9e0e8a89801ce128a89b9ba53770af8442943e",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-settings-appearance.png",
+      "sha256": "33fdaef51c5906e88f88e40ceab5e976a431eb54fc57b833dd95cf9900d081de",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-settings-data.png",
+      "sha256": "22ef13ca02303fc50f893685ab17c3c01625a23fc2afa0b31a7f017730d720c2",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-settings-general.png",
+      "sha256": "342c45329b247296e6e1493321d549e9cf2f028b0354e7a7d54b899ba9d7f1cc",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-settings-security-bottom.png",
+      "sha256": "960b4a5f306c30055c1eb285c5d1fd4015a30c402c0ba0294f6f9e07d4d514c2",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-settings-security-middle.png",
+      "sha256": "65388ef702ad8d392ca8b349bc99f2bfa00a55d9d94ceb06a214a351cc402c4f",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-settings-security.png",
+      "sha256": "e2cc75473af4f8d8c12088ecb8dccff348485e163939f8d9bd77ef7b67746b5d",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-settings-shortcuts-bottom.png",
+      "sha256": "66a867f5c6786ffae3c3b9da0cd5a634e0266c40e3c6e43caed83c455a16508c",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-settings-shortcuts-middle.png",
+      "sha256": "41d6ed337ae5e470e38d0eafd9327189cd9a10ca2dca6693a72b9687e2a225d9",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-settings-shortcuts.png",
+      "sha256": "374bd294acaf6b32cedbb8f6fc806da42c9f7ad3e142be9e09ae0b4bc63439e8",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-settings.png",
+      "sha256": "d0a27bdc14e92e620e6da148880834260a4781dbba95897124eea74f085c762d",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-sftp-menu.png",
+      "sha256": "77e32c50b58d842e7d8a10e3264f12d9472b8438fea5e83ad814a0565b3bf6c0",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-sftp.png",
+      "sha256": "279e9919596d7a0cc798ddaed7f46b70a1fb9d7fd941aaf79af9aabdd9d56c28",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-shell-home.png",
+      "sha256": "273c00211a2583feea46799fb15efac1185038909a0476a1f6a03e868d8f7ab3",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-shell-menu.png",
+      "sha256": "a2926d56b3f87ce1f34a062ba7900512bb1437aabf7cacbd2b161a3e77b0f0df",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-shell-profiles.png",
+      "sha256": "7528e30d553af3aca8a1f88eef7c1ca23bda712521275fbe1d87def1f7ea4e12",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-shell-recordings.png",
+      "sha256": "b41d18d09811abc8f61abd5cd6f62f6c2c946647fe6394cb5cc8b8b896cc69d8",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-ssh-advanced-bottom.png",
+      "sha256": "421ddbead0555fa606c96ec86f66c30c7a0a3a0993548ebb57fbf38bb33d9e6e",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-ssh-advanced-middle.png",
+      "sha256": "93c200f08a296d522422b1b81f1cf367a0ecd723d45cd510775aa7498d2d7320",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-ssh-advanced.png",
+      "sha256": "f80d39362cd4bd96410c406cae72d716ad83d681dc48cac2e968498d107977f0",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-ssh.png",
+      "sha256": "1f6d0ac5d13862e5c430b526736f5245c0b36476cc79a43085ce61c4aa6a12e4",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-startup-failure.png",
+      "sha256": "80380c5672cff18888d825ee6a2470983f1d7b90e4489ddaca2a59f0e727d852",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-dark-portrait-startup-onboarding.png",
+      "sha256": "57fdd2aba76f37f6c32d9b9c329dbb60cb90220d3dc57061b10f71f8190846c4",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-ai-block-defaultState.png",
+      "sha256": "2f1ac7f3283aca3d0565d550e563777e553df190a80e05d7c7306bbebe8a4a1e",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-ai-block-error.png",
+      "sha256": "384a1bb7aa1fcd1d5f8250df0a10cc0d4dbea77cff17b9096ff31ea84cedbb00",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-ai-block-unknown.png",
+      "sha256": "1524274ece75741bffdeb9ef77232b29b68ab6df015e0c90571c21672f217617",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-ai-composerShell-defaultState.png",
+      "sha256": "430df84dc79a972d97c638e4ce8e9c2fe98eac99cfda0979c7dd75f05ed648f0",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-ai-composerShell-error.png",
+      "sha256": "1f03ba52ea108789793ec7fa791893d3d83556b58e51b21bfbc51de2eac6ea60",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-ai-composerShell-unknown.png",
+      "sha256": "4ccbf29971c70a2ec802cc8bdc94930dd9e2617e861b0f4cd92eb1f7c7a0b983",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-ai-contextChip-defaultState.png",
+      "sha256": "84ba3c17e8acbb0364b90c777ee424c48d1a8e04c699cb8e08deb58081057e90",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-ai-contextChip-error.png",
+      "sha256": "84ba3c17e8acbb0364b90c777ee424c48d1a8e04c699cb8e08deb58081057e90",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-ai-contextChip-unknown.png",
+      "sha256": "84ba3c17e8acbb0364b90c777ee424c48d1a8e04c699cb8e08deb58081057e90",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-ai-emptyError-defaultState.png",
+      "sha256": "1ef4b9c52c00b283f039b89fc8638d0a98f157d4f5a5018fabc76c8cbd310a32",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-ai-emptyError-error.png",
+      "sha256": "aeb9262f6bd114d5df6760f0e6634867e7e20c8d39eda42182a122c170f4e797",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-ai-emptyError-unknown.png",
+      "sha256": "c9a0d857b280a173cab4ceb85dd78ac34f7acc85d36c955dfc672be21a7b506d",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-ai-proposalCard-defaultState.png",
+      "sha256": "41a4e1ba6c1a36df42ee85c4d3555d0caee8f1f5a492ac8be47e29236b15824e",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-ai-proposalCard-error.png",
+      "sha256": "322413a6c1ca461aeb60a6691de71b07749789295ae96172f17668115bcccc11",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-ai-proposalCard-unknown.png",
+      "sha256": "8462983598fc7b6abc3c5eb44230058cbb4c942aea56374f209c5de2c1daaed8",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-ai-readerHeader-defaultState.png",
+      "sha256": "e0053b6c16ca64c25cbf82fbea5a31bfe7520356cc748fb4812dcc4e7ebbb919",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-ai-readerHeader-error.png",
+      "sha256": "995f90053551c5968d791093fb0489cdc911eb36ea4815cff02baa3f49c3dc05",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-ai-readerHeader-unknown.png",
+      "sha256": "049a85608be946d2a192bfd3cbff1a063c6e449b60e3ade01c3230a42d31d6cd",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-ai-reviewPage-defaultState.png",
+      "sha256": "6c56422c2506019d0a891a94dcb4470da0542fa3088b4e2551998a5a69d07494",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-ai-reviewPage-error.png",
+      "sha256": "5952cabde0a2ba24d061ef0c05af828d65d147e04b3f6a689b7cb13b7aff6e65",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-ai-reviewPage-unknown.png",
+      "sha256": "3042a19d92b78f48a3979c61a641abbd7a75b2fc23c90ed871833fdee885fb71",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-ai-taskHeader-defaultState.png",
+      "sha256": "a39a874c4af65b2438546dee4620e7965070d2b48260604c39bc63687d14fdae",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-ai-taskHeader-error.png",
+      "sha256": "e461b7892162f0dc70ba11281ab7fc03c488bb63ab84f92c1f960d5294f42078",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-ai-taskHeader-unknown.png",
+      "sha256": "7113bddca63c9bb7f7698793af367546bb8a25b9f88e94ed40a407a310fedbfd",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-ai-taskStatus-defaultState.png",
+      "sha256": "117030b17470bc3967081df240cfb71af5bec372051456d79367decf8c9a8361",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-ai-taskStatus-error.png",
+      "sha256": "ecde683fbf12c13be6d90359ec100705a495620d0a0720f6509a6b32cc52f3a6",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-ai-taskStatus-unknown.png",
+      "sha256": "79fe00180f934bceb52296504852663f892365637227425700f9afaaeb7ee1bd",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-aisettings-bottom.png",
+      "sha256": "7e3e1f24ad4040d3f686293d533d031faf7cc600937d7e5ebe01bd4b3f52a621",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-aisettings-middle.png",
+      "sha256": "3fd188344a972dda498a3d31e28b8aded751989695595e2f190bf95ffc2f3fac",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-aisettings.png",
+      "sha256": "8f4ab5e1fc671c10cc73350590c157faae9686c01298aa0e79b9b6436ebf0b00",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-authentication.png",
+      "sha256": "b32a8ca01bb6622168e3adcedf2ba842a234f2754d348958d989041c3638e295",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-blocks.png",
+      "sha256": "f9c827a6506aadfc017ef22d9ed045c87390e1d6f3dfcf0336ffe75a82d3bcf5",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-capabilities-bottom.png",
+      "sha256": "037d12f1467b628a0b7763ee1dbbb0fcd908fe8f08a02200eeda90814bda8005",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-capabilities-middle.png",
+      "sha256": "1c275cbc572c468e6158494d1c878dddcc32ab9fa30a22a0c86d48f4ed4415f8",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-capabilities.png",
+      "sha256": "b66a4a0b9a71f8327db5d6eaab6f4989c85218aad16e75469438b4e20568c9da",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-disconnected.png",
+      "sha256": "24411a3b43e5e65d41f95f98cf465715775cdde38de61b1335a21c840f1eccec",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-hostkey-bottom.png",
+      "sha256": "32300f28a89515eeb9e78afb31a432211776cd257eff513e82f01d30f8969b50",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-hostkey-changed-bottom.png",
+      "sha256": "ff571eb6d0d6ee55108bc7a86d120b72412ae7dc939afb6aeb32f4e049679a25",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-hostkey-changed-middle.png",
+      "sha256": "8bb76ea125d6f79b84d4299e7ae1079f9a3117333ac79ba24d7dced9bb05c96e",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-hostkey-changed.png",
+      "sha256": "071ac4326b7f5eb6db7a2f69e3ce6a83f54d1702521aa5d7bef58f4964679064",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-hostkey-middle.png",
+      "sha256": "d5302f7b00cad4a2ea47338cbf44a5987c20a7989d5fc60dcbd483c81dc18532",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-hostkey.png",
+      "sha256": "ce1ed40a946cf848f4e6a8a6edb63a603ac9eb2ed46b235e9484b26d607ebc47",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-keyboard.png",
+      "sha256": "af590cd0f5cd56f6380676216eb69f1f00d10cf8024bad78d5644a37e7091e92",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-masterkey.png",
+      "sha256": "88e990763254477c09a7987ac440b109b40bb7d11e6aaca2561837a1e5065063",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-notifications.png",
+      "sha256": "90c7189828810831a71bd6d6c0d34673d2cea37dc1eec806a86e837cdf972c0c",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-profile-advanced-bottom.png",
+      "sha256": "c0a76cba794c6670bf73749fff04a2980b85b5f694841052fd8d806f4f97819d",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-profile-advanced-middle.png",
+      "sha256": "50114a28dde1ebcf50d74fac82cc2546793eaff3523c328f4894fc8a9b8ca474",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-profile-advanced.png",
+      "sha256": "c0a76cba794c6670bf73749fff04a2980b85b5f694841052fd8d806f4f97819d",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-profile-appearance-bottom.png",
+      "sha256": "29e00d50c4349809d6e5bcae07d915b5e86ac24752f5e0a878351ed2990bd714",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-profile-appearance-middle.png",
+      "sha256": "3cecd7beab42e44c5e14f18afb56fbd3b69b04075cab139f0797cd089a33cde6",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-profile-appearance.png",
+      "sha256": "e99b7281dffc35d8e997a6931edd340542a0830177a821e6481f0b089637c9db",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-profile-automation-bottom.png",
+      "sha256": "d739440be16bd939b926827c7ef873be0bbf05789d1cb1ff354732128ffedcfd",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-profile-automation-middle.png",
+      "sha256": "49e43eb8b7de69259fb8e01d82318fe63dd66913fd7d92d9a085ad7f4d91a9b2",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-profile-automation.png",
+      "sha256": "bc286b340a754f373dc3c45aebe9fa9850798f26d2223fbcaed4742421569b8f",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-profile-general-bottom.png",
+      "sha256": "25de6b0e6f038741c3fb07db8f28a87337f60c52ee32fa4d9c5fb8e0193543d7",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-profile-general-middle.png",
+      "sha256": "5ae92cf49083b4463d306549c0923ce13c2eeb1a513586e53d52cec91658086f",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-profile-general.png",
+      "sha256": "0879925aa700026fc3cd3167220a37e237f131af09a825c4fb7375cbd68a3e5f",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-profile-keys-bottom.png",
+      "sha256": "abb841403385bf8ba3fc40f97a14d6ba6dda0793908494bb8116271cdf23ca18",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-profile-keys-middle.png",
+      "sha256": "7ea9f29b5b59ca5f5a1eab0b0f4672ad722a8a5893da020f150c9aa9a2b30751",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-profile-keys.png",
+      "sha256": "e28562162cf3709f3d8a4467137f12a32be66c3919bd4dc9d1e907041b2edcf6",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-profile-startup-bottom.png",
+      "sha256": "dd4f62109dd76f99234f2edf0d92ad6f2751b8efd6fb899876ca407623a1b84a",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-profile-startup-middle.png",
+      "sha256": "cf322f2afd2a3662439be9f7d7368e2e60cc0d7c941fe28a60f1bd426fc70965",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-profile-startup.png",
+      "sha256": "eb6cf4f8aa379a48b408bfb5d2f5979c80113c8e529878de306f030c580a037d",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-profile-terminal-bottom.png",
+      "sha256": "45e93e50fc58bd4f60d1bff6bab002645f72914ae46d6157ea6dfd1551223f42",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-profile-terminal-middle.png",
+      "sha256": "6fe82c8c115e31b35f5f347afab02da07be1c79aa45491b45c2509515ab22a10",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-profile-terminal.png",
+      "sha256": "68f3c844af7e47c6c6eb4c3053be423b9feb40f5babc85436a63d44825eb0982",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-replay-options-bottom.png",
+      "sha256": "d9c2088a2b863943650e415af0f7cb38177c9a1678b4cfa661d39f16591a20ed",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-replay-options-middle.png",
+      "sha256": "53a33665afda591424a268b0e290bf1aabf831cd1da49560b64c5898f8e34ba9",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-replay-options.png",
+      "sha256": "9652eed1a0311f36e215e853aa4503fa84cd74e7c06c8dfed79fc8a156dcb337",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-replay.png",
+      "sha256": "ad197df30f179474c9b6b34329ea75bc951d3bd7b6913ee0abaf1f76fa61c0f5",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-sessions-disconnected-bottom.png",
+      "sha256": "261427dedf9c217a1ed3d636e7591ce71e843e9cd76d27d45132a320e8bed916",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-sessions-disconnected-middle.png",
+      "sha256": "021ae15b63fbe2043335bec1aad0fd6722d41bdec26e3a419dc0b8a019544efe",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-sessions-disconnected.png",
+      "sha256": "587999b2788f01002a3c6c9c352e2f81ea250f8863622c1dd64b4054475ac9ec",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-sessions.png",
+      "sha256": "904a91b41bc52e5c1067ec1a7a8dfa20657645133c423bf094a35ed285370e40",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-settings-appearance-bottom.png",
+      "sha256": "0e641ed2911ed4a7de0a548b255dd617e8400c7715e47081caf48a0d1063d7ea",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-settings-appearance-middle.png",
+      "sha256": "a663682a72d087a38b08bdcfbe869769bc65429765f14808c9193cab578f9351",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-settings-appearance.png",
+      "sha256": "6eb48e10fb816a70483d566970c8f125c29cd4e62dbb9c3b163b21e34e0b2e9f",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-settings-data.png",
+      "sha256": "bccf559a744646adf90e08a30331a8a41eda13d65446b6b5fb3dd1bd81ebd4e9",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-settings-general-bottom.png",
+      "sha256": "5422c322bbabfcdd0278f7ed97defcf05a09bcd6c22406a554b384d479e802c8",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-settings-general-middle.png",
+      "sha256": "6e4ad0e49d8979eb0dcb26b36ecdcd60a6e3d86e8e8b6093025512ff17a6bdf8",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-settings-general.png",
+      "sha256": "259da17172e628c424118160c10a33049fb198b93ca4e1da751121c90c9104bb",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-settings-security-bottom.png",
+      "sha256": "e43776cc79907648b76a199d86800711605bc0e2c824c7a2ca80f4b86c24d3da",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-settings-security-middle.png",
+      "sha256": "275f3cf47ae2c7700053bf3a3057c568f16e23fbc573365bb08d5041f9e28527",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-settings-security.png",
+      "sha256": "78ef9f3f755e53665e149012e43c1cf993fc38705bc9302ca897287eb98d01bd",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-settings-shortcuts-bottom.png",
+      "sha256": "0d0d6c76c481a654841145d5088f54734e51d7b20aab3ef1b98045fe162360af",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-settings-shortcuts-middle.png",
+      "sha256": "f61a2a0439613322b85c2f16d0f124f72ba7f1b2a5210719dd1d842d54ccfd26",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-settings-shortcuts.png",
+      "sha256": "aa415898fab810e95f6925ca98e7f0b4dc2e3163a14f1d4caa2c39f81640c88b",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-settings.png",
+      "sha256": "36b91157e5621443680c6311307f4295dcf5acb84ccc251eb30c14ebd5fab489",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-sftp-menu.png",
+      "sha256": "ad4f9828e5ea06145a34c51f7c459f5e573f8453b6a5d4379dafdb03699eecaf",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-sftp.png",
+      "sha256": "dd52f4d386864bd77be2d2d134345415b4221c8f1ebf1580600f1407765d8d78",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-shell-home.png",
+      "sha256": "c95660cc55aeb62397993d628ee667ba2e881a89b14e8c342e658847e19379b4",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-shell-menu.png",
+      "sha256": "eb11392dd2d59421cc04890e5be01952363e73a39195029eb15c40ad0d7ed0fd",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-shell-profiles.png",
+      "sha256": "2ba1d0a79517f42cddf0829d00b6ad87b355956897a2c5135e4bdb870de95fe8",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-shell-recordings.png",
+      "sha256": "fc941d8cc232acf1fbb193d631ec467ce3c2dde6475a01e1a0a49f50782f36bf",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-ssh-advanced-bottom.png",
+      "sha256": "2a7e8e4c69e1f2bb6c246a2e91d5c984e743700a28ac7b8f481d6e8b6315d120",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-ssh-advanced-middle.png",
+      "sha256": "7c43ee66aae290b4ed5fd661b3c50a58dbdf9f21da2edc04c07ba3f955091b2b",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-ssh-advanced.png",
+      "sha256": "63fb24c1667b59c17b1d10f946f9e1bd39312f74b2f0b8fdb014d16bf547db65",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-ssh-bottom.png",
+      "sha256": "b2c6d949e2bdc367fded52e6ba0979d9e15326868f494abdfc51b551cbfdeabb",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-ssh-middle.png",
+      "sha256": "73e96202f6f5e0bc41b74d3321af6fa4f8bf4b02b39531e6fad3103fd0d0871d",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-ssh.png",
+      "sha256": "95dbac7e01690455d870226891af72034c5e29c767a90fdb349dc301f0143d09",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-startup-failure.png",
+      "sha256": "aafe28b66e8ef98dc717614bb129a63408b7d00d838d1d977e8f563de91cbec8",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-landscape-startup-onboarding.png",
+      "sha256": "966e6bae5f05e3d7d9b167e7f90e1e99eb0c2b15fae0e063fddd59d220429226",
+      "pixels": [
+        1748,
+        804
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-ai-block-defaultState.png",
+      "sha256": "f9a6aa9ea1ce8c17a8e506ae2cb7a70e52c6d09743c01599f60647118c39ed9b",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-ai-block-error.png",
+      "sha256": "a2e18b3df9b827de18f3168334074d1d7f27e63ee5f0e1af06dd0466107c996c",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-ai-block-unknown.png",
+      "sha256": "995e84519e395d9677c003c407272638dbfdee2e9a0944eb8893112ba8df6d63",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-ai-composerShell-defaultState.png",
+      "sha256": "5d25405c8bd553fffdcda9adff60df0372486a0ce0f46832d64222dc2a3ce5a1",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-ai-composerShell-error.png",
+      "sha256": "2c019c3770421dfe44dbedf797a81953230b9a09270a36735ba51bb01ffc9eae",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-ai-composerShell-unknown.png",
+      "sha256": "d5f560f393340a3ac203303f30584ce4dd8aebb61e06536e41e9c66d73ff823f",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-ai-contextChip-defaultState.png",
+      "sha256": "3ba5c69f801489d3bcb8af0de97d003436d652c9daaae07e40afec3b5ec10ca1",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-ai-contextChip-error.png",
+      "sha256": "3ba5c69f801489d3bcb8af0de97d003436d652c9daaae07e40afec3b5ec10ca1",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-ai-contextChip-unknown.png",
+      "sha256": "3ba5c69f801489d3bcb8af0de97d003436d652c9daaae07e40afec3b5ec10ca1",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-ai-emptyError-defaultState.png",
+      "sha256": "18c05d3414bbbbf48897ff4e8907c7c684bc5f88fc158ac4c30beafce2d31bdf",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-ai-emptyError-error.png",
+      "sha256": "1debaee15334f202c6fb5fce61bff5e62447533cb56d8bc318f8f6d1a06cbe20",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-ai-emptyError-unknown.png",
+      "sha256": "43b0ce26d9fc0eba4f7bb7725edd90b46955b6140b0525b349cf3d248b005fdc",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-ai-proposalCard-defaultState.png",
+      "sha256": "1e77ab980700fec89f7c83c1c98b7cecd423c2289c24bf51f62927888bbea293",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-ai-proposalCard-error.png",
+      "sha256": "9792a556d64141d8edb643141e1d529345ac0612c46174e60eaa8a54e9326267",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-ai-proposalCard-unknown.png",
+      "sha256": "8168f97bf0f6675d80b3898f59663fe5608e4c7520128ce12caa56ab09acd0db",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-ai-readerHeader-defaultState.png",
+      "sha256": "a44a2fc91d6a2a7f3bd3c67a3c36ce8e51538e51095df7843b5fc9fd77105d00",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-ai-readerHeader-error.png",
+      "sha256": "36f1b7008c3df6e050379755c3fed7d201fedbfc4033a9f004abdfd192d90dbb",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-ai-readerHeader-unknown.png",
+      "sha256": "41494815ead430b40e1ace6875bdc615a5f981829448fb3224967daf71f4146f",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-ai-reviewPage-defaultState.png",
+      "sha256": "fb7eda916882401185e10125c35a8880f00e817c9f7bb1a908f077892e020606",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-ai-reviewPage-error.png",
+      "sha256": "4d0848981c9843438cf6f87a0efa58e5c80931e8514f4f47f690bbbd8aff38f3",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-ai-reviewPage-unknown.png",
+      "sha256": "103393156b531ef9d5067df4b0bdcb5fba617fff0df70d9895727215d9eb093a",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-ai-taskHeader-defaultState.png",
+      "sha256": "c925783c62892a0e2ec5ec003c1151018fa76c1896ac0f4033735e8d32d84de6",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-ai-taskHeader-error.png",
+      "sha256": "d20342c15c5d08680230c22c197378f6a00437ed5e86eb4e133bd8cac74f698b",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-ai-taskHeader-unknown.png",
+      "sha256": "51d33865016e279bee25664fdcb47a6dddaa5456dedece9d87ed64f9f5c7efa5",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-ai-taskStatus-defaultState.png",
+      "sha256": "8a226e11f4d01546723fc43e9449665afedf6b8b088cc3e7b9217d222461cb77",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-ai-taskStatus-error.png",
+      "sha256": "8f4f68ac5099938464ab3aa54c81bd1f645567fdb042c58ff4f1f054092d6127",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-ai-taskStatus-unknown.png",
+      "sha256": "474b25471410eea8992618cf0d74108b1985e88ebf86889105ea9dddaff58a36",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-aisettings-bottom.png",
+      "sha256": "12b516ed1fe0b233f8adf804eafa714e18bf1a84c46029e0925f8cb75e00574c",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-aisettings-middle.png",
+      "sha256": "9214d7f5319bc278bdef288966209c548951fe4140d269af9e329e1b88ed255e",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-aisettings.png",
+      "sha256": "4fee77d4334d4ab588b6186c514a9a178153ca06e2647a069deb16690ac90f55",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-authentication.png",
+      "sha256": "63b9553102cbe04f7c4db8fac34bf22099f5315fc037958aba06d567aec985cd",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-blocks.png",
+      "sha256": "aa88c7bc27c95398723314c1a083ce86ef6e2760cab7ef78983455b9c7609286",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-capabilities-bottom.png",
+      "sha256": "eb25e62cdf61fe5ab788163888a4b72468e2e2a9addc12a11cf5d838195e897c",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-capabilities-middle.png",
+      "sha256": "622f49f70161ba93093f40050832f89aabbdd43fd041b4d70da52d9fe141e742",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-capabilities.png",
+      "sha256": "1a4a8767ff37224fe41f17fcc729dd7e6132653f101cb1e6ef64864c028b103b",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-disconnected.png",
+      "sha256": "834ca39e6469f710a4de108a2b79d364cf7b32348735d04eb08ef863c9afa1c1",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-hostkey-changed.png",
+      "sha256": "f527f2df74495930ed2c1c8716f88758283c58597d3fbc45a66e95604f77436e",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-hostkey.png",
+      "sha256": "6df9eb34dcfa6a3c8d12c54d7225977db3efcaaa5dc46afff8c8f5217e6c445e",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-keyboard.png",
+      "sha256": "209a869a5b9d8fe88196e9f1c45d854ff3f8b20163c3332082c9a5c7c709a74f",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-masterkey.png",
+      "sha256": "d0f6ff2a4753f20f30c348f451b2b396415484fb72a341a2d6003812e743fc1a",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-notifications.png",
+      "sha256": "136fa7e706e7b6116192304bb022ad9dcde9fc994143644f98bed51c145850c9",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-profile-advanced.png",
+      "sha256": "4ca01b060b1413ee266ce4ca3f7ddb526df54e073ad85d0763a266d19b0a6186",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-profile-appearance-bottom.png",
+      "sha256": "9c95a6f3ec07a333459d8d1fed6253e48f0678192f9fdeff4c60c6945f1e9579",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-profile-appearance-middle.png",
+      "sha256": "8708bb904a59a03ff13c9bab0e8263178edf8f4927952a852bb9502994eab4df",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-profile-appearance.png",
+      "sha256": "047734dfd9726dbffd3d91cefe3b8304aa4e13f1691dbb726de70ac43788a34f",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-profile-automation-bottom.png",
+      "sha256": "0f07cd156919325ebdcfe31d8af74752864dee83cb240a67e2d5c9fd2acf0e21",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-profile-automation-middle.png",
+      "sha256": "1c06573dc516443a51b1489e704ffbb87479a9d6204116b60be96e0bf323a110",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-profile-automation.png",
+      "sha256": "118aedf0b36209953ab208d170114326f25415ed6d9864194b819562243a22f0",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-profile-general.png",
+      "sha256": "7aa87b36aa4c08faca80a2e4dc928070e5c1f1a0b64173f52aa1d4fd33bfa0a8",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-profile-keys.png",
+      "sha256": "1b5fcfa53ac20d22a2eb1e00e81654f008f8ac08fc8858eab594b2987b529707",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-profile-startup-bottom.png",
+      "sha256": "072dd65fccb76164911536e3adeeaab36662a1dbf2775765a36586564871ecaf",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-profile-startup-middle.png",
+      "sha256": "c3014edd226accc9e0d18f9548268136c1ece99a4e585d46e1d84c17a971a250",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-profile-startup.png",
+      "sha256": "aa7432b3422ad97fc2d5f73a5e98733196d605b91859000f49f806d769994b2d",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-profile-terminal.png",
+      "sha256": "8137b3acb499e8d32f6bf373623eb1ceb9331f83fc280ca3f7ab0d3efd823ad1",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-replay-options.png",
+      "sha256": "0d8945c419044faa2efa4bc8e55af57bd109ea2039756d01ee3db21ba6672ce9",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-replay.png",
+      "sha256": "09b1f6d38b3d73a27a98a57d8ec84b280ca808cbc0fc3a1d653a1f0ac4d97977",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-sessions-disconnected.png",
+      "sha256": "f9c2e99a81ee55e047aa3e63346992f1e7c45eec5331cfc31aa775deeea96d59",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-sessions.png",
+      "sha256": "3697942d36d9bf7ac569c5aa03189d576201845a34bdc9101c26ff58cce344ba",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-settings-appearance.png",
+      "sha256": "74b3516533bf69be89ef232657e41c1b49219784aa789b31a9ada3e612146a61",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-settings-data.png",
+      "sha256": "f1a04b78033f74e5b0314a732a2bab4a08b1cbe9ba74bccd3aa310fc6914246b",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-settings-general.png",
+      "sha256": "09527b076e5d9f1a435c21a5801aa39815fe57fe46b3f6a0171a422791500bda",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-settings-security-bottom.png",
+      "sha256": "62bbf28e0c5de8474f27cd1ee10d2f8dec82667fb7687b0759d35f39f9cafa76",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-settings-security-middle.png",
+      "sha256": "2b880d0786e73d95b037388413ffb88a211529c5536fa64151e63afd871f8fdd",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-settings-security.png",
+      "sha256": "943e3884b7f9cb46da01ea2d1b2d1cf2fa272c69224a8bae626aaa6d7f33725c",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-settings-shortcuts-bottom.png",
+      "sha256": "4eb26d9b5135b0a8112aaf6d294210bf8b345578387deaa534c8bb53b61fea40",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-settings-shortcuts-middle.png",
+      "sha256": "7096200e43ce31debc1a819f68ebf2cb5915bc7cf6233b26acaf99536882a899",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-settings-shortcuts.png",
+      "sha256": "e124c959768298ea26b012dfceae911e69c17494be24325e0d210a0f4464cf4d",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-settings.png",
+      "sha256": "b85cc7788f24106d4f46df267b247b482fffcf6050eed777ab8a0101653a4aed",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-sftp-menu.png",
+      "sha256": "6f7d699bba41fd5e93e376285df2b6d208880fd253fd968001f606dc941e8abf",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-sftp.png",
+      "sha256": "853b4f3d7d638267e977ec53f5591be4133fe63560b27b40a5eeaee80d36a0e2",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-shell-home.png",
+      "sha256": "65da9133a22d02ecd2ce1b47e5580cfb7c7c4ff840c30923c52e66b698192d68",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-shell-menu.png",
+      "sha256": "21decec06ad673d9bff5877edc370f503e4e24bf456da6229cc318019d312fdd",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-shell-profiles.png",
+      "sha256": "0737fe6f4ec89171855b3f8e524dc823e5bdc607a10e5e4961d730c7a24d0845",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-shell-recordings.png",
+      "sha256": "7ff24832e2c056f276da0683cd16153d9a6c59fc39c9289aff85a1c20b5bd0ce",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-ssh-advanced-bottom.png",
+      "sha256": "091774b82e7bd097a4fe1a10b42543417a1e701dc1d4c6af08c3b5cd8d221458",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-ssh-advanced-middle.png",
+      "sha256": "8cff83da3fe9c55ddff8bcde56ce2a8db9f697767ea706c201112e73287c8887",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-ssh-advanced.png",
+      "sha256": "49355a814a7b1a1fc3fb4e3531ab7633d831748b20fef5cc7111aa3194ba38b6",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-ssh.png",
+      "sha256": "2b0637f484659ccdb2dccc45c8ee77d40eca91d1ae5366ed919df37d6a3a83a3",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-startup-failure.png",
+      "sha256": "846a178594f11c4bc05c8d2a6ce178d59299d8bfb5c6ec5cf885304ef5b79bcd",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "iOS-light-portrait-startup-onboarding.png",
+      "sha256": "dc6f53b31077695f62e85a54255d5b84c8a7f43dabb7cf5258c9ed9918aef50a",
+      "pixels": [
+        804,
+        1748
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-ai-block-defaultState.png",
+      "sha256": "4cff832e881e63f43e75cffb6c283f62dbbc586281aec112d77da936adbf9451",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-ai-block-error.png",
+      "sha256": "f9b2b34e07ea4603edbcafc78c12874bdeacc135a5ea8cc9915ed080ac610eda",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-ai-block-unknown.png",
+      "sha256": "4dcf4cabf8c311de9f8148c6826f9925f2c9d0347431b9c325d8e51a1e6b306b",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-ai-composerShell-defaultState.png",
+      "sha256": "561519f13d4e2e4499525edd976dd61cfa7aa0fbbdd8592b6f45516e195f1203",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-ai-composerShell-error.png",
+      "sha256": "4915aed47dbe68e606d2ad4f5294d7d6424b40f19a5a72419919c3b34fdb91cc",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-ai-composerShell-unknown.png",
+      "sha256": "fd4f45f619fdd266e8967bc3a7d0225dbaaa1a200a7b38a33d4f1a29db46a08e",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-ai-contextChip-defaultState.png",
+      "sha256": "92b95d840f6c7fdc8d913b4e357de9223171ff0bf3c5b941daca668a1e12ca28",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-ai-contextChip-error.png",
+      "sha256": "92b95d840f6c7fdc8d913b4e357de9223171ff0bf3c5b941daca668a1e12ca28",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-ai-contextChip-unknown.png",
+      "sha256": "92b95d840f6c7fdc8d913b4e357de9223171ff0bf3c5b941daca668a1e12ca28",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-ai-emptyError-defaultState.png",
+      "sha256": "d2aab15d859d21cd30b095ff4c96fa051401a9fe6d94d2a4527bfa4b811d18b3",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-ai-emptyError-error.png",
+      "sha256": "623830299804fe27a29d83b51ed3dfdae792b6731232dda0125f59f82ecd46bf",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-ai-emptyError-unknown.png",
+      "sha256": "0f6874520134c1acf66117b577d20902df49846cf3f55e0425553df4b40203c3",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-ai-proposalCard-defaultState.png",
+      "sha256": "d18d02275188bbfe94d58db790f7b28c12e3a801083a9fdadb8463529c821ec8",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-ai-proposalCard-error.png",
+      "sha256": "9b3eb46b2d56b5c1b81118a99e40844b64320739091055e300df8a25ea110141",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-ai-proposalCard-unknown.png",
+      "sha256": "6c968fc7209664c74ff0eeb6f7f3ebc2e987f95f7e645da51e4ca10d8ad186d3",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-ai-readerHeader-defaultState.png",
+      "sha256": "5a95f0735ba549d30c0dbe9bc428dd95a05257af993c5f423625b8734b181c8a",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-ai-readerHeader-error.png",
+      "sha256": "1242f36fb0c4ddd9dfc41ebb4163cd4107c9bc0a6a8ce3bc0d9bd048bcc2ecdd",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-ai-readerHeader-unknown.png",
+      "sha256": "0c50228f0d7aae79a33331bf226bf1a8b546b7f19fa4e8fa0cb2ecd6a50e600e",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-ai-reviewPage-defaultState.png",
+      "sha256": "a681e6a2028ef4aba240f5e63fc59633bde9caba645637eaa05e6b6c34e03b47",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-ai-reviewPage-error.png",
+      "sha256": "6c707bc7e93740b12af5c717055cd94aec72910bebc67692feaf4b926f22ad78",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-ai-reviewPage-unknown.png",
+      "sha256": "86beaed199e42aac3b9c8b8895bc149210e48fd84b57769ed59c396131fffdb7",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-ai-taskHeader-defaultState.png",
+      "sha256": "e69d7e4fd0367c86ac4dce97ec599b98354a49877da81d88ccd92a6a1e30ebb2",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-ai-taskHeader-error.png",
+      "sha256": "51c86ff13d00ed2df7c39a4f472770e3600b93b97fbe6beea6b1d4032009fc19",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-ai-taskHeader-unknown.png",
+      "sha256": "ea4101e19c0941815b110c8c2d68254086604f4a3c29f686f2e1e61b546639cf",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-ai-taskStatus-defaultState.png",
+      "sha256": "ddc3502446634b7599a69a45c3a29d90e3d207d3a83db0979a6a9b7c86e2ca9c",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-ai-taskStatus-error.png",
+      "sha256": "d32da0a53cc88de1e074fa0c9a3d5471113e2487d037945f10dea6c68a1f5a87",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-ai-taskStatus-unknown.png",
+      "sha256": "1bf1a06e078bbb4f94dcd9a62b99da6f2fd5001233aa81ef6342083ec4990fea",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-aisettings.png",
+      "sha256": "8e8271e8c45bb7f2eb508ba6a3d27262b6505d96a3a3d6a12a87bae47dd76e02",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-authentication.png",
+      "sha256": "71f93781e367fa2e320c27358d118552d69ae36a9f7d14f8a01f952fd00de191",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-blocks.png",
+      "sha256": "ed2c0137b5539905328ba5662769a4159dd858b9e7b8c2aa5826118100c120f8",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-capabilities-bottom.png",
+      "sha256": "6ebbd79ebb7a5bcdecd483226e947e0c30779eda5495807562982d401be74469",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-capabilities-middle.png",
+      "sha256": "93a0283f274fb09dc6cf34e007d66c1e5f1dc9177e4e056905168e1912edd3df",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-capabilities.png",
+      "sha256": "789a912b67d8c6e421fb7e519cd87efdb98ac5458390590e93442c973c201340",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-disconnected.png",
+      "sha256": "c10b0811ec6a529244f7d570c814f5b269024b2d4520544a72f51b2015961f3d",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-hostkey-changed.png",
+      "sha256": "57f2e85fef50798a35ded2547cc0fd8af287e01505747a9cd9f4c8da8796b4f8",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-hostkey.png",
+      "sha256": "9214f069fcba273c80b5ed1982bc072a25e66608defa9cf42b0dc3cba311706f",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-keyboard.png",
+      "sha256": "f4bb842f23b214f91a8362dce6cb047e37ec2cb8d39639dd0b41feb8cde36d94",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-masterkey.png",
+      "sha256": "c8d9a4673d08a5cdb644c625d2ac1e026429529608b2d99fdf11ddc627b8d549",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-notifications.png",
+      "sha256": "6224bf12e73f36e5221179e7922017b9d7faaf320e7e8e9c9ce5cbf661cee4de",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-profile-advanced.png",
+      "sha256": "bd3e4f16e375454255c16040fcd55865463bf656bc82e4ee1729060f74b0bcef",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-profile-appearance-bottom.png",
+      "sha256": "dad9776fea3488cb041061c875fd42e79477ef1809abc9f196333a97584a9fbb",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-profile-appearance-middle.png",
+      "sha256": "6a9354592fc17a8191b8107d95d25fa2acfd3cc4141dffe635ee0270709e1532",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-profile-appearance.png",
+      "sha256": "4f44365047615c30727ccabb45eb51f36b255797bb9dbedb87cb2a9deef64e0d",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-profile-automation-bottom.png",
+      "sha256": "b19e5048148b7cbdfae366643bd4359d90cb9d98784c5f915a6afa3fb284eeb8",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-profile-automation-middle.png",
+      "sha256": "bf7e9fd81b9428aa6f7f00ec39aef87fa4cb4fd79ff63ca94d6007f85f513335",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-profile-automation.png",
+      "sha256": "b824d6fbc26c72cf1f80048efb791f35939bcf3ca27376ec79b7f4aa11f117b9",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-profile-general.png",
+      "sha256": "2d0c15a5abedaed88392340f6a2ed470cc6c6f8524d743c06191870e47e74ec8",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-profile-keys.png",
+      "sha256": "581dfed6215926f2ae84110a8dec81c48d498814f2a77b4798a2101b55280926",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-profile-startup-bottom.png",
+      "sha256": "82df2274305809858d695e56d244b2ec356967d44c8dc5493d1d53ab31a66dba",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-profile-startup-middle.png",
+      "sha256": "1502329680edb2f813baa290076753d2f32cf7c5b952804a8fc4e661a72cee1c",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-profile-startup.png",
+      "sha256": "befb6c24f4719384e4f279a0c0546a891cc38a18075ac9be94631a308b4131b5",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-profile-terminal.png",
+      "sha256": "2930ae30d8ffe8e8cfa72547e4f59fc87b58b1e3c29d849533a211c0c8f17b72",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-replay-options.png",
+      "sha256": "e223d7b66c1fdfa21e27092a8a52b9e5c8f319b444cdf7fd645c88be98d0af35",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-replay.png",
+      "sha256": "e93638fb5e93e8ddcaf58b30a1e4adc6636bef2071c852216dbb4c1b2d71f96d",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-sessions-disconnected.png",
+      "sha256": "546ec8d8abe6443a6a29900e584ab70d8d639a76ab0a845a2834732fa974df77",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-sessions.png",
+      "sha256": "a19e16c9eb8e7702e93abc700c9286cc279978ecc1e76462e6ef89770308da40",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-settings-appearance-bottom.png",
+      "sha256": "2b19817120fe64a6171ab735658e54ab492300c858f3a4dbcc958fc25a8465f5",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-settings-appearance-middle.png",
+      "sha256": "cc30ccd735f5c77132a9c775d48365cdcde0a804db1c4d057816f308d6114edc",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-settings-appearance.png",
+      "sha256": "f60095d3d2b14a34a298a496c15f08dfc017c6859d603febed7bc3a02a7d2e72",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-settings-bottom.png",
+      "sha256": "bf65458d7c01775c0c79f28063a5e2068caeb7c89bfb3a2472b7de548775b1a0",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-settings-data.png",
+      "sha256": "9314d9f5443f807dd3e7a2226c3c82ba90af0aa7968872ded228197c0095b061",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-settings-general-bottom.png",
+      "sha256": "9671e31f418d8c71cdc5cbcbd1ae89b7840504db5ef0f2ca045702db74c0bb3a",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-settings-general-middle.png",
+      "sha256": "cfc14036086d189b758a46c7931b681ca16103bb450677cf95ea96e7a7f06ced",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-settings-general.png",
+      "sha256": "b66d3752c5f8017e3ad2c2c09ba29d12eedee12d8231c96c7c9d109360d4f80a",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-settings-middle.png",
+      "sha256": "2c74490cc2d211ba54c3e468e8c7b9f2d4dcedf48e032b0094f733b62aca299a",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-settings-security-bottom.png",
+      "sha256": "6e1ce5df46974d477738747065f7a20356403f5c0d4e8abdaaeff8249311cc70",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-settings-security-middle.png",
+      "sha256": "d2620b35b8a924bb6bf93960d78fe96c7fbeec9873fe70d4935f1a21eeebcaa2",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-settings-security.png",
+      "sha256": "68ba7376402ba75313de6ea34155b6ea9581ca09f6c1cb07d954c1e9f3b7af56",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-settings-shortcuts-bottom.png",
+      "sha256": "24ab07cc8c204736d90c8d205e8e467e06eaf8b006f898c686d4be55351224a7",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-settings-shortcuts-middle.png",
+      "sha256": "e4610a194ff7e526a34135fa09c3dc95354b76ae4188eec8e0b04afc60faa436",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-settings-shortcuts.png",
+      "sha256": "b65a5ea7ee85a2c07525386f701a87ad707b2ba4656789c68df5426e4a99250e",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-settings.png",
+      "sha256": "667ee8e93cf1604bdad261c1d1526850b6df9bd90cbadeca01fec147b1ca3bb9",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-sftp-menu.png",
+      "sha256": "f72c5143731e03671d93ce7f0aa3020913d6cb421eb8b20ac4f4ebb946e1250d",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-sftp.png",
+      "sha256": "b96b0722e8ad430344605b4fc9345788c6bd98986b57378edea682a9f582870a",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-shell-home.png",
+      "sha256": "25808481cad6a4a90b38d2d09586a1ba970caf9f3414c0c22fee11a89dfe34af",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-shell-menu.png",
+      "sha256": "4554a885342a94afb02e36080f31b8cac3d89953b41794fbe416a70057920668",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-shell-profiles.png",
+      "sha256": "4d50d0993da7daef4ddff108528fea1f64f7593a23a56d189f8ecbafb9d3156b",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-shell-recordings.png",
+      "sha256": "33a212ca8a506f28e048167303e658e1ff7ce4c4ed0e3958323f570c0823f34d",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-ssh-advanced-bottom.png",
+      "sha256": "2a2ec8ea0bbfbc308ab6a49451f49229de326ad5a3180644a3bc199faa677965",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-ssh-advanced-middle.png",
+      "sha256": "dac4d96e20b3a0971cc461c471ae029ff826e4d837e046da462efdc4206eb20a",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-ssh-advanced.png",
+      "sha256": "7e7d9e87b81af97b404f4f32a140dd2ac94021f5a163b94852fd44d48f2312f4",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-ssh-bottom.png",
+      "sha256": "d056b24f70e6cf3e2b34a2ca42abd598d25638b09711c093ecba43afb190fc6d",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-ssh-middle.png",
+      "sha256": "9ef77dad66494a52a3eee2394f2bede6d85ec738973b7018f4864b487ff88306",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-ssh.png",
+      "sha256": "9adcce4828f5b3f8e52ffdc7438e5b6cfd500fba88576b817927834d2010c28a",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-startup-failure.png",
+      "sha256": "b0e08e996892d95b2de171f9b6e2b26b680adabc7665ffb53caf1e192c9cb37a",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-dark-portrait-startup-onboarding.png",
+      "sha256": "e57f3b0b0e689160a375e990d820781d9d4fbd69d47bde46565b5441775452e9",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-ai-block-defaultState.png",
+      "sha256": "8b1b85cf2d1bcbffe21b6c9e2303e28463644806a4e4f39d87251a58824f1d6d",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-ai-block-error.png",
+      "sha256": "a62bda50602e66dfba6463c8389566f16144443474f0dccbed55b57cd021abf0",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-ai-block-unknown.png",
+      "sha256": "7251036ba886bdf20a7ec5b457c502931565a80a4987d0c0015aa2e1dc82bb71",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-ai-composerShell-defaultState.png",
+      "sha256": "547075da525656c110fb4863c53b6a0e0960d272a416959e712a22404b4d7864",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-ai-composerShell-error.png",
+      "sha256": "7dfbb9e98f23a6ed6ce8f25cc1fa23816f5daaa1daafee2c5e2882361adf3f52",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-ai-composerShell-unknown.png",
+      "sha256": "6772c1e76dac0e7ace2dd15b215a4410d9328237d5cc5de955b152a822ae936e",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-ai-contextChip-defaultState.png",
+      "sha256": "c05fb77b0a7bd6df0cae4428269e9cc32bc1fb860c12ff019807175e53b571f3",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-ai-contextChip-error.png",
+      "sha256": "c05fb77b0a7bd6df0cae4428269e9cc32bc1fb860c12ff019807175e53b571f3",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-ai-contextChip-unknown.png",
+      "sha256": "c05fb77b0a7bd6df0cae4428269e9cc32bc1fb860c12ff019807175e53b571f3",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-ai-emptyError-defaultState.png",
+      "sha256": "ea63711ef8938417b8d0a799c6b95b298cd7b7f526c51e422cad3d224e8bdc51",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-ai-emptyError-error.png",
+      "sha256": "77d746c6f4161b791cc6ffc947db264d0b5d7c9bce112595f658398339463057",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-ai-emptyError-unknown.png",
+      "sha256": "23b2f92545bc19fd3056d802fe8ed73a2cff523d4dcdc193b6ae4349e24069d0",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-ai-proposalCard-defaultState.png",
+      "sha256": "44e3459c2a5bfe2a7079f31b404fdb580107b6a1ccc652d00326db284c3c9c09",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-ai-proposalCard-error.png",
+      "sha256": "3cfe790e057ba514f69b4b5bfd0e696cb277dd860e8a5d7dd4e7b5a7bd844dc0",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-ai-proposalCard-unknown.png",
+      "sha256": "4f2f6fdff951234b886c091728859b91ccc66f29958b0752b96c44f735d108c5",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-ai-readerHeader-defaultState.png",
+      "sha256": "ec961118e5bc48a4691f5b85224c0abd931ae039b4b370d11a4dbe26bfee3639",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-ai-readerHeader-error.png",
+      "sha256": "7205f7a8761738cb4307e00a2abf3046e4ddae8ac579a6e8ccb6d1121dcabf1f",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-ai-readerHeader-unknown.png",
+      "sha256": "4ad556768577227190a30d358d9a5d8f41d943242819e1dd0c5aab769d428d88",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-ai-reviewPage-defaultState.png",
+      "sha256": "d4f58b917616905124f5a5c3f2f5049b6311b51acaa30811fed0ab30f4fa5d8d",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-ai-reviewPage-error.png",
+      "sha256": "ce9f01df51b7bc5200831ad54a92132a790045f05f2cb8e949f21c14cb2d7dfc",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-ai-reviewPage-unknown.png",
+      "sha256": "f2368968094525621a5cdfbd7b7fae15c08c5b2a645e52f3e20c8ff56ee53f92",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-ai-taskHeader-defaultState.png",
+      "sha256": "6ee756b2fe73ecc8688ce88a06cdc4ca9e9861cd0cf64ae20be6e76ece77d9e6",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-ai-taskHeader-error.png",
+      "sha256": "57c12d2da09c7b9d4d56a9d035c2d4531b97fd3ef9de56326adc82d89167887e",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-ai-taskHeader-unknown.png",
+      "sha256": "64cece5eb2c1a83d12b1385a2f4f55b87cccdc31d12e7016a7d5e603c3770576",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-ai-taskStatus-defaultState.png",
+      "sha256": "daefaab872bea5775662cc680f433f5cff2c698ca1c3b7c447a7a74c7b0e1464",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-ai-taskStatus-error.png",
+      "sha256": "8d5280d741091e8ff09513a0772afd5c0d6bc537a0aa32a308afa9c3a40d7c00",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-ai-taskStatus-unknown.png",
+      "sha256": "5e6ffa0bb5862266d75661868074d46a3116866f13a14ae5bad661b2fefc8107",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-aisettings.png",
+      "sha256": "62dbf2603d3269973f4c4470d1c9c08b3f41fbf2d6bbd65cefb0e10915458cc5",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-authentication.png",
+      "sha256": "e77299b9af6694982d327d36003d6ac05c8f6af54edb01a71cef082d65a5a962",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-blocks.png",
+      "sha256": "c362097a3c0e9e405737fcb99195435a6918edf3a824d359d2eba855e7676c9b",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-capabilities-bottom.png",
+      "sha256": "bbbf5b7af772c80030d3b8fa477e004298bbbbfa74e2f7fb60efcde293f6f11d",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-capabilities-middle.png",
+      "sha256": "f5e095dfcd22a2ad52a3e54b0104c42d88df8d5bed19a2975eae3be139832827",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-capabilities.png",
+      "sha256": "2c689251e9b0ec1d4befe27fbebb51031834bcbcf6881da3ea5775c285eda407",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-disconnected.png",
+      "sha256": "e321b81cc2cd7c5be55e67c775b266aa66d5d2fda09237ed7f559dea64fb58e5",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-hostkey-changed.png",
+      "sha256": "fe15a7bbeb14d2cf4bb175c2ccd272a2225f8fa02fd9663e89c0dd6bb5416a8c",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-hostkey.png",
+      "sha256": "50c90b49cc37784b18c094fce91bdf2a02808c1314e206b6b327dfa3dbc918ff",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-keyboard.png",
+      "sha256": "5e851c54d770c726a24d856109ac17c1c8815c1f1cae3d0cd187c0637a85159e",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-masterkey.png",
+      "sha256": "0db1d5762daebcd493675db9eb9526e4aa6d5644d22a52a826ebf077a045e152",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-notifications.png",
+      "sha256": "9f08ad3ed71f5f0f1ad7229bae2c34b3edfb960e9b6feecf90f150bdae394ea3",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-profile-advanced.png",
+      "sha256": "de3d136194343aac8612d7bece8d18bf5cb1f8dd4f0db5642064840081930065",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-profile-appearance-bottom.png",
+      "sha256": "01531bdf73b81a5e041f2db62b114a7a83a9f218eb7f227faa9aa51a413977a8",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-profile-appearance-middle.png",
+      "sha256": "12e7034d26b876a485bfbc1e983707f56aa78b44a6dda7b7c538c73825a2a10c",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-profile-appearance.png",
+      "sha256": "d1ff0192c6f2703f7931a40658a1ff258598f3b7b334c611cedecf4e732d908a",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-profile-automation-bottom.png",
+      "sha256": "cfadbd435c19f9de078467b0870f7e315471f5cd43271fdfb4f66af8d7397cb9",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-profile-automation-middle.png",
+      "sha256": "cff081ac3b0a284c85f9a2efb3186c6b0fc6122fd3411a81952ec4e102050754",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-profile-automation.png",
+      "sha256": "7660ee225198f1c87d846fb5d21f186c02a6b4c04455566b35e39882f7ee6735",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-profile-general.png",
+      "sha256": "9f6a953e727503adca62889026e7b6f54b8cc747eca24a8a47282b625b279c0b",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-profile-keys.png",
+      "sha256": "9c8cbcbd0346cadba706da05c5f71830f140b49d024bbab1bb56b8e8284c6bdc",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-profile-startup-bottom.png",
+      "sha256": "3693e2831fa764255f3dc7c39cac529f56769f02c6f9889805b03668632629e9",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-profile-startup-middle.png",
+      "sha256": "51a14bbbeff0279d71682763f306acf0c9e362a1a5a1c953317a0a9e4c48c230",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-profile-startup.png",
+      "sha256": "142cfc3384cdb94208c44dd2e7bf774f49a1881b6df724eb5e3c269cdd3e3da8",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-profile-terminal.png",
+      "sha256": "f5c23d07a2009c0b27a937b9bd3292c9fffab6e1ac60ae22c51b5f97f3b7b3f4",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-replay-options.png",
+      "sha256": "b46a257be694bce19cf69f9a196fec5f1a79b7e68791a92f2e2a0137bd1c8e7c",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-replay.png",
+      "sha256": "47b2686cc0226d990415775dbf3346db596d9cb7b7ba2d53e411844acf8b890f",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-sessions-disconnected.png",
+      "sha256": "413908096ac3a65f42e8846c087ae69b9dd112adaaac157fb70d4a6da85637a3",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-sessions.png",
+      "sha256": "1c9a64ae97b6cc393488a4279cd20503a7d5f7d476a4a7da3c47d065871dabcb",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-settings-appearance-bottom.png",
+      "sha256": "960fbb885e6113c35e17bc923238de82ba3da58da519f6bcc14164ddc1edefa7",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-settings-appearance-middle.png",
+      "sha256": "e3b5315a04d08f91c22c9d806e6abfbd516bcfaec6466059313b7a1937c9bc30",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-settings-appearance.png",
+      "sha256": "aa009ffd03c4fae25020ff54dca576173d0609deaf3b07cff13f9478944bf9a1",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-settings-bottom.png",
+      "sha256": "0596e741fd9eff8005d12d1695ba4ec7ef5d9d3e5649c71125f04588785ad490",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-settings-data.png",
+      "sha256": "b5cfd086ca090af3a74d94a33b2e1094a1cb7ba64141dbebf8a8f69148c9cd07",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-settings-general-bottom.png",
+      "sha256": "fbde4fc67238bb0a81feb9ecdf0b8ce53577c68c7786716fdece9b653138d1ae",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-settings-general-middle.png",
+      "sha256": "aba27a15650b77e1aa829322e9a59b2ce3948b9c1f367b3db481a28f8576fff1",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-settings-general.png",
+      "sha256": "4f8c2e441c604b5bcb0d382dfd0b3baed6eb082455b0676d0371eab2e7b4a829",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-settings-middle.png",
+      "sha256": "9f75ea70bf85a115ad10b02a3fdff7c7e01a0742cf0acac3ee3cb0f8e49239d9",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-settings-security-bottom.png",
+      "sha256": "edc9c556fe9dcc3be33fa512cf188aba620d9f2bae53cbafbe2f3cf69e059fd0",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-settings-security-middle.png",
+      "sha256": "eb31714a7270c499fcfc9e7a1ee24f90ed7b8778e3acb5ef73acbbe248ba10eb",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-settings-security.png",
+      "sha256": "80bb6769eaaa85f2f519d2c56ee8f57edec879c2fdfd78984eac6a3b6eb259f6",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-settings-shortcuts-bottom.png",
+      "sha256": "191bcb1b15c99174a804e59b5c3f8be229778c2e64edce116ca5784c777abea7",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-settings-shortcuts-middle.png",
+      "sha256": "9620a8d21398a8ce77bf87e2f92c2147a169e1829390a486cefd40d94c0f17e4",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-settings-shortcuts.png",
+      "sha256": "9f838fd618e904cf32fa2ed56c86fbbc3307fc21116a1ef0eacf3d82dc1d395b",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-settings.png",
+      "sha256": "1e203e5640c237b47d54d3c8fb1b90fec5bada8ba6cc97a15e10ebeb56ee07c1",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-sftp-menu.png",
+      "sha256": "322d1eae3a2280c5bdffb0f6507f66b2bf4df548cac2f8f0664d2d6446e50c1d",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-sftp.png",
+      "sha256": "fcd1e20d0c44637880894cd92abcc8f1b771b7696c85e40ca0e6702cbc75de6e",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-shell-home.png",
+      "sha256": "07a04bb4a6e00e38ade4324532098d8bdb3ed803a3e30414375ebb616662766e",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-shell-menu.png",
+      "sha256": "68f22d59b9a8b4031f6ab5cad3a826f4d3dad9aab29342bcc8d5ea56eaea0240",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-shell-profiles.png",
+      "sha256": "829f222bc0a03c20f81c86706043eb596d45b98006593f5811784d178396fe2d",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-shell-recordings.png",
+      "sha256": "497aefd8382310e034d3d135a8e99732d3251264b8c78dbbb1f3f26846ea9585",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-ssh-advanced-bottom.png",
+      "sha256": "f1e7c477a499cc97986dd240bac6ff71ced54fda50cbd093281cba91d5041278",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-ssh-advanced-middle.png",
+      "sha256": "1b5e64ac9f7e04fa896e37f5e7c44e289d2bcf30df7d0837d195eb7b012a6383",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-ssh-advanced.png",
+      "sha256": "e516e0b1a831392bc3817271bf558eb46f193cb1c81326822673486bd5e400f8",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-ssh-bottom.png",
+      "sha256": "19b40c63ab13b022cae15a5d584e43c13edb82371865e4ecf4243a3b7b9704c2",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-ssh-middle.png",
+      "sha256": "cf5cb8ecf399b25578a37f7ee9175397a2cc96d71d32230ead8db8dfd3097549",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-ssh.png",
+      "sha256": "2cb1558bd8854e0548a2b7e08999aad4f84ed5f8a232f3a8a08d397a60d011ae",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-startup-failure.png",
+      "sha256": "01e0c7d4867720dd7fb2614b843024c3ae76449e243cbd6dc7b5d4554e2aaef6",
+      "pixels": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "name": "macOS-light-portrait-startup-onboarding.png",
+      "sha256": "5fdf7347e6cd26df6e9b286fe95633f199c26b93e09f7475094d80c884972731",
+      "pixels": [
+        2560,
+        1800
+      ]
+    }
+  ]
+}

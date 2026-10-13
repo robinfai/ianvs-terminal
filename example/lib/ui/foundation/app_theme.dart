@@ -29,7 +29,17 @@ ThemeData buildIanvsTerminalTheme(
         ? IanvsTouchVisualDensity.compact
         : IanvsTouchVisualDensity.standard,
   );
-  final shared = highContrast ? withAppHighContrast(base) : base;
+  // Focused Reading keeps mobile page headings and secondary labels quiet.
+  // Body/input metrics and desktop typography retain the shared defaults.
+  final reading = touch
+      ? base.copyWith(
+          textTheme: base.textTheme.copyWith(
+            titleMedium: base.textTheme.titleMedium?.copyWith(fontSize: 16),
+            labelSmall: base.textTheme.labelSmall?.copyWith(fontSize: 12),
+          ),
+        )
+      : base;
+  final shared = highContrast ? withAppHighContrast(reading) : reading;
   final design = shared.extension<IanvsTokens>()!;
   // The legacy names are an adapter for terminal/business surfaces. General
   // colors, spacing and control metrics all come from the shared design system.
@@ -110,18 +120,62 @@ ThemeData buildIanvsTerminalTheme(
       ),
     ),
   );
-  final composer = ComposerTheme.fromTheme(shared, highContrast: highContrast)
-      .copyWith(
-        // Unfilled marks and cursors need a foreground accent, including on
-        // selected blocks. Keep the filled primary action's paired colors.
-        accent: design.focus,
-        readerTopInset: resolvedPlatform == TargetPlatform.macOS
-            ? appWindowTitleBarHeight
-            : 0,
-      );
+  final mobileOutline = OutlineInputBorder(
+    borderRadius: BorderRadius.circular(12),
+    borderSide: BorderSide(
+      color: highContrast ? design.border : design.separator,
+      width: highContrast ? 1.5 : 1,
+    ),
+  );
+  final mobileInput = input.copyWith(
+    border: mobileOutline,
+    enabledBorder: mobileOutline,
+    focusedBorder: mobileOutline.copyWith(
+      borderSide: BorderSide(
+        color: design.focus,
+        width: highContrast ? 2 : 1.5,
+      ),
+    ),
+    errorBorder: mobileOutline.copyWith(
+      borderSide: BorderSide(color: design.danger),
+    ),
+    focusedErrorBorder: mobileOutline.copyWith(
+      borderSide: BorderSide(color: design.danger, width: 2),
+    ),
+    disabledBorder: mobileOutline,
+  );
+  final baseComposer = ComposerTheme.fromTheme(
+    shared,
+    highContrast: highContrast,
+  );
+  final composer = baseComposer.copyWith(
+    // Blue belongs to actions and focus, not to all command text/borders.
+    foreground: design.text,
+    muted: highContrast ? design.text : design.muted,
+    border: highContrast ? design.border : design.separator,
+    divider: highContrast ? design.border : design.separator,
+    commandStyle: baseComposer.commandStyle.copyWith(color: design.text),
+    resultStyle: baseComposer.resultStyle.copyWith(color: design.text),
+    contextStyle: baseComposer.contextStyle.copyWith(color: design.muted),
+    metadataStyle: baseComposer.metadataStyle.copyWith(
+      color: design.muted,
+      fontSize: touch ? 12 : null,
+    ),
+    actionStyle: baseComposer.actionStyle.copyWith(
+      color: design.text,
+      fontSize: touch ? 13 : null,
+    ),
+    statusStyle: baseComposer.statusStyle.copyWith(color: design.muted),
+    // Unfilled marks and cursors need a foreground accent, including on
+    // selected blocks. Keep the filled primary action's paired colors.
+    accent: design.focus,
+    readerTopInset: resolvedPlatform == TargetPlatform.macOS
+        ? appWindowTitleBarHeight
+        : 0,
+  );
   return shared.copyWith(
     pageTransitionsTheme: const AppPageTransitionsTheme(),
-    inputDecorationTheme: touch ? input : desktopInput,
+    inputDecorationTheme: touch ? mobileInput : desktopInput,
     filledButtonTheme: FilledButtonThemeData(
       style: shared.filledButtonTheme.style?.copyWith(
         overlayColor: FilledButton.styleFrom(
@@ -129,16 +183,14 @@ ThemeData buildIanvsTerminalTheme(
         ).overlayColor,
       ),
     ),
-    dropdownMenuTheme: touch
-        ? shared.dropdownMenuTheme
-        : shared.dropdownMenuTheme.copyWith(
-            inputDecorationTheme: desktopInput.copyWith(
-              suffixIconConstraints: shared
-                  .dropdownMenuTheme
-                  .inputDecorationTheme
-                  ?.suffixIconConstraints,
-            ),
-          ),
+    dropdownMenuTheme: shared.dropdownMenuTheme.copyWith(
+      inputDecorationTheme: (touch ? mobileInput : desktopInput).copyWith(
+        suffixIconConstraints: shared
+            .dropdownMenuTheme
+            .inputDecorationTheme
+            ?.suffixIconConstraints,
+      ),
+    ),
     extensions: [...shared.extensions.values, terminal, composer],
   );
 }

@@ -1,0 +1,57 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/app_surface_visual_capture_test.dart
+00:00 +0: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/composer_visual_capture_test.dart: (setUpAll)
+00:00 +0: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/app_surface_visual_capture_test.dart: (setUpAll)
+00:00 +0: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/composer_visual_capture_test.dart: Composer dark completion
+00:00 +1: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/app_surface_visual_capture_test.dart: captures the desktop shell (variant: TargetPlatform.macOS)
+00:00 +2: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/app_surface_visual_capture_test.dart: captures the desktop shell (variant: TargetPlatform.macOS)
+00:00 +3: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/profile_tab_visual_capture_test.dart: captures General profile tab
+00:00 +4: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/profile_tab_visual_capture_test.dart: captures General profile tab
+00:00 +5: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/settings_tab_visual_capture_test.dart: captures compact desktop shortcut menu light
+00:01 +6: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/settings_tab_visual_capture_test.dart: captures compact desktop shortcut menu light
+00:01 +7: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/settings_tab_visual_capture_test.dart: captures compact desktop shortcut menu light
+00:01 +8: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/settings_tab_visual_capture_test.dart: captures compact desktop shortcut menu light
+00:01 +9: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/settings_tab_visual_capture_test.dart: captures compact desktop shortcut menu light
+00:01 +10: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/settings_tab_visual_capture_test.dart: captures compact desktop shortcut menu light
+00:01 +11: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/settings_tab_visual_capture_test.dart: captures compact desktop shortcut menu light
+00:01 +12: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/settings_tab_visual_capture_test.dart: captures compact desktop shortcut menu light
+00:01 +13: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/settings_tab_visual_capture_test.dart: captures compact desktop shortcut menu light
+00:01 +14: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/settings_tab_visual_capture_test.dart: captures compact desktop shortcut menu light
+00:01 +15: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/terminal_layout_visual_capture_test.dart: four panes in dark (variant: TargetPlatform.macOS)
+00:01 +16: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/terminal_layout_visual_capture_test.dart: four panes in dark (variant: TargetPlatform.macOS)
+00:01 +17: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/terminal_layout_visual_capture_test.dart: four panes in dark (variant: TargetPlatform.macOS)
+00:01 +18: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/terminal_layout_visual_capture_test.dart: four panes in dark (variant: TargetPlatform.macOS)
+00:01 +19: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/terminal_layout_visual_capture_test.dart: four panes in dark (variant: TargetPlatform.macOS)
+00:01 +20: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/terminal_layout_visual_capture_test.dart: four panes in dark (variant: TargetPlatform.macOS)
+00:01 +21: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/terminal_layout_visual_capture_test.dart: four panes in dark (variant: TargetPlatform.macOS)
+00:01 +22: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/terminal_layout_visual_capture_test.dart: four panes in dark (variant: TargetPlatform.macOS)
+00:02 +23: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/terminal_layout_visual_capture_test.dart: four panes in dark (variant: TargetPlatform.macOS)
+00:02 +24: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/terminal_layout_visual_capture_test.dart: four panes in dark (variant: TargetPlatform.macOS)
+00:02 +25: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/terminal_layout_visual_capture_test.dart: four panes in dark (variant: TargetPlatform.macOS)
+00:02 +26: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/terminal_layout_visual_capture_test.dart: four panes in dark (variant: TargetPlatform.macOS)
+00:02 +27: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/terminal_layout_visual_capture_test.dart: four panes in dark (variant: TargetPlatform.macOS)
+00:02 +28: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/terminal_layout_visual_capture_test.dart: four panes in dark (variant: TargetPlatform.macOS)
+00:02 +29: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/terminal_layout_visual_capture_test.dart: four panes in dark (variant: TargetPlatform.macOS)
+00:02 +30: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/profile_tab_visual_capture_test.dart: captures Keys profile tab
+00:02 +31: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/profile_tab_visual_capture_test.dart: captures Keys profile tab
+00:02 +32: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/profile_tab_visual_capture_test.dart: captures Keys profile tab
+00:02 +33: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/terminal_layout_visual_capture_test.dart: four panes in light (variant: TargetPlatform.macOS)
+00:02 +34: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/terminal_layout_visual_capture_test.dart: four panes in light (variant: TargetPlatform.macOS)
+00:02 +35: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/terminal_layout_visual_capture_test.dart: four panes in light (variant: TargetPlatform.macOS)
+00:02 +36: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/terminal_layout_visual_capture_test.dart: four panes in light (variant: TargetPlatform.macOS)
+00:02 +37: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/terminal_layout_visual_capture_test.dart: four panes in light (variant: TargetPlatform.macOS)
+00:02 +38: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/terminal_layout_visual_capture_test.dart: four panes in light (variant: TargetPlatform.macOS)
+00:02 +39: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/profile_tab_visual_capture_test.dart: captures Advanced profile tab
+00:02 +40: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/profile_tab_visual_capture_test.dart: captures Advanced profile tab
+00:02 +41: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/settings_tab_visual_capture_test.dart: captures Keyboard shortcuts settings tab
+00:02 +42: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/terminal_layout_visual_capture_test.dart: narrow panes with long titles and enlarged text (variant: TargetPlatform.macOS)
+00:03 +43: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/terminal_layout_visual_capture_test.dart: narrow panes with long titles and enlarged text (variant: TargetPlatform.macOS)
+00:03 +44: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/terminal_layout_visual_capture_test.dart: narrow panes with long titles and enlarged text (variant: TargetPlatform.macOS)
+00:03 +45: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/terminal_layout_visual_capture_test.dart: narrow panes with long titles and enlarged text (variant: TargetPlatform.macOS)
+00:03 +46: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/terminal_layout_visual_capture_test.dart: narrow panes with long titles and enlarged text (variant: TargetPlatform.macOS)
+00:03 +47: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/settings_tab_visual_capture_test.dart: captures Data service settings tab
+00:03 +48: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/profile_tab_visual_capture_test.dart: captures compact scaled Startup profile layout
+00:03 +49: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/settings_tab_visual_capture_test.dart: captures dark Appearance settings tab
+00:03 +50: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/settings_tab_visual_capture_test.dart: captures compact scaled settings layout
+00:03 +51: /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/settings_tab_visual_capture_test.dart: (tearDownAll)
+00:03 +51: All tests passed!

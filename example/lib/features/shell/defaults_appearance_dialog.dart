@@ -1045,6 +1045,7 @@ class _DefaultsAndAppearanceDialogState
                           children: [
                             if (widget.localSessionsEnabled)
                               SwitchListTile.adaptive(
+                                activeTrackColor: theme.accent,
                                 key: const Key('defaults-ssh-wrapper'),
                                 title: Text(context.l10n.sshWrapper),
                                 subtitle: Text(
@@ -1055,6 +1056,7 @@ class _DefaultsAndAppearanceDialogState
                                     setState(() => _selectedSshWrapper = value),
                               ),
                             SwitchListTile.adaptive(
+                              activeTrackColor: theme.accent,
                               key: const Key('defaults-ssh-auto-inject'),
                               title: Text(context.l10n.sshAutoInject),
                               subtitle: Text(

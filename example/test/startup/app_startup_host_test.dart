@@ -12,6 +12,7 @@ import 'package:app/platform/app_shutdown_coordinator.dart';
 import 'package:app/startup/app_startup_coordinator.dart';
 import 'package:app/startup/app_startup_host.dart';
 import 'package:app/startup/app_startup_models.dart';
+import 'package:app/ui/app_ui.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -19,7 +20,77 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
 
+import '../design/ui_review_capture.dart';
+import '../design/visual_capture_fonts.dart';
+
 void main() {
+  if (uiReviewEvidenceDirectory.isNotEmpty) {
+    setUpAll(loadVisualCaptureFonts);
+    for (final platform in [TargetPlatform.iOS, TargetPlatform.macOS]) {
+      for (final brightness in Brightness.values) {
+        for (final landscape in [false, true]) {
+          if (platform == TargetPlatform.macOS && landscape) continue;
+          for (final scene in ['onboarding', 'failure']) {
+            testWidgets(
+              'UI review startup ${platform.name} ${brightness.name} $landscape $scene',
+              (tester) async {
+                tester.view.devicePixelRatio = 1;
+                tester.view.physicalSize = platform == TargetPlatform.macOS
+                    ? const Size(1280, 900)
+                    : landscape
+                    ? const Size(874, 402)
+                    : const Size(402, 874);
+                addTearDown(tester.view.reset);
+                final harness = _HostHarness.create(
+                  initialSetupRequirement: scene == 'onboarding'
+                      ? AppStartupDataSetupRequirement.optional
+                      : null,
+                  failingStage: scene == 'failure'
+                      ? AppStartupStage.paths
+                      : null,
+                );
+                addTearDown(() => _disposeHarness(tester, harness));
+                await harness.coordinator.start();
+                await tester.pumpWidget(harness.host());
+                await tester.pump();
+                // The actual startup page is retained, with deterministic fonts
+                // supplied only by this host capture wrapper.
+                final app = tester.widget<MaterialApp>(
+                  find.byType(MaterialApp),
+                );
+                final boundary = GlobalKey();
+                await tester.pumpWidget(
+                  RepaintBoundary(
+                    key: boundary,
+                    child: MaterialApp(
+                      debugShowCheckedModeBanner: false,
+                      locale: const Locale('zh'),
+                      localizationsDelegates:
+                          AppLocalizations.localizationsDelegates,
+                      supportedLocales: AppLocalizations.supportedLocales,
+                      theme: withVisualCaptureFonts(
+                        buildIanvsTerminalTheme(brightness, platform: platform),
+                      ),
+                      home: app.home,
+                    ),
+                  ),
+                );
+                await tester.pumpAndSettle();
+                expect(tester.takeException(), isNull);
+                await captureUiReview(
+                  tester,
+                  boundary,
+                  '${platform.name}-${brightness.name}-${landscape ? 'landscape' : 'portrait'}-startup-$scene',
+                );
+              },
+              variant: TargetPlatformVariant.only(platform),
+            );
+          }
+        }
+      }
+    }
+  }
+
   testWidgets('ancestor GlobalKey reparent keeps the Ready graph alive', (
     tester,
   ) async {

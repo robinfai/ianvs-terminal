@@ -556,8 +556,8 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
                   child: Padding(
                     padding: EdgeInsets.symmetric(
                       horizontal: ComposerTheme.inset,
-                      vertical: short && _touchCompact
-                          ? 6
+                      vertical: _touchCompact
+                          ? (short ? 6 : 8)
                           : ComposerTheme.inset,
                     ),
                     child: Column(
@@ -566,7 +566,9 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
                       children: [
                         if (!(short && _touchCompact)) ...[
                           _context(tokens, compact: compact),
-                          SizedBox(height: short ? 8 : 12),
+                          SizedBox(
+                            height: _touchCompact ? 4 : (short ? 8 : 12),
+                          ),
                         ],
                         if (inlineEditor)
                           Row(
@@ -586,7 +588,9 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
                             )
                           else
                             editor,
-                          SizedBox(height: short ? 6 : 12),
+                          SizedBox(
+                            height: short ? 6 : (_touchCompact ? 8 : 12),
+                          ),
                           _actions(tokens, compact: compact, short: short),
                         ],
                         if (!_disabled && model.executionStatus.isNotEmpty)

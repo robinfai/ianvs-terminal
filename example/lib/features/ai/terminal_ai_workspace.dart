@@ -987,13 +987,13 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     };
     return Container(
       key: ValueKey('ai-proposal-${entry.id}'),
-      margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         border: Border.all(
           color: active ? palette.accent : palette.borderStrong,
         ),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
