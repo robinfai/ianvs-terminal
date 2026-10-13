@@ -6,12 +6,15 @@
   "mode": "release",
   "signed_build": "passed",
   "codesign_verify_deep_strict": "passed outside sandbox",
-  "installation": "pending; devicectl reports physical iPhone unavailable",
-  "existing_installed_source": "8f62e716c1b6a0bce412a81e002d72954fde4ecd",
-  "verified_at": "2026-10-13T06:28:09.352526+00:00",
+  "installation": "passed; devicectl in-place installation",
+  "verified_at": "2026-10-13T06:30:12.465653+00:00",
   "sha256": {
     "Runner": "ed456dc55cac99280aa11580b76d61f234ec467575a9053210bd4226f33535c4",
     "Frameworks/App.framework/App": "47557115bc5e9e2836e4f8335330c5c65f4b4da51f4b0d68718b8f019186b98e",
     "Info.plist": "401ec2e06dd6aad043b973d3750e7d8acfb1b4a4f0c541848ac28704d8dfe50b"
-  }
+  },
+  "source_commit": "a265785ff8ec36f04b5391eedb4c621e5d5ce153",
+  "launch": "passed; normal connection list with both existing connections, no onboarding",
+  "phone_screenshot": "local only, contains saved connection identifiers",
+  "physical_ui_matrix_retested": false
 }

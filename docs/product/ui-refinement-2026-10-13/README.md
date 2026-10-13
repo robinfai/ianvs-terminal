@@ -162,6 +162,7 @@ are in the same scoped evidence directory. Native and host evidence are kept
 separate. The remaining rows above still prevent declaring all-app completion.
 
 Latest production Release rebuild and strict signature verification passed.
-The next in-place phone installation is pending: CoreDevice reports the physical
-iPhone unavailable. The last successful phone installation remains `8f62e716`;
-[build/install status](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/latest-build-installation.json) records this distinction. Documentation/archive contract: 20 passed.
+After reconnecting the phone, source `a265785f` was installed in place and
+launched successfully with both saved connections and no onboarding. No new
+physical UI matrix is claimed. The launch screenshot remains local because it
+contains connection identifiers. [Build/install status](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/latest-build-installation.json) records this distinction. Documentation/archive contract: 20 passed.
