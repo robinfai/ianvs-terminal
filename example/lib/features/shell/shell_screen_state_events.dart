@@ -1495,6 +1495,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       animationStyle: appDialogAnimation(context),
       builder: (context) {
         return AlertDialog(
+          scrollable: true,
           title: Text(promptTitle),
           content: _buildOsc52PromptContent(request),
           actions: [
@@ -2108,7 +2109,7 @@ class _Osc52PromptDetail extends StatelessWidget {
       label: '$label: $value',
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: colorScheme.secondaryContainer.withValues(alpha: 0.44),
+          color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.44),
           borderRadius: BorderRadius.circular(6),
           border: Border.all(
             color: colorScheme.outlineVariant.withValues(alpha: 0.72),
@@ -2119,7 +2120,7 @@ class _Osc52PromptDetail extends StatelessWidget {
           child: Text(
             '$label: $value',
             style: textTheme.labelMedium?.copyWith(
-              color: colorScheme.onSecondaryContainer,
+              color: colorScheme.onSurfaceVariant,
             ),
           ),
         ),

@@ -1,0 +1,59 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/full_shell_review_capture_test.dart
+00:00 +0: (setUpAll)
+00:00 +0: shell review iOS dark true clipboard-confirm (variant: TargetPlatform.iOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: null
+  Actual: FlutterError:<A RenderFlex overflowed by 10.0 pixels on the bottom.>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/full_shell_review_capture_test.dart:374:15)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/full_shell_review_capture_test.dart line 374
+The test description was:
+  shell review iOS dark true clipboard-confirm (variant: TargetPlatform.iOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:01 +0 -1: shell review iOS dark true clipboard-confirm (variant: TargetPlatform.iOS) [E]
+  Test failed. See exception logs above.
+  The test description was: shell review iOS dark true clipboard-confirm (variant: TargetPlatform.iOS)
+  
+00:01 +0 -1: shell review iOS light true clipboard-confirm (variant: TargetPlatform.iOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: null
+  Actual: FlutterError:<A RenderFlex overflowed by 10.0 pixels on the bottom.>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/full_shell_review_capture_test.dart:374:15)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/full_shell_review_capture_test.dart line 374
+The test description was:
+  shell review iOS light true clipboard-confirm (variant: TargetPlatform.iOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:01 +0 -2: shell review iOS light true clipboard-confirm (variant: TargetPlatform.iOS) [E]
+  Test failed. See exception logs above.
+  The test description was: shell review iOS light true clipboard-confirm (variant: TargetPlatform.iOS)
+  
+00:01 +0 -2: (tearDownAll)
+00:01 +0 -2: Some tests failed.
+
+Failing tests:
+  /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/full_shell_review_capture_test.dart: shell review iOS dark true clipboard-confirm (variant: TargetPlatform.iOS)
+  /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/design/full_shell_review_capture_test.dart: shell review iOS light true clipboard-confirm (variant: TargetPlatform.iOS)

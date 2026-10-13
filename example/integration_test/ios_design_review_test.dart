@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:app/app.dart';
+import 'package:app/features/config/local_terminal_config_models.dart';
+import 'package:app/features/config/shortcut_editor.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/profiles/profile_editor.dart';
 import 'package:app/features/profiles/profile_models.dart';
@@ -221,13 +223,26 @@ void main() {
       }
     }
     debugPrint(
-      'TRAIL_DENSITY_METRICS ${jsonEncode({'screen': name, 'metrics': metrics})}',
+      'TRAIL_DENSITY_METRICS ${jsonEncode({
+        'screen': name,
+        'metrics': metrics,
+        'physical_size': [tester.view.physicalSize.width, tester.view.physicalSize.height],
+        'dpr': tester.view.devicePixelRatio,
+        'keyboard_inset': tester.view.viewInsets.bottom / tester.view.devicePixelRatio,
+      })}',
     );
     await binding.takeScreenshot(name);
   }
 
   Future<void> tapKey(WidgetTester tester, String name) async {
-    final finder = find.byKey(Key(name));
+    final finder = name == 'ssh-more-settings-toggle'
+        ? find
+              .descendant(
+                of: find.byKey(Key(name)),
+                matching: find.byType(Text),
+              )
+              .first
+        : find.byKey(Key(name));
     await tester.ensureVisible(finder);
     await tester.pumpAndSettle();
     await tester.tap(finder);
@@ -485,6 +500,51 @@ void main() {
         await tapKey(tester, 'profile-editor-nav-$section');
         await capture(tester, '12-profile-${brightness.name}-$section');
       }
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
+    }
+  });
+  testWidgets('native shortcut capture fits the available viewport', (
+    tester,
+  ) async {
+    for (final brightness in Brightness.values) {
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: buildIanvsTerminalTheme(
+            brightness,
+            platform: TargetPlatform.iOS,
+          ),
+          home: Scaffold(
+            body: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: ShortcutEditorPanel(
+                  config: const LocalTerminalKeybindingsConfig(),
+                  expandList: true,
+                  onChanged: (_) {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('shortcut-editor-filter')),
+        'new tab',
+      );
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      await tapKey(tester, 'shortcut-edit-newTab');
+      await capture(tester, '21-shortcut-${brightness.name}');
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyN, platform: 'ios');
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.byKey(const Key('shortcut-capture-error')),
+      );
+      await capture(tester, '22-shortcut-error-${brightness.name}');
+      expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
       await tester.pumpAndSettle();
     }

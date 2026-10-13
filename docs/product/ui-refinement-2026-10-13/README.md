@@ -55,18 +55,18 @@ connection management route. Do not count that as route coverage.
 
 | Surface | Current inspection | Remaining before completion |
 | --- | --- | --- |
-| Default Block / command dock | Completed/failed output, dock, desktop completion/history/suggestion baselines; touch/desktop rendering | Native actual shell draft, empty/running/long-output visual pass |
-| Raw terminal / keyboard / menus | Shell entry, mobile session menu, desktop command menu, keyboard bar | Search, paste/link-trust prompts, live native chrome |
-| AI | Component states: default, error, unknown; approvals/reader/configuration | Streaming/observation/loading visual states; full shell flow (compact workspace native matrix now passed) |
-| Connection landing / session lists | Actual shell landing and management; live/disconnected/reconnected fixtures | Empty/error transitions and native final check |
-| SSH | Basic/advanced form, long sections, authentication and changed-host-key dialogs | Nested jump-host/import branches, keyboard-open native forms |
+| Default Block / command dock | Completed/failed output, dock, desktop completion/history/suggestion baselines; touch/desktop rendering | Native actual Block shell draft/empty pass remains; running and 240-line output now inspected with production host previews |
+| Raw terminal / keyboard / menus | Shell entry, mobile session menu, desktop command menu, keyboard bar | Search, paste, link/report/clipboard prompts inspected in six host variants; native terminal/search/chrome checked in both orientations |
+| AI | Component states: default, error, unknown; approvals/reader/configuration | Waiting/streaming/loading/changed-target now inspected; full shell AI route remains (compact workspace native matrix passed) |
+| Connection landing / session lists | Actual shell landing and management; live/disconnected/reconnected fixtures | Native landing/connection entry checked; empty/error transitions remain |
+| SSH | Basic/advanced form, long sections, authentication and changed-host-key dialogs | Native basic/advanced fields and keyboard inset checked; import/jump-host branches remain |
 | Profile | All seven sections; color picker and invalid hex field, top/end; shared field changes | Remaining nested disclosure panels and profile edit/error states |
-| Global settings | All five sections plus remote sync fields, top/middle/end; correct iOS capabilities | Shortcut editing, nested appearance panels |
-| SFTP | Files, navigation, file menu in touch and desktop | Loading/empty/error, transfer/collision sheets |
-| Recording | Actual library list, replay controls/options | Recording errors/details and native playback layout |
-| Startup / master key | Onboarding, startup failure, Apple Keychain panel | Optional sync onboarding and recovery settings details |
-| Diagnostics / notifications | Capabilities, standard notifications | Export/paste/security confirmation dialogs |
-| Cross-platform gates | Current macOS 27 baseline candidates inspected and updated | Final full-shell native acceptance and CI rerun (10 macOS 26 CI images inspected and updated) |
+| Global settings | All five sections plus remote sync fields, top/middle/end; correct iOS capabilities | Shortcut recording/unsafe/conflict inspected; native horizontal dialog verified; nested appearance panels remain |
+| SFTP | Files, navigation, file menu in touch and desktop | Loading/empty/error/busy/create/delete/error inspected; native directory/menu verified. Transfer uses busy state plus OS chooser, not a separate application sheet |
+| Recording | Actual library list, replay controls/options | Empty/error library inspected; native replay, options, search and content-only checked; nested recording details remain |
+| Startup / master key | Onboarding, startup failure, Apple Keychain panel | Optional sync and invalid input, recovery settings and disable confirmation inspected in six host variants |
+| Diagnostics / notifications | Capabilities, standard notifications | Paste/link/report/clipboard confirmation inspected; diagnostic export remains |
+| Cross-platform gates | Current macOS 27 baseline candidates inspected and updated | Native shell/settings/SFTP/replay/profile flows pass in both orientations; final remaining routes and CI rerun still open |
 
 ## Verification at this checkpoint
 
@@ -114,3 +114,54 @@ python3 tools/ui_review/verify_compact_draft.py docs/product/mobile-block-ai-v1/
 ```
 
 Additional nested-form capture run: **24 passed**, with explicit SSH expansion and invalid-color assertions; no hit-test warnings or framework exceptions. [Log](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/nested-forms.log). Remote sync and color-picker originals use the `host-` prefix in the scoped evidence directory. These remain host captures, not native keyboard acceptance.
+
+## Deep-state and native application follow-up
+
+Two actual short-window problems were reproduced and fixed without changing
+approval or shortcut logic:
+
+- OSC 52 clipboard confirmation overflowed by 10 logical pixels in landscape.
+  Its title/content can now scroll while the actions remain available. Metadata
+  uses neutral surface/text tokens instead of a secondary accent fill.
+- Shortcut recording overflowed by 48 logical pixels in landscape. Its content
+  now scrolls inside the existing dialog; title, actions, focus/key handler,
+  validation, binding and conflict behavior remain unchanged.
+
+**106 passed** for 96 deep-state captures and 10 shortcut behavior regressions;
+**214 passed** for actual shell routes, startup states and shell behavior.
+These are separate groups from earlier checkpoint counts and must not be added
+into a project-wide unique total. Modified-file analysis is clean.
+
+[Deep-state index](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/deep-capture-manifest.json)
+lists 198 host captures: two appearances, iOS portrait/landscape and macOS.
+They cover shortcut record/error/conflict, SFTP loading/empty/error/busy and
+create/delete confirmation, Block running/long output, AI waiting/streaming and
+approval states, shell search/trust/paste prompts, recording empty/error, and
+onboarding/recovery nested states. No real external requests or destructive
+operations are performed by these fixtures.
+
+[Native shell index](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/native-shell-manifest.json)
+preserves 82 PNGs from the dedicated iPhone 17 Pro simulator (iOS 26.3.1):
+39 portrait and 43 landscape. Both native integration runs passed. The portrait
+run has two scenario tests; the final landscape run adds shortcut recording and
+error in both appearances. This checks the final shortcut layout fix natively.
+Native profile pages cover seven sections in both appearances; the main shell
+flow covers connection/forms/settings, terminal, SFTP and replay.
+
+These PNGs are `integration_test` captures of the native Flutter application
+rendering, **not full OS screenshots**. Gray keyboard areas are excluded system
+pixels, not blank app content. Logged physical sizes/DPR and keyboard insets
+verify available layout space, not physical typing or Pinyin composing. The
+separate earlier compact AI proof contains full simulator captures and remains
+56 logical pixels in all four dismissed states. Neither new production change
+modifies the composer.
+
+Original before/after dialog PNGs and `deep-final.log`, `shell-final.log`,
+`deep-analyze.log`, `native-shell-portrait.log` and `native-shell-landscape.log`
+are in the same scoped evidence directory. Native and host evidence are kept
+separate. The remaining rows above still prevent declaring all-app completion.
+
+Latest production Release rebuild and strict signature verification passed.
+The next in-place phone installation is pending: CoreDevice reports the physical
+iPhone unavailable. The last successful phone installation remains `8f62e716`;
+[build/install status](../mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/latest-build-installation.json) records this distinction. Documentation/archive contract: 20 passed.

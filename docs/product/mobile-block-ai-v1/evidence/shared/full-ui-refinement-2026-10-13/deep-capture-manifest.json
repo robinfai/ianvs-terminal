@@ -1,0 +1,1590 @@
+{
+  "scope": "Host widget renders; substitute fonts; iOS/macOS platform variants",
+  "count": 198,
+  "files": [
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-landscape-ai-loading-proposal.png",
+      "sha256": "384f0bc20138eada43ccb72ebb023f275111c53621dc33cf3187f759d49d9cd3",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-landscape-ai-streaming.png",
+      "sha256": "7e3c83fc7dd93077b40a79cfdae9240b78797b12717c92d1c04c4a1014017dec",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-landscape-ai-target-changed.png",
+      "sha256": "2c2e82733782638703af19012b731cacdc7e9b3093c862522ee3100e7c5f8cbf",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-landscape-ai-waiting.png",
+      "sha256": "e66cd98278b68e96fa0067b9aee6d5d84f165b3f59277f46fcc61c7655af6f18",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-landscape-blocks-long.png",
+      "sha256": "4dcb4e05fd59418956bdfee8bcc73dc3a65ecf05136a8d1e77ed65eeccbd344e",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-landscape-blocks-running.png",
+      "sha256": "7a52d2508f829d1a8c52db4f2071fbf3436e1428b71a93c4491c2a188222bd43",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-landscape-sftp-busy.png",
+      "sha256": "2a6fdd722199c1c99786aa945fff22ab6e96d03795c52e789326ac1467fbb482",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-landscape-sftp-create-error.png",
+      "sha256": "328f349635832a1f27afd0be73e169e3f0bad0f94232d4b46dd792e7ca2ed960",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-landscape-sftp-create.png",
+      "sha256": "901db108c07d96e5586743089da815e81ef2bba89c6daa7e2c6888beb610dab4",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-landscape-sftp-delete.png",
+      "sha256": "7ec945431086b4a30cc78ce3954069a1c4115026e19ced33e15b4e283b80c1f0",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-landscape-sftp-empty.png",
+      "sha256": "ed52da13c548426e7a666c3cc9c98307573a5f5e39040930eddbf2f1a15b1dbc",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-landscape-sftp-error.png",
+      "sha256": "0346d3776d59a5190da339367953ba314d7171e8374dafe901de40fe33960a26",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-landscape-sftp-loading.png",
+      "sha256": "2e81e6a80825918d197139c8b4e782e2076fd5643eb052bb76fd496283a42489",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-landscape-shell-clipboard-confirm.png",
+      "sha256": "724b2d10bf1b0dbd2b19ac141ee869d214539a5731ec1a60adec94eef25858c3",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-landscape-shell-home.png",
+      "sha256": "7e4d6be8a2cf76645967f0fb12d33fac7063ccc5d33e6700777a3d5b4042c418",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-landscape-shell-menu.png",
+      "sha256": "bed0d7eeb26ca95c6fe1c28393faca60c78166634ff3da672aaba4f7d575dcc3",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-landscape-shell-paste-confirm.png",
+      "sha256": "ab6c7d736c2b88a48dc535b571505a3e126b921004cad5fa80497879facb026a",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-landscape-shell-profiles.png",
+      "sha256": "0af0a43b1a67f39d856b4727ee2e3050857f2e91d5d2259f516a76d662861195",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-landscape-shell-recordings-empty.png",
+      "sha256": "bfa3e6a6b753f4cc86e2ceca66da7e19c60f8f74d9d00b95525d51d0a5a5646f",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-landscape-shell-recordings-error.png",
+      "sha256": "cf9c2fed3b7fa5c496b7cec43c183506b9cad87dd2a511140f8121d824072de4",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-landscape-shell-recordings.png",
+      "sha256": "d87a5312c4248bc2bafa2c86fd78f34eba042739c04749abef08736cdf3bb6d6",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-landscape-shell-report-confirm.png",
+      "sha256": "653905658a3bb67957607f2c55682472d29b564089e3ea12816229a11310745a",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-landscape-shell-search.png",
+      "sha256": "167a5051d7229e1ffd83b131f1644916603c628a8b35faa2c68e3dad8e9c9dd7",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-landscape-shell-url-confirm.png",
+      "sha256": "2c91dd43e98ce763c8c85b33149f0769ed85ea29b9e68904fdfd89b8fef2eabf",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-landscape-shortcut-capture.png",
+      "sha256": "29c8fdd3ee0b66948aaf4c26a8a63907a7b2f7dc3b9af31a5fc52b0d900a0dc0",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-landscape-shortcut-conflict.png",
+      "sha256": "d899ac01008ae02336e7512a56436c38912711a46b917ab2720f29dfd23bd9e8",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-landscape-shortcut-unsafe.png",
+      "sha256": "00aec8e0ab5fba6fc701e3c56f5537e6f3202e0c75d3d30dd56356b48bf33ede",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-landscape-startup-failure-confirm-disable.png",
+      "sha256": "63f1bfdabf4af0fa16687288f0fe5592bc7e1434eeb38666b2b3a4bc18cc4e61",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-landscape-startup-failure-settings.png",
+      "sha256": "472f21fa1492b7f09ce3866f97bb135d054a7ee9bff8134419f035cd1775d6b5",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-landscape-startup-failure.png",
+      "sha256": "85c147c15add5f6accc2ae9fa7fea5f4c6d84981834ea11832add612459c9ea6",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-landscape-startup-onboarding-error.png",
+      "sha256": "28982d9a4acf37f939f118e28445cf9c57b5c94b0ad19f28b59a4423274ce99b",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-landscape-startup-onboarding-sync.png",
+      "sha256": "f99a3255e2be18410b93ed41ea72e0bd2c5012c561b3095b68c3984da3bf16ab",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-landscape-startup-onboarding.png",
+      "sha256": "50f873e1bc502db97780308f03040d083d52367b9699fbdffff5456d79ba7e24",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-portrait-ai-loading-proposal.png",
+      "sha256": "a311a9885d95a8565f740681ea7e06ab10e7a2437dbc032b8c95d285a4ad51e8",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-portrait-ai-streaming.png",
+      "sha256": "4ed81b6c12c28ff3da167c6ed47c36dd816e8a05669911449fd507216e3a4a57",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-portrait-ai-target-changed.png",
+      "sha256": "b322257ec7767ec3109c12f36aa1e97c10ecdfde5605302fb80a531bb053e08d",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-portrait-ai-waiting.png",
+      "sha256": "5ae6152aa5939725320306b634f16c34572751510e12db7915f86a8cb06bc57c",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-portrait-blocks-long.png",
+      "sha256": "9bd3ba947a4a92176ddcaf3eee9830aa227d8865b91c0aa204ada83e2d98837f",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-portrait-blocks-running.png",
+      "sha256": "1d5b82f32836b96ce07d3de68eb75d656c3b9d616d8c5843a13c84daa03716ce",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-portrait-sftp-busy.png",
+      "sha256": "97299466a87afc5617a783cb882dbc477a5e095eaf0c2282c6285f18e506e321",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-portrait-sftp-create-error.png",
+      "sha256": "631013793e4ecfbdf39108cf37a58ff16d5ef5401b496db4e21cbfef36062c40",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-portrait-sftp-create.png",
+      "sha256": "17687ba2d05eb12e0d9b061640eae49e9fb9e8c081d19df4b2f29c6ec249167c",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-portrait-sftp-delete.png",
+      "sha256": "3ecb13480f4ea82259131342886b4210468e6208718983dafd0c663578582990",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-portrait-sftp-empty.png",
+      "sha256": "d7ad0654307a0b3c05476f6e0ce5858538d7797e4fbb0f7fe5ec8333b384af3f",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-portrait-sftp-error.png",
+      "sha256": "6b36a26ca10b1c06219517a4c19ef70b3d31e5d34702b8dc5b165d1039a0924a",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-portrait-sftp-loading.png",
+      "sha256": "d4fa4dc25945e3e5230c7ea20601282e00564e3585f49868d945917cfb905040",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-portrait-shell-clipboard-confirm.png",
+      "sha256": "dab70593cdace2faefa94069e3a7ad81949f8d5716846a2b5108869e190bed2c",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-portrait-shell-home.png",
+      "sha256": "273c00211a2583feea46799fb15efac1185038909a0476a1f6a03e868d8f7ab3",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-portrait-shell-menu.png",
+      "sha256": "a2926d56b3f87ce1f34a062ba7900512bb1437aabf7cacbd2b161a3e77b0f0df",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-portrait-shell-paste-confirm.png",
+      "sha256": "ee29f4a952010eda49fd774f90496381c63fa51847340b48b7d5416864ec5cc3",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-portrait-shell-profiles.png",
+      "sha256": "7528e30d553af3aca8a1f88eef7c1ca23bda712521275fbe1d87def1f7ea4e12",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-portrait-shell-recordings-empty.png",
+      "sha256": "9ddbf806ed51f50b8bbe5adc871602f32849028c6daa9b38045e545bfdd68a3b",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-portrait-shell-recordings-error.png",
+      "sha256": "f5b4c5332dc03884d7ccf06c0e07e71989555e74005925937a2b8fb82a8165fb",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-portrait-shell-recordings.png",
+      "sha256": "b41d18d09811abc8f61abd5cd6f62f6c2c946647fe6394cb5cc8b8b896cc69d8",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-portrait-shell-report-confirm.png",
+      "sha256": "afa72a65779f6335e01823e09df24cb1907014aa674e2229833d58e0f9186614",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-portrait-shell-search.png",
+      "sha256": "5c81b6e5c2821b5d6c73df2395a955370f250bc8c0c4105ce6e5beec1e8b0d87",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-portrait-shell-url-confirm.png",
+      "sha256": "ab8555bf7b2f229ebfdf44308bd1683760e656c0dd0edada2b7e5c0fa86f628e",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-portrait-shortcut-capture.png",
+      "sha256": "783276b6651c739b412187c48fcfa6db066d3883ce802faa7fea37f01093a112",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-portrait-shortcut-conflict.png",
+      "sha256": "37fd3940c299509310543592b53d455988b2d1c0fe42ece2ace5a65d825870e2",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-portrait-shortcut-unsafe.png",
+      "sha256": "ecbf11f868fbfffefe9e8656dd746661a5857e788ce0540ffb6d97e7c2293bc7",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-portrait-startup-failure-confirm-disable.png",
+      "sha256": "9e5bb4558cb5f23272dcbcc6b768792b215278f315d94e6ef6294a6b8c5308cc",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-portrait-startup-failure-settings.png",
+      "sha256": "dd773ff61149d5d241dc71620d02f5c7bc8c221ec8180f761dd51b4945acf25e",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-portrait-startup-failure.png",
+      "sha256": "80380c5672cff18888d825ee6a2470983f1d7b90e4489ddaca2a59f0e727d852",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-portrait-startup-onboarding-error.png",
+      "sha256": "87b76ef14838a3fe9802f6ecc3ef5fcbc60f9da16c2614350e10e6f5dc659824",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-portrait-startup-onboarding-sync.png",
+      "sha256": "09da5a85874ebe2782e19f28deaf7175b627757b30d586e677e60c30738fe0bc",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-dark-portrait-startup-onboarding.png",
+      "sha256": "57fdd2aba76f37f6c32d9b9c329dbb60cb90220d3dc57061b10f71f8190846c4",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-landscape-ai-loading-proposal.png",
+      "sha256": "41a4e1ba6c1a36df42ee85c4d3555d0caee8f1f5a492ac8be47e29236b15824e",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-landscape-ai-streaming.png",
+      "sha256": "cd6b7e6cd1b5c0511e805ba373aeb466420471e93415e2f0c1dd6584db9093dd",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-landscape-ai-target-changed.png",
+      "sha256": "322413a6c1ca461aeb60a6691de71b07749789295ae96172f17668115bcccc11",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-landscape-ai-waiting.png",
+      "sha256": "ddef10562e62d9cbc3f769055ba8dc79be5996aa2954dfea92d61ec3c375031c",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-landscape-blocks-long.png",
+      "sha256": "183de10d6750855170f44f062814072e2055522cbe90f80c30a0396774d5e871",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-landscape-blocks-running.png",
+      "sha256": "8c51099b8af12395db9b5928952d6b5e65167e8168e8f1fcc5a651057383caf6",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-landscape-sftp-busy.png",
+      "sha256": "d1468587372a5f011c64cae36d1aa297a2434e6f4c26f0e5ea3695ec192fc990",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-landscape-sftp-create-error.png",
+      "sha256": "dc63a0b0437c51ed98d26fe1e562b596f1ef56554d3b0ba9e6af06373681bfc8",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-landscape-sftp-create.png",
+      "sha256": "b77bc75710acfc00854c86e1bb25bc29b8e81faa6ecebc404c2e25883c232bf2",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-landscape-sftp-delete.png",
+      "sha256": "ec939a2461c6fd998621bc10ecd5889c7a0b9250895064a4bdfea214e5303787",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-landscape-sftp-empty.png",
+      "sha256": "99575076f77d31c9f0b0e7658ca8d5b1d7be3e27a7cacfc3c639c35b0ffaed60",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-landscape-sftp-error.png",
+      "sha256": "66c901e6171c8592c9c31fffa06abc6d30458639e068d21c061cf93e3b48fc21",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-landscape-sftp-loading.png",
+      "sha256": "b3c2e313763351b78bf1d5032ebef2c63881b9d8f3a31f765802ce2bef402796",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-landscape-shell-clipboard-confirm.png",
+      "sha256": "9cc065c1e70c99ce42f715c723011ab699a1f12b183c8b65827a0476108cd6fa",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-landscape-shell-home.png",
+      "sha256": "c95660cc55aeb62397993d628ee667ba2e881a89b14e8c342e658847e19379b4",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-landscape-shell-menu.png",
+      "sha256": "eb11392dd2d59421cc04890e5be01952363e73a39195029eb15c40ad0d7ed0fd",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-landscape-shell-paste-confirm.png",
+      "sha256": "095f600248ec7e5b110ce0d0b05af1edde5b9db7fa50d03938f2ff02f3102abd",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-landscape-shell-profiles.png",
+      "sha256": "2ba1d0a79517f42cddf0829d00b6ad87b355956897a2c5135e4bdb870de95fe8",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-landscape-shell-recordings-empty.png",
+      "sha256": "2b4e104e08a1ed3f509552853dc70840295f0bf413edcb94aba04b8c296d1584",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-landscape-shell-recordings-error.png",
+      "sha256": "43a04cc2784987046f1b786d252a47892e1ab49296194920775472c60bcef66a",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-landscape-shell-recordings.png",
+      "sha256": "fc941d8cc232acf1fbb193d631ec467ce3c2dde6475a01e1a0a49f50782f36bf",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-landscape-shell-report-confirm.png",
+      "sha256": "a39641ba1b3cd84c8f612b85af761a5e943bdeff240e1b28c02b3a78c859d5f5",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-landscape-shell-search.png",
+      "sha256": "a214390e5bdf09c7e7076761176100eed5dc8a0b2da6b2340b32ffc361c15663",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-landscape-shell-url-confirm.png",
+      "sha256": "f4e55edabb41b01ece04e85f353220c1e22213dd03e83cacaec6f91fe144ef68",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-landscape-shortcut-capture.png",
+      "sha256": "45707875f0ff16ace421cf2489cf257877e55874aabbe2933b5ecbe545c0b6e3",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-landscape-shortcut-conflict.png",
+      "sha256": "3eb4c161f48c4ec590ca8f6f53b3089256fdff32db107c5651a69b877cae5581",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-landscape-shortcut-unsafe.png",
+      "sha256": "25b799bcd4e567b863a1bc3cbaffbb8ca2c739cdd4172e2fb74229e0c485cf14",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-landscape-startup-failure-confirm-disable.png",
+      "sha256": "3339d774eb2fc9a2645027973aeeeb4a6b9193be87233885c2c9f263bb5cc2d5",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-landscape-startup-failure-settings.png",
+      "sha256": "07b364cc7a536391d1000a2d1dd37eaeecd2c1528063dbffa33cfccebc0c8be0",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-landscape-startup-failure.png",
+      "sha256": "aafe28b66e8ef98dc717614bb129a63408b7d00d838d1d977e8f563de91cbec8",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-landscape-startup-onboarding-error.png",
+      "sha256": "25eb11010c0ed7bd634a5923586b09988abbc9089d1a5039e196d36dfce06139",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-landscape-startup-onboarding-sync.png",
+      "sha256": "09f92af5bd903e7f7dc89f5b0210afc9435ee553a841e1be370d5b1f185e2ee0",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-landscape-startup-onboarding.png",
+      "sha256": "966e6bae5f05e3d7d9b167e7f90e1e99eb0c2b15fae0e063fddd59d220429226",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-portrait-ai-loading-proposal.png",
+      "sha256": "1e77ab980700fec89f7c83c1c98b7cecd423c2289c24bf51f62927888bbea293",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-portrait-ai-streaming.png",
+      "sha256": "0f090a9067ca54f4b19f46f782e064989a556158c2426d1f2e44fe07be21ff9f",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-portrait-ai-target-changed.png",
+      "sha256": "9792a556d64141d8edb643141e1d529345ac0612c46174e60eaa8a54e9326267",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-portrait-ai-waiting.png",
+      "sha256": "af1385c15aa9cd9ce3bef92a8dbb8b0d894d044dbd0181aa2c6558061e492dab",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-portrait-blocks-long.png",
+      "sha256": "f76716ed4919421d5f7ef2e238d3beceb5a2050558edf1d22eb26c9f4054d747",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-portrait-blocks-running.png",
+      "sha256": "1e193013e81b6189a13993ef4729c116cadac86b498c6f6ff6fbffa2e5d85ff1",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-portrait-sftp-busy.png",
+      "sha256": "2fd03cc8b4f51118d821258a8d4f3b385e8f6ec7379740c7d209d63acc3867d3",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-portrait-sftp-create-error.png",
+      "sha256": "9242f02bf43bb11e2e73beca0533fb3a9ffd05448627b38f2273dc4d61d904e3",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-portrait-sftp-create.png",
+      "sha256": "02fcf3601d408be9114d515bdf34ecce2bda7b3267110e4a5620769b08229182",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-portrait-sftp-delete.png",
+      "sha256": "41d355c4f53762ed43e57c242f487d836e02ad5a1e42e8a24030299786a2b349",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-portrait-sftp-empty.png",
+      "sha256": "78d7bded79db571a835af3f0a0349b159210631141946780d86528fc6ee63532",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-portrait-sftp-error.png",
+      "sha256": "599e57371bcc77a2bcb20345322afc7ea5753a52cedd0ff08c7ed9da03bbf663",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-portrait-sftp-loading.png",
+      "sha256": "3b2522dc6d064d8f7a7dceec93bc8237c43920810efd9a51794fa0510a7b20fe",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-portrait-shell-clipboard-confirm.png",
+      "sha256": "61a3523de6ba24a3e95c1861f37c504711e0ba2501acf11529edeb1ed7ce38dc",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-portrait-shell-home.png",
+      "sha256": "65da9133a22d02ecd2ce1b47e5580cfb7c7c4ff840c30923c52e66b698192d68",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-portrait-shell-menu.png",
+      "sha256": "21decec06ad673d9bff5877edc370f503e4e24bf456da6229cc318019d312fdd",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-portrait-shell-paste-confirm.png",
+      "sha256": "b7491972ca951cb59c48b321929e70ce16f252ba263664f789cce72177bade51",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-portrait-shell-profiles.png",
+      "sha256": "0737fe6f4ec89171855b3f8e524dc823e5bdc607a10e5e4961d730c7a24d0845",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-portrait-shell-recordings-empty.png",
+      "sha256": "bcbbdde93bf6fa59c52589c7d30427d29edc2b243f0663cc9314f48da6c931fd",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-portrait-shell-recordings-error.png",
+      "sha256": "120d9c11219061bed63fe23d4819e3310f518e8b7c96977e5c85e4d515f764fe",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-portrait-shell-recordings.png",
+      "sha256": "7ff24832e2c056f276da0683cd16153d9a6c59fc39c9289aff85a1c20b5bd0ce",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-portrait-shell-report-confirm.png",
+      "sha256": "6bdb4ae51f3ea8047481c1b0cd74b101f2c53a8b16a3b39b4ac27bbaed5ddc23",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-portrait-shell-search.png",
+      "sha256": "0251ba10a402a512ade2f76c54904a0abb6541f8897868893049db00d2eb731f",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-portrait-shell-url-confirm.png",
+      "sha256": "e8739dc8aeb7503b86df849a3b7ee0ba8142dad42c3230e7187884dedabb00b8",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-portrait-shortcut-capture.png",
+      "sha256": "5bcb733c8cdc3fc8f4731846a62d15774df8c1dbeca955a22085795d62160efb",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-portrait-shortcut-conflict.png",
+      "sha256": "4e4a245e0e43413adff71a6a24fba074b94c1d29b30e1bf70291851ee7f52d7a",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-portrait-shortcut-unsafe.png",
+      "sha256": "5452712eab9d5261ac3d47d8562b575c13a73dce7118afdb5b2bf0a73aa61ae1",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-portrait-startup-failure-confirm-disable.png",
+      "sha256": "208b3a643f6a421a28312c75d86732a900fb0bc6fba107eb478b98ea4179e979",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-portrait-startup-failure-settings.png",
+      "sha256": "60cd3aa3043ce5beb769fa022921da0c7f5bd38aa11186294e40062eaafd0ce8",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-portrait-startup-failure.png",
+      "sha256": "846a178594f11c4bc05c8d2a6ce178d59299d8bfb5c6ec5cf885304ef5b79bcd",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-portrait-startup-onboarding-error.png",
+      "sha256": "b20ddbd781efa0ced47e6a29498ae79943df6d76d3e7742ce309c4f4bda0b12c",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-portrait-startup-onboarding-sync.png",
+      "sha256": "59c6b97e183e09f0aee39d3356f5f333045d09bae7055b75252fe33514bc3d28",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/iOS-light-portrait-startup-onboarding.png",
+      "sha256": "dc6f53b31077695f62e85a54255d5b84c8a7f43dabb7cf5258c9ed9918aef50a",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-dark-portrait-ai-loading-proposal.png",
+      "sha256": "d18d02275188bbfe94d58db790f7b28c12e3a801083a9fdadb8463529c821ec8",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-dark-portrait-ai-streaming.png",
+      "sha256": "cd23cb2ea9d18de089f67694db6c41d964ed7f22adc8b2c05c56f22bedf1ede0",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-dark-portrait-ai-target-changed.png",
+      "sha256": "9b3eb46b2d56b5c1b81118a99e40844b64320739091055e300df8a25ea110141",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-dark-portrait-ai-waiting.png",
+      "sha256": "304849d49b58b403132d50fe7bcb2c7fa16a645c667ea76b39810b59d945d818",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-dark-portrait-blocks-long.png",
+      "sha256": "d14d7562a9775371b5a38fffdb4422f388250c05348511105d2226d425faac27",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-dark-portrait-blocks-running.png",
+      "sha256": "480c7f749b13df1e445b185b3ddf0ae61640e9bfc01df863fe859238a2f6311f",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-dark-portrait-sftp-busy.png",
+      "sha256": "892d5c6912a808fcfac6d778c043674d65b405d64ee388c4ac8a920ede0d356d",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-dark-portrait-sftp-create-error.png",
+      "sha256": "c32f0647c087749f79cebda5f9778b3aca9fee01c7ad8f206fa2a829b76846b5",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-dark-portrait-sftp-create.png",
+      "sha256": "0463b8bf72ebc2e1a4793e4275499f8b9759c7ed957044aab50a6368bd902b4e",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-dark-portrait-sftp-delete.png",
+      "sha256": "6badf70a3b36032b770245d4c7b233645b5fc4d5ddf343abda8e7e14b7ced8ed",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-dark-portrait-sftp-empty.png",
+      "sha256": "bd64514820ab50b6c91fd8d2f007687315ca7f648c13c77fa47c5d92d403ff02",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-dark-portrait-sftp-error.png",
+      "sha256": "2cc7d6bff545f8e288f479ef5532a0e2db06303da3d5261cbcbba23cba67a36e",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-dark-portrait-sftp-loading.png",
+      "sha256": "ee5638b113e16f92cf024ef232c9b025bfee303845b217ead85568964795c022",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-dark-portrait-shell-clipboard-confirm.png",
+      "sha256": "f66d8554421936e9b5dfc9bc0ff37380235105bffe78a57b77d66d0dac1d9341",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-dark-portrait-shell-home.png",
+      "sha256": "25808481cad6a4a90b38d2d09586a1ba970caf9f3414c0c22fee11a89dfe34af",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-dark-portrait-shell-menu.png",
+      "sha256": "4554a885342a94afb02e36080f31b8cac3d89953b41794fbe416a70057920668",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-dark-portrait-shell-paste-confirm.png",
+      "sha256": "f2744a24252746bfaffff1cc5e397b349ba41ee0b7b1ed99be3946613d39fa55",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-dark-portrait-shell-profiles.png",
+      "sha256": "4d50d0993da7daef4ddff108528fea1f64f7593a23a56d189f8ecbafb9d3156b",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-dark-portrait-shell-recordings-empty.png",
+      "sha256": "104d69ab779c2f74c563569ec18b5494a3cc3cc49a6fb42904687ce9f98a6e16",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-dark-portrait-shell-recordings-error.png",
+      "sha256": "ca66cc0e3dc0c57bfbd9cddf8555e66278699a7fc71cbca2edcd71909226afdf",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-dark-portrait-shell-recordings.png",
+      "sha256": "33a212ca8a506f28e048167303e658e1ff7ce4c4ed0e3958323f570c0823f34d",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-dark-portrait-shell-report-confirm.png",
+      "sha256": "f5a135b1e24dcd6913d7db876779590a7aa9da566ae6a19cba67ca47cd79691a",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-dark-portrait-shell-search.png",
+      "sha256": "1a23c52287f73f573856fcb108c9b04fa2dc82c127289e858ed5e55dcad9d714",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-dark-portrait-shell-url-confirm.png",
+      "sha256": "54dd71122df86ad7df38a3b460d2ae0d8e37084599c33d4099fe2e78285d8e03",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-dark-portrait-shortcut-capture.png",
+      "sha256": "e12b8b8fa267fa2cc52fe2914c44769f6b8a7f5a964385f9fc0b1fcf5279e940",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-dark-portrait-shortcut-conflict.png",
+      "sha256": "54a12e52f08f3996383d0f2c3662c328f619ed4e5da33d6abc515b703ef4aa1b",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-dark-portrait-shortcut-unsafe.png",
+      "sha256": "c6aa8d93865d89080cd78fcabc2aab650ea50d53dd93ee210161d71c27ad069a",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-dark-portrait-startup-failure-confirm-disable.png",
+      "sha256": "fcae87a98b7bfe376487eb97197b570b947c521c53024322c6d8ad0a7ff4c01d",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-dark-portrait-startup-failure-settings.png",
+      "sha256": "911e09cbad67ad230330fe5b3132dc55e5b95d9de0a926275c0336bb8fa96fb7",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-dark-portrait-startup-failure.png",
+      "sha256": "b0e08e996892d95b2de171f9b6e2b26b680adabc7665ffb53caf1e192c9cb37a",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-dark-portrait-startup-onboarding-error.png",
+      "sha256": "f6e8d29c0ab174594514ba66d62b975af8073b402084fbb63ddb28cc19e46068",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-dark-portrait-startup-onboarding-sync.png",
+      "sha256": "e57f3b0b0e689160a375e990d820781d9d4fbd69d47bde46565b5441775452e9",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-dark-portrait-startup-onboarding.png",
+      "sha256": "e57f3b0b0e689160a375e990d820781d9d4fbd69d47bde46565b5441775452e9",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-light-portrait-ai-loading-proposal.png",
+      "sha256": "44e3459c2a5bfe2a7079f31b404fdb580107b6a1ccc652d00326db284c3c9c09",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-light-portrait-ai-streaming.png",
+      "sha256": "fedad63e6ca55e3dca34ab7f6558298b6cf2e4ef7942fe4b92a42a88116ecd60",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-light-portrait-ai-target-changed.png",
+      "sha256": "3cfe790e057ba514f69b4b5bfd0e696cb277dd860e8a5d7dd4e7b5a7bd844dc0",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-light-portrait-ai-waiting.png",
+      "sha256": "0be1f1130dd052c359d5058fe8e5c289c84ca0b6b1d90c1ddcad8ea692d52032",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-light-portrait-blocks-long.png",
+      "sha256": "4082cc07929c633467095ac4830f7918d1beab51632a4c0fffdd5779c60d841e",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-light-portrait-blocks-running.png",
+      "sha256": "073baa6bc71077352c0257c5067b81589c6f1c50e60be1252988d22993c4decb",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-light-portrait-sftp-busy.png",
+      "sha256": "5d3ffab546827b2475608e3225a3efb009b194c9fde617fcbc274a657804a0ba",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-light-portrait-sftp-create-error.png",
+      "sha256": "0b93e61cb36485f05f0abcfaf365500a54e6e5c1146f4b3738196a4df5c88bb1",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-light-portrait-sftp-create.png",
+      "sha256": "fdee25d727c810bf0dfb636e6be803544e09f7eec448bbf0a274f451602eb252",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-light-portrait-sftp-delete.png",
+      "sha256": "4c0b577a981202b112daf56ce18c5e077b147be261735a31ab14bcc96c155b4e",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-light-portrait-sftp-empty.png",
+      "sha256": "b7170dfde00429964d4d8df8a8ef4ea6e3e9d7c0a1e380d4015a64d0a5a0db88",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-light-portrait-sftp-error.png",
+      "sha256": "35bbbbeaca454d90b2ff95a86c18306ff9019339c6bef3a850afa265c837e6f4",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-light-portrait-sftp-loading.png",
+      "sha256": "1dfef515e6b40c77045977e25d6b182711619bc5e4d104d86a1aa5d33bd345ed",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-light-portrait-shell-clipboard-confirm.png",
+      "sha256": "c0c831d52c233045f49c33889c4a73e2a75d98ecf91f68d05364f4211a6355e8",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-light-portrait-shell-home.png",
+      "sha256": "07a04bb4a6e00e38ade4324532098d8bdb3ed803a3e30414375ebb616662766e",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-light-portrait-shell-menu.png",
+      "sha256": "68f22d59b9a8b4031f6ab5cad3a826f4d3dad9aab29342bcc8d5ea56eaea0240",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-light-portrait-shell-paste-confirm.png",
+      "sha256": "d8940139db5c2640655350258c7fe61855ee99af5461451ad49baeac727d0b3b",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-light-portrait-shell-profiles.png",
+      "sha256": "829f222bc0a03c20f81c86706043eb596d45b98006593f5811784d178396fe2d",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-light-portrait-shell-recordings-empty.png",
+      "sha256": "70df5298e797df95394e23712cd26d0d98f1bed61327580226634b3c3322c58e",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-light-portrait-shell-recordings-error.png",
+      "sha256": "27a8eeebcd6dc7488af9ec124d71160c4439be95c3a4878b459127bf4315d0d2",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-light-portrait-shell-recordings.png",
+      "sha256": "497aefd8382310e034d3d135a8e99732d3251264b8c78dbbb1f3f26846ea9585",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-light-portrait-shell-report-confirm.png",
+      "sha256": "4a6465d8762f8af4f3d3628c75d5d7564f73af3ac40f1ec8c011543b9ff22317",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-light-portrait-shell-search.png",
+      "sha256": "6a346be9dd58fe47607ac765534f2a905a936106d4225bfe2461984adcc0df24",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-light-portrait-shell-url-confirm.png",
+      "sha256": "9a86b32043bf45e752620838093ed96462c3721faadf06daa18d92e5e329e21b",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-light-portrait-shortcut-capture.png",
+      "sha256": "8483c49655a44e5153f898534d33e1bfcaafb3d9ec2affa05d91cf8df28e39a1",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-light-portrait-shortcut-conflict.png",
+      "sha256": "50b0df49d303dfefeeee3f051284fc6c173658601f665c1c5c475c338f190526",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-light-portrait-shortcut-unsafe.png",
+      "sha256": "4b5f54b6238500a90890573a8395d9f8cce53a0396b4c09bff3e757959871a0b",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-light-portrait-startup-failure-confirm-disable.png",
+      "sha256": "67c1916456cf524c240038b29dfbc92522bf0d62e81ff6e544549da45fe2404c",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-light-portrait-startup-failure-settings.png",
+      "sha256": "449a4787fd4948089b81dd69a27381ddb0cab4529c3d6bfdf39ed4d00f4cb58e",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-light-portrait-startup-failure.png",
+      "sha256": "01e0c7d4867720dd7fb2614b843024c3ae76449e243cbd6dc7b5d4554e2aaef6",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-light-portrait-startup-onboarding-error.png",
+      "sha256": "f473c3509325973f354f7a10cb59fbb71166b1ce8b3fe8d9a2c4b599819e2ff6",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-light-portrait-startup-onboarding-sync.png",
+      "sha256": "5fdf7347e6cd26df6e9b286fe95633f199c26b93e09f7475094d80c884972731",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "build/full-ui-review/deep/macOS-light-portrait-startup-onboarding.png",
+      "sha256": "5fdf7347e6cd26df6e9b286fe95633f199c26b93e09f7475094d80c884972731",
+      "size": [
+        2560,
+        1800
+      ]
+    }
+  ]
+}

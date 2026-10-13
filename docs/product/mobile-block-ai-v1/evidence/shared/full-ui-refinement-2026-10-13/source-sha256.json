@@ -6,5 +6,7 @@
   "example/lib/features/ai/terminal_ai_workspace.dart": "042c1eec3da12e9bf3b169dfecae23d4aaddf1c393c24641524dab7a6536b28a",
   "example/lib/features/recording/mobile_replay_player.dart": "aef5c4ff9aed63573018d8a18c78fbeb7f768fd6bb7e7b9ca6a23801a1c5766b",
   "packages/ianvs_terminal/lib/src/composer/terminal_composer_view.dart": "936a0d86c2899972e518f011a3a4c98df1bdbf59846a93d48784b904ccd04488",
-  "packages/ianvs_terminal_core/lib/src/composer/terminal_composer_view.dart": "936a0d86c2899972e518f011a3a4c98df1bdbf59846a93d48784b904ccd04488"
+  "packages/ianvs_terminal_core/lib/src/composer/terminal_composer_view.dart": "936a0d86c2899972e518f011a3a4c98df1bdbf59846a93d48784b904ccd04488",
+  "example/lib/features/config/shortcut_editor.dart": "6ef7f38b605f5e608ea0de0ca08b3fa9c6d5c544b2c7ef0f63ce09349c039eb4",
+  "example/lib/features/shell/shell_screen_state_events.dart": "2c421c3ea01cb57dd1d1a0bc326bc2a69b7c45ba35632b03ed78bcfb0a05f3d6"
 }

@@ -10,6 +10,7 @@ establish completion of this expanded request.
 - [Historical AI-only report](docs/product/ui-refinement-2026-10-13/previous-ai-only-qa.md)
 
 Current host regressions and the native compact AI keyboard matrix pass.
-The latest Block/form UI is installed on the phone. Remaining nested surfaces,
-full-shell native acceptance and the final CI rerun are still open. PR #12 remains Draft;
+The latest Block/form UI is installed on the phone. The native shell/forms/SFTP/replay/profile routes now pass in both orientations,
+and two landscape dialog overflows are fixed. Remaining nested routes and the
+final CI rerun are still open. PR #12 remains Draft;
 no merge is authorized.

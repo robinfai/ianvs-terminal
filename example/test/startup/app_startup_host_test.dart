@@ -30,7 +30,14 @@ void main() {
       for (final brightness in Brightness.values) {
         for (final landscape in [false, true]) {
           if (platform == TargetPlatform.macOS && landscape) continue;
-          for (final scene in ['onboarding', 'failure']) {
+          for (final scene in [
+            'onboarding',
+            'onboarding-sync',
+            'onboarding-error',
+            'failure',
+            'failure-settings',
+            'failure-confirm-disable',
+          ]) {
             testWidgets(
               'UI review startup ${platform.name} ${brightness.name} $landscape $scene',
               (tester) async {
@@ -42,10 +49,18 @@ void main() {
                     : const Size(402, 874);
                 addTearDown(tester.view.reset);
                 final harness = _HostHarness.create(
-                  initialSetupRequirement: scene == 'onboarding'
+                  localDataApiAvailable: platform != TargetPlatform.iOS,
+                  recoveryConfiguration: scene.startsWith('failure-')
+                      ? DataApiConfiguration.remote(
+                          'https://sync.example.test/',
+                        )
+                      : const DataApiConfiguration.disabled(),
+                  initialSetupRequirement: scene.startsWith('onboarding')
                       ? AppStartupDataSetupRequirement.optional
                       : null,
-                  failingStage: scene == 'failure'
+                  failingStage: scene.startsWith('failure-')
+                      ? AppStartupStage.configuration
+                      : scene == 'failure'
                       ? AppStartupStage.paths
                       : null,
                 );
@@ -76,6 +91,49 @@ void main() {
                   ),
                 );
                 await tester.pumpAndSettle();
+                if (scene.startsWith('onboarding-')) {
+                  if (platform == TargetPlatform.iOS) {
+                    await tester.tap(
+                      find.byKey(const Key('mobile-setup-sync')),
+                    );
+                    await tester.pumpAndSettle();
+                  }
+                  final url = find.byKey(
+                    const Key('app-startup-initial-data-api-url'),
+                  );
+                  expect(url, findsOneWidget);
+                  if (scene == 'onboarding-error') {
+                    await tester.ensureVisible(url);
+                    await tester.enterText(url, 'not a valid URL');
+                    final connect = find.byKey(
+                      const Key('app-startup-connect-data-api'),
+                    );
+                    await tester.ensureVisible(connect);
+                    await tester.tap(connect);
+                    await tester.pumpAndSettle();
+                    expect(harness.settings.reconnectCount, 0);
+                  }
+                }
+                if (scene.startsWith('failure-')) {
+                  await tester.tap(
+                    find.byKey(const Key('app-startup-open-data-settings')),
+                  );
+                  await tester.pumpAndSettle();
+                  expect(
+                    find.byKey(const Key('app-startup-remote-username')),
+                    findsOneWidget,
+                  );
+                  if (scene == 'failure-confirm-disable') {
+                    await tester.tap(
+                      find.byKey(const Key('app-startup-save-disabled')),
+                    );
+                    await tester.pumpAndSettle();
+                    expect(
+                      find.byKey(const Key('app-startup-confirm-disabled')),
+                      findsOneWidget,
+                    );
+                  }
+                }
                 expect(tester.takeException(), isNull);
                 await captureUiReview(
                   tester,
