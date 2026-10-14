@@ -109,7 +109,8 @@ class ComposerIntentMenu extends StatelessWidget {
       ),
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 44),
-        child: Center(
+        child: Align(
+          alignment: AlignmentDirectional.centerStart,
           widthFactor: 1,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
