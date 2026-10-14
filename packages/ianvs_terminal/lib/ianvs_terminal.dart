@@ -1,6 +1,7 @@
 export 'src/composer/completion_models.dart';
 export 'src/composer/composer_draft_editor.dart';
 export 'src/composer/composer_icons.dart';
+export 'src/composer/composer_intent_menu.dart';
 export 'src/composer/composer_theme.dart';
 export 'src/composer/input_intent.dart';
 export 'src/composer/terminal_composer_controller.dart';

@@ -1,0 +1,79 @@
+Running Xcode build...                                          
+Xcode build done.                                            6.3s
+VMServiceFlutterDriver: Connecting to Flutter application at http://127.0.0.1:62831/LeDluSBmffc=/
+VMServiceFlutterDriver: Isolate found with number: 5842771924338679
+VMServiceFlutterDriver: Isolate 5842771924338679 is runnable.
+VMServiceFlutterDriver: Isolate is paused at start.
+VMServiceFlutterDriver: Attempting to resume isolate
+flutter: 00:00 +0: iPhone main flows render with the shared design system
+VMServiceFlutterDriver: Connected to Flutter application.
+flutter: TRAIL_DENSITY_METRICS {"screen":"01-ssh-home","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"02-ssh-form","metrics":{"ssh-host":{"width":370.0,"height":48.0},"ssh-user":{"width":370.0,"height":48.0},"ssh-auth-method":{"width":370.0,"height":48.0},"ssh-password":{"width":370.0,"height":48.0},"ssh-connect":{"width":370.0,"height":48.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"03-ssh-input","metrics":{"ssh-host":{"width":370.0,"height":48.0},"ssh-user":{"width":370.0,"height":48.0},"ssh-auth-method":{"width":370.0,"height":48.0},"ssh-password":{"width":370.0,"height":48.0},"ssh-connect":{"width":370.0,"height":48.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":336.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"19-ssh-ready","metrics":{"ssh-host":{"width":370.0,"height":48.0},"ssh-user":{"width":370.0,"height":48.0},"ssh-auth-method":{"width":370.0,"height":48.0},"ssh-password":{"width":370.0,"height":48.0},"ssh-connect":{"width":370.0,"height":48.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"20-ssh-more-settings","metrics":{"ssh-host":{"width":370.0,"height":48.0},"ssh-user":{"width":370.0,"height":48.0},"ssh-auth-method":{"width":370.0,"height":48.0},"ssh-password":{"width":370.0,"height":48.0},"ssh-connect":{"width":370.0,"height":48.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+VMServiceFlutterDriver: request_data message is taking a long time to complete...
+flutter: TRAIL_DENSITY_METRICS {"screen":"05-settings","metrics":{"defaults-section-general":{"width":370.0,"height":48.0},"defaults-mobile-back":{"width":48.0,"height":44.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"06-settings-general","metrics":{"defaults-mobile-back":{"width":48.0,"height":44.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"06-settings-appearance","metrics":{"defaults-mobile-back":{"width":48.0,"height":44.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"06-settings-security","metrics":{"defaults-mobile-back":{"width":48.0,"height":44.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"06-settings-data","metrics":{"defaults-mobile-back":{"width":48.0,"height":44.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"07-sync-form","metrics":{"defaults-mobile-back":{"width":48.0,"height":44.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"08-sync-form-bottom","metrics":{"defaults-mobile-back":{"width":48.0,"height":44.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"06-settings-shortcuts","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"09-terminal","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":336.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"10-terminal-dark","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":336.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"04-session-options","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"14-sftp-directory","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"19-file-actions","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"11-terminal-search","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":336.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"13-replay-library","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"10-replay","metrics":{"mobile-replay-transport":{"width":402.0,"height":108.0},"mobile-replay-toggle":{"width":48.0,"height":48.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"15-replay-options","metrics":{"mobile-replay-transport":{"width":402.0,"height":108.0},"mobile-replay-toggle":{"width":48.0,"height":48.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"16-replay-search","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":336.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"17-saved-replay","metrics":{"mobile-replay-transport":{"width":402.0,"height":108.0},"mobile-replay-toggle":{"width":48.0,"height":48.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"18-saved-replay-content","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: 00:30 +1: iPhone profile configuration renders all sections
+flutter: TRAIL_DENSITY_METRICS {"screen":"12-profile-dark-general","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"12-profile-dark-startup","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"12-profile-dark-terminal","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"12-profile-dark-appearance","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"12-profile-dark-keys","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"12-profile-dark-automation","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"12-profile-dark-advanced","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"12-profile-light-general","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"12-profile-light-startup","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"12-profile-light-terminal","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"12-profile-light-appearance","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"12-profile-light-keys","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"12-profile-light-automation","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"12-profile-light-advanced","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: 00:39 +2: native shortcut capture fits the available viewport
+flutter: TRAIL_DENSITY_METRICS {"screen":"21-shortcut-dark","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"22-shortcut-error-dark","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"21-shortcut-light","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"22-shortcut-error-light","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: 00:43 +3: native actual shell retains separate Block and AI drafts
+flutter: TRAIL_DENSITY_METRICS {"screen":"23-block-empty-dark","metrics":{"composer-editor":{"width":158.0,"height":48.0},"composer-surface":{"width":378.0,"height":56.0},"blocks-toolbar":{"width":402.0,"height":52.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"28-block-command-icon-dark","metrics":{"composer-editor":{"width":314.0,"height":48.0},"composer-surface":{"width":378.0,"height":104.0},"blocks-toolbar":{"width":402.0,"height":52.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":336.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"24-block-draft-dark","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":336.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"29-block-dark-menu-editing","metrics":{"composer-editor":{"width":314.0,"height":48.0},"composer-surface":{"width":378.0,"height":104.0},"blocks-toolbar":{"width":402.0,"height":52.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":336.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"30-block-dark-menu-dismissed","metrics":{"composer-editor":{"width":158.0,"height":48.0},"composer-surface":{"width":378.0,"height":56.0},"blocks-toolbar":{"width":402.0,"height":52.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"25-block-dismissed-dark","metrics":{"composer-editor":{"width":158.0,"height":48.0},"composer-surface":{"width":378.0,"height":56.0},"blocks-toolbar":{"width":402.0,"height":52.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"27-shell-ai-empty-dark","metrics":{"ai-mobile-composer":{"width":378.0,"height":56.0},"composer-editor":{"width":158.0,"height":48.0},"composer-surface":{"width":378.0,"height":56.0},"blocks-toolbar":{"width":402.0,"height":52.0},"ai-mobile-task-strip":{"width":402.0,"height":52.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"29-ai-dark-menu-editing","metrics":{"ai-mobile-composer":{"width":378.0,"height":116.0},"composer-editor":{"width":158.0,"height":48.0},"composer-surface":{"width":378.0,"height":56.0},"blocks-toolbar":{"width":402.0,"height":52.0},"ai-mobile-task-strip":{"width":402.0,"height":52.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":336.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"30-ai-dark-menu-dismissed","metrics":{"ai-mobile-composer":{"width":378.0,"height":56.0},"composer-editor":{"width":158.0,"height":48.0},"composer-surface":{"width":378.0,"height":56.0},"blocks-toolbar":{"width":402.0,"height":52.0},"ai-mobile-task-strip":{"width":402.0,"height":52.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"26-shell-ai-draft-dark","metrics":{"ai-mobile-composer":{"width":378.0,"height":56.0},"composer-editor":{"width":158.0,"height":48.0},"composer-surface":{"width":378.0,"height":56.0},"blocks-toolbar":{"width":402.0,"height":52.0},"ai-mobile-task-strip":{"width":402.0,"height":52.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"23-block-empty-light","metrics":{"composer-editor":{"width":158.0,"height":48.0},"composer-surface":{"width":378.0,"height":56.0},"blocks-toolbar":{"width":402.0,"height":52.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"28-block-command-icon-light","metrics":{"composer-editor":{"width":314.0,"height":48.0},"composer-surface":{"width":378.0,"height":104.0},"blocks-toolbar":{"width":402.0,"height":52.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":336.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"24-block-draft-light","metrics":{},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":336.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"29-block-light-menu-editing","metrics":{"composer-editor":{"width":314.0,"height":48.0},"composer-surface":{"width":378.0,"height":104.0},"blocks-toolbar":{"width":402.0,"height":52.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":336.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"30-block-light-menu-dismissed","metrics":{"composer-editor":{"width":158.0,"height":48.0},"composer-surface":{"width":378.0,"height":56.0},"blocks-toolbar":{"width":402.0,"height":52.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"25-block-dismissed-light","metrics":{"composer-editor":{"width":158.0,"height":48.0},"composer-surface":{"width":378.0,"height":56.0},"blocks-toolbar":{"width":402.0,"height":52.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"27-shell-ai-empty-light","metrics":{"ai-mobile-composer":{"width":378.0,"height":56.0},"composer-editor":{"width":158.0,"height":48.0},"composer-surface":{"width":378.0,"height":56.0},"blocks-toolbar":{"width":402.0,"height":52.0},"ai-mobile-task-strip":{"width":402.0,"height":52.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"29-ai-light-menu-editing","metrics":{"ai-mobile-composer":{"width":378.0,"height":116.0},"composer-editor":{"width":158.0,"height":48.0},"composer-surface":{"width":378.0,"height":56.0},"blocks-toolbar":{"width":402.0,"height":52.0},"ai-mobile-task-strip":{"width":402.0,"height":52.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":336.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"30-ai-light-menu-dismissed","metrics":{"ai-mobile-composer":{"width":378.0,"height":56.0},"composer-editor":{"width":158.0,"height":48.0},"composer-surface":{"width":378.0,"height":56.0},"blocks-toolbar":{"width":402.0,"height":52.0},"ai-mobile-task-strip":{"width":402.0,"height":52.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: TRAIL_DENSITY_METRICS {"screen":"26-shell-ai-draft-light","metrics":{"ai-mobile-composer":{"width":378.0,"height":56.0},"composer-editor":{"width":158.0,"height":48.0},"composer-surface":{"width":378.0,"height":56.0},"blocks-toolbar":{"width":402.0,"height":52.0},"ai-mobile-task-strip":{"width":402.0,"height":52.0}},"physical_size":[1206.0,2622.0],"dpr":3.0,"keyboard_inset":0.0}
+flutter: 01:34 +4: (tearDownAll)
+flutter: 01:35 +5: All tests passed!
+All tests passed.

@@ -616,99 +616,104 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
             border: Border.all(color: context.appTheme.borderStrong),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+          child: Stack(
             children: [
-              // Keep the editor at the same element position when chrome grows.
-              // No AnimatedSwitcher, replacement controller or draft copy.
-              SizedBox(
-                child:
-                    editing && (blocked || c.hasUnresolvedSubmission) && !short
-                    ? Padding(
-                        padding: const EdgeInsets.only(top: 4, bottom: 4),
-                        child: Align(
-                          alignment: AlignmentDirectional.centerStart,
-                          child: Text(
-                            c.hasUnresolvedSubmission
-                                ? t(
-                                    'Saved only · not sent or executed',
-                                    '仅暂存要求，不会发送或执行',
-                                  )
-                                : t(
-                                    'Draft only · reconnect/confirm target before sending',
-                                    '仅编辑草稿，连接或确认目标后再发送',
-                                  ),
-                            key: const Key('ai-mobile-draft-only'),
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ),
-                      )
-                    : null,
-              ),
-              SizedBox(
-                child: editing && _commandIntent && !short
-                    ? Align(
-                        alignment: AlignmentDirectional.centerStart,
-                        child: TextButton(
-                          onPressed: _mobileActionAllowed
-                              ? _showMobileDetails
-                              : null,
-                          child: Text(
-                            '${widget.targetLabel} · ${c.context?.cwd ?? ''}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      )
-                    : null,
-              ),
-              ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 44),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: editing && !short ? 0 : 96,
-                      child: editing && !short
-                          ? null
-                          : Padding(
-                              padding: const EdgeInsetsDirectional.only(end: 8),
-                              child: _inputIntentMenu(condensed: true),
-                            ),
-                    ),
-                    Expanded(
-                      child: _prompt(
-                        maxLines: short || !editing ? 1 : 4,
-                        hintText: _mobileDraftHint,
-                        dense: true,
-                      ),
-                    ),
-                    if ((short || !editing) && (editing || hasDraft))
-                      _expandDraftButton(),
-                    if (short && (keyboard || _focus.hasFocus))
-                      _hideKeyboardButton(),
-                    const SizedBox(width: 4),
-                    SizedBox(width: 44, child: _sendButton(iconOnly: true)),
-                  ],
-                ),
-              ),
-              SizedBox(
-                child: editing && !short
-                    ? Row(
-                        children: [
-                          Expanded(
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Keep the editor at the same element position when chrome grows.
+                  // No AnimatedSwitcher, replacement controller or draft copy.
+                  SizedBox(
+                    child:
+                        editing &&
+                            (blocked || c.hasUnresolvedSubmission) &&
+                            !short
+                        ? Padding(
+                            padding: const EdgeInsets.only(top: 4, bottom: 4),
                             child: Align(
                               alignment: AlignmentDirectional.centerStart,
-                              child: _inputIntentMenu(),
+                              child: Text(
+                                c.hasUnresolvedSubmission
+                                    ? t(
+                                        'Saved only · not sent or executed',
+                                        '仅暂存要求，不会发送或执行',
+                                      )
+                                    : t(
+                                        'Draft only · reconnect/confirm target before sending',
+                                        '仅编辑草稿，连接或确认目标后再发送',
+                                      ),
+                                key: const Key('ai-mobile-draft-only'),
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
                             ),
+                          )
+                        : null,
+                  ),
+                  SizedBox(
+                    child: editing && _commandIntent && !short
+                        ? Align(
+                            alignment: AlignmentDirectional.centerStart,
+                            child: TextButton(
+                              onPressed: _mobileActionAllowed
+                                  ? _showMobileDetails
+                                  : null,
+                              child: Text(
+                                '${widget.targetLabel} · ${c.context?.cwd ?? ''}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          )
+                        : null,
+                  ),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(minHeight: 44),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: editing && !short
+                              ? 0
+                              : ComposerIntentMenu.slotWidth,
+                        ),
+                        Expanded(
+                          child: _prompt(
+                            maxLines: short || !editing ? 1 : 4,
+                            hintText: _mobileDraftHint,
+                            dense: true,
                           ),
-                          if (c.attachments.isNotEmpty)
-                            Flexible(child: _pendingContexts(compact: true)),
+                        ),
+                        if ((short || !editing) && (editing || hasDraft))
                           _expandDraftButton(),
-                          if (keyboard || _focus.hasFocus)
-                            _hideKeyboardButton(),
-                        ],
-                      )
-                    : null,
+                        if (short && (keyboard || _focus.hasFocus))
+                          _hideKeyboardButton(),
+                        const SizedBox(width: 4),
+                        SizedBox(width: 44, child: _sendButton(iconOnly: true)),
+                      ],
+                    ),
+                  ),
+                  SizedBox(
+                    child: editing && !short
+                        ? Row(
+                            children: [
+                              const Expanded(child: SizedBox(height: 44)),
+                              if (c.attachments.isNotEmpty)
+                                Flexible(
+                                  child: _pendingContexts(compact: true),
+                                ),
+                              _expandDraftButton(),
+                              if (keyboard || _focus.hasFocus)
+                                _hideKeyboardButton(),
+                            ],
+                          )
+                        : null,
+                  ),
+                ],
+              ),
+              PositionedDirectional(
+                start: 0,
+                bottom: 0,
+                width: ComposerIntentMenu.slotWidth - 8,
+                child: _inputIntentMenu(condensed: true),
               ),
             ],
           ),

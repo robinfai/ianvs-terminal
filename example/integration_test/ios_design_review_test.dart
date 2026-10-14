@@ -297,6 +297,42 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  Future<void> captureIntentMenu(
+    WidgetTester tester,
+    String editorKey,
+    String buttonKey,
+    String name,
+  ) async {
+    await tapKey(tester, editorKey);
+    final field = tester.widget<TextField>(find.byKey(Key(editorKey)));
+    final draft = field.controller!.value;
+    await tapKey(tester, buttonKey);
+    expect(field.focusNode!.hasFocus, isTrue);
+    expect(find.byType(MenuItemButton), findsNWidgets(3));
+    await capture(tester, '29-$name-menu-editing');
+    field.focusNode!.unfocus();
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(find.byType(MenuItemButton), findsNWidgets(3));
+    final menu = tester.getRect(
+      find
+          .ancestor(
+            of: find.byType(MenuItemButton).first,
+            matching: find.byType(Material),
+          )
+          .first,
+    );
+    final anchor = tester.getRect(find.byKey(Key(buttonKey)));
+    expect((anchor.top - menu.bottom).abs(), lessThan(14));
+    expect(field.controller!.value, draft);
+    await capture(tester, '30-$name-menu-dismissed');
+    // Tapping the anchor again closes the menu without selecting an intent.
+    await tapKey(tester, buttonKey);
+    expect(find.byType(MenuItemButton), findsNothing);
+    expect(field.controller!.value, draft);
+  }
+
   testWidgets('iPhone main flows render with the shared design system', (
     tester,
   ) async {
@@ -707,6 +743,12 @@ void main() {
             .text,
         '中文草稿\n第二行',
       );
+      await captureIntentMenu(
+        tester,
+        'composer-editor',
+        'composer-input-intent',
+        'block-${brightness.name}',
+      );
       await capture(tester, '25-block-dismissed-${brightness.name}');
       expect(
         tester.getSize(find.byKey(const Key('composer-surface'))).height,
@@ -719,6 +761,12 @@ void main() {
       await capture(tester, '27-shell-ai-empty-${brightness.name}');
       ai.setDraft('AI 草稿\n第二行');
       FocusManager.instance.primaryFocus?.unfocus();
+      await captureIntentMenu(
+        tester,
+        'ai-prompt',
+        'ai-input-intent',
+        'ai-${brightness.name}',
+      );
       await capture(tester, '26-shell-ai-draft-${brightness.name}');
       expect(
         tester.getSize(find.byKey(const Key('ai-mobile-composer'))).height,

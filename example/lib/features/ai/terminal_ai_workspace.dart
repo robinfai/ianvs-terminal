@@ -2160,10 +2160,35 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     ),
   );
 
+  final GlobalKey _intentMenuKey = GlobalKey();
+
   Widget _inputIntentMenu({bool condensed = false}) {
     final command = _commandIntent;
     final label =
         '${c.inputIntentChoice == InputIntentChoice.automatic ? t('Auto · ', '自动 · ') : ''}${command ? t('Command', '命令') : 'AI'}';
+    if (_useCompactMobile) {
+      return ComposerIntentMenu(
+        key: _intentMenuKey,
+        buttonKey: const Key('ai-input-intent'),
+        choice: c.inputIntentChoice,
+        command: command,
+        chinese: zh,
+        enabled: _paneInteractive && !c.followUpEnded,
+        commandEnabled:
+            !c.busy &&
+            c.pending == null &&
+            c.attachments.isEmpty &&
+            !widget.fullScreenTerminal,
+        commandLabel: c.attachments.isEmpty
+            ? null
+            : t('Command · remove sources first', '命令 · 请先移除来源'),
+        onSelected: (choice) {
+          if (!_paneInteractive || c.followUpEnded) return;
+          c.chooseInputIntent(choice);
+          _focus.requestFocus();
+        },
+      );
+    }
     return PopupMenuButton<InputIntentChoice>(
       key: const Key('ai-input-intent'),
       enabled: _paneInteractive && !c.followUpEnded,

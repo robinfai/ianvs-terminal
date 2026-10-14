@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'composer_draft_editor.dart';
 import 'composer_editor.dart';
 import 'composer_icons.dart';
+import 'composer_intent_menu.dart';
 import 'composer_suggestions.dart';
 import 'composer_theme.dart';
 import 'input_intent.dart';
@@ -54,6 +55,7 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
   final _scroll = ScrollController();
   final _editorKey = GlobalKey<ComposerEditorState>();
   final GlobalKey _anchorKey = GlobalKey();
+  final GlobalKey _intentMenuKey = GlobalKey();
   late FocusNode _focus;
   double _width = 320;
   double _availableHeight = double.infinity;
@@ -650,7 +652,9 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
             ),
           ),
         );
-        return _touchCompact && availableHeight < 140
+        // Keep the scroll host mounted across IME height changes. Reparenting
+        // an open anchored overlay during LayoutBuilder layout is unsafe.
+        return _touchCompact
             ? SingleChildScrollView(
                 key: const Key('composer-short-window-scroll'),
                 child: surface,
@@ -678,50 +682,52 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        child: Stack(
           children: [
-            Row(
+            Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                SizedBox(
-                  width: singleRow ? 96 : 0,
-                  child: singleRow
-                      ? Padding(
-                          padding: const EdgeInsetsDirectional.only(end: 8),
-                          child:
-                              widget.onOpenAi != null || widget.onAskAi != null
-                              ? _intent(tokens, compact: true)
-                              : Text(
-                                  tr('Command', '命令'),
-                                  style: tokens.metadataStyle,
-                                ),
-                        )
-                      : null,
+                Row(
+                  children: [
+                    SizedBox(
+                      width: singleRow ? ComposerIntentMenu.slotWidth : 0,
+                    ),
+                    Expanded(child: editor),
+                    if (singleRow) _expandButton(tokens),
+                    if (short && _focus.hasFocus) _hideKeyboardButton(tokens),
+                    const SizedBox(width: 4),
+                    SizedBox(
+                      width: 44,
+                      child: _primary(tokens, iconOnly: true),
+                    ),
+                  ],
                 ),
-                Expanded(child: editor),
-                if (singleRow) _expandButton(tokens),
-                if (short && _focus.hasFocus) _hideKeyboardButton(tokens),
-                const SizedBox(width: 4),
-                SizedBox(width: 44, child: _primary(tokens, iconOnly: true)),
+                if (!singleRow)
+                  Row(
+                    children: [
+                      const Expanded(child: SizedBox(height: 44)),
+                      _expandButton(tokens),
+                    ],
+                  ),
               ],
             ),
-            if (!singleRow)
-              Row(
-                children: [
-                  Expanded(
-                    child: Align(
-                      alignment: AlignmentDirectional.centerStart,
-                      child: widget.onOpenAi != null || widget.onAskAi != null
-                          ? _intent(tokens, compact: true)
-                          : Text(
-                              tr('Command', '命令'),
-                              style: tokens.metadataStyle,
-                            ),
+            PositionedDirectional(
+              start: 0,
+              bottom: 0,
+              width: ComposerIntentMenu.slotWidth - 8,
+              child: widget.onOpenAi != null || widget.onAskAi != null
+                  ? _intent(tokens, compact: true)
+                  : SizedBox(
+                      height: 44,
+                      child: Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: Text(
+                          tr('Command', '命令'),
+                          style: tokens.metadataStyle,
+                        ),
+                      ),
                     ),
-                  ),
-                  _expandButton(tokens),
-                ],
-              ),
+            ),
           ],
         ),
       ),
@@ -1375,89 +1381,102 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
     );
   }
 
-  Widget _intent(
-    ComposerTheme tokens, {
-    bool compact = false,
-  }) => PopupMenuButton<String>(
-    key: const Key('composer-input-intent'),
-    tooltip: tr('Input intent', '输入意图'),
-    onSelected: (intent) {
-      if (intent == 'ai' && widget.onAskAi == null) {
-        widget.onOpenAi?.call();
-        return;
-      }
-      model.chooseInputIntent(InputIntentChoice.values.byName(intent));
-      _focus.requestFocus();
-    },
-    itemBuilder: (_) => [
-      CheckedPopupMenuItem(
-        value: 'automatic',
-        checked: model.inputIntent.choice == InputIntentChoice.automatic,
-        child: Text(tr('Automatic', '自动识别')),
-      ),
-      CheckedPopupMenuItem(
-        value: 'command',
-        checked: model.inputIntent.choice == InputIntentChoice.command,
-        child: Text(tr('Command', '命令')),
-      ),
-      CheckedPopupMenuItem(
-        value: 'ai',
-        checked: model.inputIntent.choice == InputIntentChoice.ai,
-        child: Text(tr('Ask AI', 'AI 提问')),
-      ),
-    ],
-    child: ConstrainedBox(
-      constraints: BoxConstraints(minHeight: compact ? 44 : 32),
-      child: Center(
-        widthFactor: 1,
-        child: Container(
-          padding: compact
-              ? const EdgeInsets.symmetric(horizontal: 2, vertical: 8)
-              : EdgeInsets.zero,
-          decoration: compact
-              ? BoxDecoration(
-                  color: tokens.chip,
-                  borderRadius: BorderRadius.circular(8),
-                )
-              : null,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (!compact) ...[
-                Icon(
-                  _asksAi
-                      ? Icons.auto_awesome_outlined
-                      : Icons.terminal_outlined,
-                  size: 18,
-                  color: tokens.muted,
-                ),
-                const SizedBox(width: 6),
-              ],
-              Flexible(
-                child: Text(
-                  '${model.inputIntent.choice == InputIntentChoice.automatic ? tr('Auto · ', '自动 · ') : ''}${_asksAi ? 'AI' : tr('Command', '命令')}',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: compact
-                      ? tokens.metadataStyle.copyWith(
-                          fontSize: 12,
-                          height: 1.25,
-                          letterSpacing: 0,
-                        )
-                      : tokens.metadataStyle,
+  Widget _intent(ComposerTheme tokens, {bool compact = false}) => compact
+      ? ComposerIntentMenu(
+          key: _intentMenuKey,
+          buttonKey: const Key('composer-input-intent'),
+          choice: model.inputIntent.choice,
+          command: !_asksAi,
+          chinese: widget.chinese,
+          onSelected: (choice) {
+            if (choice == InputIntentChoice.ai && widget.onAskAi == null) {
+              widget.onOpenAi?.call();
+              return;
+            }
+            model.chooseInputIntent(choice);
+            _focus.requestFocus();
+          },
+        )
+      : PopupMenuButton<String>(
+          key: const Key('composer-input-intent'),
+          tooltip: tr('Input intent', '输入意图'),
+          onSelected: (intent) {
+            if (intent == 'ai' && widget.onAskAi == null) {
+              widget.onOpenAi?.call();
+              return;
+            }
+            model.chooseInputIntent(InputIntentChoice.values.byName(intent));
+            _focus.requestFocus();
+          },
+          itemBuilder: (_) => [
+            CheckedPopupMenuItem(
+              value: 'automatic',
+              checked: model.inputIntent.choice == InputIntentChoice.automatic,
+              child: Text(tr('Automatic', '自动识别')),
+            ),
+            CheckedPopupMenuItem(
+              value: 'command',
+              checked: model.inputIntent.choice == InputIntentChoice.command,
+              child: Text(tr('Command', '命令')),
+            ),
+            CheckedPopupMenuItem(
+              value: 'ai',
+              checked: model.inputIntent.choice == InputIntentChoice.ai,
+              child: Text(tr('Ask AI', 'AI 提问')),
+            ),
+          ],
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: compact ? 44 : 32),
+            child: Center(
+              widthFactor: 1,
+              child: Container(
+                padding: compact
+                    ? const EdgeInsets.symmetric(horizontal: 2, vertical: 8)
+                    : EdgeInsets.zero,
+                decoration: compact
+                    ? BoxDecoration(
+                        color: tokens.chip,
+                        borderRadius: BorderRadius.circular(8),
+                      )
+                    : null,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (!compact) ...[
+                      Icon(
+                        _asksAi
+                            ? Icons.auto_awesome_outlined
+                            : Icons.terminal_outlined,
+                        size: 18,
+                        color: tokens.muted,
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    Flexible(
+                      child: Text(
+                        '${model.inputIntent.choice == InputIntentChoice.automatic ? tr('Auto · ', '自动 · ') : ''}${_asksAi ? 'AI' : tr('Command', '命令')}',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: compact
+                            ? tokens.metadataStyle.copyWith(
+                                fontSize: 12,
+                                height: 1.25,
+                                letterSpacing: 0,
+                              )
+                            : tokens.metadataStyle,
+                      ),
+                    ),
+                    Icon(
+                      Icons.expand_more,
+                      size: compact ? 14 : 16,
+                      color: tokens.muted,
+                    ),
+                  ],
                 ),
               ),
-              Icon(
-                Icons.expand_more,
-                size: compact ? 14 : 16,
-                color: tokens.muted,
-              ),
-            ],
+            ),
           ),
-        ),
-      ),
-    ),
-  );
+        );
 
   Widget _moreActions(ComposerTheme tokens) {
     final mac = defaultTargetPlatform == TargetPlatform.macOS;
