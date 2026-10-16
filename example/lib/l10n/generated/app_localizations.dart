@@ -8453,7 +8453,7 @@ abstract class AppLocalizations {
   /// No description provided for @preferredTerminalModeHelp.
   ///
   /// In en, this message translates to:
-  /// **'New sessions only. Platform defaults: Blocks on phones, Normal on desktop. Blocks requires shell support; after support returns, switch back manually from the tab or session menu.'**
+  /// **'Applies to new sessions. On mobile, a configured LLM enables Blocks by default; choose Normal to turn this default off. Without an LLM, only Normal is available. Desktop defaults to Normal. Blocks also requires shell support; switch back manually after capability is restored.'**
   String get preferredTerminalModeHelp;
 
   /// No description provided for @blockUnavailableChecking.
@@ -8677,6 +8677,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No active connections'**
   String get mobileSessionsNoActive;
+
+  /// No description provided for @blockUnavailableLlm.
+  ///
+  /// In en, this message translates to:
+  /// **'Configure an LLM in settings to use Blocks on mobile.'**
+  String get blockUnavailableLlm;
+
+  /// No description provided for @mobileLlmWelcomeDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Use Trail as a regular terminal, or configure an LLM to enable AI and Blocks. With an LLM, new mobile sessions default to Blocks; you can choose Normal in settings. Connection details stay on this device.'**
+  String get mobileLlmWelcomeDetail;
+
+  /// No description provided for @mobileConfigureLlm.
+  ///
+  /// In en, this message translates to:
+  /// **'Configure LLM'**
+  String get mobileConfigureLlm;
+
+  /// No description provided for @mobileLlmConfigured.
+  ///
+  /// In en, this message translates to:
+  /// **'LLM configured · Edit'**
+  String get mobileLlmConfigured;
+
+  /// No description provided for @mobileSkipLlm.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip · Use regular terminal'**
+  String get mobileSkipLlm;
 }
 
 class _AppLocalizationsDelegate

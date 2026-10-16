@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 
+import '../ai/ai_settings.dart';
 import '../preferences/app_preferences_models.dart';
 import '../sessions/session_state.dart';
 import 'terminal_mode.dart';
@@ -14,6 +15,7 @@ final class ComposerPaneSession extends ChangeNotifier {
     required this.sessionId,
     required this.runtime,
     TerminalViewMode preferredMode = TerminalViewMode.normal,
+    this.mobileAiSettings,
   }) : mode = TerminalModeController(preferredMode: preferredMode) {
     controller = TerminalComposerController(
       targetId: sessionId,
@@ -87,6 +89,16 @@ final class ComposerPaneSession extends ChangeNotifier {
       submit: _submit,
     );
     mode.addListener(_modeChanged);
+    mobileAiSettings?.addListener(_updateLlmAvailability);
+    _updateLlmAvailability();
+  }
+
+  /// Supplied by the mobile host; desktop has no LLM prerequisite.
+  final AiSettingsController? mobileAiSettings;
+
+  void _updateLlmAvailability() {
+    final settings = mobileAiSettings;
+    if (settings != null) mode.setLlmRequired(!settings.hasLlmConfiguration);
   }
 
   final String sessionId;
@@ -341,6 +353,7 @@ final class ComposerPaneSession extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    mobileAiSettings?.removeListener(_updateLlmAvailability);
     _pollTimer?.cancel();
     mode.removeListener(_modeChanged);
     mode.dispose();

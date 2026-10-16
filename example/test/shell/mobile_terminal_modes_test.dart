@@ -211,6 +211,7 @@ Future<({ProviderContainer container, String id})> _pump(
   Size size = const Size(390, 844),
   double scale = 1,
   TerminalViewMode? preference,
+  AiConfiguration? configuration = const AiConfiguration.mock(),
 }) async {
   debugDefaultTargetPlatformOverride = platform;
   tester.view.devicePixelRatio = 1;
@@ -233,7 +234,7 @@ Future<({ProviderContainer container, String id})> _pump(
   );
   var theme = buildIanvsTerminalTheme(brightness, platform: platform);
   if (_evidence.isNotEmpty) theme = withVisualCaptureFonts(theme);
-  final aiSettings = AiSettingsController(MemoryAiStore());
+  final aiSettings = AiSettingsController(MemoryAiStore(configuration));
   addTearDown(aiSettings.dispose);
   await tester.pumpWidget(
     ProviderScope(
@@ -349,6 +350,108 @@ Future<void> _capture(WidgetTester tester, String name) async {
 
 void main() {
   ConfigurationCaptureBinding();
+  for (final platform in [TargetPlatform.iOS, TargetPlatform.android]) {
+    for (final preference in [null, TerminalViewMode.blocks]) {
+      testWidgets(
+        'mobile without LLM only offers Normal: $platform $preference',
+        (tester) async {
+          final backend = _MobileBackend()..owner = 'ready';
+          final (:id, :container) = await _pump(
+            tester,
+            backend,
+            platform: platform,
+            configuration: null,
+            preference: preference,
+          );
+          expect(_mode(container).mode, TerminalViewMode.normal);
+          expect(
+            _mode(container).unavailableReason,
+            BlockUnavailableReason.llmRequired,
+          );
+          await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+          await _settle(tester);
+          expect(
+            tester
+                .widget<ListTile>(find.byKey(Key('terminal-mode-blocks-$id')))
+                .enabled,
+            isFalse,
+          );
+          await tester.tap(find.byKey(Key('terminal-mode-recheck-$id')));
+          await _settle(tester);
+          expect(_mode(container).canUseBlocks, isFalse);
+          await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+          await _settle(tester);
+          expect(find.byKey(const Key('ai-settings-dialog')), findsOneWidget);
+          expect(find.byType(TerminalAiWorkspace), findsNothing);
+          expect(backend.submissions, isEmpty);
+          await tester.pumpWidget(const SizedBox.shrink());
+          debugDefaultTargetPlatformOverride = null;
+        },
+      );
+    }
+    testWidgets(
+      'removing LLM revokes Blocks and retains command draft on $platform',
+      (tester) async {
+        final backend = _MobileBackend()..owner = 'ready';
+        final (:id, :container) = await _pump(
+          tester,
+          backend,
+          platform: platform,
+        );
+        expect(_mode(container).mode, TerminalViewMode.blocks);
+        await tester.enterText(
+          find.byKey(const Key('composer-editor')),
+          'echo keep draft',
+        );
+        final settings = container.read(aiSettingsProvider);
+        await settings.save(null);
+        await _settle(tester);
+        expect(_mode(container).mode, TerminalViewMode.normal);
+        expect(_mode(container).canUseBlocks, isFalse);
+        await settings.save(const AiConfiguration.mock());
+        await _settle(tester);
+        // Capability restoration never silently changes the current input owner.
+        expect(_mode(container).mode, TerminalViewMode.normal);
+        await _choose(tester, id, TerminalViewMode.blocks);
+        expect(
+          tester
+              .widget<TextField>(find.byKey(const Key('composer-editor')))
+              .controller!
+              .text,
+          'echo keep draft',
+        );
+        await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+        await _settle(tester);
+        expect(find.byType(TerminalAiWorkspace), findsOneWidget);
+        await settings.save(null);
+        await _settle(tester);
+        expect(find.byType(TerminalAiWorkspace), findsNothing);
+        expect(_mode(container).mode, TerminalViewMode.normal);
+        expect(backend.submissions, isEmpty);
+        await tester.pumpWidget(const SizedBox.shrink());
+        debugDefaultTargetPlatformOverride = null;
+      },
+    );
+  }
+
+  testWidgets('desktop Blocks has no LLM prerequisite', (tester) async {
+    final backend = _MobileBackend()..owner = 'ready';
+    final (:container, :id) = await _pump(
+      tester,
+      backend,
+      platform: TargetPlatform.macOS,
+      configuration: null,
+      preference: TerminalViewMode.blocks,
+      size: const Size(1200, 800),
+    );
+    expect(_mode(container).mode, TerminalViewMode.blocks);
+    await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+    await _settle(tester);
+    expect(find.byType(TerminalAiWorkspace), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    debugDefaultTargetPlatformOverride = null;
+  });
+
   group('AI evidence reinput', () {
     Future<void> insertEvidence(WidgetTester tester, String sourceId) async {
       tester

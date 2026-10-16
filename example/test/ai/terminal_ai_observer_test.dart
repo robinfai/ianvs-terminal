@@ -32,7 +32,7 @@ import '../support/no_io_local_terminal_layout_repository.dart';
 
 class _Store implements AiConfigurationStore {
   @override
-  Future<AiConfiguration?> read() async => null;
+  Future<AiConfiguration?> read() async => const AiConfiguration.mock();
   @override
   Future<void> write(AiConfiguration? configuration) async {}
 }

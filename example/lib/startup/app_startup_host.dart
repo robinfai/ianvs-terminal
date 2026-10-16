@@ -8,7 +8,10 @@ import '../app_bootstrap.dart';
 import '../data/configuration/data_api_configuration.dart';
 import '../data/configuration/data_api_configuration_repository.dart';
 import '../data/services/portable_master_key.dart';
+import '../features/ai/ai_settings.dart';
+import '../features/ai/ai_settings_dialog.dart';
 import '../ui/app_ui.dart';
+import '../ui/foundation/phone_text_scale_policy.dart';
 import 'app_startup_coordinator.dart';
 import 'app_startup_lifecycle.dart';
 import 'app_startup_models.dart';
@@ -25,6 +28,7 @@ final class AppStartupHost extends StatefulWidget {
     this.enableReferenceDemoMode = false,
     this.shutdownChannel = const MethodChannel('app/shutdown'),
     this.runtimeBuilder,
+    this.aiSettings,
     super.key,
   });
 
@@ -36,6 +40,7 @@ final class AppStartupHost extends StatefulWidget {
   final bool enableReferenceDemoMode;
   final MethodChannel shutdownChannel;
   final AppStartupRuntimeBuilder? runtimeBuilder;
+  final AiSettingsController? aiSettings;
 
   @override
   State<AppStartupHost> createState() => _AppStartupHostState();
@@ -78,6 +83,7 @@ final class _AppStartupHostState extends State<AppStartupHost> {
             AppStartupDataSetupRequired(:final requirement, :final settings) =>
               _StartupMaterialApp(
                 home: _AppStartupDataSetupView(
+                  aiSettings: widget.aiSettings,
                   requirement: requirement,
                   settings: settings,
                   coordinator: widget.coordinator,
@@ -125,6 +131,7 @@ final class _StartupMaterialApp extends StatelessWidget {
         Brightness.dark,
         platform: defaultTargetPlatform,
       ),
+      builder: (context, child) => PhoneTextScalePolicy(child: child!),
       home: home,
     );
   }
@@ -132,11 +139,13 @@ final class _StartupMaterialApp extends StatelessWidget {
 
 final class _AppStartupDataSetupView extends StatefulWidget {
   const _AppStartupDataSetupView({
+    this.aiSettings,
     required this.requirement,
     required this.settings,
     required this.coordinator,
   });
 
+  final AiSettingsController? aiSettings;
   final AppStartupDataSetupRequirement requirement;
   final AppStartupDataSettingsCapability settings;
   final AppStartupCoordinator coordinator;
@@ -154,6 +163,10 @@ final class _AppStartupDataSetupViewState
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _portableMasterKeyController = TextEditingController();
+  AiSettingsController? _aiSettings;
+  bool get _isMobile =>
+      defaultTargetPlatform == TargetPlatform.iOS ||
+      defaultTargetPlatform == TargetPlatform.android;
   bool _runningAction = false;
   bool _showMobileSyncSetup = false;
   String? _actionError;
@@ -166,6 +179,12 @@ final class _AppStartupDataSetupViewState
   @override
   void initState() {
     super.initState();
+    if (_isMobile) {
+      _aiSettings =
+          widget.aiSettings ??
+          AiSettingsController(createAiConfigurationStore());
+      _aiSettings!.addListener(_handleInputChanged);
+    }
     for (final controller in _controllers) {
       controller.addListener(_handleInputChanged);
     }
@@ -257,11 +276,11 @@ final class _AppStartupDataSetupViewState
     }
   }
 
-  Widget _buildUrlField({required bool isIos}) {
+  Widget _buildUrlField({required bool isMobile}) {
     return TextField(
       key: const Key('app-startup-initial-data-api-url'),
       controller: _urlController,
-      autofocus: !isIos,
+      autofocus: !isMobile,
       keyboardType: TextInputType.url,
       textInputAction: TextInputAction.next,
       autocorrect: false,
@@ -318,6 +337,8 @@ final class _AppStartupDataSetupViewState
 
   @override
   void dispose() {
+    _aiSettings?.removeListener(_handleInputChanged);
+    if (widget.aiSettings == null) _aiSettings?.dispose();
     for (final controller in _controllers) {
       controller
         ..removeListener(_handleInputChanged)
@@ -382,58 +403,89 @@ final class _AppStartupDataSetupViewState
     },
   );
 
-  @override
-  Widget build(BuildContext context) {
-    final canSkip =
-        widget.requirement == AppStartupDataSetupRequirement.optional;
-    final isIos = defaultTargetPlatform == TargetPlatform.iOS;
-    final theme = Theme.of(context);
-    if (isIos && canSkip && !_showMobileSyncSetup) {
-      return Scaffold(
-        key: const Key('app-startup-mobile-welcome'),
-        body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
+  Widget _buildMobileWelcome(ThemeData theme) => Scaffold(
+    key: const Key('app-startup-mobile-welcome'),
+    body: SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final sideBySide =
+                constraints.maxWidth >= 600 && constraints.maxHeight < 500;
+            final introduction = SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(height: sideBySide ? 0 : 40),
+                  Icon(
+                    Icons.terminal_rounded,
+                    size: 48,
+                    color: theme.colorScheme.primary,
+                  ),
+                  SizedBox(height: sideBySide ? 16 : 24),
+                  Text(
+                    context.l10n.mobileLocalWelcome,
+                    style: theme.textTheme.headlineLarge,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    context.l10n.mobileLlmWelcomeDetail,
+                    style: theme.textTheme.bodyLarge,
+                  ),
+                  if (_actionError != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: Text(
+                        _actionError!,
+                        style: TextStyle(color: theme.colorScheme.error),
+                      ),
+                    ),
+                ],
+              ),
+            );
+            final configured = _aiSettings!.hasLlmConfiguration;
+            void configure() => unawaited(
+              showAiSettings(context, _aiSettings!, onSaved: (_) {}),
+            );
+            final actions = Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 40),
-                        Icon(
-                          Icons.terminal_rounded,
-                          size: 48,
-                          color: theme.colorScheme.primary,
-                        ),
-                        const SizedBox(height: 24),
-                        Text(
-                          context.l10n.mobileLocalWelcome,
-                          style: theme.textTheme.headlineLarge,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          context.l10n.mobileLocalWelcomeDetail,
-                          style: theme.textTheme.bodyLarge,
-                        ),
-                        if (_actionError != null)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 16),
-                            child: Text(
-                              _actionError!,
-                              style: TextStyle(color: theme.colorScheme.error),
-                            ),
-                          ),
-                      ],
-                    ),
+                FilledButton(
+                  key: Key(
+                    configured
+                        ? 'app-startup-skip-data-api'
+                        : 'app-startup-configure-llm',
+                  ),
+                  onPressed:
+                      _runningAction || (!configured && _aiSettings!.loading)
+                      ? null
+                      : configured
+                      ? _skip
+                      : configure,
+                  child: Text(
+                    configured
+                        ? context.l10n.mobileStartLocally
+                        : context.l10n.mobileConfigureLlm,
                   ),
                 ),
-                FilledButton(
-                  key: const Key('app-startup-skip-data-api'),
-                  onPressed: _runningAction ? null : _skip,
-                  child: Text(context.l10n.mobileStartLocally),
+                const SizedBox(height: 8),
+                TextButton(
+                  key: Key(
+                    configured
+                        ? 'app-startup-configure-llm'
+                        : 'app-startup-skip-data-api',
+                  ),
+                  onPressed: _runningAction
+                      ? null
+                      : configured
+                      ? configure
+                      : _skip,
+                  child: Text(
+                    configured
+                        ? context.l10n.mobileLlmConfigured
+                        : context.l10n.mobileSkipLlm,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 TextButton(
@@ -444,15 +496,44 @@ final class _AppStartupDataSetupViewState
                   child: Text(context.l10n.mobileSetUpSync),
                 ),
               ],
-            ),
-          ),
+            );
+            if (sideBySide) {
+              return Row(
+                children: [
+                  Expanded(child: introduction),
+                  const SizedBox(width: 32),
+                  SizedBox(width: constraints.maxWidth * .34, child: actions),
+                ],
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: introduction),
+                const SizedBox(height: 16),
+                actions,
+              ],
+            );
+          },
         ),
-      );
+      ),
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final canSkip =
+        widget.requirement == AppStartupDataSetupRequirement.optional;
+    final isMobile = _isMobile;
+    final theme = Theme.of(context);
+    if (isMobile && canSkip && !_showMobileSyncSetup) {
+      return _buildMobileWelcome(theme);
     }
-    final pinActions = isIos || MediaQuery.sizeOf(context).height < 700;
+
+    final pinActions = isMobile || MediaQuery.sizeOf(context).height < 700;
     return Scaffold(
       key: const Key('app-startup-data-api-setup'),
-      appBar: isIos && canSkip
+      appBar: isMobile && canSkip
           ? AppBar(
               title: Text(context.l10n.mobileSync),
               leading: BackButton(
@@ -477,7 +558,7 @@ final class _AppStartupDataSetupViewState
         child: LayoutBuilder(
           builder: (context, constraints) {
             final compactLandscape =
-                isIos &&
+                isMobile &&
                 constraints.maxWidth >= 600 &&
                 constraints.maxHeight < 600;
             final outerInset = compactLandscape ? 12.0 : 32.0;
@@ -551,7 +632,7 @@ final class _AppStartupDataSetupViewState
                                 ),
                               ),
                               SizedBox(height: compactLandscape ? 14 : 28),
-                              _buildUrlField(isIos: isIos),
+                              _buildUrlField(isMobile: isMobile),
                               SizedBox(height: compactLandscape ? 10 : 14),
                               if (compactLandscape)
                                 Row(

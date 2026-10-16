@@ -4084,7 +4084,7 @@
   "aiConfigurationUnreadable": "Saved configuration could not be read. Terminal features remain available.",
   "aiConfigurationMissing": "Not configured. Terminal features work independently.",
   "aiConfigurationSaved": "Configuration saved. Open to edit or test the connection.",
-  "preferredTerminalModeHelp": "New sessions only. Platform defaults: Blocks on phones, Normal on desktop. Blocks requires shell support; after support returns, switch back manually from the tab or session menu.",
+  "preferredTerminalModeHelp": "Applies to new sessions. On mobile, a configured LLM enables Blocks by default; choose Normal to turn this default off. Without an LLM, only Normal is available. Desktop defaults to Normal. Blocks also requires shell support; switch back manually after capability is restored.",
   "blockUnavailableChecking": "Checking shell support…",
   "blockUnavailableShell": "The current shell does not support Command Blocks.",
   "blockUnavailableRemote": "Command Block negotiation is not ready for the current SSH node.",
@@ -4128,5 +4128,10 @@
         "type": "int"
       }
     }
-  }
+  },
+  "blockUnavailableLlm": "Configure an LLM in settings to use Blocks on mobile.",
+  "mobileLlmWelcomeDetail": "Use Trail as a regular terminal, or configure an LLM to enable AI and Blocks. With an LLM, new mobile sessions default to Blocks; you can choose Normal in settings. Connection details stay on this device.",
+  "mobileConfigureLlm": "Configure LLM",
+  "mobileLlmConfigured": "LLM configured · Edit",
+  "mobileSkipLlm": "Skip · Use regular terminal"
 }

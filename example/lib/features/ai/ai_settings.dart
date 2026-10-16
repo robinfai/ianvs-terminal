@@ -97,6 +97,20 @@ class AiSettingsController extends ChangeNotifier {
   String? error;
   bool _disposed = false;
 
+  /// A local, valid LLM configuration is enough; no network request is needed.
+  bool get hasLlmConfiguration {
+    final value = configuration;
+    if (loading || error != null || value?.backend != AiBackendKind.llm) {
+      return false;
+    }
+    try {
+      value!.validate();
+      return true;
+    } on AiFailure {
+      return false;
+    }
+  }
+
   Future<void> _load() async {
     try {
       configuration = await store.read();

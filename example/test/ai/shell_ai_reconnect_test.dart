@@ -33,7 +33,7 @@ import '../support/shell_command_actions.dart';
 
 class _Store implements AiConfigurationStore {
   @override
-  Future<AiConfiguration?> read() async => null;
+  Future<AiConfiguration?> read() async => const AiConfiguration.mock();
 
   @override
   Future<void> write(AiConfiguration? value) async {}

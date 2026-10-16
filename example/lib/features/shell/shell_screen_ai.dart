@@ -1,6 +1,21 @@
 part of 'shell_screen.dart';
 
 extension _ShellScreenAi on _ShellScreenState {
+  bool get _mobileRequiresLlm =>
+      defaultTargetPlatform == TargetPlatform.iOS ||
+      defaultTargetPlatform == TargetPlatform.android;
+
+  void _handleLlmConfigurationChanged() {
+    if (!mounted ||
+        !_mobileRequiresLlm ||
+        ref.read(aiSettingsProvider).hasLlmConfiguration) {
+      return;
+    }
+    for (final sessionId in _openAiSessions.toList()) {
+      _takeOverAiInput(sessionId);
+    }
+  }
+
   ComposerPaneSession _composerFor(String sessionId) =>
       _composerSessions.putIfAbsent(
         sessionId,
@@ -8,6 +23,9 @@ extension _ShellScreenAi on _ShellScreenState {
             ComposerPaneSession(
               sessionId: sessionId,
               runtime: ref.read(terminalRuntimeControllerProvider),
+              mobileAiSettings: _mobileRequiresLlm
+                  ? ref.read(aiSettingsProvider)
+                  : null,
               preferredMode: ref
                   .read(sessionControllerProvider)
                   .preferredTerminalMode,
@@ -234,6 +252,19 @@ extension _ShellScreenAi on _ShellScreenState {
     if (mounted) await _reconnectAi(sessionId, editedProfile: result.profile);
   }
 
+  Future<void> _configureMobileLlm(String sessionId) async {
+    if (_isMobileLlmSetupOpen) return;
+    _mutateState(() {
+      _isMobileLlmSetupOpen = true;
+      _revokeManualInput(sessionId);
+    });
+    try {
+      await showAiSettings(context, ref.read(aiSettingsProvider));
+    } finally {
+      if (mounted) _mutateState(() => _isMobileLlmSetupOpen = false);
+    }
+  }
+
   void _openAi(
     String sessionId, {
     String? prompt,
@@ -241,6 +272,11 @@ extension _ShellScreenAi on _ShellScreenState {
     terminal.CommandBlock? range,
     List<terminal.CommandBlock> blocks = const [],
   }) {
+    if (_mobileRequiresLlm &&
+        !ref.read(aiSettingsProvider).hasLlmConfiguration) {
+      unawaited(_configureMobileLlm(sessionId));
+      return;
+    }
     final ai = _aiFor(sessionId);
     FocusManager.instance.primaryFocus?.unfocus();
     final runtime =

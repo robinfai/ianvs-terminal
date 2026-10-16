@@ -226,6 +226,7 @@ class _DefaultsAndAppearanceDialogState
   @override
   void initState() {
     super.initState();
+    widget.aiSettings?.addListener(_handleRemoteDataApiFieldChanged);
     final configuredProfileId = widget.configuredDefaultProfileId;
     _selectedProfileId =
         configuredProfileId != null &&
@@ -275,6 +276,7 @@ class _DefaultsAndAppearanceDialogState
 
   @override
   void dispose() {
+    widget.aiSettings?.removeListener(_handleRemoteDataApiFieldChanged);
     for (final controller in <TextEditingController>[
       _remoteDataApiUrlController,
       _remoteDataApiUsernameController,
@@ -718,6 +720,12 @@ class _DefaultsAndAppearanceDialogState
                 for (final mode in _TerminalModePreference.values)
                   DropdownMenuItem(
                     key: Key('default-terminal-mode-${mode.name}'),
+                    enabled:
+                        mode != _TerminalModePreference.blocks ||
+                        (Theme.of(context).platform != TargetPlatform.iOS &&
+                            Theme.of(context).platform !=
+                                TargetPlatform.android) ||
+                        widget.aiSettings?.hasLlmConfiguration == true,
                     value: mode,
                     child: Text(switch (mode) {
                       _TerminalModePreference.platform =>

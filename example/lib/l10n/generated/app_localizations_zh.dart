@@ -5021,7 +5021,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get preferredTerminalModeHelp =>
-      '仅用于新会话。平台默认：手机使用命令块，桌面使用普通终端。命令块需要当前 Shell 支持；能力恢复后需在标签页或会话菜单手动切回。';
+      '用于新会话。移动端配置 LLM 后默认使用命令块，可选择普通模式关闭此默认行为；未配置 LLM 时仅可使用普通模式。桌面默认使用普通终端。命令块仍需 Shell 支持，能力恢复后需手动切回。';
 
   @override
   String get blockUnavailableChecking => '正在检测 Shell 支持…';
@@ -5135,4 +5135,20 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get mobileSessionsNoActive => '当前没有进行中的连接';
+
+  @override
+  String get blockUnavailableLlm => '移动端需先在设置中配置 LLM，才能使用命令块。';
+
+  @override
+  String get mobileLlmWelcomeDetail =>
+      '可以直接使用普通终端，也可以配置 LLM，启用 AI 和命令块。配置后，移动端新会话默认使用命令块；可在设置中改为普通模式。连接信息仅保存在此设备。';
+
+  @override
+  String get mobileConfigureLlm => '配置 LLM';
+
+  @override
+  String get mobileLlmConfigured => '已配置 LLM · 编辑';
+
+  @override
+  String get mobileSkipLlm => '跳过，使用普通终端';
 }

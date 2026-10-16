@@ -248,6 +248,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, CommandBlockReaderHostController> _readerControllers = {};
   final Map<String, Future<String?>> _terminalReconnects = {};
   final Set<String> _openAiSessions = {};
+  late final AiSettingsController _modeAiSettings;
   final Map<String, String> _observedAiTargets = {};
   final Map<String, int> _manualInputEpochs = {};
   int _manualInputSerial = 0;
@@ -301,6 +302,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   bool _isCommandMenuOpen = false;
   bool _isShellCapabilitiesOpen = false;
   bool _isDefaultsOpen = false;
+  bool _isMobileLlmSetupOpen = false;
   bool _isProfilesOpen = false;
   bool _remoteFallbackSnapshotLoadStarted = false;
   bool _remoteFallbackSwitching = false;
@@ -408,6 +410,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   @override
   void initState() {
     super.initState();
+    _modeAiSettings = ref.read(aiSettingsProvider);
+    _modeAiSettings.addListener(_handleLlmConfigurationChanged);
     final runtime = ref.read(referenceDemoModeProvider)
         ? null
         : ref.read(terminalRuntimeControllerProvider);
@@ -458,6 +462,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   @override
   void dispose() {
+    _modeAiSettings.removeListener(_handleLlmConfigurationChanged);
     WindowBridge.setNativeMenuHandlers();
     _appLifecycleListener.dispose();
     unawaited(_osc72DragDropController.dispose());

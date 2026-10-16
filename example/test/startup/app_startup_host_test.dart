@@ -5,6 +5,7 @@ import 'package:app/data/configuration/data_api_configuration.dart';
 import 'package:app/data/configuration/data_api_configuration_repository.dart';
 import 'package:app/data/services/data_api_remote_session_store.dart';
 import 'package:app/data/services/portable_master_key.dart';
+import 'package:app/features/ai/ai_settings.dart';
 import 'package:app/features/recording/local_session_recording_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/persistence_repository_composition.dart';
@@ -20,10 +21,80 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
 
+import '../ai/terminal_ai_test.dart' show MemoryAiStore;
 import '../design/ui_review_capture.dart';
 import '../design/visual_capture_fonts.dart';
 
 void main() {
+  for (final platform in [TargetPlatform.iOS, TargetPlatform.android]) {
+    for (final configure in [false, true]) {
+      testWidgets(
+        'first install LLM can be configured or skipped: $platform $configure',
+        (tester) async {
+          final harness = _HostHarness.create(
+            initialSetupRequirement: AppStartupDataSetupRequirement.optional,
+            localDataApiAvailable: false,
+          );
+          final store = MemoryAiStore(null);
+          final settings = AiSettingsController(store);
+          addTearDown(settings.dispose);
+          addTearDown(() => _disposeHarness(tester, harness));
+          await tester.pumpWidget(harness.host(aiSettings: settings));
+          await harness.coordinator.start();
+          await tester.pumpAndSettle();
+          expect(
+            find.byKey(const Key('app-startup-configure-llm')),
+            findsOneWidget,
+          );
+          if (configure) {
+            await tester.tap(
+              find.byKey(const Key('app-startup-configure-llm')),
+            );
+            await tester.pumpAndSettle();
+            expect(find.text('Codex ACP'), findsNothing);
+            await tester.enterText(
+              find.byKey(const Key('ai-endpoint')),
+              'https://llm.example/v1',
+            );
+            await tester.enterText(
+              find.byKey(const Key('ai-api-key')),
+              'test-local-key',
+            );
+            await tester.enterText(
+              find.byKey(const Key('ai-model')),
+              'test-model',
+            );
+            await tester.ensureVisible(
+              find.byKey(const Key('ai-save-settings')),
+            );
+            await tester.tap(find.byKey(const Key('ai-save-settings')));
+            await tester.pumpAndSettle();
+            expect(settings.hasLlmConfiguration, isTrue);
+            expect(store.value?.model, 'test-model');
+          }
+          await tester.tap(find.byKey(const Key('app-startup-skip-data-api')));
+          await tester.pumpAndSettle();
+          expect(harness.coordinator.state, isA<AppStartupReady>());
+          expect(settings.hasLlmConfiguration, configure);
+          expect(
+            find.byKey(const Key('app-startup-mobile-welcome')),
+            findsNothing,
+          );
+          await harness.coordinator.retry();
+          await tester.pumpAndSettle();
+          expect(
+            find.byKey(const Key('app-startup-mobile-welcome')),
+            findsNothing,
+          );
+          final reloaded = AiSettingsController(store);
+          await reloaded.loaded;
+          expect(reloaded.hasLlmConfiguration, configure);
+          reloaded.dispose();
+        },
+        variant: TargetPlatformVariant.only(platform),
+      );
+    }
+  }
   if (uiReviewEvidenceDirectory.isNotEmpty) {
     setUpAll(loadVisualCaptureFonts);
     for (final platform in [TargetPlatform.iOS, TargetPlatform.macOS]) {
@@ -65,8 +136,11 @@ void main() {
                       : null,
                 );
                 addTearDown(() => _disposeHarness(tester, harness));
+                final aiSettings = AiSettingsController(MemoryAiStore(null));
+                await aiSettings.loaded;
+                addTearDown(aiSettings.dispose);
                 await harness.coordinator.start();
-                await tester.pumpWidget(harness.host());
+                await tester.pumpWidget(harness.host(aiSettings: aiSettings));
                 await tester.pump();
                 // The actual startup page is retained, with deterministic fonts
                 // supplied only by this host capture wrapper.
@@ -210,90 +284,102 @@ void main() {
     );
   });
 
-  testWidgets('macOS initial data setup can be skipped and is persisted', (
-    tester,
-  ) async {
-    final harness = _HostHarness.create(
-      initialSetupRequirement: AppStartupDataSetupRequirement.optional,
-    );
-    addTearDown(() => _disposeHarness(tester, harness));
+  testWidgets(
+    'macOS initial data setup can be skipped and is persisted',
+    (tester) async {
+      final harness = _HostHarness.create(
+        initialSetupRequirement: AppStartupDataSetupRequirement.optional,
+      );
+      addTearDown(() => _disposeHarness(tester, harness));
 
-    await tester.pumpWidget(harness.host());
-    await harness.coordinator.start();
-    await tester.pump();
+      await tester.pumpWidget(harness.host());
+      await harness.coordinator.start();
+      await tester.pump();
 
-    expect(harness.coordinator.state, isA<AppStartupDataSetupRequired>());
-    expect(harness.composeCount, 0);
-    expect(find.text('Choose your data mode'), findsOneWidget);
-    expect(find.byKey(const Key('app-startup-skip-data-api')), findsOneWidget);
+      expect(harness.coordinator.state, isA<AppStartupDataSetupRequired>());
+      expect(harness.composeCount, 0);
+      expect(find.text('Choose your data mode'), findsOneWidget);
+      expect(
+        find.byKey(const Key('app-startup-skip-data-api')),
+        findsOneWidget,
+      );
 
-    await tester.ensureVisible(
-      find.byKey(const Key('app-startup-skip-data-api')),
-    );
-    await tester.tap(find.byKey(const Key('app-startup-skip-data-api')));
-    await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.byKey(const Key('app-startup-skip-data-api')),
+      );
+      await tester.tap(find.byKey(const Key('app-startup-skip-data-api')));
+      await tester.pumpAndSettle();
 
-    expect(harness.settings.disableCount, 1);
-    expect(harness.coordinator.state, isA<AppStartupReady>());
-    expect(harness.composeCount, 1);
-  });
+      expect(harness.settings.disableCount, 1);
+      expect(harness.coordinator.state, isA<AppStartupReady>());
+      expect(harness.composeCount, 1);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
 
-  testWidgets('macOS initial setup can select the bundled local API', (
-    tester,
-  ) async {
-    final harness = _HostHarness.create(
-      initialSetupRequirement: AppStartupDataSetupRequirement.optional,
-    );
-    addTearDown(() => _disposeHarness(tester, harness));
+  testWidgets(
+    'macOS initial setup can select the bundled local API',
+    (tester) async {
+      final harness = _HostHarness.create(
+        initialSetupRequirement: AppStartupDataSetupRequirement.optional,
+      );
+      addTearDown(() => _disposeHarness(tester, harness));
 
-    await tester.pumpWidget(harness.host());
-    await harness.coordinator.start();
-    await tester.pump();
+      await tester.pumpWidget(harness.host());
+      await harness.coordinator.start();
+      await tester.pump();
 
-    expect(find.byKey(const Key('app-startup-use-local-api')), findsOneWidget);
-    await tester.ensureVisible(
-      find.byKey(const Key('app-startup-use-local-api')),
-    );
-    await tester.tap(find.byKey(const Key('app-startup-use-local-api')));
-    await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('app-startup-use-local-api')),
+        findsOneWidget,
+      );
+      await tester.ensureVisible(
+        find.byKey(const Key('app-startup-use-local-api')),
+      );
+      await tester.tap(find.byKey(const Key('app-startup-use-local-api')));
+      await tester.pumpAndSettle();
 
-    expect(harness.settings.localCount, 1);
-    expect(harness.settings.disableCount, 0);
-    expect(harness.coordinator.state, isA<AppStartupReady>());
-  });
+      expect(harness.settings.localCount, 1);
+      expect(harness.settings.disableCount, 0);
+      expect(harness.coordinator.state, isA<AppStartupReady>());
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
 
-  testWidgets('optional setup without local API keeps data locally', (
-    tester,
-  ) async {
-    final harness = _HostHarness.create(
-      initialSetupRequirement: AppStartupDataSetupRequirement.optional,
-      localDataApiAvailable: false,
-    );
-    addTearDown(() => _disposeHarness(tester, harness));
+  testWidgets(
+    'optional setup without local API keeps data locally',
+    (tester) async {
+      final harness = _HostHarness.create(
+        initialSetupRequirement: AppStartupDataSetupRequirement.optional,
+        localDataApiAvailable: false,
+      );
+      addTearDown(() => _disposeHarness(tester, harness));
 
-    await tester.pumpWidget(harness.host());
-    await harness.coordinator.start();
-    await tester.pump();
+      await tester.pumpWidget(harness.host());
+      await harness.coordinator.start();
+      await tester.pump();
 
-    expect(
-      find.textContaining('Your data stays available locally'),
-      findsOneWidget,
-    );
-    expect(
-      find.textContaining('optionally connect a remote API'),
-      findsOneWidget,
-    );
-    expect(find.byKey(const Key('app-startup-use-local-api')), findsNothing);
-    expect(find.text('Use bundled local API'), findsNothing);
-    expect(find.text('Use local terminal only'), findsNothing);
-    expect(find.text('Continue without data service'), findsOneWidget);
+      expect(
+        find.textContaining('Your data stays available locally'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('optionally connect a remote API'),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('app-startup-use-local-api')), findsNothing);
+      expect(find.text('Use bundled local API'), findsNothing);
+      expect(find.text('Use local terminal only'), findsNothing);
+      expect(find.text('Continue without data service'), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('app-startup-skip-data-api')));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('app-startup-skip-data-api')));
+      await tester.pumpAndSettle();
 
-    expect(harness.settings.disableCount, 1);
-    expect(harness.coordinator.state, isA<AppStartupReady>());
-  });
+      expect(harness.settings.disableCount, 1);
+      expect(harness.coordinator.state, isA<AppStartupReady>());
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
 
   testWidgets(
     'iPhone starts locally and exposes sync as an optional setup',
@@ -315,7 +401,7 @@ void main() {
       expect(find.byType(TextField), findsNothing);
       expect(
         tester.widget(find.byKey(const Key('app-startup-skip-data-api'))),
-        isA<FilledButton>(),
+        isA<TextButton>(),
       );
       await tester.tap(find.byKey(const Key('mobile-setup-sync')));
       await tester.pumpAndSettle();
@@ -900,9 +986,11 @@ final class _HostHarness {
     MethodChannel shutdownChannel = const MethodChannel('app/shutdown'),
     bool disposeCoordinator = false,
     AppStartupRuntimeBuilder? runtimeBuilder,
+    AiSettingsController? aiSettings,
   }) {
     return AppStartupHost(
       coordinator: coordinator,
+      aiSettings: aiSettings,
       disposeCoordinator: disposeCoordinator,
       enableSessionPolling: false,
       enableShellAnimations: false,

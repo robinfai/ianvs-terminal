@@ -81,6 +81,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       _mobileSessionsOpen ||
       _isShellCapabilitiesOpen ||
       _isDefaultsOpen ||
+      _isMobileLlmSetupOpen ||
       _isProfilesOpen ||
       ModalRoute.of(context)?.isCurrent == false;
 

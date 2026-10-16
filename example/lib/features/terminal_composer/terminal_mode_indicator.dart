@@ -10,6 +10,7 @@ String blockUnavailableMessage(
   AppLocalizations l10n,
   BlockUnavailableReason? reason,
 ) => switch (reason) {
+  BlockUnavailableReason.llmRequired => l10n.blockUnavailableLlm,
   BlockUnavailableReason.checking => l10n.blockUnavailableChecking,
   BlockUnavailableReason.unsupportedShell => l10n.blockUnavailableShell,
   BlockUnavailableReason.remoteShell => l10n.blockUnavailableRemote,
