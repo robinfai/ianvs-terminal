@@ -171,13 +171,14 @@ class _AiDraftAttachment {
 }
 
 class _AiTask {
-  _AiTask(this.id);
+  _AiTask(this.id, {InputIntent defaultInputIntent = InputIntent.ai})
+    : inputIntent = InputIntentState(defaultIntent: defaultInputIntent);
   final String id;
   String title = '';
   String draft = '';
   int draftRevision = 0;
   bool retainedAiIntent = false;
-  final inputIntent = InputIntentState(defaultIntent: InputIntent.ai);
+  final InputIntentState inputIntent;
   double readingOffset = 0;
   ({String id, double offset})? readingAnchor;
   bool followingOutput = true;
@@ -237,10 +238,12 @@ class TerminalAiController extends ChangeNotifier {
     AiActionReviewer? reviewer,
     this.onAgentEvent,
     this.maxSteps = 24,
+    this.defaultInputIntent = InputIntent.ai,
   }) : assert(maxSteps > 0, 'maxSteps must be positive'),
        api = api ?? const AiApiClient(),
        reviewer = reviewer ?? AiModelActionReviewer(),
        agentFactory = agentFactory ?? CodexAcpBackend.new {
+    _task = _AiTask('task-1', defaultInputIntent: defaultInputIntent);
     _tasks.add(_task);
     _lastConfiguration = settings.configuration;
     _inputSubscription = terminal.userInput.listen((_) => takeOver());
@@ -258,7 +261,8 @@ class TerminalAiController extends ChangeNotifier {
   final int maxSteps;
   late final StreamSubscription<void> _inputSubscription;
   final _tasks = <_AiTask>[];
-  _AiTask _task = _AiTask('task-1');
+  late _AiTask _task;
+  final InputIntent defaultInputIntent;
   int _taskSerial = 1;
   int _entrySerial = 0;
   int _connectionRevision = 0;
@@ -424,7 +428,9 @@ class TerminalAiController extends ChangeNotifier {
   );
 
   bool _agentOwnsInput({InputIntentChoice? previewChoice}) =>
-      busy ||
+      // A human command in flight locks execution, but does not turn the next
+      // command draft into an AI follow-up. Agent work still forces AI intent.
+      (busy && _executingAction?.id.startsWith('human-') != true) ||
       pending != null ||
       _task.attachments.isNotEmpty ||
       context?.alternateScreen == true ||
@@ -587,7 +593,10 @@ class TerminalAiController extends ChangeNotifier {
   void newTask() {
     takeOver();
     _cancellation?.cancel();
-    _task = _AiTask('task-${++_taskSerial}');
+    _task = _AiTask(
+      'task-${++_taskSerial}',
+      defaultInputIntent: defaultInputIntent,
+    );
     _tasks.add(_task);
     _emit();
   }

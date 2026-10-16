@@ -57,6 +57,10 @@ class TerminalModeController extends ChangeNotifier {
   TerminalModeState get state => _state;
   bool _initialChoiceApplied = false;
   bool _manualChoice = false;
+  TerminalViewMode? _selectedMode;
+
+  /// Reconnect preserves the user's mode, not a temporary capability fallback.
+  TerminalViewMode get chosenMode => _selectedMode ?? preferredMode;
   bool _offerRestore = false;
   bool _llmRequired = false;
   BlockUnavailableReason? _shellReason = BlockUnavailableReason.checking;
@@ -116,6 +120,7 @@ class TerminalModeController extends ChangeNotifier {
     if (mode == TerminalViewMode.blocks && !_state.canUseBlocks) return false;
     _initialChoiceApplied = true;
     _manualChoice = true;
+    _selectedMode = mode;
     _offerRestore = false;
     _publish(
       TerminalModeState(

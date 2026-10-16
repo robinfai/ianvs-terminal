@@ -8453,7 +8453,7 @@ abstract class AppLocalizations {
   /// No description provided for @preferredTerminalModeHelp.
   ///
   /// In en, this message translates to:
-  /// **'Applies to new sessions. On mobile, a configured LLM enables Blocks by default; choose Normal to turn this default off. Without an LLM, only Normal is available. Desktop defaults to Normal. Blocks also requires shell support; switch back manually after capability is restored.'**
+  /// **'Applies to new sessions. On mobile, a configured LLM enables the unified Block + AI workspace by default, with one input for commands and AI; choose Normal to turn this default off. Without an LLM, only Normal is available. Desktop defaults to Normal. Blocks also requires shell support; switch back manually after capability is restored.'**
   String get preferredTerminalModeHelp;
 
   /// No description provided for @blockUnavailableChecking.
@@ -8681,13 +8681,13 @@ abstract class AppLocalizations {
   /// No description provided for @blockUnavailableLlm.
   ///
   /// In en, this message translates to:
-  /// **'Configure an LLM in settings to use Blocks on mobile.'**
+  /// **'Configure an LLM in settings to use Block + AI on mobile.'**
   String get blockUnavailableLlm;
 
   /// No description provided for @mobileLlmWelcomeDetail.
   ///
   /// In en, this message translates to:
-  /// **'Use Trail as a regular terminal, or configure an LLM to enable AI and Blocks. With an LLM, new mobile sessions default to Blocks; you can choose Normal in settings. Connection details stay on this device.'**
+  /// **'Use Trail as a regular terminal, or configure an LLM to use commands and AI in one Block + AI workspace. With an LLM, new mobile sessions default to this workspace; you can choose Normal in settings. Connection details stay on this device.'**
   String get mobileLlmWelcomeDetail;
 
   /// No description provided for @mobileConfigureLlm.

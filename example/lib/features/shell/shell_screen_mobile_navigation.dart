@@ -196,8 +196,12 @@ String _mobileModeNotice(BuildContext context, TerminalModeState mode) =>
     terminalModeNoticeMessage(context.l10n, mode, mobile: true);
 
 class _MobileTerminalModes extends ConsumerWidget {
-  const _MobileTerminalModes({required this.sessionId});
+  const _MobileTerminalModes({
+    required this.sessionId,
+    this.hasUnifiedWorkspace,
+  });
   final String sessionId;
+  final bool Function()? hasUnifiedWorkspace;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -211,6 +215,8 @@ class _MobileTerminalModes extends ConsumerWidget {
       ),
     );
     if (mode == null) return const SizedBox.shrink();
+    final unified = hasUnifiedWorkspace?.call() ?? false;
+    final selectedMode = unified ? TerminalViewMode.blocks : mode.mode;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -220,7 +226,12 @@ class _MobileTerminalModes extends ConsumerWidget {
             child: Semantics(
               liveRegion: true,
               child: Text(
-                _mobileModeNotice(context, mode),
+                unified && mode.unavailableReason != null
+                    ? blockUnavailableMessage(
+                        context.l10n,
+                        mode.unavailableReason,
+                      )
+                    : _mobileModeNotice(context, mode),
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),
@@ -235,7 +246,7 @@ class _MobileTerminalModes extends ConsumerWidget {
             ),
             title: Text(
               value == TerminalViewMode.blocks
-                  ? context.l10n.terminalModeBlocks
+                  ? 'Block + AI'
                   : context.l10n.terminalModeNormal,
             ),
             subtitle: value == TerminalViewMode.blocks && !mode.canUseBlocks
@@ -246,8 +257,8 @@ class _MobileTerminalModes extends ConsumerWidget {
                     ),
                   )
                 : null,
-            selected: mode.mode == value,
-            trailing: mode.mode == value
+            selected: selectedMode == value,
+            trailing: selectedMode == value
                 ? const Icon(Icons.check_rounded)
                 : null,
             enabled: value == TerminalViewMode.normal || mode.canUseBlocks,
@@ -273,10 +284,12 @@ class _MobileSessionMenu extends ConsumerWidget {
     required this.sessionId,
     required this.readOnly,
     required this.canReopen,
+    this.hasUnifiedWorkspace,
   });
   final String? sessionId;
   final bool readOnly;
   final bool canReopen;
+  final bool Function()? hasUnifiedWorkspace;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -363,7 +376,11 @@ class _MobileSessionMenu extends ConsumerWidget {
                     Navigator.pop(context, _MobileConnectionMenuAction.close),
               ),
               const Divider(),
-              if (!pane.isExited) _MobileTerminalModes(sessionId: sessionId!),
+              if (!pane.isExited)
+                _MobileTerminalModes(
+                  sessionId: sessionId!,
+                  hasUnifiedWorkspace: hasUnifiedWorkspace,
+                ),
               action(
                 'shell-capabilities',
                 TerminalActionId.showShellCapabilities,

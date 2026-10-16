@@ -57,7 +57,7 @@ extension _ShellScreenAiObserver on _ShellScreenState {
 
   Widget _presentAiWorkspace(
     String sessionId, {
-    required Widget workspace,
+    required Widget Function(bool dual) workspaceBuilder,
     required String targetLabel,
     required terminal.TerminalFontConfig font,
     TerminalViewportColors? colors,
@@ -68,6 +68,7 @@ extension _ShellScreenAiObserver on _ShellScreenState {
             defaultTargetPlatform == TargetPlatform.iOS &&
             constraints.maxWidth >= 960 &&
             constraints.maxHeight >= 600;
+        final workspace = workspaceBuilder(dual);
         final observing = _observedAiTargets.containsKey(sessionId);
         final source = _observedAiTargets[sessionId] ?? sessionId;
         final sessions = ref.read(sessionControllerProvider.notifier);

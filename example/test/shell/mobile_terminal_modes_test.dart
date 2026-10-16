@@ -43,8 +43,9 @@ class _LoopbackHttpOverrides extends HttpOverrides {}
 
 Future<void> _completeAiTask(
   WidgetTester tester,
-  TerminalAiController ai,
-) async {
+  TerminalAiController ai, {
+  bool throughInput = false,
+}) async {
   final server = (await tester.runAsync(
     () => HttpServer.bind(InternetAddress.loopbackIPv4, 0),
   ))!;
@@ -71,13 +72,29 @@ Future<void> _completeAiTask(
       ),
     );
     var finished = false;
-    final turn = HttpOverrides.runWithHttpOverrides(
-      () => ai.ask('分析已有输出，只给建议。').whenComplete(() => finished = true),
-      _LoopbackHttpOverrides(),
-    );
+    final turn = throughInput
+        ? HttpOverrides.runWithHttpOverrides(() async {
+            await tester.enterText(
+              find.byKey(const Key('ai-prompt')),
+              '分析已有输出，只给建议。',
+            );
+            await _settle(tester);
+            expect(ai.inputIntentDecision().intent, InputIntent.ai);
+            await tester.tap(find.byKey(const Key('ai-send')));
+          }, _LoopbackHttpOverrides())
+        : HttpOverrides.runWithHttpOverrides(
+            () => ai.ask('分析已有输出，只给建议。').whenComplete(() => finished = true),
+            _LoopbackHttpOverrides(),
+          );
+    if (throughInput) await turn;
     // Keep widget-owned microtasks in their original fake-async zone while
     // allowing the loopback socket to make progress outside it.
     for (var attempt = 0; attempt < 100 && !finished; attempt++) {
+      if (throughInput &&
+          ai.transcript.any((entry) => entry.role == 'assistant') &&
+          !ai.busy) {
+        finished = true;
+      }
       await tester.pump(const Duration(milliseconds: 20));
       await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 10)),
@@ -127,7 +144,9 @@ class _MobileBackend extends FakePtyBackend {
     if (request['kind'] == 'composer.state') {
       return jsonEncode({
         'state': owner,
-        'lease': owner == 'ready' ? 'lease-$contextId' : null,
+        'lease': owner == 'ready'
+            ? 'lease-$contextId-${submissions.length}'
+            : null,
         'contextId': contextId,
         'transport': 'shell',
         'cwd': '/srv/app',
@@ -138,6 +157,13 @@ class _MobileBackend extends FakePtyBackend {
     if (request['kind'] == 'composer.submit') {
       submissions.add(request['text']! as String);
       return jsonEncode({'outcome': 'accepted'});
+    }
+    if (request['kind'] == 'composer.receipt') {
+      return jsonEncode({
+        'submissionId': request['submissionId'],
+        'outcome': 'accepted',
+        'blockId': '1',
+      });
     }
     if (request['kind'] == 'terminal.live_screen') {
       return jsonEncode({
@@ -348,6 +374,21 @@ Future<void> _capture(WidgetTester tester, String name) async {
   });
 }
 
+bool get _isPhone =>
+    defaultTargetPlatform == TargetPlatform.iOS ||
+    defaultTargetPlatform == TargetPlatform.android;
+
+Finder _commandEditor(WidgetTester tester) => _isPhone
+    ? find.byKey(const Key('ai-prompt'))
+    : find.byKey(const Key('composer-editor'));
+
+Future<void> _showWorkspace(WidgetTester tester, String id) async {
+  if (find.byType(TerminalAiWorkspace).evaluate().isEmpty) {
+    await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+    await _settle(tester);
+  }
+}
+
 void main() {
   ConfigurationCaptureBinding();
   for (final platform in [TargetPlatform.iOS, TargetPlatform.android]) {
@@ -379,7 +420,7 @@ void main() {
           await tester.tap(find.byKey(Key('terminal-mode-recheck-$id')));
           await _settle(tester);
           expect(_mode(container).canUseBlocks, isFalse);
-          await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+          await _showWorkspace(tester, id);
           await _settle(tester);
           expect(find.byKey(const Key('ai-settings-dialog')), findsOneWidget);
           expect(find.byType(TerminalAiWorkspace), findsNothing);
@@ -399,10 +440,7 @@ void main() {
           platform: platform,
         );
         expect(_mode(container).mode, TerminalViewMode.blocks);
-        await tester.enterText(
-          find.byKey(const Key('composer-editor')),
-          'echo keep draft',
-        );
+        await tester.enterText(_commandEditor(tester), 'echo keep draft');
         final settings = container.read(aiSettingsProvider);
         await settings.save(null);
         await _settle(tester);
@@ -414,13 +452,10 @@ void main() {
         expect(_mode(container).mode, TerminalViewMode.normal);
         await _choose(tester, id, TerminalViewMode.blocks);
         expect(
-          tester
-              .widget<TextField>(find.byKey(const Key('composer-editor')))
-              .controller!
-              .text,
+          tester.widget<TextField>(_commandEditor(tester)).controller!.text,
           'echo keep draft',
         );
-        await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+        await _showWorkspace(tester, id);
         await _settle(tester);
         expect(find.byType(TerminalAiWorkspace), findsOneWidget);
         await settings.save(null);
@@ -428,6 +463,75 @@ void main() {
         expect(find.byType(TerminalAiWorkspace), findsNothing);
         expect(_mode(container).mode, TerminalViewMode.normal);
         expect(backend.submissions, isEmpty);
+        await tester.pumpWidget(const SizedBox.shrink());
+        debugDefaultTargetPlatformOverride = null;
+      },
+    );
+  }
+
+  for (final platform in [TargetPlatform.iOS, TargetPlatform.android]) {
+    testWidgets(
+      'unified command then AI uses one owner and draft on $platform',
+      (tester) async {
+        final backend = _MobileBackend()..owner = 'ready';
+        final (:id, :container) = await _pump(
+          tester,
+          backend,
+          platform: platform,
+        );
+        final workspace = tester.widget<TerminalAiWorkspace>(
+          find.byType(TerminalAiWorkspace),
+        );
+        final ai = workspace.controller;
+        expect(workspace.unifiedMobile, isTrue);
+        expect(
+          find.byKey(const Key('ai-prompt')).hitTestable(),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('composer-editor')).hitTestable(),
+          findsNothing,
+        );
+        expect(ai.transcript, isEmpty);
+        expect(backend.submissions, isEmpty);
+        await tester.enterText(
+          find.byKey(const Key('ai-prompt')),
+          'echo unified',
+        );
+        await _settle(tester);
+        expect(ai.inputIntentDecision().intent, InputIntent.command);
+        await tester.tap(find.byKey(const Key('ai-send')));
+        await _settle(tester);
+        expect(backend.submissions, ['echo unified']);
+        expect(ai.transcript.single.state, AiEntryState.accepted);
+        expect(ai.draft, isEmpty);
+        expect(
+          tester
+              .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
+              .controller,
+          same(ai),
+        );
+        final task = ai.taskId;
+        await _completeAiTask(tester, ai, throughInput: true);
+        expect(ai.taskId, task);
+        expect(backend.submissions, [
+          'echo unified',
+        ], reason: 'AI text must not execute as a command.');
+        await tester.enterText(find.byKey(const Key('ai-prompt')), '中文草稿\n第二行');
+        await _choose(tester, id, TerminalViewMode.normal);
+        expect(find.byType(TerminalAiWorkspace), findsNothing);
+        await _choose(tester, id, TerminalViewMode.blocks);
+        expect(
+          tester
+              .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
+              .controller,
+          same(ai),
+        );
+        expect(ai.taskId, task);
+        expect(ai.draft, '中文草稿\n第二行');
+        expect(_mode(container).mode, TerminalViewMode.blocks);
+        expect(backend.submissions, ['echo unified']);
+        expect(backend.writes, isEmpty);
         await tester.pumpWidget(const SizedBox.shrink());
         debugDefaultTargetPlatformOverride = null;
       },
@@ -445,7 +549,7 @@ void main() {
       size: const Size(1200, 800),
     );
     expect(_mode(container).mode, TerminalViewMode.blocks);
-    await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+    await _showWorkspace(tester, id);
     await _settle(tester);
     expect(find.byType(TerminalAiWorkspace), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
@@ -494,7 +598,7 @@ void main() {
                   : const Size(390, 844),
               preference: TerminalViewMode.normal,
             );
-            await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+            await _showWorkspace(tester, id);
             await _settle(tester);
             final ai = tester
                 .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
@@ -537,18 +641,21 @@ void main() {
             expect(pane.terminalMode.mode, TerminalViewMode.blocks);
             expect(state.preferredTerminalMode, TerminalViewMode.normal);
             expect(state.activeSessionId, targetId);
-            expect(find.byType(TerminalAiWorkspace), findsNothing);
-            final editor = tester.widget<TextField>(
-              find.byKey(const Key('composer-editor')),
-            );
-            expect(editor.controller!.text, 'uname -a');
             expect(
-              editor.controller!.selection,
-              const TextSelection.collapsed(offset: 8),
+              find.byType(TerminalAiWorkspace),
+              _isPhone ? findsOneWidget : findsNothing,
             );
-            expect(editor.focusNode!.hasFocus, true);
+            final editor = tester.widget<TextField>(_commandEditor(tester));
+            expect(editor.controller!.text, 'uname -a');
+            if (!_isPhone) {
+              expect(
+                editor.controller!.selection,
+                const TextSelection.collapsed(offset: 8),
+              );
+              expect(editor.focusNode!.hasFocus, true);
+            }
             expect(ai.taskId, taskId);
-            expect(ai.draft, 'keep task draft');
+            expect(ai.draft, _isPhone ? 'uname -a' : 'keep task draft');
             expect(backend.writes, hasLength(writes));
             expect(backend.submissions, isEmpty);
             expect(tester.takeException(), isNull);
@@ -563,12 +670,15 @@ void main() {
       tester,
     ) async {
       final backend = _MobileBackend()..owner = 'ready';
-      final (:id, :container) = await _pump(tester, backend);
-      await tester.enterText(
-        find.byKey(const Key('composer-editor')),
-        'original command draft',
+      final (:id, :container) = await _pump(
+        tester,
+        backend,
+        platform: TargetPlatform.macOS,
+        size: const Size(1200, 800),
+        preference: TerminalViewMode.blocks,
       );
-      await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+      await tester.enterText(_commandEditor(tester), 'original command draft');
+      await _showWorkspace(tester, id);
       await _settle(tester);
       final ai = tester
           .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
@@ -584,12 +694,15 @@ void main() {
       expect(find.text('当前 Shell 不支持命令块。'), findsWidgets);
       backend.owner = 'ready';
       await _settle(tester);
-      await _choose(tester, id, TerminalViewMode.blocks);
+      await tester.tap(
+        find.byKey(Key('shell-tab-$id')),
+        buttons: kSecondaryMouseButton,
+      );
+      await _settle(tester);
+      await tester.tap(find.byKey(Key('terminal-mode-blocks-$id')));
+      await _settle(tester);
       expect(
-        tester
-            .widget<TextField>(find.byKey(const Key('composer-editor')))
-            .controller!
-            .text,
+        tester.widget<TextField>(_commandEditor(tester)).controller!.text,
         'original command draft',
       );
       expect(backend.writes, isEmpty);
@@ -616,10 +729,10 @@ void main() {
             preference: TerminalViewMode.blocks,
           );
           await tester.enterText(
-            find.byKey(const Key('composer-editor')),
+            _commandEditor(tester),
             'retained command draft',
           );
-          await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+          await _showWorkspace(tester, id);
           await _settle(tester);
           final ai = tester
               .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
@@ -652,7 +765,12 @@ void main() {
 
           await choose(targetMode);
           expect(_mode(container).mode, targetMode);
-          expect(find.byType(TerminalAiWorkspace), findsNothing);
+          expect(
+            find.byType(TerminalAiWorkspace),
+            _isPhone && targetMode == TerminalViewMode.blocks
+                ? findsOneWidget
+                : findsNothing,
+          );
           if (targetMode == TerminalViewMode.normal) {
             final terminal = find.byType(TerminalViewport).hitTestable();
             expect(terminal, findsOneWidget);
@@ -660,15 +778,18 @@ void main() {
               tester.widget<TerminalViewport>(terminal).focusNode!.hasFocus,
               isTrue,
             );
-            expect(find.byKey(const Key('composer-editor')), findsNothing);
+            expect(_commandEditor(tester), findsNothing);
           } else {
             final editor = tester.widget<TextField>(
-              find.byKey(const Key('composer-editor')).hitTestable(),
+              _commandEditor(tester).hitTestable(),
             );
-            expect(editor.controller!.text, 'retained command draft');
-            expect(editor.focusNode!.hasFocus, isTrue);
+            expect(
+              editor.controller!.text,
+              _isPhone ? 'retained follow-up draft' : 'retained command draft',
+            );
+            if (!_isPhone) expect(editor.focusNode!.hasFocus, isTrue);
           }
-          await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+          await _showWorkspace(tester, id);
           await _settle(tester);
           final reopened = tester
               .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
@@ -788,7 +909,7 @@ void main() {
       );
       final id = mounted.id;
       final container = mounted.container;
-      await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+      await _showWorkspace(tester, id);
       await _settle(tester);
       final ai = tester
           .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
@@ -854,7 +975,7 @@ void main() {
       expect(ai.taskId, taskId);
       expect(ai.draft, 'Keep this SSH follow-up');
       expect(ai.attachments, [evidence]);
-      await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+      await _showWorkspace(tester, id);
       await _settle(tester);
       expect(ai.draft, 'Keep this SSH follow-up');
       expect(ai.attachments, [evidence]);
@@ -953,11 +1074,8 @@ void main() {
     (tester) async {
       final backend = _MobileBackend()..owner = 'ready';
       final (:id, :container) = await _pump(tester, backend);
-      await tester.enterText(
-        find.byKey(const Key('composer-editor')),
-        'command draft',
-      );
-      await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+      await tester.enterText(_commandEditor(tester), 'command draft');
+      await _showWorkspace(tester, id);
       await _settle(tester);
       await tester.enterText(find.byKey(const Key('ai-prompt')), 'task draft');
       backend.owner = 'draft';
@@ -998,13 +1116,10 @@ void main() {
       await tester.tap(find.byKey(Key('terminal-mode-blocks-$id')));
       await _settle(tester);
       expect(_mode(container).mode, TerminalViewMode.blocks);
-      expect(find.byType(TerminalAiWorkspace), findsNothing);
+      expect(find.byType(TerminalAiWorkspace), findsOneWidget);
       expect(
-        tester
-            .widget<TextField>(find.byKey(const Key('composer-editor')))
-            .controller!
-            .text,
-        'command draft',
+        tester.widget<TextField>(_commandEditor(tester)).controller!.text,
+        'task draft',
       );
       expect(backend.writes, isEmpty);
       expect(backend.submissions, isEmpty);
@@ -1022,11 +1137,8 @@ void main() {
       ..lineCount = 800;
     final (:id, :container) = await _pump(tester, backend);
     expect(_mode(container).mode, TerminalViewMode.blocks);
-    await tester.enterText(
-      find.byKey(const Key('composer-editor')),
-      'keep command draft',
-    );
-    await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+    await tester.enterText(_commandEditor(tester), 'keep command draft');
+    await _showWorkspace(tester, id);
     await _settle(tester);
     await tester.enterText(find.byKey(const Key('ai-prompt')), 'keep AI draft');
     final ai = tester
@@ -1047,12 +1159,18 @@ void main() {
     expect(find.byKey(const Key('ai-observer-viewport')), findsNothing);
     expect(ai.taskId, taskId);
     expect(ai.draft, 'keep AI draft');
+    await _choose(tester, id, TerminalViewMode.blocks);
     await tester.tap(
-      find.byKey(const ValueKey('block-expand-1')).hitTestable(),
+      find
+          .byKey(const ValueKey('block-expand-1'))
+          .hitTestable()
+          .last
+          .hitTestable()
+          .last,
     );
     await _settle(tester);
     expect(tester.testTextInput.isVisible, false);
-    expect(find.byKey(const Key('composer-editor')), findsNothing);
+    expect(_commandEditor(tester), findsNothing);
     expect(find.byKey(const Key('ai-prompt')), findsNothing);
     final reader = find.byKey(const Key('block-reader-scroll'));
     await tester.dragFrom(
@@ -1122,7 +1240,11 @@ void main() {
     expect(backend.writes, isEmpty);
     await _capture(tester, 'M04-return-to-task');
     await tester.tap(
-      find.byKey(const ValueKey('block-expand-1')).hitTestable(),
+      find
+          .byKey(const ValueKey('block-expand-1'))
+          .hitTestable()
+          .last
+          .hitTestable(),
     );
     await _settle(tester);
     expect(
@@ -1184,14 +1306,16 @@ void main() {
       find.byKey(const Key('ai-observer-take-over')).hitTestable(),
     );
     await _settle(tester);
+    await _showWorkspace(
+      tester,
+      container.read(sessionControllerProvider).activeSessionId!,
+    );
     expect(
       tester
-          .widget<TextField>(
-            find.byKey(const Key('composer-editor')).hitTestable(),
-          )
+          .widget<TextField>(_commandEditor(tester).hitTestable())
           .controller!
           .text,
-      'keep command draft',
+      'keep AI draft',
     );
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
@@ -1227,10 +1351,7 @@ void main() {
         size: scene.size,
         brightness: scene.brightness,
       );
-      await tester.enterText(
-        find.byKey(const Key('composer-editor')),
-        'retained before TUI',
-      );
+      await tester.enterText(_commandEditor(tester), 'retained before TUI');
       backend.owner = 'running';
       backend.alternateScreen = true;
       backend.setFrame(id, {
@@ -1253,7 +1374,7 @@ void main() {
       );
       final fullSize = tester.getSize(viewport);
       final fullGrid = List<int>.of(backend.resizeCalls.last);
-      await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+      await _showWorkspace(tester, id);
       await _settle(tester);
       expect(tester.getSize(viewport), fullSize);
       expect(backend.resizeCalls.last, fullGrid);
@@ -1281,7 +1402,7 @@ void main() {
         orderedEquals([3]),
       ]);
       backend.writes.clear();
-      await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+      await _showWorkspace(tester, id);
       await _settle(tester);
       expect(tester.getSize(viewport), keyboardSize);
       expect(backend.resizeCalls.last, keyboardGrid);
@@ -1445,11 +1566,8 @@ void main() {
       await _capture(tester, 'M06-${scene.name}-manual-restoration');
       await _choose(tester, id, TerminalViewMode.blocks);
       expect(
-        tester
-            .widget<TextField>(find.byKey(const Key('composer-editor')))
-            .controller!
-            .text,
-        'retained before TUI',
+        tester.widget<TextField>(_commandEditor(tester)).controller!.text,
+        'explain this TUI',
       );
       expect(backend.writes, isEmpty);
       expect(backend.submissions, isEmpty);
@@ -1463,11 +1581,8 @@ void main() {
     (tester) async {
       final backend = _MobileBackend()..owner = 'ready';
       final (:id, :container) = await _pump(tester, backend);
-      await tester.enterText(
-        find.byKey(const Key('composer-editor')),
-        'command draft',
-      );
-      await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+      await tester.enterText(_commandEditor(tester), 'command draft');
+      await _showWorkspace(tester, id);
       await _settle(tester);
       await tester.enterText(find.byKey(const Key('ai-prompt')), 'task draft');
       final ai = tester
@@ -1485,12 +1600,12 @@ void main() {
       expect(_mode(container).mode, TerminalViewMode.normal);
       expect(ai.draft, 'task draft');
       expect(find.byType(TerminalAiWorkspace), findsNothing);
-      await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+      await _showWorkspace(tester, id);
       await _settle(tester);
       await _choose(tester, id, TerminalViewMode.blocks);
       expect(_mode(container).mode, TerminalViewMode.blocks);
-      expect(find.byType(TerminalAiWorkspace), findsNothing);
-      await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+      expect(find.byType(TerminalAiWorkspace), findsOneWidget);
+      await _showWorkspace(tester, id);
       await _settle(tester);
       backend.owner = 'draft';
       backend.enqueueEvent(
@@ -1527,17 +1642,12 @@ void main() {
       expect(_mode(container).mode, TerminalViewMode.blocks);
       expect(ai.draft, 'task draft');
       expect(ai.transcript, isEmpty);
-      expect(find.byType(TerminalAiWorkspace), findsNothing);
-      await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
-      await _settle(tester);
-      await observeAiTerminal(tester);
+      expect(find.byType(TerminalAiWorkspace), findsOneWidget);
+      await _showWorkspace(tester, id);
       await _settle(tester);
       expect(
-        tester
-            .widget<TextField>(find.byKey(const Key('composer-editor')))
-            .controller!
-            .text,
-        'command draft',
+        tester.widget<TextField>(_commandEditor(tester)).controller!.text,
+        'task draft',
       );
       expect(backend.writes, isEmpty);
       expect(backend.submissions, isEmpty);
@@ -1582,19 +1692,17 @@ void main() {
         await _settle(tester);
         expect(_mode(container).mode, TerminalViewMode.normal);
         await _choose(tester, id, TerminalViewMode.blocks);
-        await tester.enterText(
-          find.byKey(const Key('composer-editor')),
-          'echo 移动端',
-        );
+        await tester.enterText(_commandEditor(tester), 'echo 移动端');
         expect(backend.writes, isEmpty);
         await _choose(tester, id, TerminalViewMode.normal);
         await _choose(tester, id, TerminalViewMode.blocks);
-        final editor = tester.widget<TextField>(
-          find.byKey(const Key('composer-editor')),
-        );
+        final editor = tester.widget<TextField>(_commandEditor(tester));
         expect(editor.controller!.text, 'echo 移动端');
+        await tester.tap(_commandEditor(tester));
         expect(editor.focusNode!.hasFocus, isTrue);
-        await tester.tap(find.byKey(const Key('composer-primary-action')));
+        await tester.tap(
+          find.byKey(Key(_isPhone ? 'ai-send' : 'composer-primary-action')),
+        );
         await _settle(tester);
         expect(backend.submissions, ['echo 移动端']);
         expect(backend.writes, isEmpty);
@@ -1611,10 +1719,7 @@ void main() {
     final backend = _MobileBackend()..owner = 'ready';
     final (:container, :id) = await _pump(tester, backend);
     expect(_mode(container).mode, TerminalViewMode.blocks);
-    await tester.enterText(
-      find.byKey(const Key('composer-editor')),
-      'saved draft',
-    );
+    await tester.enterText(_commandEditor(tester), 'saved draft');
     backend.owner = 'draft';
     backend.enqueueEvent(
       id,
@@ -1655,7 +1760,9 @@ void main() {
     expect(_mode(container).notice, TerminalModeNotice.blocksRestored);
     await tester.tap(find.byKey(Key('terminal-mode-blocks-$id')));
     await _settle(tester);
+    await _showWorkspace(tester, id);
     backend.owner = 'running';
+    backend.alternateScreen = true;
     backend.setFrame(id, {
       'rows': [
         {'index': 0, 'text': 'top — process list'},
@@ -1672,6 +1779,17 @@ void main() {
     );
     expect(find.byType(TerminalComposerView), findsNothing);
     expect(find.byType(TerminalCommandBlocksView), findsNothing);
+    if (find
+        .byKey(const Key('ai-observer-viewport'))
+        .hitTestable()
+        .evaluate()
+        .isEmpty) {
+      await observeAiTerminal(tester);
+      await _settle(tester);
+    }
+    await _expectReadOnlyObservation(tester, backend);
+    await tester.tap(find.byKey(const Key('ai-observer-take-over')));
+    await _settle(tester);
     expect(
       tester
           .widget<TerminalViewport>(find.byType(TerminalViewport))
@@ -1685,15 +1803,13 @@ void main() {
       'viewport_cols': 80,
     });
     backend.owner = 'ready';
+    backend.alternateScreen = false;
     await _settle(tester);
     expect(_mode(container).mode, TerminalViewMode.normal);
     expect(_mode(container).canUseBlocks, isTrue);
     await _choose(tester, id, TerminalViewMode.blocks);
     expect(
-      tester
-          .widget<TextField>(find.byKey(const Key('composer-editor')))
-          .controller!
-          .text,
+      tester.widget<TextField>(_commandEditor(tester)).controller!.text,
       'saved draft',
     );
     expect(tester.takeException(), isNull);
@@ -1820,13 +1936,15 @@ void main() {
       );
       expect(_mode(container).mode, TerminalViewMode.blocks);
       if (scene.name == 'phone') {
-        expect(find.text('末尾 6 / 12 行 · 查看全部'), findsOneWidget);
+        expect(find.text('末尾 6 / 12 行 · 查看全部').hitTestable(), findsOneWidget);
         await _capture(tester, 'ios-block');
         expect(
           find.byKey(const ValueKey('block-output-scroll-1')),
           findsNothing,
         );
-        await tester.tap(find.byKey(const ValueKey('block-expand-1')));
+        await tester.tap(
+          find.byKey(const ValueKey('block-expand-1')).hitTestable().last,
+        );
         await _settle(tester);
         expect(find.byKey(const Key('block-reader-scroll')), findsOneWidget);
         final readerBack = find.byKey(const Key('block-reader-close'));
@@ -1839,15 +1957,12 @@ void main() {
         await tester.tap(find.byKey(const Key('block-reader-close')));
         await _settle(tester);
       }
-      await tester.enterText(
-        find.byKey(const Key('composer-editor')),
-        'echo 移动端',
-      );
+      await tester.enterText(_commandEditor(tester), 'echo 移动端');
       tester.view.viewInsets = FakeViewPadding(bottom: scene.keyboard);
       await _settle(tester);
       expect(find.byKey(const Key('ios-terminal-input-bar')), findsNothing);
       expect(tester.takeException(), isNull);
-      final run = find.byKey(const Key('composer-primary-action'));
+      final run = find.byKey(const Key('ai-send'));
       await tester.ensureVisible(run);
       await _settle(tester);
       expect(run.hitTestable(), findsOneWidget);
@@ -1856,7 +1971,11 @@ void main() {
         tester.getBottomRight(run).dy,
         lessThanOrEqualTo(scene.size.height - scene.keyboard),
       );
-      final surface = tester.getRect(find.byKey(const Key('composer-surface')));
+      final surface = tester.getRect(
+        scene.name == 'ipad'
+            ? _commandEditor(tester)
+            : find.byKey(const Key('ai-mobile-composer')),
+      );
       expect(surface.top, greaterThanOrEqualTo(0));
       expect(
         surface.bottom,
@@ -1865,9 +1984,10 @@ void main() {
       );
       if (scene.name.startsWith('landscape')) {
         final editable = find.descendant(
-          of: find.byKey(const Key('composer-editor')),
+          of: _commandEditor(tester),
           matching: find.byType(EditableText),
         );
+        await _capture(tester, 'unified-${scene.name}');
         expect(
           tester.getRect(editable).center.dy,
           closeTo(tester.getRect(run).center.dy, 2),
@@ -1876,11 +1996,15 @@ void main() {
       }
       if (scene.name.startsWith('landscape') || scene.name == 'ipad') {
         expect(
-          find.byKey(const ValueKey('block-expand-1')).hitTestable(),
+          find
+              .byKey(const ValueKey('block-expand-1'))
+              .hitTestable()
+              .last
+              .hitTestable(),
           findsOneWidget,
           reason: 'Full output remains reachable with the keyboard open.',
         );
-        expect(find.text('末尾 6 / 12 行 · 查看全部'), findsOneWidget);
+        expect(find.text('末尾 6 / 12 行 · 查看全部').hitTestable(), findsOneWidget);
       }
       await _capture(tester, 'ios-${scene.name}-keyboard');
       if (scene.name == 'ipad') {
@@ -1893,24 +2017,25 @@ void main() {
       if (scene.name == 'phone') {
         backend.owner = 'running';
         await _settle(tester);
-        expect(find.byKey(const Key('ios-terminal-input-bar')), findsOneWidget);
-        await tester.tap(find.byKey(const Key('ios-terminal-key-Control C')));
-        expect(backend.writes, contains(orderedEquals([3])));
-        backend.writes.clear();
+        expect(
+          find.byKey(const Key('ios-terminal-input-bar')).hitTestable(),
+          findsNothing,
+        );
         backend.owner = 'ready';
         await _settle(tester);
-        expect(find.byKey(const Key('ios-terminal-input-bar')), findsNothing);
-        await tester.tap(find.byKey(const Key('composer-dismiss-keyboard')));
-        tester.view.viewInsets = FakeViewPadding.zero;
-        await _settle(tester);
-        await tester.tap(find.byKey(const Key('mobile-show-keyboard')));
-        await _settle(tester);
+      }
+      tester.testTextInput.hide();
+      FocusManager.instance.primaryFocus?.unfocus();
+      tester.view.viewInsets = FakeViewPadding.zero;
+      await _settle(tester);
+      if (scene.name != 'ipad') {
         expect(
-          tester
-              .widget<TextField>(find.byKey(const Key('composer-editor')))
-              .focusNode!
-              .hasFocus,
-          isTrue,
+          tester.getSize(find.byKey(const Key('ai-mobile-composer'))).height,
+          lessThanOrEqualTo(56),
+        );
+        expect(
+          tester.widget<TextField>(_commandEditor(tester)).controller!.text,
+          'echo 移动端',
         );
       }
       expect(backend.writes, isEmpty);

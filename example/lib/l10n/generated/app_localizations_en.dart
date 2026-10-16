@@ -5375,7 +5375,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get preferredTerminalModeHelp =>
-      'Applies to new sessions. On mobile, a configured LLM enables Blocks by default; choose Normal to turn this default off. Without an LLM, only Normal is available. Desktop defaults to Normal. Blocks also requires shell support; switch back manually after capability is restored.';
+      'Applies to new sessions. On mobile, a configured LLM enables the unified Block + AI workspace by default, with one input for commands and AI; choose Normal to turn this default off. Without an LLM, only Normal is available. Desktop defaults to Normal. Blocks also requires shell support; switch back manually after capability is restored.';
 
   @override
   String get blockUnavailableChecking => 'Checking shell support…';
@@ -5508,11 +5508,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get blockUnavailableLlm =>
-      'Configure an LLM in settings to use Blocks on mobile.';
+      'Configure an LLM in settings to use Block + AI on mobile.';
 
   @override
   String get mobileLlmWelcomeDetail =>
-      'Use Trail as a regular terminal, or configure an LLM to enable AI and Blocks. With an LLM, new mobile sessions default to Blocks; you can choose Normal in settings. Connection details stay on this device.';
+      'Use Trail as a regular terminal, or configure an LLM to use commands and AI in one Block + AI workspace. With an LLM, new mobile sessions default to this workspace; you can choose Normal in settings. Connection details stay on this device.';
 
   @override
   String get mobileConfigureLlm => 'Configure LLM';

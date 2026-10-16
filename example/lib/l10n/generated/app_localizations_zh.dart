@@ -5021,7 +5021,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get preferredTerminalModeHelp =>
-      '用于新会话。移动端配置 LLM 后默认使用命令块，可选择普通模式关闭此默认行为；未配置 LLM 时仅可使用普通模式。桌面默认使用普通终端。命令块仍需 Shell 支持，能力恢复后需手动切回。';
+      '用于新会话。移动端配置 LLM 后默认使用 Block + AI 融合模式，在同一输入框执行命令或向 AI 提问；可选择普通模式关闭此默认行为；未配置 LLM 时仅可使用普通模式。桌面默认使用普通终端。命令块仍需 Shell 支持，能力恢复后需手动切回。';
 
   @override
   String get blockUnavailableChecking => '正在检测 Shell 支持…';
@@ -5137,11 +5137,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get mobileSessionsNoActive => '当前没有进行中的连接';
 
   @override
-  String get blockUnavailableLlm => '移动端需先在设置中配置 LLM，才能使用命令块。';
+  String get blockUnavailableLlm => '移动端需先在设置中配置 LLM，才能使用 Block + AI。';
 
   @override
   String get mobileLlmWelcomeDetail =>
-      '可以直接使用普通终端，也可以配置 LLM，启用 AI 和命令块。配置后，移动端新会话默认使用命令块；可在设置中改为普通模式。连接信息仅保存在此设备。';
+      '可以直接使用普通终端，也可以配置 LLM，启用 Block + AI 融合模式，在同一工作区执行命令与使用 AI。配置后，新会话默认使用融合模式；可在设置中改为普通模式。连接信息仅保存在此设备。';
 
   @override
   String get mobileConfigureLlm => '配置 LLM';

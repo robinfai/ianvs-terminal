@@ -53,6 +53,26 @@ void main() {
     expect(controller.transcript.single.state, AiEntryState.accepted);
   });
 
+  test(
+    'in-flight human command keeps the next command draft out of AI',
+    () async {
+      terminal.execution = Completer<Map<String, Object?>>();
+      controller.setDraft('ls -la');
+      final running = controller.runUserCommand('ls -la');
+      controller.setDraft('pwd');
+      expect(controller.inputIntentDecision().intent, InputIntent.command);
+      expect(controller.canRunUserCommand, isFalse);
+      await controller.runUserCommand('pwd');
+      expect(terminal.writes, hasLength(1));
+      expect(api.requests, isEmpty);
+      terminal.execution!.complete({'status': 'input_sent'});
+      await running;
+      expect(controller.draft, 'pwd');
+      expect(controller.canRunUserCommand, isTrue);
+      expect(api.requests, isEmpty);
+    },
+  );
+
   test('stale terminal target rejects input and retains draft', () async {
     controller.setDraft('pwd');
     terminal.context = contextFor(guard: 'remote:2');

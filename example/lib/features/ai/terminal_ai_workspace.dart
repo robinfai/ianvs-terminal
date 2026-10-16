@@ -37,7 +37,9 @@ class TerminalAiWorkspace extends StatefulWidget {
     required this.onClose,
     this.onTakeOver,
     this.active = true,
+    this.canInteract,
     this.compactMobile = false,
+    this.unifiedMobile = false,
     this.targetLabel = '',
     this.timelineBuilder,
     this.onInspectContext,
@@ -59,9 +61,15 @@ class TerminalAiWorkspace extends StatefulWidget {
   final VoidCallback? onTakeOver;
   final bool active;
 
+  /// Recheck host ownership even before a visibility change has rebuilt us.
+  final bool Function()? canInteract;
+
   /// The mobile host already owns session navigation. Opt in to its compact
   /// task/input presentation without changing standalone or desktop surfaces.
   final bool compactMobile;
+
+  /// One mobile input and timeline for human commands and AI tasks.
+  final bool unifiedMobile;
   final String targetLabel;
   final AiTimelineBuilder? timelineBuilder;
   final ValueChanged<AiBlockContext>? onInspectContext;
@@ -119,6 +127,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
   TerminalAiController get c => widget.controller;
   bool get _paneInteractive =>
       widget.active &&
+      (widget.canInteract?.call() ?? true) &&
       !_revalidatingPane &&
       CommandBlockReaderHost.maybeOf(context)?.blocksInput != true;
   bool get zh => Localizations.localeOf(context).languageCode == 'zh';
@@ -641,8 +650,10 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
             children: [
               Text(
                 t(
-                  'Describe a task, or attach command output.',
-                  '描述任务，或附上命令输出。',
+                  widget.unifiedMobile
+                      ? 'Run a command, or ask AI.'
+                      : 'Describe a task, or attach command output.',
+                  widget.unifiedMobile ? '输入命令，或向 AI 提问。' : '描述任务，或附上命令输出。',
                 ),
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
@@ -2074,9 +2085,11 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
       ),
       decoration: InputDecoration(
         hintText: hintText ?? t('Ask about this terminal…', '向当前终端提问…'),
-        isDense: dense ? true : null,
+        // Retain the standard tap row; symmetric compact padding keeps the
+        // text centered rather than adding empty space below a dense field.
+        isDense: dense ? false : null,
         hintMaxLines: dense ? 1 : null,
-        contentPadding: dense ? const EdgeInsets.symmetric(vertical: 8) : null,
+        contentPadding: dense ? EdgeInsets.zero : null,
         border: InputBorder.none,
         enabledBorder: InputBorder.none,
         focusedBorder: InputBorder.none,

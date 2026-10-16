@@ -25,6 +25,7 @@ import '../../platform/terminal_graphic_image_actions.dart';
 import '../../ui/app_ui.dart';
 import '../ai/ai_settings.dart';
 import '../ai/ai_settings_dialog.dart';
+import '../ai/mobile_terminal_timeline.dart';
 import '../ai/terminal_ai_connections.dart';
 import '../ai/terminal_ai_controller.dart';
 import '../ai/terminal_ai_observer.dart';

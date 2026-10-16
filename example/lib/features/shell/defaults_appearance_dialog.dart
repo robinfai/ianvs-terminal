@@ -733,7 +733,11 @@ class _DefaultsAndAppearanceDialogState
                       _TerminalModePreference.normal =>
                         context.l10n.terminalModeNormal,
                       _TerminalModePreference.blocks =>
-                        context.l10n.terminalModeBlocks,
+                        (Theme.of(context).platform == TargetPlatform.iOS ||
+                                Theme.of(context).platform ==
+                                    TargetPlatform.android)
+                            ? 'Block + AI'
+                            : context.l10n.terminalModeBlocks,
                     }),
                   ),
               ],

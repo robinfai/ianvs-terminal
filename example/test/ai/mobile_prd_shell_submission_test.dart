@@ -99,6 +99,7 @@ class _Fixture {
   Future<void> mount(
     WidgetTester tester, {
     bool keepAiOpen = false,
+    bool normalDefault = false,
     TargetPlatform platform = TargetPlatform.iOS,
   }) async {
     final size = platform == TargetPlatform.macOS
@@ -141,10 +142,12 @@ class _Fixture {
           ),
           localTerminalConfigRepositoryProvider.overrideWithValue(
             MemoryLocalTerminalConfigRepository(
-              const LocalTerminalConfigDocument(
+              LocalTerminalConfigDocument(
                 defaultProfileId: 'fixture',
                 appearance: TerminalAppAppearance(
-                  preferredTerminalMode: TerminalViewMode.blocks,
+                  preferredTerminalMode: normalDefault
+                      ? TerminalViewMode.normal
+                      : TerminalViewMode.blocks,
                 ),
               ),
             ),
@@ -173,7 +176,9 @@ class _Fixture {
     final state = container.read(sessionControllerProvider);
     expect(state.activeSessionId, isNotNull, reason: state.lastError);
     sessionId = state.activeSessionId!;
-    await tester.tap(find.byKey(Key('terminal-ai-open-$sessionId')));
+    if (find.byType(TerminalAiWorkspace).evaluate().isEmpty) {
+      await tester.tap(find.byKey(Key('terminal-ai-open-$sessionId')));
+    }
     await _settle(tester);
     final workspace = tester.widget<TerminalAiWorkspace>(
       find.byType(TerminalAiWorkspace),
@@ -361,7 +366,14 @@ void main() {
                     .createSession(fixture.profile);
               }
               await _settle(tester);
-              expect(find.byType(TerminalAiWorkspace), findsNothing);
+              expect(
+                find.byWidgetPredicate(
+                  (widget) =>
+                      widget is TerminalAiWorkspace &&
+                      identical(widget.controller, fixture.ai),
+                ),
+                findsNothing,
+              );
               tester.binding.handleAppLifecycleStateChanged(
                 AppLifecycleState.inactive,
               );
@@ -419,7 +431,9 @@ void main() {
                 .read(sessionControllerProvider.notifier)
                 .createSession(fixture.profile)!;
             await _settle(tester);
-            await tester.tap(find.byKey(Key('terminal-ai-open-$secondId')));
+            if (find.byType(TerminalAiWorkspace).evaluate().isEmpty) {
+              await tester.tap(find.byKey(Key('terminal-ai-open-$secondId')));
+            }
             await _settle(tester);
             final second = tester
                 .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
@@ -495,7 +509,7 @@ void main() {
         () async {
           final fixture = _Fixture();
           fixture.store.result.complete(const AiConfiguration.mock());
-          await fixture.mount(tester);
+          await fixture.mount(tester, normalDefault: true);
           await _settle(tester);
           final secondId = fixture.container
               .read(sessionControllerProvider.notifier)

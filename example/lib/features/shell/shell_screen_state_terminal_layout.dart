@@ -518,6 +518,15 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
       pane,
       readOnly: sessionReadOnly,
     );
+    if (_mobileRequiresLlm &&
+        isActive &&
+        !_mobileConnectionsOpen &&
+        composerSession?.enabled == true &&
+        !_openAiSessions.contains(sessionId)) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _ensureMobileWorkspace(sessionId),
+      );
+    }
     final annotations = _annotationsForSession(sessionId);
 
     final terminalViewportPadding = _terminalViewportPaddingFor(sessionState);
@@ -1205,31 +1214,43 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                               composerSession.blocks.available &&
                               !viewportController.frame.modes.alternateScreen &&
                               viewportController.frame.modes.mouseMode == 'off'
-                          ? (items, scroll, followTail) =>
-                                terminal.TerminalCommandBlocksView(
-                                  controller: composerSession.blocks,
-                                  timeline: items,
-                                  scrollController: scroll,
-                                  followTail: followTail,
-                                  showToolbar: false,
-                                  chinese:
-                                      Localizations.localeOf(
-                                        context,
-                                      ).languageCode ==
-                                      'zh',
-                                  font: effectiveTerminalFont,
-                                  onAskAi: (block) =>
-                                      _openAi(sessionId, block: block),
-                                  onAttachBlocks: (blocks) =>
-                                      _openAi(sessionId, blocks: blocks),
-                                  onAttachRange: (block) =>
-                                      _openAi(sessionId, range: block),
-                                  onOpenLinkTarget: (target) => unawaited(
-                                    _openTerminalLinkTarget(sessionId, target),
-                                  ),
-                                  onReinput: (command) =>
-                                      _reinputAiCommand(sessionId, command),
-                                )
+                          ? (items, scroll, followTail) {
+                              Widget buildTimeline(
+                                List<terminal.CommandBlockTimelineItem> merged,
+                              ) => terminal.TerminalCommandBlocksView(
+                                controller: composerSession.blocks,
+                                timeline: merged,
+                                scrollController: scroll,
+                                followTail: followTail,
+                                showToolbar: false,
+                                chinese:
+                                    Localizations.localeOf(
+                                      context,
+                                    ).languageCode ==
+                                    'zh',
+                                font: effectiveTerminalFont,
+                                onAskAi: (block) =>
+                                    _openAi(sessionId, block: block),
+                                onAttachBlocks: (blocks) =>
+                                    _openAi(sessionId, blocks: blocks),
+                                onAttachRange: (block) =>
+                                    _openAi(sessionId, range: block),
+                                onOpenLinkTarget: (target) => unawaited(
+                                  _openTerminalLinkTarget(sessionId, target),
+                                ),
+                                onReinput: (command) =>
+                                    _reinputAiCommand(sessionId, command),
+                              );
+                              return _mobileRequiresLlm
+                                  ? MobileTerminalTimeline(
+                                      controller: composerSession.blocks,
+                                      taskId: _aiFor(sessionId).taskId,
+                                      sourceSessionId: sessionId,
+                                      items: items,
+                                      builder: buildTimeline,
+                                    )
+                                  : buildTimeline(items);
+                            }
                           : null,
                     ),
                   ),

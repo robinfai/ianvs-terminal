@@ -90,7 +90,12 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         isActiveRecordingBusy: isActiveRecordingBusy,
         modeSelection:
             context.usesTouchControlDensity && activeSessionIdBeforeOpen != null
-            ? _MobileTerminalModes(sessionId: activeSessionIdBeforeOpen)
+            ? _MobileTerminalModes(
+                sessionId: activeSessionIdBeforeOpen,
+                hasUnifiedWorkspace: () =>
+                    _mobileRequiresLlm &&
+                    _openAiSessions.contains(activeSessionIdBeforeOpen),
+              )
             : null,
       );
     }
@@ -147,6 +152,9 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         showDragHandle: true,
         builder: (_) => _MobileSessionMenu(
           sessionId: activeSessionIdBeforeOpen,
+          hasUnifiedWorkspace: () =>
+              _mobileRequiresLlm &&
+              _openAiSessions.contains(activeSessionIdBeforeOpen),
           readOnly: isActiveSessionReadOnly,
           canReopen: sessionController.canReopenClosedTab,
         ),
@@ -1128,6 +1136,10 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
     session.updateEnvironment(pane, readOnly: _isSessionReadOnly(sessionId));
     if (!session.selectMode(mode)) return;
     _activateSession(sessionController, sessionId, requestFocus: false);
+    if (_mobileRequiresLlm && mode == TerminalViewMode.blocks) {
+      _openAi(sessionId);
+      return;
+    }
     // A manual terminal choice also leaves the AI workspace that covers it.
     // Keep its task/draft, revoke pending agent input, then focus the chosen view.
     _takeOverAiInput(sessionId);

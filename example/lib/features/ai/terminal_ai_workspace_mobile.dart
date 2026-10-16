@@ -53,6 +53,13 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
           ? t('AI paused · command still running', 'AI 已暂停，命令仍在运行')
           : t('AI paused', 'AI 已暂停');
     }
+    if (widget.unifiedMobile &&
+        c.phase == AiPhase.idle &&
+        c.transcript.isEmpty) {
+      return c.context?.canRunCommand == true
+          ? t('Shell ready', 'Shell 就绪')
+          : t('Waiting for shell', '等待终端就绪');
+    }
     return _status;
   }
 
@@ -487,7 +494,9 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
                         builder: (context, bounds) {
                           final title = Text(
                             c.taskTitle.isEmpty
-                                ? t('New task', '新任务')
+                                ? (widget.unifiedMobile
+                                      ? 'Block + AI'
+                                      : t('New task', '新任务'))
                                 : c.taskTitle,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,

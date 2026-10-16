@@ -157,7 +157,9 @@ Future<({String id, TerminalInputController previousInput})> _pump(
   );
   final id = container.read(sessionControllerProvider).activeSessionId!;
   final input = tester
-      .widget<TerminalViewport>(find.byType(TerminalViewport).first)
+      .widget<TerminalViewport>(
+        find.byType(TerminalViewport, skipOffstage: false).first,
+      )
       .inputController;
   return (id: id, previousInput: input);
 }
@@ -205,7 +207,9 @@ void main() {
         expect(backend.writes, isEmpty);
         await _settle(tester);
         final current = tester
-            .widget<TerminalViewport>(find.byType(TerminalViewport).first)
+            .widget<TerminalViewport>(
+              find.byType(TerminalViewport, skipOffstage: false).first,
+            )
             .inputController;
         current.sendFocusReport(focused: false, modes: modes);
         expect(backend.writes, isEmpty);
@@ -218,7 +222,9 @@ void main() {
         current.sendFocusReport(focused: false, modes: modes);
         expect(backend.writes, isEmpty, reason: 'Old epochs stay revoked.');
         tester
-            .widget<TerminalViewport>(find.byType(TerminalViewport).first)
+            .widget<TerminalViewport>(
+              find.byType(TerminalViewport, skipOffstage: false).first,
+            )
             .inputController
             .sendFocusReport(focused: false, modes: modes);
         expect(backend.writes.single, ascii.encode('\x1b[O'));
@@ -243,6 +249,38 @@ void main() {
               find.byKey(ValueKey('composer-${fixture.id}')),
             )
             .session;
+        if (platform == TargetPlatform.iOS) {
+          // Mobile has one negotiated input. A captured send must lose its
+          // authority as soon as observation or Ordinary mode is requested.
+          await tester.tap(find.byKey(Key('terminal-ai-open-${fixture.id}')));
+          await _settle(tester);
+          final workspace = tester.widget<TerminalAiWorkspace>(
+            find.byType(TerminalAiWorkspace),
+          );
+          workspace.controller.chooseInputIntent(InputIntentChoice.command);
+          await tester.enterText(
+            find.byKey(const Key('ai-prompt')),
+            'echo retained draft',
+          );
+          await _settle(tester);
+          final send = tester
+              .widget<FilledButton>(find.byKey(const Key('ai-send')))
+              .onPressed!;
+          workspace.onObserveTerminal!();
+          send();
+          await tester.idle();
+          expect(backend.composerSubmissions, isEmpty);
+          expect(workspace.controller.draft, 'echo retained draft');
+          await _settle(tester);
+          await tester.tap(find.byKey(const Key('ai-observer-back')));
+          await _settle(tester);
+          workspace.onTakeOver!();
+          send();
+          await tester.idle();
+          expect(backend.composerSubmissions, isEmpty);
+          expect(composer.controller.canRun, isFalse);
+          return;
+        }
         expect(composer.selectMode(TerminalViewMode.blocks), isTrue);
         composer.controller.editor.text = 'echo retained draft';
         composer.controller.inputIntent.choice = InputIntentChoice.command;
@@ -356,7 +394,9 @@ void main() {
       await _settle(tester);
       expect(find.byKey(const Key('ai-observer-viewport')), findsNothing);
       final manual = tester
-          .widget<TerminalViewport>(find.byType(TerminalViewport).first)
+          .widget<TerminalViewport>(
+            find.byType(TerminalViewport, skipOffstage: false).first,
+          )
           .inputController;
       manual.sendText('manual input');
       expect(backend.writes, [orderedEquals(utf8.encode('manual input'))]);
@@ -488,7 +528,9 @@ void main() {
       );
       addTearDown(blocks.dispose);
       final reading = showCommandBlockReader(
-        tester.element(find.byType(TerminalViewport).first),
+        tester.element(
+          find.byType(TerminalViewport, skipOffstage: false).first,
+        ),
         controller: blocks,
         id: 'original-evidence',
       );
@@ -506,7 +548,9 @@ void main() {
       const focusModes = TerminalFrameModes(focusTracking: true);
       fixture.previousInput.sendFocusReport(focused: false, modes: focusModes);
       final readerInput = tester
-          .widget<TerminalViewport>(find.byType(TerminalViewport).first)
+          .widget<TerminalViewport>(
+            find.byType(TerminalViewport, skipOffstage: false).first,
+          )
           .inputController;
       readerInput.sendFocusReport(focused: false, modes: focusModes);
       (readerInput.runtime as TerminalProtocolInputSink).sendProtocolInput(
@@ -536,7 +580,9 @@ void main() {
       readerInput.sendFocusReport(focused: false, modes: focusModes);
       expect(backend.writes, isEmpty);
       tester
-          .widget<TerminalViewport>(find.byType(TerminalViewport).first)
+          .widget<TerminalViewport>(
+            find.byType(TerminalViewport, skipOffstage: false).first,
+          )
           .inputController
           .sendFocusReport(focused: false, modes: focusModes);
       expect(backend.writes.single, ascii.encode('\x1b[O'));
@@ -770,7 +816,9 @@ void main() {
       fixture.previousInput.sendText('stale callback after takeover');
       expect(backend.writes, isEmpty);
       final fresh = tester
-          .widget<TerminalViewport>(find.byType(TerminalViewport).first)
+          .widget<TerminalViewport>(
+            find.byType(TerminalViewport, skipOffstage: false).first,
+          )
           .inputController;
       fresh.sendText('new manual edit');
       expect(backend.writes.map(utf8.decode), ['new manual edit']);
@@ -870,7 +918,9 @@ void main() {
       expect(find.byType(TerminalAiWorkspace), findsNothing);
       expect(backend.writes, isEmpty, reason: 'Taking over is not Ctrl+C');
       final input = tester
-          .widget<TerminalViewport>(find.byType(TerminalViewport).first)
+          .widget<TerminalViewport>(
+            find.byType(TerminalViewport, skipOffstage: false).first,
+          )
           .inputController;
       input.sendText('manual input');
       expect(backend.writes.map(utf8.decode), ['manual input']);
@@ -917,6 +967,20 @@ void main() {
       expect(find.byType(TerminalAiObserver).hitTestable(), findsOneWidget);
       expect(tester.state(find.byType(TerminalAiWorkspace)), same(workspace));
       expect(editor.value, saved);
+      tester
+          .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
+          .onObserveTerminal!();
+      await _settle(tester);
+      expect(
+        tester.widget<TextField>(find.byKey(const Key('ai-prompt'))).readOnly,
+        isFalse,
+        reason:
+            'The visible task input remains editable beside the read-only terminal.',
+      );
+      await tester.enterText(find.byKey(const Key('ai-prompt')), '同一工作区草稿');
+      expect(ai.draft, '同一工作区草稿');
+      expect(backend.writes, isEmpty);
+      expect(backend.composerSubmissions, isEmpty);
       expect(tester.takeException(), isNull);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.iOS),

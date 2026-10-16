@@ -4084,7 +4084,7 @@
   "aiConfigurationUnreadable": "Saved configuration could not be read. Terminal features remain available.",
   "aiConfigurationMissing": "Not configured. Terminal features work independently.",
   "aiConfigurationSaved": "Configuration saved. Open to edit or test the connection.",
-  "preferredTerminalModeHelp": "Applies to new sessions. On mobile, a configured LLM enables Blocks by default; choose Normal to turn this default off. Without an LLM, only Normal is available. Desktop defaults to Normal. Blocks also requires shell support; switch back manually after capability is restored.",
+  "preferredTerminalModeHelp": "Applies to new sessions. On mobile, a configured LLM enables the unified Block + AI workspace by default, with one input for commands and AI; choose Normal to turn this default off. Without an LLM, only Normal is available. Desktop defaults to Normal. Blocks also requires shell support; switch back manually after capability is restored.",
   "blockUnavailableChecking": "Checking shell support…",
   "blockUnavailableShell": "The current shell does not support Command Blocks.",
   "blockUnavailableRemote": "Command Block negotiation is not ready for the current SSH node.",
@@ -4129,8 +4129,8 @@
       }
     }
   },
-  "blockUnavailableLlm": "Configure an LLM in settings to use Blocks on mobile.",
-  "mobileLlmWelcomeDetail": "Use Trail as a regular terminal, or configure an LLM to enable AI and Blocks. With an LLM, new mobile sessions default to Blocks; you can choose Normal in settings. Connection details stay on this device.",
+  "blockUnavailableLlm": "Configure an LLM in settings to use Block + AI on mobile.",
+  "mobileLlmWelcomeDetail": "Use Trail as a regular terminal, or configure an LLM to use commands and AI in one Block + AI workspace. With an LLM, new mobile sessions default to this workspace; you can choose Normal in settings. Connection details stay on this device.",
   "mobileConfigureLlm": "Configure LLM",
   "mobileLlmConfigured": "LLM configured · Edit",
   "mobileSkipLlm": "Skip · Use regular terminal"
