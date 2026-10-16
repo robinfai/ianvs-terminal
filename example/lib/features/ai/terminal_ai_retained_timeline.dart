@@ -3,9 +3,9 @@ import 'package:ianvs_terminal/ianvs_terminal.dart';
 
 import '../../ui/foundation/app_motion.dart';
 import 'ai_models.dart';
-import 'mobile_terminal_timeline.dart';
 import 'terminal_ai_connections.dart';
 import 'terminal_ai_controller.dart';
+import 'unified_terminal_timeline.dart';
 
 /// Renders retained native evidence alongside the task's current connection.
 /// The only copied fields are presentation identities; reads use native IDs.
@@ -19,11 +19,11 @@ class TerminalAiRetainedTimeline extends StatelessWidget {
     required this.onReinput,
     this.onOpenLinkTarget,
     this.sourceLabelFor,
-    this.unifiedMobile = false,
+    this.unifiedWorkspace = false,
     super.key,
   });
   final TerminalAiController controller;
-  final bool unifiedMobile;
+  final bool unifiedWorkspace;
   final List<CommandBlockTimelineItem> items;
   final ScrollController scroll;
   final ValueNotifier<bool> followTail;
@@ -77,8 +77,8 @@ class TerminalAiRetainedTimeline extends StatelessWidget {
           },
           onOpenLinkTarget: onOpenLinkTarget,
         );
-    return unifiedMobile
-        ? MobileTerminalTimeline(
+    return unifiedWorkspace
+        ? UnifiedTerminalTimeline(
             controller: connections.evidence,
             taskId: controller.taskId,
             sourceSessionId: connections.sessionId,

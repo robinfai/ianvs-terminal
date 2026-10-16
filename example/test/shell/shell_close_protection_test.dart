@@ -13,7 +13,6 @@ import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/sessions/session_state.dart';
 import 'package:app/features/shell/shell_action_registry.dart';
 import 'package:app/features/shell/shell_screen.dart';
-import 'package:app/features/terminal_composer/composer_pane.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -321,15 +320,21 @@ _pump(
 }
 
 Future<TerminalAiController> _openAi(WidgetTester tester, String id) async {
-  await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
-  await _settle(tester);
+  if (find
+      .byKey(ValueKey('ai-workspace-$id'))
+      .hitTestable()
+      .evaluate()
+      .isEmpty) {
+    await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+    await _settle(tester);
+  }
   return tester
       .widgetList<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
       .singleWhere((workspace) => workspace.controller.context?.sessionId == id)
       .controller;
 }
 
-Future<ComposerPaneSession> _enterCommandDraft(
+Future<TerminalAiController> _enterCommandDraft(
   WidgetTester tester,
   String id,
   String draft,
@@ -338,28 +343,16 @@ Future<ComposerPaneSession> _enterCommandDraft(
   await _settle(tester);
   await tester.tap(find.byKey(Key('terminal-mode-blocks-$id')));
   await _settle(tester);
-  final pane = find.byWidgetPredicate(
-    (widget) => widget is ComposerPane && widget.session.sessionId == id,
-  );
-  final session = tester.widget<ComposerPane>(pane).session;
-  expect(session.enabled, isTrue);
-  expect(session.controller.ownership, ComposerOwnership.ready);
-  await tester.enterText(
-    find.descendant(
-      of: pane,
-      matching: find.byKey(const Key('composer-editor')),
-    ),
-    draft,
-  );
+  final ai = await _openAi(tester, id);
+  expect(ai.context?.canRunCommand, isTrue);
+  await tester.enterText(_commandEditor(id), draft);
   await _settle(tester);
-  expect(session.controller.editor.text, draft);
-  return session;
+  expect(ai.draft, draft);
+  return ai;
 }
 
 Finder _commandEditor(String id) => find.descendant(
-  of: find.byWidgetPredicate(
-    (widget) => widget is ComposerPane && widget.session.sessionId == id,
-  ),
+  of: find.byKey(ValueKey('ai-workspace-$id')),
   matching: find.byType(EditableText),
 );
 
@@ -397,8 +390,8 @@ Future<
     ProviderContainer container,
     String firstId,
     String secondId,
-    ComposerPaneSession first,
-    ComposerPaneSession second,
+    TerminalAiController first,
+    TerminalAiController second,
   })
 >
 _pumpComposerTabs(
@@ -633,8 +626,8 @@ void main() {
           tabs.container.read(sessionControllerProvider).activeSessionId,
           tabs.firstId,
         );
-        expect(tabs.first.controller.editor.text, 'printf first-draft');
-        expect(tabs.second.controller.editor.text, 'printf second-draft');
+        expect(tabs.first.draft, 'printf first-draft');
+        expect(tabs.second.draft, 'printf second-draft');
         _expectComposerFocus(tester, tabs.firstId);
         await _sendMetaShortcut(tester, LogicalKeyboardKey.digit2);
         expect(
@@ -704,8 +697,8 @@ void main() {
           tabs.container.read(sessionControllerProvider).tabs,
           hasLength(2),
         );
-        expect(tabs.first.controller.editor.text, 'printf first-draft');
-        expect(tabs.second.controller.editor.text, 'printf second-draft');
+        expect(tabs.first.draft, 'printf first-draft');
+        expect(tabs.second.draft, 'printf second-draft');
         expect(backend.closeAttempts, isEmpty);
         expect(backend.submissions, isEmpty);
         expect(backend.writes, isEmpty);
@@ -721,9 +714,9 @@ void main() {
         await _settle(tester);
         _expectComposerFocus(tester, tabs.secondId);
         await _sendMetaShortcut(tester, LogicalKeyboardKey.keyZ);
-        expect(tabs.second.controller.editor.text, 'printf second-draft');
+        expect(tabs.second.draft, 'printf second-draft');
         await _sendMetaShortcut(tester, LogicalKeyboardKey.keyZ, shift: true);
-        expect(tabs.second.controller.editor.text, 'printf edited');
+        expect(tabs.second.draft, 'printf edited');
         await _sendMetaShortcut(tester, LogicalKeyboardKey.keyK);
         expect(backend.clearedSessions, isEmpty);
 
@@ -736,7 +729,12 @@ void main() {
         );
         await _settle(tester);
         expect(
-          tabs.second.controller.editor.value.composing.isCollapsed,
+          tester
+              .widget<EditableText>(_commandEditor(tabs.secondId))
+              .controller
+              .value
+              .composing
+              .isCollapsed,
           isFalse,
         );
         await _sendMetaShortcut(tester, LogicalKeyboardKey.digit1);
@@ -746,12 +744,14 @@ void main() {
           tabs.secondId,
         );
         expect(find.byKey(const Key('shell-close-protection')), findsNothing);
-        expect(tabs.second.controller.editor.text, 'printf composing');
+        expect(tabs.second.draft, 'printf composing');
 
         tester.testTextInput.updateEditingValue(
-          tabs.second.controller.editor.value.copyWith(
-            composing: TextRange.empty,
-          ),
+          tester
+              .widget<EditableText>(_commandEditor(tabs.secondId))
+              .controller
+              .value
+              .copyWith(composing: TextRange.empty),
         );
         await _settle(tester);
         unawaited(
@@ -782,7 +782,7 @@ void main() {
           tabs.container.read(sessionControllerProvider).activeSessionId,
           tabs.secondId,
         );
-        expect(tabs.second.controller.editor.text, 'printf composing');
+        expect(tabs.second.draft, 'printf composing');
         expect(backend.closeAttempts, isEmpty);
         expect(backend.submissions, isEmpty);
         expect(backend.writes, isEmpty);
@@ -870,16 +870,19 @@ void main() {
         await tester.enterText(_commandEditor(tabs.secondId), 'printf edited');
         await _settle(tester);
         await _sendMetaShortcut(tester, LogicalKeyboardKey.keyZ);
-        expect(tabs.second.controller.editor.text, 'printf second-draft');
+        expect(tabs.second.draft, 'printf second-draft');
         await _sendMetaShortcut(tester, LogicalKeyboardKey.keyA);
         expect(
-          tabs.second.controller.editor.selection,
+          tester
+              .widget<EditableText>(_commandEditor(tabs.secondId))
+              .controller
+              .selection,
           const TextSelection(baseOffset: 0, extentOffset: 19),
         );
         await _sendMetaShortcut(tester, LogicalKeyboardKey.keyC);
         expect(copied, 'printf second-draft');
         await _sendMetaShortcut(tester, LogicalKeyboardKey.keyV);
-        expect(tabs.second.controller.editor.text, 'printf pasted');
+        expect(tabs.second.draft, 'printf pasted');
         final editorClipboardReads = clipboardReads;
         await _sendMetaShortcut(tester, LogicalKeyboardKey.keyL);
         await _sendMetaShortcut(tester, LogicalKeyboardKey.keyB);
@@ -896,7 +899,7 @@ void main() {
           tabs.container.read(sessionControllerProvider).activeSessionId,
           tabs.secondId,
         );
-        expect(tabs.second.controller.editor.text, 'printf pasted');
+        expect(tabs.second.draft, 'printf pasted');
         expect(backend.closeAttempts, isEmpty);
         expect(backend.submissions, isEmpty);
         expect(backend.writes, isEmpty);
@@ -934,7 +937,7 @@ void main() {
           tabs.secondId,
         );
         await _cancel(tester);
-        expect(tabs.second.controller.editor.text, 'printf second-draft');
+        expect(tabs.second.draft, 'printf second-draft');
         expect(backend.closeAttempts, isEmpty);
         expect(backend.submissions, isEmpty);
         expect(backend.writes, isEmpty);
@@ -1003,7 +1006,11 @@ void main() {
     for (final (label, commandDraft, aiDraft) in [
       ('ready Composer', 'printf target-command', ''),
       ('idle AI', '', 'Target unsent AI draft'),
-      ('Composer and AI', 'printf target-command', 'Target unsent AI draft'),
+      (
+        'Command and AI tasks',
+        'printf target-command',
+        'Target unsent AI draft',
+      ),
       ('older idle AI task', '', 'Target older AI draft'),
     ]) {
       testWidgets(
@@ -1032,6 +1039,7 @@ void main() {
               ? null
               : await _enterCommandDraft(tester, id, commandDraft);
           final ai = aiDraft.isEmpty ? null : await _openAi(tester, id);
+          if (command != null && ai != null) ai.newTask();
           ai?.setDraft(aiDraft);
           if (ai != null) expect(ai.phase, AiPhase.idle);
           final taskId = ai?.taskId;
@@ -1047,6 +1055,7 @@ void main() {
             'printf survivor-command',
           );
           final survivorAi = await _openAi(tester, survivor);
+          survivorAi.newTask();
           survivorAi.setDraft('Survivor unsent AI draft');
           expect(survivorAi.phase, AiPhase.idle);
 
@@ -1086,7 +1095,7 @@ void main() {
           if (label == 'idle AI') {
             await tester.sendKeyEvent(LogicalKeyboardKey.escape);
             await _settle(tester);
-          } else if (label == 'Composer and AI') {
+          } else if (label == 'Command and AI tasks') {
             await tester.tapAt(const Offset(4, 100));
             await _settle(tester);
           } else {
@@ -1101,7 +1110,10 @@ void main() {
           );
           expect(runtime.existingViewportFor(id), same(targetViewport));
           if (command != null) {
-            expect(command.controller.editor.text, commandDraft);
+            expect(
+              command.tasks.any((task) => task.draft == commandDraft),
+              isTrue,
+            );
           }
           if (ai != null) {
             expect(ai.draft, olderTask ? isEmpty : aiDraft);
@@ -1113,8 +1125,10 @@ void main() {
             expect(ai.phase, AiPhase.idle);
           }
           expect(
-            survivorCommand.controller.editor.text,
-            'printf survivor-command',
+            survivorCommand.tasks.any(
+              (task) => task.draft == 'printf survivor-command',
+            ),
+            isTrue,
           );
           expect(survivorAi.draft, 'Survivor unsent AI draft');
 
@@ -1129,8 +1143,10 @@ void main() {
             survivor,
           );
           expect(
-            survivorCommand.controller.editor.text,
-            'printf survivor-command',
+            survivorCommand.tasks.any(
+              (task) => task.draft == 'printf survivor-command',
+            ),
+            isTrue,
           );
           expect(survivorAi.draft, 'Survivor unsent AI draft');
           expect(backend.submissions, isEmpty);

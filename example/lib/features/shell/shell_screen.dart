@@ -25,13 +25,13 @@ import '../../platform/terminal_graphic_image_actions.dart';
 import '../../ui/app_ui.dart';
 import '../ai/ai_settings.dart';
 import '../ai/ai_settings_dialog.dart';
-import '../ai/mobile_terminal_timeline.dart';
 import '../ai/terminal_ai_connections.dart';
 import '../ai/terminal_ai_controller.dart';
 import '../ai/terminal_ai_observer.dart';
 import '../ai/terminal_ai_retained_timeline.dart';
 import '../ai/terminal_ai_runtime.dart';
 import '../ai/terminal_ai_workspace.dart';
+import '../ai/unified_terminal_timeline.dart';
 import '../config/local_terminal_config_bootstrap.dart';
 import '../config/local_terminal_config_models.dart';
 import '../config/shortcut_editor.dart';
@@ -753,28 +753,39 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
         return KeyEventResult.ignored;
       }
-      if (_handleAiShortcut(event, activeSessionId)) {
-        return KeyEventResult.handled;
-      }
       final editor = focusedEditableTextForCurrentRoute();
       if (editor != null) {
         final composer = editor.context
             .findAncestorWidgetOfExactType<ComposerPane>();
-        if (_shellModalInputBlocked ||
-            composer == null ||
-            !composer.active ||
-            !composer.available ||
-            composer.session.sessionId != activeSessionId ||
-            !identical(
+        final workspace = editor.context
+            .findAncestorWidgetOfExactType<TerminalAiWorkspace>();
+        final field = editor.context.findAncestorWidgetOfExactType<TextField>();
+        final unifiedInput =
+            workspace != null &&
+            workspace.active &&
+            (workspace.canInteract?.call() ?? true) &&
+            identical(workspace.controller, _aiSessions[activeSessionId]) &&
+            field?.key == const Key('ai-prompt');
+        final legacyInput =
+            composer != null &&
+            composer.active &&
+            composer.available &&
+            composer.session.sessionId == activeSessionId &&
+            identical(
               editor.widget.controller,
               composer.session.controller.editor,
-            ) ||
-            !identical(editor.widget.focusNode, composer.session.editorFocus) ||
+            ) &&
+            identical(editor.widget.focusNode, composer.session.editorFocus);
+        if (_shellModalInputBlocked ||
+            (!unifiedInput && !legacyInput) ||
             !editor.textEditingValue.composing.isCollapsed) {
           return KeyEventResult.ignored;
         }
       }
       if (_shellModalInputBlocked) return KeyEventResult.handled;
+      if (_handleAiShortcut(event, activeSessionId)) {
+        return KeyEventResult.handled;
+      }
 
       final shortcut = _shortcutActionFor(
         event,

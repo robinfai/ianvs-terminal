@@ -220,6 +220,7 @@ void main() {
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
     },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
   for (final platform in [TargetPlatform.macOS, TargetPlatform.iOS]) {
@@ -290,7 +291,16 @@ void main() {
         expect(backend.writes, hasLength(writes));
         controller.createSession(profile);
         await _settleMode(tester);
-        expect(state().tabs.last.terminalMode.mode, expected);
+        expect(
+          state().tabs.last.terminalMode.mode,
+          platform == TargetPlatform.iOS ? TerminalViewMode.normal : expected,
+        );
+        if (platform == TargetPlatform.iOS) {
+          expect(
+            state().tabs.last.terminalMode.unavailableReason,
+            BlockUnavailableReason.llmRequired,
+          );
+        }
         expect(
           state().tabs
               .firstWhere((tab) => tab.containsSession(original))
@@ -352,7 +362,10 @@ void main() {
     expect(enabled(), true);
     await tester.tap(entry);
     await _settleMode(tester);
-    expect(find.byType(TerminalCommandBlocksView), findsOneWidget);
+    expect(
+      find.byType(TerminalCommandBlocksView).hitTestable(),
+      findsOneWidget,
+    );
     expect(backend.writes, isEmpty);
     expect(backend.closedSessionIds, isEmpty);
     expect(tester.takeException(), isNull);
@@ -382,7 +395,7 @@ void main() {
       final id = container.read(sessionControllerProvider).activeSessionId!;
       await _chooseMode(tester, id, 'blocks');
       await tester.enterText(
-        find.byKey(const Key('composer-editor')),
+        find.byKey(const Key('ai-prompt')),
         'retained command',
       );
       await _chooseMode(tester, id, 'normal');
@@ -408,7 +421,7 @@ void main() {
       await _chooseMode(tester, id, 'blocks');
       expect(
         tester
-            .widget<TextField>(find.byKey(const Key('composer-editor')))
+            .widget<TextField>(find.byKey(const Key('ai-prompt')))
             .controller!
             .text,
         'retained command',
@@ -532,7 +545,7 @@ void main() {
         findsOneWidget,
       );
       await _chooseMode(tester, id, 'blocks');
-      final editor = find.byKey(const Key('composer-editor'));
+      final editor = find.byKey(const Key('ai-prompt'));
       await tester.enterText(editor, 'saved local draft');
       Future<void> hook(Map<String, Object?> payload) async {
         backend.enqueueEvent(
@@ -559,7 +572,7 @@ void main() {
             .widget<TerminalViewport>(find.byType(TerminalViewport))
             .focusNode!
             .hasFocus,
-        isTrue,
+        isFalse,
       );
       await tester.tap(
         find.byKey(Key('shell-tab-$id')),
@@ -665,7 +678,7 @@ void main() {
       TerminalViewMode.blocks,
     );
     await tester.enterText(
-      find.byKey(const Key('composer-editor')),
+      find.byKey(const Key('ai-prompt')),
       'draft before splitting',
     );
 
@@ -695,7 +708,7 @@ void main() {
     expect(state().tabs.last.terminalMode.mode, TerminalViewMode.blocks);
     expect(
       tester
-          .widget<TextField>(find.byKey(const Key('composer-editor')))
+          .widget<TextField>(find.byKey(const Key('ai-prompt')))
           .controller!
           .text,
       'draft before splitting',

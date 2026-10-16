@@ -234,7 +234,7 @@ void main() {
     tester,
   ) async {
     await tester.pumpApp(status(aiVisible: true, observing: true));
-    expect(find.textContaining('Human input paused'), findsOneWidget);
+    expect(find.textContaining('Read-only'), findsWidgets);
     await tester.pumpApp(
       status(pane: first.copyWith(isExited: true, exitCode: 255)),
     );

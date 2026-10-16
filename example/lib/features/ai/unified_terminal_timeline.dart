@@ -4,8 +4,8 @@ import 'package:ianvs_terminal/ianvs_terminal.dart';
 /// Combines native history and the selected AI task without copying output.
 /// Existing history precedes the task. Newly observed blocks keep the content
 /// anchor where they arrived, until a task entry supplies their canonical slot.
-class MobileTerminalTimeline extends StatefulWidget {
-  const MobileTerminalTimeline({
+class UnifiedTerminalTimeline extends StatefulWidget {
+  const UnifiedTerminalTimeline({
     required this.controller,
     required this.taskId,
     required this.sourceSessionId,
@@ -24,15 +24,16 @@ class MobileTerminalTimeline extends StatefulWidget {
   final Widget Function(List<CommandBlockTimelineItem>) builder;
 
   @override
-  State<MobileTerminalTimeline> createState() => _MobileTerminalTimelineState();
+  State<UnifiedTerminalTimeline> createState() =>
+      _UnifiedTerminalTimelineState();
 }
 
-class _MobileTerminalTimelineState extends State<MobileTerminalTimeline> {
+class _UnifiedTerminalTimelineState extends State<UnifiedTerminalTimeline> {
   final _anchors = <String, String?>{};
   bool _initialized = false;
 
   @override
-  void didUpdateWidget(MobileTerminalTimeline oldWidget) {
+  void didUpdateWidget(UnifiedTerminalTimeline oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.taskId != widget.taskId ||
         oldWidget.controller != widget.controller ||

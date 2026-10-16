@@ -1004,7 +1004,12 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
       items: [
         if (!context.usesMobileNavigation) ...[
           for (final mode in TerminalViewMode.values)
-            TerminalModeMenuEntry(sessionId: targetSessionId, value: mode),
+            TerminalModeMenuEntry(
+              sessionId: targetSessionId,
+              value: mode,
+              hasUnifiedWorkspace: () =>
+                  _openAiSessions.contains(targetSessionId),
+            ),
           TerminalModeMenuEntry(
             sessionId: targetSessionId,
             value: _TerminalModeMenuAction.recheck,
@@ -1136,7 +1141,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
     session.updateEnvironment(pane, readOnly: _isSessionReadOnly(sessionId));
     if (!session.selectMode(mode)) return;
     _activateSession(sessionController, sessionId, requestFocus: false);
-    if (_mobileRequiresLlm && mode == TerminalViewMode.blocks) {
+    if (mode == TerminalViewMode.blocks) {
       _openAi(sessionId);
       return;
     }

@@ -8399,7 +8399,7 @@ abstract class AppLocalizations {
   /// No description provided for @terminalModeBlocks.
   ///
   /// In en, this message translates to:
-  /// **'Command Blocks'**
+  /// **'Block + AI'**
   String get terminalModeBlocks;
 
   /// Read the current session capability without reconnecting or changing display mode.

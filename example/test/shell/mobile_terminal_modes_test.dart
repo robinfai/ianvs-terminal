@@ -350,7 +350,14 @@ Future<void> _choose(
   String id,
   TerminalViewMode mode,
 ) async {
-  await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+  if (_isPhone) {
+    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+  } else {
+    await tester.tap(
+      find.byKey(Key('shell-tab-$id')),
+      buttons: kSecondaryMouseButton,
+    );
+  }
   await _settle(tester);
   final item = find.byKey(Key('terminal-mode-${mode.name}-$id'));
   await tester.ensureVisible(item);
@@ -378,9 +385,8 @@ bool get _isPhone =>
     defaultTargetPlatform == TargetPlatform.iOS ||
     defaultTargetPlatform == TargetPlatform.android;
 
-Finder _commandEditor(WidgetTester tester) => _isPhone
-    ? find.byKey(const Key('ai-prompt'))
-    : find.byKey(const Key('composer-editor'));
+Finder _commandEditor(WidgetTester tester) =>
+    find.byKey(const Key('ai-prompt'));
 
 Future<void> _showWorkspace(WidgetTester tester, String id) async {
   if (find.byType(TerminalAiWorkspace).evaluate().isEmpty) {
@@ -469,7 +475,13 @@ void main() {
     );
   }
 
-  for (final platform in [TargetPlatform.iOS, TargetPlatform.android]) {
+  for (final platform in [
+    TargetPlatform.iOS,
+    TargetPlatform.android,
+    TargetPlatform.macOS,
+    TargetPlatform.windows,
+    TargetPlatform.linux,
+  ]) {
     testWidgets(
       'unified command then AI uses one owner and draft on $platform',
       (tester) async {
@@ -478,12 +490,18 @@ void main() {
           tester,
           backend,
           platform: platform,
+          preference: TerminalViewMode.blocks,
+          size:
+              platform == TargetPlatform.iOS ||
+                  platform == TargetPlatform.android
+              ? const Size(390, 844)
+              : const Size(1200, 800),
         );
         final workspace = tester.widget<TerminalAiWorkspace>(
           find.byType(TerminalAiWorkspace),
         );
         final ai = workspace.controller;
-        expect(workspace.unifiedMobile, isTrue);
+        expect(workspace.unifiedWorkspace, isTrue);
         expect(
           find.byKey(const Key('ai-prompt')).hitTestable(),
           findsOneWidget,
@@ -555,6 +573,130 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     debugDefaultTargetPlatformOverride = null;
   });
+
+  for (final brightness in Brightness.values) {
+    for (final (size, scale) in [
+      (const Size(1200, 800), 1.0),
+      (const Size(640, 400), 2.0),
+    ]) {
+      testWidgets(
+        'desktop unified keyboard and layout $brightness $size scale $scale',
+        (tester) async {
+          final backend = _MobileBackend()..owner = 'ready';
+          final (:id, :container) = await _pump(
+            tester,
+            backend,
+            platform: TargetPlatform.macOS,
+            brightness: brightness,
+            size: size,
+            scale: scale,
+            preference: TerminalViewMode.blocks,
+          );
+          final workspace = tester.widget<TerminalAiWorkspace>(
+            find.byType(TerminalAiWorkspace),
+          );
+          final ai = workspace.controller;
+          expect(
+            tester
+                .widget<TextField>(_commandEditor(tester))
+                .focusNode!
+                .hasFocus,
+            isTrue,
+          );
+          expect(
+            find.byKey(const Key('composer-editor')).hitTestable(),
+            findsNothing,
+          );
+          await tester.enterText(_commandEditor(tester), 'echo keyboard');
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await _settle(tester);
+          expect(backend.submissions, ['echo keyboard']);
+          await _completeAiTask(tester, ai, throughInput: true);
+          await tester.enterText(_commandEditor(tester), 'echo draft');
+          await _settle(tester);
+          expect(ai.inputIntentDecision().intent, InputIntent.command);
+          await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+          await tester.sendKeyEvent(LogicalKeyboardKey.keyI);
+          await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+          await _settle(tester);
+          expect(ai.inputIntentDecision().intent, InputIntent.ai);
+          expect(backend.submissions, ['echo keyboard']);
+          await tester.enterText(_commandEditor(tester), '中文草稿\n第二行');
+          await _settle(tester);
+          await _capture(
+            tester,
+            'desktop-unified-${brightness.name}-${size.width.toInt()}-scale-$scale',
+          );
+          await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+          await _settle(tester);
+          expect(
+            find.byKey(const Key('ai-observer-viewport')).hitTestable(),
+            findsOneWidget,
+          );
+          expect(ai.draft, '中文草稿\n第二行');
+          await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+          await tester.sendKeyEvent(LogicalKeyboardKey.keyI);
+          await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+          await _settle(tester);
+          expect(
+            find.byKey(const Key('ai-prompt')).hitTestable(),
+            findsOneWidget,
+          );
+          expect(
+            tester
+                .widget<TextField>(_commandEditor(tester))
+                .focusNode!
+                .hasFocus,
+            isTrue,
+          );
+          expect(ai.draft, '中文草稿\n第二行');
+          expect(container.read(sessionControllerProvider).activeSessionId, id);
+          expect(backend.submissions, ['echo keyboard']);
+          expect(backend.writes, isEmpty);
+          expect(tester.takeException(), isNull);
+          await tester.pumpWidget(const SizedBox.shrink());
+          debugDefaultTargetPlatformOverride = null;
+        },
+      );
+    }
+  }
+
+  testWidgets(
+    'desktop unconfigured model still runs commands and configuration never sends a draft',
+    (tester) async {
+      final backend = _MobileBackend()..owner = 'ready';
+      await _pump(
+        tester,
+        backend,
+        platform: TargetPlatform.macOS,
+        size: const Size(1200, 800),
+        configuration: null,
+        preference: TerminalViewMode.blocks,
+      );
+      final ai = tester
+          .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
+          .controller;
+      await tester.enterText(_commandEditor(tester), 'echo no-model');
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await _settle(tester);
+      expect(backend.submissions, ['echo no-model']);
+      for (var i = 0; i < 5; i++) {
+        await _settle(tester);
+      }
+      expect(ai.busy, isFalse);
+      ai.chooseInputIntent(InputIntentChoice.ai);
+      await tester.enterText(_commandEditor(tester), 'Explain the output');
+      await _settle(tester);
+      await tester.tap(find.byKey(const Key('ai-send')));
+      await _settle(tester);
+      expect(find.byKey(const Key('ai-settings-dialog')), findsOneWidget);
+      expect(ai.draft, 'Explain the output');
+      expect(backend.submissions, ['echo no-model']);
+      expect(backend.writes, isEmpty);
+      await tester.pumpWidget(const SizedBox.shrink());
+      debugDefaultTargetPlatformOverride = null;
+    },
+  );
 
   group('AI evidence reinput', () {
     Future<void> insertEvidence(WidgetTester tester, String sourceId) async {
@@ -641,10 +783,7 @@ void main() {
             expect(pane.terminalMode.mode, TerminalViewMode.blocks);
             expect(state.preferredTerminalMode, TerminalViewMode.normal);
             expect(state.activeSessionId, targetId);
-            expect(
-              find.byType(TerminalAiWorkspace),
-              _isPhone ? findsOneWidget : findsNothing,
-            );
+            expect(find.byType(TerminalAiWorkspace), findsOneWidget);
             final editor = tester.widget<TextField>(_commandEditor(tester));
             expect(editor.controller!.text, 'uname -a');
             if (!_isPhone) {
@@ -655,7 +794,7 @@ void main() {
               expect(editor.focusNode!.hasFocus, true);
             }
             expect(ai.taskId, taskId);
-            expect(ai.draft, _isPhone ? 'uname -a' : 'keep task draft');
+            expect(ai.draft, 'uname -a');
             expect(backend.writes, hasLength(writes));
             expect(backend.submissions, isEmpty);
             expect(tester.takeException(), isNull);
@@ -666,7 +805,7 @@ void main() {
       }
     }
 
-    testWidgets('keeps both drafts when the editor is unavailable', (
+    testWidgets('keeps the shared draft when the editor is unavailable', (
       tester,
     ) async {
       final backend = _MobileBackend()..owner = 'ready';
@@ -703,7 +842,7 @@ void main() {
       await _settle(tester);
       expect(
         tester.widget<TextField>(_commandEditor(tester)).controller!.text,
-        'original command draft',
+        'keep task draft',
       );
       expect(backend.writes, isEmpty);
       expect(backend.submissions, isEmpty);
@@ -767,7 +906,7 @@ void main() {
           expect(_mode(container).mode, targetMode);
           expect(
             find.byType(TerminalAiWorkspace),
-            _isPhone && targetMode == TerminalViewMode.blocks
+            targetMode == TerminalViewMode.blocks
                 ? findsOneWidget
                 : findsNothing,
           );
@@ -783,10 +922,7 @@ void main() {
             final editor = tester.widget<TextField>(
               _commandEditor(tester).hitTestable(),
             );
-            expect(
-              editor.controller!.text,
-              _isPhone ? 'retained follow-up draft' : 'retained command draft',
-            );
+            expect(editor.controller!.text, 'retained follow-up draft');
             if (!_isPhone) expect(editor.focusNode!.hasFocus, isTrue);
           }
           await _showWorkspace(tester, id);

@@ -309,6 +309,15 @@ class TerminalAiController extends ChangeNotifier {
       ),
     ),
   );
+
+  /// UI-only focus request; it never submits or changes the draft.
+  int draftFocusRequest = 0;
+
+  void requestDraftFocus() {
+    draftFocusRequest++;
+    notifyListeners();
+  }
+
   String get draft => _task.draft;
   int get draftRevision => _task.draftRevision;
   double get readingOffset => _task.readingOffset;

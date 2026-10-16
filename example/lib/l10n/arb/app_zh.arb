@@ -1430,7 +1430,7 @@
   "mobileCapabilitiesPendingHelp": "待确认表示尚无初始化检查或实际事件证据。",
   "mobileExternalKeyboardHelp": "连接外接键盘后可使用这些快捷键。点按组合键可修改，作用范围在录制时设置。",
   "terminalModeNormal": "普通终端",
-  "terminalModeBlocks": "命令块",
+  "terminalModeBlocks": "Block + AI",
   "terminalModeRecheck": "重新检查命令块支持情况",
   "terminalModeSupportAvailable": "当前节点支持命令块。",
   "preferredTerminalMode": "优先终端模式",

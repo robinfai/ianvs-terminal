@@ -39,7 +39,7 @@ class TerminalAiWorkspace extends StatefulWidget {
     this.active = true,
     this.canInteract,
     this.compactMobile = false,
-    this.unifiedMobile = false,
+    this.unifiedWorkspace = false,
     this.targetLabel = '',
     this.timelineBuilder,
     this.onInspectContext,
@@ -68,8 +68,8 @@ class TerminalAiWorkspace extends StatefulWidget {
   /// task/input presentation without changing standalone or desktop surfaces.
   final bool compactMobile;
 
-  /// One mobile input and timeline for human commands and AI tasks.
-  final bool unifiedMobile;
+  /// One input and timeline for human commands and AI tasks on every platform.
+  final bool unifiedWorkspace;
   final String targetLabel;
   final AiTimelineBuilder? timelineBuilder;
   final ValueChanged<AiBlockContext>? onInspectContext;
@@ -97,6 +97,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
   Timer? _contextTimer;
   late String _taskId;
   int _count = 0;
+  int _draftFocusRequest = 0;
   int _revision = 0;
   bool _wasBusy = false;
   bool _replyFocusAllowed = false;
@@ -231,6 +232,23 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
 
   void _changed() {
     if (!mounted) return;
+    if (_draftFocusRequest != c.draftFocusRequest) {
+      final request = c.draftFocusRequest;
+      final taskId = c.taskId;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted &&
+            !_mobile &&
+            _paneInteractive &&
+            c.taskId == taskId &&
+            c.draftFocusRequest == request &&
+            !widget.fullScreenTerminal &&
+            !c.followUpEnded &&
+            ModalRoute.of(context)?.isCurrent != false) {
+          _draftFocusRequest = request;
+          _focus.requestFocus();
+        }
+      });
+    }
     final switched = _taskId != c.taskId;
     final reply = c.transcript.lastOrNull;
     final finishedReply =
@@ -391,7 +409,8 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     // A read started before activation cannot validate the newly active pane.
     if (alreadyChecking) await c.refreshContext();
     if (!mounted || revision != _paneRevision || !widget.active) return;
-    setState(() => _revalidatingPane = false);
+    _revalidatingPane = false;
+    _changed();
   }
 
   @override
@@ -650,10 +669,10 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
             children: [
               Text(
                 t(
-                  widget.unifiedMobile
+                  widget.unifiedWorkspace
                       ? 'Run a command, or ask AI.'
                       : 'Describe a task, or attach command output.',
-                  widget.unifiedMobile ? '输入命令，或向 AI 提问。' : '描述任务，或附上命令输出。',
+                  widget.unifiedWorkspace ? '输入命令，或向 AI 提问。' : '描述任务，或附上命令输出。',
                 ),
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
@@ -2084,7 +2103,13 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
         forceStrutHeight: true,
       ),
       decoration: InputDecoration(
-        hintText: hintText ?? t('Ask about this terminal…', '向当前终端提问…'),
+        hintText:
+            hintText ??
+            (widget.unifiedWorkspace
+                ? (_commandIntent
+                      ? t('Enter a command…', '输入命令…')
+                      : t('Ask AI…', '向 AI 提问…'))
+                : t('Ask about this terminal…', '向当前终端提问…')),
         // Retain the standard tap row; symmetric compact padding keeps the
         // text centered rather than adding empty space below a dense field.
         isDense: dense ? false : null,
@@ -2503,7 +2528,12 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                 if (singleRow)
                   _sendButton(iconOnly: bounds.maxWidth < 480)
                 else
-                  Flexible(flex: 2, child: _sendButton()),
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: bounds.maxWidth * .55,
+                    ),
+                    child: _sendButton(),
+                  ),
               ],
             ),
           ),

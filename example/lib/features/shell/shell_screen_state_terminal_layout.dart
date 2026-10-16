@@ -518,13 +518,12 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
       pane,
       readOnly: sessionReadOnly,
     );
-    if (_mobileRequiresLlm &&
-        isActive &&
+    if (isActive &&
         !_mobileConnectionsOpen &&
         composerSession?.enabled == true &&
         !_openAiSessions.contains(sessionId)) {
       WidgetsBinding.instance.addPostFrameCallback(
-        (_) => _ensureMobileWorkspace(sessionId),
+        (_) => _ensureUnifiedWorkspace(sessionId),
       );
     }
     final annotations = _annotationsForSession(sessionId);
@@ -1135,33 +1134,35 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                             ),
                           ),
                           if (composerSession != null)
-                            ConstrainedBox(
-                              constraints: BoxConstraints(
-                                maxHeight: context.usesTouchControlDensity
-                                    ? constraints.maxHeight * .65
-                                    : double.infinity,
-                              ),
-                              // The Composer uses the pane's actual height to
-                              // select its inline or scrollable short layout.
-                              // An outer scroll view would remove that bound.
-                              child: Actions(
-                                actions: {
-                                  EditableTextTapOutsideIntent:
-                                      _PaneComposerTapOutsideAction(),
-                                },
-                                child: ComposerPane(
-                                  key: ValueKey('composer-$sessionId'),
-                                  session: composerSession,
-                                  targetLabel: pane.title,
-                                  active:
-                                      isActive &&
-                                      !_manualInputBlocked(sessionId),
-                                  available: !pane.isExited && !sessionReadOnly,
-                                  onAskAi: (prompt) =>
-                                      _openAi(sessionId, prompt: prompt),
-                                  onOpenAi: () => _openAi(sessionId),
-                                  onTerminalFocus: focusNode.requestFocus,
-                                  terminalFocus: focusNode,
+                            Offstage(
+                              offstage: _openAiSessions.contains(sessionId),
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxHeight: constraints.maxHeight * .65,
+                                ),
+                                // The Composer uses the pane's actual height to
+                                // select its inline or scrollable short layout.
+                                // An outer scroll view would remove that bound.
+                                child: Actions(
+                                  actions: {
+                                    EditableTextTapOutsideIntent:
+                                        _PaneComposerTapOutsideAction(),
+                                  },
+                                  child: ComposerPane(
+                                    key: ValueKey('composer-$sessionId'),
+                                    session: composerSession,
+                                    targetLabel: pane.title,
+                                    active:
+                                        isActive &&
+                                        !_manualInputBlocked(sessionId),
+                                    available:
+                                        !pane.isExited && !sessionReadOnly,
+                                    onAskAi: (prompt) =>
+                                        _openAi(sessionId, prompt: prompt),
+                                    onOpenAi: () => _openAi(sessionId),
+                                    onTerminalFocus: focusNode.requestFocus,
+                                    terminalFocus: focusNode,
+                                  ),
                                 ),
                               ),
                             ),
@@ -1241,15 +1242,13 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                 onReinput: (command) =>
                                     _reinputAiCommand(sessionId, command),
                               );
-                              return _mobileRequiresLlm
-                                  ? MobileTerminalTimeline(
-                                      controller: composerSession.blocks,
-                                      taskId: _aiFor(sessionId).taskId,
-                                      sourceSessionId: sessionId,
-                                      items: items,
-                                      builder: buildTimeline,
-                                    )
-                                  : buildTimeline(items);
+                              return UnifiedTerminalTimeline(
+                                controller: composerSession.blocks,
+                                taskId: _aiFor(sessionId).taskId,
+                                sourceSessionId: sessionId,
+                                items: items,
+                                builder: buildTimeline,
+                              );
                             }
                           : null,
                     ),

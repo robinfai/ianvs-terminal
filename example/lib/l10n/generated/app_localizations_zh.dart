@@ -4993,7 +4993,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get terminalModeNormal => '普通终端';
 
   @override
-  String get terminalModeBlocks => '命令块';
+  String get terminalModeBlocks => 'Block + AI';
 
   @override
   String get terminalModeRecheck => '重新检查命令块支持情况';

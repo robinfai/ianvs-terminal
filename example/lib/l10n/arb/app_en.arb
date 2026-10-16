@@ -4073,7 +4073,7 @@
   "mobileCapabilitiesPendingHelp": "Pending capabilities have no initialization check or observed event evidence yet.",
   "mobileExternalKeyboardHelp": "Use these shortcuts with an external keyboard. Tap a binding to edit it and choose its scope while recording.",
   "terminalModeNormal": "Normal terminal",
-  "terminalModeBlocks": "Command Blocks",
+  "terminalModeBlocks": "Block + AI",
   "terminalModeRecheck": "Recheck Command Block support",
   "@terminalModeRecheck": {"description": "Read the current session capability without reconnecting or changing display mode."},
   "terminalModeSupportAvailable": "The current node supports Command Blocks.",

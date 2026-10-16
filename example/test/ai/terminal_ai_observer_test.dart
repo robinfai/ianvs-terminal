@@ -58,9 +58,14 @@ class _Backend extends FakePtyBackend {
       return jsonEncode({'outcome': 'accepted'});
     }
     return switch (request['kind']) {
+      'composer.receipt' => jsonEncode({
+        'outcome': 'accepted',
+        'submissionId': request['submissionId'],
+        'blockId': '1',
+      }),
       'composer.state' => jsonEncode({
         'state': 'ready',
-        'lease': 'lease-$sessionId',
+        'lease': 'lease-$sessionId-${composerSubmissions.length}',
         'contextId': 'root',
         'transport': 'shell',
         'cwd': '/srv/fixture',
@@ -233,7 +238,7 @@ void main() {
     );
 
     testWidgets(
-      '${platform.name} opening AI immediately revokes captured Composer Run through same-frame toggles',
+      '${platform.name} unified send is revoked immediately by observation and Normal mode',
       (tester) async {
         final backend = _Backend();
         final fixture = await _pump(
@@ -249,103 +254,41 @@ void main() {
               find.byKey(ValueKey('composer-${fixture.id}')),
             )
             .session;
-        if (platform == TargetPlatform.iOS) {
-          // Mobile has one negotiated input. A captured send must lose its
-          // authority as soon as observation or Ordinary mode is requested.
-          await tester.tap(find.byKey(Key('terminal-ai-open-${fixture.id}')));
-          await _settle(tester);
-          final workspace = tester.widget<TerminalAiWorkspace>(
-            find.byType(TerminalAiWorkspace),
-          );
-          workspace.controller.chooseInputIntent(InputIntentChoice.command);
-          await tester.enterText(
-            find.byKey(const Key('ai-prompt')),
-            'echo retained draft',
-          );
-          await _settle(tester);
-          final send = tester
-              .widget<FilledButton>(find.byKey(const Key('ai-send')))
-              .onPressed!;
-          workspace.onObserveTerminal!();
-          send();
-          await tester.idle();
-          expect(backend.composerSubmissions, isEmpty);
-          expect(workspace.controller.draft, 'echo retained draft');
-          await _settle(tester);
-          await tester.tap(find.byKey(const Key('ai-observer-back')));
-          await _settle(tester);
-          workspace.onTakeOver!();
-          send();
-          await tester.idle();
-          expect(backend.composerSubmissions, isEmpty);
-          expect(composer.controller.canRun, isFalse);
-          return;
-        }
-        expect(composer.selectMode(TerminalViewMode.blocks), isTrue);
-        composer.controller.editor.text = 'echo retained draft';
-        composer.controller.inputIntent.choice = InputIntentChoice.command;
-        await _settle(tester);
-        final staleRun = tester
-            .widget<FilledButton>(
-              find.byKey(const Key('composer-primary-action')),
-            )
-            .onPressed!;
-        final toggleAi = tester
-            .widget<TextButton>(
-              find.byKey(Key('terminal-ai-open-${fixture.id}')),
-            )
-            .onPressed!;
-
-        // The human callback can outlive the press that opened AI. No layout
-        // may be needed to remove its ability to submit a negotiated command.
-        toggleAi();
-        staleRun();
-        await tester.idle();
-        expect(backend.composerSubmissions, isEmpty);
-        expect(composer.controller.canRun, isFalse);
-        expect(composer.controller.editor.text, 'echo retained draft');
+        // Block and AI now share the same negotiated input on every platform.
+        final ai = await _open(tester, fixture.id);
+        ai.chooseInputIntent(InputIntentChoice.command);
+        await tester.enterText(
+          find.byKey(const Key('ai-prompt')),
+          'echo retained draft',
+        );
         await _settle(tester);
         final workspace = tester.widget<TerminalAiWorkspace>(
           find.byType(TerminalAiWorkspace),
         );
-        final takeOver = workspace.onTakeOver!;
-        final taskId = workspace.controller.taskId;
-
-        takeOver();
-        await _settle(tester);
-        expect(composer.controller.canRun, isTrue);
-        // Two top-AI presses before layout collapse into observation. They
-        // must retain AI ownership rather than briefly restore a human Run.
-        toggleAi();
-        toggleAi();
-        staleRun();
+        final send = tester
+            .widget<FilledButton>(find.byKey(const Key('ai-send')))
+            .onPressed!;
+        workspace.onObserveTerminal!();
+        send();
         await tester.idle();
         expect(backend.composerSubmissions, isEmpty);
+        expect(ai.draft, 'echo retained draft');
         await _settle(tester);
-        expect(
-          find.byKey(const Key('ai-observer-viewport')).hitTestable(),
-          findsOneWidget,
-        );
-        expect(workspace.controller.taskId, taskId);
-        expect(composer.controller.canRun, isFalse);
-        await tester.tap(find.byKey(const Key('ai-observer-take-over')));
+        await tester.tap(find.byKey(const Key('ai-observer-back')));
         await _settle(tester);
-        expect(composer.controller.canRun, isTrue);
-
-        // Explicitly opening and taking over before layout still revokes the
-        // old Run until the latest layout confirms the current human owner.
-        toggleAi();
-        takeOver();
-        staleRun();
+        workspace.onTakeOver!();
+        send();
         await tester.idle();
         expect(backend.composerSubmissions, isEmpty);
         expect(composer.controller.canRun, isFalse);
         await _settle(tester);
-        expect(composer.controller.canRun, isTrue);
-        expect(composer.controller.editor.text, 'echo retained draft');
-        await tester.tap(find.byKey(const Key('composer-primary-action')));
+        await _open(tester, fixture.id);
+        await tester.tap(find.byKey(const Key('ai-send')));
         await tester.idle();
         expect(backend.composerSubmissions, hasLength(1));
+        for (var i = 0; i < 6; i++) {
+          await _settle(tester);
+        }
         expect(
           backend.composerSubmissions.single['text'],
           'echo retained draft',
@@ -407,7 +350,7 @@ void main() {
 
   for (final aiKeepsOwnership in [false, true]) {
     testWidgets(
-      'desktop Reader immediately revokes stale Composer Run and restores only current ownership, AI: $aiKeepsOwnership',
+      'desktop Reader revokes unified Send and respects ownership after closing, workspace: $aiKeepsOwnership',
       (tester) async {
         final backend = _Backend();
         final fixture = await _pump(
@@ -421,17 +364,19 @@ void main() {
               find.byKey(ValueKey('composer-${fixture.id}')),
             )
             .session;
-        expect(composer.selectMode(TerminalViewMode.blocks), isTrue);
-        composer.controller.editor.text = 'echo retained draft';
-        composer.controller.inputIntent.choice = InputIntentChoice.command;
+        final ai = await _open(tester, fixture.id);
+        ai.chooseInputIntent(InputIntentChoice.command);
+        await tester.enterText(
+          find.byKey(const Key('ai-prompt')),
+          'echo retained draft',
+        );
         await _settle(tester);
-        expect(composer.controller.canRun, isTrue);
+        final workspace = tester.widget<TerminalAiWorkspace>(
+          find.byType(TerminalAiWorkspace),
+        );
         final staleRun = tester
-            .widget<FilledButton>(
-              find.byKey(const Key('composer-primary-action')),
-            )
+            .widget<FilledButton>(find.byKey(const Key('ai-send')))
             .onPressed!;
-        if (aiKeepsOwnership) await _open(tester, fixture.id);
         final blocks = CommandBlockController(
           request: (_) => {
             'block': {
@@ -450,7 +395,7 @@ void main() {
         );
         addTearDown(blocks.dispose);
         final reading = showCommandBlockReader(
-          tester.element(find.byKey(ValueKey('composer-${fixture.id}'))),
+          tester.element(find.byKey(ValueKey('ai-workspace-${fixture.id}'))),
           controller: blocks,
           id: 'retained-evidence',
         );
@@ -464,21 +409,25 @@ void main() {
         staleRun();
         await tester.idle();
         expect(backend.composerSubmissions, isEmpty);
-        expect(composer.controller.editor.text, 'echo retained draft');
+        expect(ai.draft, 'echo retained draft');
+        if (!aiKeepsOwnership) workspace.onTakeOver!();
         await _settle(tester);
         await tester.tap(find.byKey(const Key('block-reader-close')));
         await _settle(tester);
         expect(host.controller.isOpen, isFalse);
         expect(await reading, isNull);
-        expect(composer.controller.canRun, !aiKeepsOwnership);
-        if (aiKeepsOwnership) {
+        expect(composer.controller.canRun, isFalse);
+        if (!aiKeepsOwnership) {
           staleRun();
           await tester.idle();
           expect(backend.composerSubmissions, isEmpty);
         } else {
-          await tester.tap(find.byKey(const Key('composer-primary-action')));
+          await tester.tap(find.byKey(const Key('ai-send')));
           await tester.idle();
           expect(backend.composerSubmissions, hasLength(1));
+          for (var i = 0; i < 6; i++) {
+            await _settle(tester);
+          }
         }
         expect(tester.takeException(), isNull);
       },

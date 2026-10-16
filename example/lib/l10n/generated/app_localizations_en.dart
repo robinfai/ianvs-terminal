@@ -5343,7 +5343,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get terminalModeNormal => 'Normal terminal';
 
   @override
-  String get terminalModeBlocks => 'Command Blocks';
+  String get terminalModeBlocks => 'Block + AI';
 
   @override
   String get terminalModeRecheck => 'Recheck Command Block support';

@@ -1,4 +1,4 @@
-import 'package:app/features/ai/mobile_terminal_timeline.dart';
+import 'package:app/features/ai/unified_terminal_timeline.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
@@ -23,7 +23,7 @@ void main() {
       String task = 'one',
     }) => tester.pumpWidget(
       MaterialApp(
-        home: MobileTerminalTimeline(
+        home: UnifiedTerminalTimeline(
           controller: controller,
           taskId: task,
           sourceSessionId: 'session',
@@ -84,7 +84,7 @@ void main() {
     late List<CommandBlockTimelineItem> rendered;
     await tester.pumpWidget(
       MaterialApp(
-        home: MobileTerminalTimeline(
+        home: UnifiedTerminalTimeline(
           controller: controller,
           taskId: 'one',
           sourceSessionId: 'current',
@@ -119,7 +119,7 @@ void main() {
     late List<CommandBlockTimelineItem> rendered;
     await tester.pumpWidget(
       MaterialApp(
-        home: MobileTerminalTimeline(
+        home: UnifiedTerminalTimeline(
           controller: controller,
           taskId: 'one',
           sourceSessionId: 'new',

@@ -37,14 +37,13 @@ extension _ShellScreenAi on _ShellScreenState {
                   ref
                       .read(sessionControllerProvider.notifier)
                       .updateTerminalMode(sessionId, session.mode.state);
-                  _ensureMobileWorkspace(sessionId);
+                  _ensureUnifiedWorkspace(sessionId);
                 }
               });
             }),
       );
-  void _ensureMobileWorkspace(String sessionId) {
+  void _ensureUnifiedWorkspace(String sessionId) {
     if (mounted &&
-        _mobileRequiresLlm &&
         !_mobileConnectionsOpen &&
         _sessionState.activeSessionId == sessionId &&
         _composerSessions[sessionId]?.enabled == true &&
@@ -72,9 +71,7 @@ extension _ShellScreenAi on _ShellScreenState {
       _aiSessions.putIfAbsent(sessionId, () {
         final controller = TerminalAiController(
           settings: ref.read(aiSettingsProvider),
-          defaultInputIntent: _mobileRequiresLlm
-              ? InputIntent.command
-              : InputIntent.ai,
+          defaultInputIntent: InputIntent.command,
           terminal: TerminalAiConnections(
             sessionId: sessionId,
             terminal: _aiEndpoint(sessionId),
@@ -219,7 +216,7 @@ extension _ShellScreenAi on _ShellScreenState {
       });
     }
     if (draft != null) _composerFor(next).controller.editor.value = draft;
-    if (_mobileRequiresLlm && chosenMode == TerminalViewMode.normal) {
+    if (chosenMode == TerminalViewMode.normal) {
       _composerFor(next).selectMode(TerminalViewMode.normal);
     }
     await ai?.refreshContext(); // No inference, approval, or command replay.
@@ -299,7 +296,9 @@ extension _ShellScreenAi on _ShellScreenState {
       return;
     }
     final ai = _aiFor(sessionId);
-    FocusManager.instance.primaryFocus?.unfocus();
+    if (_mobileRequiresLlm || !_openAiSessions.contains(sessionId)) {
+      FocusManager.instance.primaryFocus?.unfocus();
+    }
     final runtime =
         (ai.terminal as TerminalAiConnections).active as TerminalAiRuntime;
     if (range != null) {
@@ -308,7 +307,7 @@ extension _ShellScreenAi on _ShellScreenState {
     for (final selected in [?block, ...blocks]) {
       ai.attachContext(runtime.blockContext(selected));
     }
-    if (_mobileRequiresLlm) {
+    {
       final composer = _composerSessions[sessionId];
       composer?.selectMode(TerminalViewMode.blocks);
       // Migrate a pre-existing command draft only once. The unified controller
@@ -345,6 +344,7 @@ extension _ShellScreenAi on _ShellScreenState {
       _openAiSessions.add(sessionId);
       _observedAiTargets.remove(sessionId);
     });
+    if (!_mobileRequiresLlm) ai.requestDraftFocus();
     if (prompt == null) {
       unawaited(ai.refreshContext());
       return;
@@ -381,7 +381,7 @@ extension _ShellScreenAi on _ShellScreenState {
 
   void _takeOverAiInput(String sessionId) {
     _aiSessions[sessionId]?.takeOver();
-    if (_mobileRequiresLlm && _composerSessions[sessionId]?.enabled == true) {
+    if (_composerSessions[sessionId]?.enabled == true) {
       _composerSessions[sessionId]?.selectMode(TerminalViewMode.normal);
     }
     _mutateState(() {
@@ -399,8 +399,26 @@ extension _ShellScreenAi on _ShellScreenState {
       sessionId,
     );
     if (pane == null) return;
-    if (_mobileRequiresLlm &&
+    if (!_mobileRequiresLlm ||
         ref.read(aiSettingsProvider).hasLlmConfiguration) {
+      // An unavailable command editor must not replace the shared draft.
+      if (!_mobileRequiresLlm) {
+        final composer = _composerFor(sessionId);
+        composer.updateEnvironment(
+          pane,
+          readOnly: _isSessionReadOnly(sessionId),
+        );
+        composer.refreshShellState();
+        if (!composer.selectMode(TerminalViewMode.blocks)) {
+          _showShellSnackBar(
+            blockUnavailableMessage(
+              context.l10n,
+              composer.mode.state.unavailableReason,
+            ),
+          );
+          return;
+        }
+      }
       final ai = _aiFor(sessionId);
       ai.takeOver();
       while (ai.attachments.isNotEmpty) {
@@ -447,7 +465,6 @@ extension _ShellScreenAi on _ShellScreenState {
     Widget button() {
       final chinese = Localizations.localeOf(context).languageCode == 'zh';
       final showTerminal =
-          context.usesMobileNavigation &&
           _openAiSessions.contains(sessionId) &&
           !_observedAiTargets.containsKey(sessionId);
       final label = showTerminal
@@ -456,9 +473,7 @@ extension _ShellScreenAi on _ShellScreenState {
           ? (chinese ? 'AI · 有待确认命令' : 'AI · action needs review')
           : ai?.busy == true
           ? (chinese ? 'AI · 任务进行中' : 'AI · task in progress')
-          : (_mobileRequiresLlm
-                ? (chinese ? 'Block + AI 工作区' : 'Block + AI workspace')
-                : (chinese ? 'AI 任务' : 'AI task'));
+          : (chinese ? 'Block + AI 工作区' : 'Block + AI workspace');
       return Tooltip(
         message: label,
         child: TextButton(
@@ -473,19 +488,26 @@ extension _ShellScreenAi on _ShellScreenState {
             child: Badge(
               backgroundColor: context.appTheme.accent,
               isLabelVisible: ai?.canApprove == true || ai?.busy == true,
-              child: Text(
-                showTerminal
-                    ? (chinese ? '终端预览' : 'Preview')
-                    : (_mobileRequiresLlm ? 'Block + AI' : 'AI'),
-              ),
+              child: !_mobileRequiresLlm
+                  ? Icon(
+                      showTerminal
+                          ? Icons.terminal
+                          : Icons.auto_awesome_outlined,
+                      size: 18,
+                    )
+                  : Text(
+                      showTerminal
+                          ? (chinese ? '终端预览' : 'Preview')
+                          : 'Block + AI',
+                    ),
             ),
           ),
         ),
       );
     }
 
-    // Showing a terminal must not create a task or retain its native history
-    // as an AI source. The first explicit AI action creates its controller.
+    // Ordinary terminals do not create a task. Block + AI entry creates
+    // its shared controller without starting inference or submitting input.
     return ai == null
         ? button()
         : ListenableBuilder(listenable: ai, builder: (_, _) => button());
@@ -516,14 +538,14 @@ extension _ShellScreenAi on _ShellScreenState {
             (dual || !_observedAiTargets.containsKey(sessionId)) &&
             _sessionState.activeSessionId == sessionId,
         compactMobile: paneContext.usesMobileNavigation,
-        unifiedMobile: _mobileRequiresLlm,
+        unifiedWorkspace: true,
         targetLabel: targetLabel,
         onOpenLink: (url) =>
             unawaited(_openTerminalLink(url, sourceSessionId: sessionId)),
         timelineBuilder: retained && !fullScreenTerminal
             ? (items, scroll, followTail) => TerminalAiRetainedTimeline(
                 controller: _aiFor(sessionId),
-                unifiedMobile: _mobileRequiresLlm,
+                unifiedWorkspace: true,
                 items: items,
                 scroll: scroll,
                 followTail: followTail,

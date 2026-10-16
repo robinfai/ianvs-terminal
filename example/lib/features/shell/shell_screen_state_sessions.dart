@@ -1311,9 +1311,14 @@ extension _ShellScreenStateSessions on _ShellScreenState {
           (currentOwner != owner && !releasedOwner) ||
           _readerControllers[sessionId]?.blocksInput == true ||
           !_sessionExists(sessionId) ||
-          _openAiSessions.contains(sessionId) ||
           _mobileSessionsOpen ||
           (context.usesMobileNavigation && _mobileConnectionsOpen)) {
+        return;
+      }
+      if (_openAiSessions.contains(sessionId)) {
+        if (!_mobileRequiresLlm && !_observedAiTargets.containsKey(sessionId)) {
+          _aiSessions[sessionId]?.requestDraftFocus();
+        }
         return;
       }
       final composer = _composerSessions[sessionId];

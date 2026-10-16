@@ -53,7 +53,7 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
           ? t('AI paused · command still running', 'AI 已暂停，命令仍在运行')
           : t('AI paused', 'AI 已暂停');
     }
-    if (widget.unifiedMobile &&
+    if (widget.unifiedWorkspace &&
         c.phase == AiPhase.idle &&
         c.transcript.isEmpty) {
       return c.context?.canRunCommand == true
@@ -494,7 +494,7 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
                         builder: (context, bounds) {
                           final title = Text(
                             c.taskTitle.isEmpty
-                                ? (widget.unifiedMobile
+                                ? (widget.unifiedWorkspace
                                       ? 'Block + AI'
                                       : t('New task', '新任务'))
                                 : c.taskTitle,
