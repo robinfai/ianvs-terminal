@@ -989,6 +989,10 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                                 'blocks-pane-$sessionId',
                                               ),
                                               session: composerSession,
+                                              presentationVisible:
+                                                  !_openAiSessions.contains(
+                                                    sessionId,
+                                                  ),
                                               viewport: viewportController,
                                               input: inputController,
                                               terminalFocus: focusNode,
@@ -1212,36 +1216,89 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                       timelineBuilder:
                           composerSession != null &&
                               (composerSession.enabled || pane.isExited) &&
-                              composerSession.blocks.available &&
                               !viewportController.frame.modes.alternateScreen &&
                               viewportController.frame.modes.mouseMode == 'off'
                           ? (items, scroll, followTail) {
                               Widget buildTimeline(
                                 List<terminal.CommandBlockTimelineItem> merged,
-                              ) => terminal.TerminalCommandBlocksView(
-                                controller: composerSession.blocks,
-                                timeline: merged,
-                                scrollController: scroll,
-                                followTail: followTail,
-                                showToolbar: false,
-                                chinese:
-                                    Localizations.localeOf(
-                                      context,
-                                    ).languageCode ==
-                                    'zh',
-                                font: effectiveTerminalFont,
-                                onAskAi: (block) =>
-                                    _openAi(sessionId, block: block),
-                                onAttachBlocks: (blocks) =>
-                                    _openAi(sessionId, blocks: blocks),
-                                onAttachRange: (block) =>
-                                    _openAi(sessionId, range: block),
-                                onOpenLinkTarget: (target) => unawaited(
-                                  _openTerminalLinkTarget(sessionId, target),
-                                ),
-                                onReinput: (command) =>
-                                    _reinputAiCommand(sessionId, command),
-                              );
+                              ) {
+                                final action = _humanRunningAction(sessionId);
+                                final taskId = _aiFor(sessionId).taskId;
+                                final epoch = _manualInputEpoch(sessionId);
+                                final humanEpoch = _aiFor(
+                                  sessionId,
+                                ).humanInputEpoch;
+                                final live =
+                                    action != null &&
+                                    _humanBlockInputAllowed(
+                                      sessionId,
+                                      taskId,
+                                      action,
+                                      epoch,
+                                    );
+                                final commandInput = !live
+                                    ? null
+                                    : TerminalInputController(
+                                        sessionId: sessionId,
+                                        runtime: ref.read(
+                                          terminalRuntimeControllerProvider,
+                                        ),
+                                        readFrame: () =>
+                                            viewportController.frame,
+                                        emulation:
+                                            terminalConfig?.emulation ??
+                                            terminal.TerminalEmulation.xterm256,
+                                        readSelection: () => '',
+                                        copySelection: (text) =>
+                                            ClipboardBridge.copyWithFeedback(
+                                              context,
+                                              text,
+                                            ),
+                                        readClipboard: ClipboardBridge.paste,
+                                        readOnly: () =>
+                                            _aiFor(sessionId).humanInputEpoch !=
+                                                humanEpoch ||
+                                            !_humanBlockInputAllowed(
+                                              sessionId,
+                                              taskId,
+                                              action,
+                                              epoch,
+                                            ),
+                                      );
+                                return terminal.TerminalCommandBlocksView(
+                                  controller: composerSession.blocks,
+                                  timeline: merged,
+                                  scrollController: scroll,
+                                  followTail: followTail,
+                                  showToolbar: false,
+                                  liveInput: commandInput,
+                                  liveFocus: live
+                                      ? composerSession.runningFocus
+                                      : null,
+                                  liveFocusSource: composerSession.draftFocus,
+                                  liveModes: viewportController.frame.modes,
+                                  onReturnToInput:
+                                      composerSession.draftFocus.requestFocus,
+                                  chinese:
+                                      Localizations.localeOf(
+                                        context,
+                                      ).languageCode ==
+                                      'zh',
+                                  font: effectiveTerminalFont,
+                                  onAskAi: (block) =>
+                                      _openAi(sessionId, block: block),
+                                  onAttachBlocks: (blocks) =>
+                                      _openAi(sessionId, blocks: blocks),
+                                  onAttachRange: (block) =>
+                                      _openAi(sessionId, range: block),
+                                  onOpenLinkTarget: (target) => unawaited(
+                                    _openTerminalLinkTarget(sessionId, target),
+                                  ),
+                                  onReinput: (command) =>
+                                      _reinputAiCommand(sessionId, command),
+                                );
+                              }
+
                               return UnifiedTerminalTimeline(
                                 controller: composerSession.blocks,
                                 taskId: _aiFor(sessionId).taskId,

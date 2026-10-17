@@ -266,6 +266,20 @@ class TerminalAiController extends ChangeNotifier {
   int _taskSerial = 1;
   int _entrySerial = 0;
   int _connectionRevision = 0;
+  // Revokes UI callbacks when AI activity or task/lifecycle changes interrupt
+  // human command input, even if the same command is still running afterwards.
+  final _humanCommands = Set<AiAction>.identity();
+  bool isUserCommand(AiAction? action) => _humanCommands.contains(action);
+  int _humanInputEpoch = 0;
+  int get humanInputEpoch => _humanInputEpoch;
+  bool get canUseHumanCommandInput =>
+      inputIntentChoice != InputIntentChoice.ai &&
+      _canInteract &&
+      !busy &&
+      pending == null &&
+      !followUpEnded &&
+      !hasUnresolvedSubmission;
+  (String, bool, int)? _humanInputState;
   AiConfiguration? _lastConfiguration;
 
   void prepareForConnectionChange() {
@@ -498,6 +512,7 @@ class TerminalAiController extends ChangeNotifier {
       reason: 'Command entered by the user',
       rawCall: const {},
     );
+    _humanCommands.add(action);
     _cancellation?.cancel();
     final cancellation = _cancellation = AiCancellation();
     _executingAction = action;
@@ -808,6 +823,11 @@ class TerminalAiController extends ChangeNotifier {
   }
 
   void _emit() {
+    final state = (taskId, canUseHumanCommandInput, _connectionRevision);
+    if (_humanInputState != state) {
+      _humanInputState = state;
+      _humanInputEpoch++;
+    }
     if (!_disposed) notifyListeners();
   }
 

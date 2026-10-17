@@ -16,6 +16,8 @@ class ComposerEditor extends StatefulWidget {
     required this.maxLines,
     required this.autofocus,
     this.enabled = true,
+    this.readOnly = false,
+    this.fieldKey = const Key('composer-editor'),
     this.centerVertically = false,
     super.key,
   });
@@ -29,6 +31,8 @@ class ComposerEditor extends StatefulWidget {
   final int maxLines;
   final bool autofocus;
   final bool enabled;
+  final bool readOnly;
+  final Key fieldKey;
   final bool centerVertically;
 
   @override
@@ -119,12 +123,13 @@ class ComposerEditorState extends State<ComposerEditor> {
         child: KeyedSubtree(
           key: _fieldKey,
           child: TextField(
-            key: const Key('composer-editor'),
+            key: widget.fieldKey,
             controller: widget.controller,
             focusNode: widget.focusNode,
             scrollController: _scroll,
             autofocus: widget.autofocus,
             enabled: widget.enabled,
+            readOnly: widget.readOnly,
             minLines: lines,
             maxLines: widget.maxLines,
             textDirection: TextDirection.ltr,

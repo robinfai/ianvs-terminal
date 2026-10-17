@@ -54,6 +54,29 @@ CompletionEdit candidate(CompletionQuery query, String text) => CompletionEdit(
 );
 
 void main() {
+  test('document reset isolates undo and history across tasks', () {
+    final model = create(text: 'old draft');
+    addTearDown(model.dispose);
+    ready(model);
+    model.updateHistory(['old command']);
+    edit(model, 'old');
+    model.openHistory();
+    edit(model, 'command');
+    model.resetDocument(
+      const TextEditingValue(
+        text: 'new task',
+        selection: TextSelection.collapsed(offset: 8),
+      ),
+    );
+    expect(model.historyOpen, isFalse);
+    expect(model.completionMenuOpen, isFalse);
+    expect(model.canUndo, isFalse);
+    expect(model.canRedo, isFalse);
+    model.undo();
+    model.redo();
+    expect(model.editor.text, 'new task');
+  });
+
   group('submission feedback', () {
     test(
       'external AI submission does not lock the composer after shell recovery',

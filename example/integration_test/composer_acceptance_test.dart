@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:app/app.dart';
+import 'package:app/features/ai/terminal_ai_workspace.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
@@ -124,7 +125,7 @@ void main() {
             .canUseBlocks,
       );
       expect(find.byKey(Key('composer-toggle-$id')), findsNothing);
-      expect(find.byType(TerminalComposerView), findsNothing);
+      expect(find.byType(TerminalAiWorkspace), findsNothing);
       final normalTerminalSize = tester.getSize(find.byType(TerminalViewport));
       Future<void> chooseMode(String mode, {String? sessionId}) async {
         final targetId = sessionId ?? id;
@@ -139,15 +140,25 @@ void main() {
       }
 
       await chooseMode('blocks');
-      final editor = find.byKey(const Key('composer-editor'));
+      final editor = find.byKey(const Key('ai-prompt'));
       await until(
         tester,
-        () => find.byType(TerminalComposerView).evaluate().isNotEmpty,
+        () => find.byType(TerminalAiWorkspace).evaluate().isNotEmpty,
       );
       final model = tester
-          .widget<TerminalComposerView>(find.byType(TerminalComposerView))
+          .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
+          .commandSession!
+          .draftEditor!;
+      final ai = tester
+          .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
           .controller;
-      await until(tester, () => model.ownership == ComposerOwnership.ready);
+      await until(
+        tester,
+        () =>
+            model.ownership == ComposerOwnership.ready &&
+            !ai.busy &&
+            !ai.checkingTerminal,
+      );
       await until(
         tester,
         () => find.byType(TerminalCommandBlocksView).evaluate().isNotEmpty,
@@ -155,9 +166,7 @@ void main() {
       // Golden fixtures register a font named "monospace"; a native macOS
       // host need not provide that alias. Verify the actual fallback remains
       // fixed-width, rather than silently rendering shell text as UI prose.
-      final commandStyle = ComposerTheme.of(
-        tester.element(find.byType(TerminalComposerView)),
-      ).commandStyle;
+      final commandStyle = tester.widget<TextField>(editor).style!;
       double commandWidth(String text) {
         final painter = TextPainter(
           text: TextSpan(text: text, style: commandStyle),
@@ -173,7 +182,7 @@ void main() {
         closeTo(commandWidth('WWWWWWWW'), .01),
         reason: 'Native Composer command text must resolve to a monospace font',
       );
-      final surface = find.byKey(const Key('composer-surface'));
+      final surface = find.byKey(const Key('ai-command-surface'));
       final emptyHeight = tester.getSize(surface).height;
       for (final text in ['pwd', '中文', 'echo 中文 😀', '']) {
         await tester.enterText(editor, text);
@@ -259,6 +268,8 @@ void main() {
         tester,
         () =>
             model.ownership == ComposerOwnership.ready &&
+            !ai.busy &&
+            !ai.checkingTerminal &&
             model.editor.text.isEmpty &&
             model.cwd.endsWith('/pkg/application/handlers'),
       );
@@ -320,6 +331,8 @@ void main() {
         tester,
         () =>
             model.ownership == ComposerOwnership.ready &&
+            !ai.busy &&
+            !ai.checkingTerminal &&
             model.cwd.endsWith('/My files/中文目录'),
       );
       await tester.enterText(
@@ -331,6 +344,8 @@ void main() {
         tester,
         () =>
             model.ownership == ComposerOwnership.ready &&
+            !ai.busy &&
+            !ai.checkingTerminal &&
             model.editor.text.isEmpty,
       );
       String terminalText() => container
@@ -375,6 +390,8 @@ void main() {
         tester,
         () =>
             model.ownership == ComposerOwnership.ready &&
+            !ai.busy &&
+            !ai.checkingTerminal &&
             blocks.blocks.any(
               (block) =>
                   block.lines.any((line) => line.text == 'BLOCK_SCROLL:120'),
@@ -526,7 +543,10 @@ void main() {
       );
       await until(
         tester,
-        () => model.ownership == ComposerOwnership.ready,
+        () =>
+            model.ownership == ComposerOwnership.ready &&
+            !ai.busy &&
+            !ai.checkingTerminal,
         diagnostics: () =>
             'after expanded block: owner=${model.ownership}; draft=${model.editor.text}; status=${model.status}; mode=${container.read(sessionControllerProvider).tabs.first.activePane.terminalMode.unavailableReason}; output=${terminalText()}',
       );
@@ -596,11 +616,15 @@ void main() {
       final submittedHeight = tester.getSize(surface).height;
       expect(submittedHeight, greaterThan(emptyHeight));
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-      await until(tester, () => model.ownership == ComposerOwnership.running);
-      await tester.pump();
+      await until(
+        tester,
+        () => model.ownership == ComposerOwnership.running && !ai.busy,
+      );
+      await until(tester, () => !ai.busy);
+      await tester.pump(const Duration(milliseconds: 150));
       expect(find.byKey(Key('composer-toggle-$id')), findsNothing);
       expect(tester.getSize(surface).height, closeTo(submittedHeight, .01));
-      expect(tester.widget<TextField>(editor).enabled, isFalse);
+      expect(tester.widget<TextField>(editor).readOnly, isTrue);
       expect(tester.widget<TextField>(editor).focusNode!.hasFocus, isFalse);
       await until(
         tester,
@@ -624,17 +648,20 @@ void main() {
       );
       expect(runningTerminal.liveFocus!.hasFocus, isTrue);
       await capture('native-running');
-      await tester.tap(
-        find.byKey(const Key('composer-automatic-suggestions-toggle')),
-      );
-      await tester.pump();
+      // Local editing remains inactive while the running block owns input.
       expect(model.localSuggestions, isFalse);
       await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
       await tester.sendKeyEvent(LogicalKeyboardKey.keyC);
       await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
-      await until(tester, () => model.ownership == ComposerOwnership.ready);
+      await until(
+        tester,
+        () =>
+            model.ownership == ComposerOwnership.ready &&
+            !ai.busy &&
+            !ai.checkingTerminal,
+      );
       await tester.pump();
-      expect(tester.widget<TextField>(editor).enabled, isTrue);
+      expect(tester.widget<TextField>(editor).readOnly, isFalse);
       expect(tester.widget<TextField>(editor).focusNode!.hasFocus, isTrue);
       expect(tester.getSize(surface).height, closeTo(emptyHeight, .01));
 
@@ -647,6 +674,7 @@ void main() {
         tester,
         () =>
             model.ownership == ComposerOwnership.running &&
+            !ai.busy &&
             blocks.blocks.any(
               (block) => block.running && block.command.startsWith('read '),
             ),
@@ -666,6 +694,8 @@ void main() {
         tester,
         () =>
             model.ownership == ComposerOwnership.ready &&
+            !ai.busy &&
+            !ai.checkingTerminal &&
             blocks.blocks.every((block) => !block.running),
       );
       expect(
@@ -709,7 +739,7 @@ void main() {
       );
       await until(
         tester,
-        () => find.byType(TerminalComposerView).evaluate().isEmpty,
+        () => find.byType(TerminalAiWorkspace).evaluate().isEmpty,
       );
       final childShell = tester.widget<TerminalViewport>(
         find.byType(TerminalViewport),
@@ -747,7 +777,7 @@ void main() {
       expect(childState?['lease'], isNull);
       expect(childPane.terminalMode.canUseBlocks, isFalse);
       expect(childPane.terminalMode.mode, TerminalViewMode.normal);
-      expect(find.byType(TerminalComposerView), findsNothing);
+      expect(find.byType(TerminalAiWorkspace), findsNothing);
       expect(childShell.focusNode!.hasFocus, isTrue);
       await capture('terminal-mode-nested-shell');
       childShell.inputController.sendText('exit\n');
@@ -755,6 +785,8 @@ void main() {
         tester,
         () =>
             model.ownership == ComposerOwnership.ready &&
+            !ai.busy &&
+            !ai.checkingTerminal &&
             container
                 .read(sessionControllerProvider)
                 .tabs
@@ -798,6 +830,10 @@ void main() {
             .modes
             .alternateScreen,
       );
+      await until(
+        tester,
+        () => find.byType(TerminalAiWorkspace).evaluate().isEmpty,
+      );
       await tester.pump(const Duration(milliseconds: 200));
       expect(find.byType(TerminalCommandBlocksView), findsNothing);
       final fullScreen = tester.widget<TerminalViewport>(
@@ -809,6 +845,8 @@ void main() {
         tester,
         () =>
             model.ownership == ComposerOwnership.ready &&
+            !ai.busy &&
+            !ai.checkingTerminal &&
             !container
                 .read(sessionControllerProvider.notifier)
                 .viewportFor(id)
@@ -855,20 +893,33 @@ void main() {
           quit: ':q!\r',
         ),
       ]) {
-        await until(tester, () => model.ownership == ComposerOwnership.ready);
+        await until(
+          tester,
+          () =>
+              model.ownership == ComposerOwnership.ready &&
+              !ai.busy &&
+              !ai.checkingTerminal,
+        );
         await tester.tap(editor);
         await tester.enterText(editor, program.command);
         await tester.pump(const Duration(milliseconds: 100));
         expect(model.editor.text, program.command);
         expect(tester.widget<TextField>(editor).focusNode!.hasFocus, isTrue);
-        // Close completion choices before the deliberate execution keystroke.
-        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-        expect(model.primaryAction, ComposerPrimaryAction.run);
+        // Esc with no candidate intentionally hands control to the terminal.
+        // Close only an actual suggestion before deliberate execution.
+        if (model.completionMenuOpen ||
+            model.inlineSuggestion.isNotEmpty ||
+            model.loading ||
+            model.completionStatus.isNotEmpty) {
+          await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        }
+        expect(tester.widget<TextField>(editor).focusNode!.hasFocus, isTrue);
+        expect(ai.canRunUserCommand, isTrue);
         await tester.sendKeyEvent(LogicalKeyboardKey.enter);
         await until(
           tester,
           () =>
-              find.byType(TerminalComposerView).evaluate().isEmpty &&
+              find.byType(TerminalAiWorkspace).evaluate().isEmpty &&
               terminalText().contains(program.ready),
           diagnostics: () =>
               '${program.name}: ${container.read(sessionControllerProvider).tabs.first.activePane.terminalMode.unavailableReason}; '
@@ -895,6 +946,8 @@ void main() {
           tester,
           () =>
               model.ownership == ComposerOwnership.ready &&
+              !ai.busy &&
+              !ai.checkingTerminal &&
               container
                   .read(sessionControllerProvider)
                   .tabs
@@ -903,7 +956,7 @@ void main() {
                   .terminalMode
                   .canUseBlocks,
         );
-        expect(find.byType(TerminalComposerView), findsNothing);
+        expect(find.byType(TerminalAiWorkspace), findsNothing);
         expect(
           container
               .read(sessionControllerProvider)
@@ -927,28 +980,30 @@ void main() {
       await tester.enterText(editor, backgroundCommand);
       // This compound expression has no resolved first command token. Use
       // the visible override instead of expecting Auto to execute it.
-      expect(model.intentDecision.intent, InputIntent.ai);
-      await tester.tap(find.byKey(const Key('composer-input-intent')));
+      expect(ai.inputIntentDecision().intent, InputIntent.ai);
+      await tester.tap(find.byKey(const Key('ai-input-intent')));
       await tester.pumpAndSettle();
       await tester.tap(
         find.byWidgetPredicate(
           (widget) =>
-              widget is CheckedPopupMenuItem<String> &&
-              widget.value == 'command',
+              widget is CheckedPopupMenuItem<InputIntentChoice> &&
+              widget.value == InputIntentChoice.command,
         ),
       );
       await tester.pumpAndSettle();
-      expect(model.intentDecision.intent, InputIntent.command);
+      expect(ai.inputIntentDecision().intent, InputIntent.command);
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await until(
         tester,
         () =>
             model.ownership == ComposerOwnership.ready &&
+            !ai.busy &&
+            !ai.checkingTerminal &&
             model.readyLease != beforeBackgroundLease &&
             blocks.blocks.last.command == backgroundCommand &&
             !blocks.blocks.last.running,
         diagnostics: () =>
-            'owner=${model.ownership}; intent=${model.intentDecision.intent}; '
+            'owner=${model.ownership}; intent=${ai.inputIntentDecision().intent}; '
             'draft=${model.editor.text}; status=${model.status}; output=${terminalText()}',
       );
       // Returning from a multiline command resizes the PTY after the Shell's
@@ -1050,7 +1105,16 @@ void main() {
       await chooseMode('blocks', sessionId: exitingId);
       await until(tester, () => editor.evaluate().isNotEmpty);
       await tester.enterText(editor, 'exit');
-      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      final exitModel = tester
+          .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
+          .commandSession!
+          .draftEditor!;
+      if (exitModel.completionMenuOpen ||
+          exitModel.inlineSuggestion.isNotEmpty ||
+          exitModel.loading ||
+          exitModel.completionStatus.isNotEmpty) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      }
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await until(
         tester,

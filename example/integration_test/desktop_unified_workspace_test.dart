@@ -14,6 +14,7 @@ import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
@@ -70,6 +71,8 @@ void main() {
     await File(
       '${home.path}/.zshrc',
     ).writeAsString("PROMPT='unified> '\nRPROMPT=''\n");
+    await Directory('${home.path}/alpha').create();
+    await Directory('${home.path}/beta').create();
     final profile = TerminalProfile(
       id: 'unified',
       name: 'Desktop Block + AI',
@@ -198,6 +201,41 @@ void main() {
       findsNothing,
     );
     expect(requests, 0);
+    await enterDraft('ls ./');
+    expect(ai.inputIntentDecision().intent, InputIntent.command);
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await waitFor(
+      () => find
+          .byKey(const Key('composer-completion-list'))
+          .evaluate()
+          .isNotEmpty,
+      'native path completions',
+    );
+    expect(ai.draft, 'ls ./');
+    expect(requests, 0);
+    const completionEvidence = String.fromEnvironment(
+      'DESKTOP_UNIFIED_EVIDENCE_DIR',
+    );
+    if (completionEvidence.isNotEmpty) {
+      await Directory(completionEvidence).create(recursive: true);
+      final boundary = tester.renderObject<RenderRepaintBoundary>(
+        find.byKey(const Key('desktop-native-capture')),
+      );
+      final image = await boundary.toImage();
+      final data = await image.toByteData(format: ui.ImageByteFormat.png);
+      await File(
+        '$completionEvidence/native-path-completions.png',
+      ).writeAsBytes(data!.buffer.asUint8List());
+      image.dispose();
+    }
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(ai.draft, isNot('ls ./'));
+    expect(
+      ai.transcript,
+      isEmpty,
+      reason: 'Candidate acceptance cannot execute',
+    );
     await enterDraft(r"printf 'desktop-unified-marker\n'");
     await tester.pump();
     expect(ai.inputIntentDecision().intent, InputIntent.command);

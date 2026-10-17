@@ -1,0 +1,4 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart
+00:00 +0: unified Composer running input is scoped and revoked
+00:05 +1: All tests passed!

@@ -48,6 +48,7 @@ extension _ShellScreenAiObserver on _ShellScreenState {
 
   void _observeAiTerminal(String sessionId, {String? targetSessionId}) {
     if (!_openAiSessions.contains(sessionId)) return;
+    _revokeManualInput(sessionId);
     FocusManager.instance.primaryFocus?.unfocus();
     unawaited(SystemChannels.textInput.invokeMethod<void>('TextInput.hide'));
     _mutateState(() {

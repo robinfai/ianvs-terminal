@@ -23,6 +23,7 @@ import '../../data/sync/local_first_sync.dart';
 import '../../platform/clipboard_bridge.dart';
 import '../../platform/terminal_graphic_image_actions.dart';
 import '../../ui/app_ui.dart';
+import '../ai/ai_models.dart' show AiActionKind;
 import '../ai/ai_settings.dart';
 import '../ai/ai_settings_dialog.dart';
 import '../ai/terminal_ai_connections.dart';

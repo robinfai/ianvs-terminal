@@ -513,6 +513,61 @@ extension _ShellScreenAi on _ShellScreenState {
         : ListenableBuilder(listenable: ai, builder: (_, _) => button());
   }
 
+  AiTranscriptEntry? _humanRunningAction(String sessionId) {
+    final ai = _aiSessions[sessionId];
+    if (ai == null || !ai.canUseHumanCommandInput || ai.targetChanged) {
+      return null;
+    }
+    final action = ai.transcript
+        .where((entry) => entry.action != null)
+        .lastOrNull;
+    return ai.isUserCommand(action?.action) &&
+            action?.action?.kind == AiActionKind.runCommand &&
+            action?.state == AiEntryState.accepted &&
+            action?.target?.sessionId == sessionId &&
+            action?.submissionId != null &&
+            action?.blockId != null
+        ? action
+        : null;
+  }
+
+  bool _humanBlockInputAllowed(
+    String sessionId,
+    String taskId,
+    AiTranscriptEntry action,
+    int epoch,
+  ) {
+    if (!mounted ||
+        epoch != _manualInputEpoch(sessionId) ||
+        !_openAiSessions.contains(sessionId) ||
+        _observedAiTargets.containsKey(sessionId) ||
+        _sessionState.activeSessionId != sessionId ||
+        _readerControllers[sessionId]?.blocksInput == true ||
+        ModalRoute.of(context)?.isCurrent == false ||
+        _isSessionReadOnly(sessionId) ||
+        _aiSessions[sessionId]?.taskId != taskId ||
+        _humanRunningAction(sessionId)?.id != action.id) {
+      return false;
+    }
+    final runtime = ref.read(terminalRuntimeControllerProvider);
+    final state = runtime.composerRequest(
+      sessionId,
+      'composer.state',
+      const {},
+    );
+    if (state?['state'] != 'running' ||
+        state?['contextId'] != action.target?.contextId) {
+      return false;
+    }
+    final receipt = runtime.composerRequest(sessionId, 'composer.receipt', {
+      'submissionId': action.submissionId,
+    });
+    return receipt?['outcome'] == 'accepted' &&
+        receipt?['submissionId'] == action.submissionId &&
+        receipt?['blockId'] == action.blockId &&
+        receipt?['running'] == true;
+  }
+
   Widget _aiOverlay(
     String sessionId,
     AppThemeTokens palette, {
@@ -539,6 +594,7 @@ extension _ShellScreenAi on _ShellScreenState {
             _sessionState.activeSessionId == sessionId,
         compactMobile: paneContext.usesMobileNavigation,
         unifiedWorkspace: true,
+        commandSession: _composerFor(sessionId),
         targetLabel: targetLabel,
         onOpenLink: (url) =>
             unawaited(_openTerminalLink(url, sourceSessionId: sessionId)),

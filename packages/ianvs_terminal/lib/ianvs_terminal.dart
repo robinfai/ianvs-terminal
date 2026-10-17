@@ -1,3 +1,5 @@
+export 'src/composer/composer_editor.dart';
+export 'src/composer/composer_suggestions.dart';
 export 'src/composer/completion_models.dart';
 export 'src/composer/composer_draft_editor.dart';
 export 'src/composer/composer_icons.dart';

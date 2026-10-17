@@ -17,10 +17,60 @@ final class ComposerPaneSession extends ChangeNotifier {
     TerminalViewMode preferredMode = TerminalViewMode.normal,
     this.mobileAiSettings,
   }) : mode = TerminalModeController(preferredMode: preferredMode) {
-    controller = TerminalComposerController(
+    controller = _createController(submit: _submit);
+    mode.addListener(_modeChanged);
+    mobileAiSettings?.addListener(_updateLlmAvailability);
+    _updateLlmAvailability();
+  }
+
+  final _draftEditors = <TerminalComposerController>{};
+  Map<String, Object?>? _lastShell;
+  List<String> _history = const [];
+  TerminalComposerController? _sharedDraftEditor;
+  bool _draftEditorAttached = false;
+  String? draftDocumentId;
+  TerminalComposerController? get draftEditor => _sharedDraftEditor;
+  final draftFocus = FocusNode(debugLabel: 'Unified command draft');
+  final runningFocus = FocusNode(debugLabel: 'Unified running command');
+
+  // Shared editor capabilities, without a second command submission owner.
+  TerminalComposerController createDraftEditor() {
+    _draftEditorAttached = true;
+    if (_sharedDraftEditor case final existing?) return existing;
+    final model = _sharedDraftEditor = _createController();
+    model.setActive(false);
+    _draftEditors.add(model);
+    _updateEditorShell(model, _lastShell);
+    model.updateHistory(_history);
+    return model;
+  }
+
+  void releaseDraftEditor(TerminalComposerController model) {
+    // A Normal/Block switch retains undo, selection and local preferences.
+    // The next task explicitly resets the document in the workspace.
+    _draftEditorAttached = false;
+    model.setActive(false);
+    if (_disposed) _disposeDraftResources();
+  }
+
+  void _disposeDraftResources() {
+    for (final model in _draftEditors) {
+      model.dispose();
+    }
+    _draftEditors.clear();
+    draftFocus.dispose();
+    runningFocus.dispose();
+  }
+
+  TerminalComposerController _createController({ComposerSubmit? submit}) {
+    late final TerminalComposerController model;
+    return model = TerminalComposerController(
       targetId: sessionId,
+      submit: submit,
       provider: (query, cancellation) async {
-        if (cancellation.isCancelled) return CompletionBatch(query, const []);
+        if (_disposed || cancellation.isCancelled) {
+          return CompletionBatch(query, const []);
+        }
         final json = runtime.composerRequest(
           sessionId,
           'completion.query',
@@ -29,9 +79,9 @@ final class ComposerPaneSession extends ChangeNotifier {
         if (json == null) throw StateError('Completion unavailable');
         final staticBatch = CompletionBatch.fromJson(query, json);
         if (cancellation.isCancelled) return staticBatch;
-        controller.publishCompletions(staticBatch, cancellation: cancellation);
-        final lease = controller.readyLease;
-        if (!controller.allowsLocalSuggestions(cancellation) || lease == null) {
+        model.publishCompletions(staticBatch, cancellation: cancellation);
+        final lease = model.readyLease;
+        if (!model.allowsLocalSuggestions(cancellation) || lease == null) {
           return staticBatch;
         }
         final start = runtime.composerRequest(
@@ -86,11 +136,7 @@ final class ComposerPaneSession extends ChangeNotifier {
         }
         return staticBatch;
       },
-      submit: _submit,
     );
-    mode.addListener(_modeChanged);
-    mobileAiSettings?.addListener(_updateLlmAvailability);
-    _updateLlmAvailability();
   }
 
   /// Supplied by the mobile host; desktop has no LLM prerequisite.
@@ -259,11 +305,39 @@ final class ComposerPaneSession extends ChangeNotifier {
         mode.updateAvailability(BlockUnavailableReason.checking);
       }
       _historyRevision = null;
-      controller.updateHistory(const []);
+      _history = const [];
+      for (final model in [controller, ..._draftEditors]) {
+        model.updateHistory(const []);
+      }
     }
     _composerContextId = contextId;
     _composerTransport = transport;
-    controller.updateIntentContext(
+    _lastShell = json;
+    for (final model in [controller, ..._draftEditors]) {
+      _updateEditorShell(model, json);
+    }
+    _updateMode(recheckSupport: recheckSupport);
+    final historyRevision = json?['historyRevision'];
+    final history = json?['history'];
+    if (historyRevision is int &&
+        historyRevision != _historyRevision &&
+        history is List &&
+        history.every((entry) => entry is String)) {
+      _historyRevision = historyRevision;
+      _history = history.cast<String>();
+      for (final model in [controller, ..._draftEditors]) {
+        model.updateHistory(_history);
+      }
+    }
+  }
+
+  void _updateEditorShell(
+    TerminalComposerController model,
+    Map<String, Object?>? json,
+  ) {
+    final contextId = json?['contextId'];
+    final transport = json?['transport'];
+    model.updateIntentContext(
       InputIntentContext(
         scope: json == null ? '' : '$sessionId:$transport:$contextId',
         commandNames: {
@@ -289,7 +363,7 @@ final class ComposerPaneSession extends ChangeNotifier {
       'suspended' => ComposerOwnership.suspended,
       _ => ComposerOwnership.draft,
     };
-    controller.updateShell(
+    model.updateShell(
       contextKey:
           '$transport:$contextId:${json?['lease'] ?? state ?? 'unavailable'}',
       cwd: json?['cwd'] as String? ?? '',
@@ -297,16 +371,6 @@ final class ComposerPaneSession extends ChangeNotifier {
       dialect: json?['dialect'] as String? ?? 'generic',
       ownership: ownership,
     );
-    _updateMode(recheckSupport: recheckSupport);
-    final historyRevision = json?['historyRevision'];
-    final history = json?['history'];
-    if (historyRevision is int &&
-        historyRevision != _historyRevision &&
-        history is List &&
-        history.every((entry) => entry is String)) {
-      _historyRevision = historyRevision;
-      controller.updateHistory(history.cast<String>());
-    }
   }
 
   Future<ComposerSubmissionOutcome> _submit(
@@ -358,6 +422,13 @@ final class ComposerPaneSession extends ChangeNotifier {
     mode.removeListener(_modeChanged);
     mode.dispose();
     controller.dispose();
+    // Closing tabs may keep an outgoing workspace mounted for its transition.
+    // Revoke edits now, then let its owner release these live controllers.
+    if (_draftEditorAttached) {
+      _sharedDraftEditor?.setActive(false);
+    } else {
+      _disposeDraftResources();
+    }
     blocks.dispose();
     editorFocus.dispose();
     super.dispose();

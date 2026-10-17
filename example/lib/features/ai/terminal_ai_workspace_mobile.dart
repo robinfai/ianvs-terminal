@@ -8,7 +8,7 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
   bool get _mobileCanSubmit {
     if (!_mobileActionAllowed ||
         c.followUpEnded ||
-        _input.text.trim().isEmpty ||
+        (!_hasCommandCandidate && _input.text.trim().isEmpty) ||
         !_input.value.composing.isCollapsed) {
       return false;
     }
@@ -709,6 +709,7 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
                                 Flexible(
                                   child: _pendingContexts(compact: true),
                                 ),
+                              if (_commandEditor != null) _commandActions(),
                               _expandDraftButton(),
                               if (keyboard || _focus.hasFocus)
                                 _hideKeyboardButton(),

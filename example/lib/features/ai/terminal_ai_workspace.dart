@@ -2,12 +2,14 @@ import 'dart:async';
 import 'dart:ui' show FlutterView;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show ScrollDirection;
+import 'package:flutter/rendering.dart' show MatrixUtils, ScrollDirection;
 import 'package:flutter/services.dart';
 import 'package:ianvs_design/ianvs_design.dart' show IanvsTypographyContext;
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 
 import '../../ui/app_ui.dart';
+import '../terminal_composer/composer_pane.dart';
+import '../terminal_composer/terminal_mode.dart';
 import 'ai_approval_notice.dart';
 import 'ai_models.dart';
 import 'ai_request_indicator.dart';
@@ -21,6 +23,7 @@ export 'ai_models.dart' show AiEvidenceReference;
 
 part 'terminal_ai_workspace_preview_adapter.dart';
 part 'terminal_ai_workspace_mobile.dart';
+part 'terminal_ai_workspace_composer.dart';
 
 typedef AiTimelineBuilder =
     Widget Function(
@@ -40,6 +43,7 @@ class TerminalAiWorkspace extends StatefulWidget {
     this.canInteract,
     this.compactMobile = false,
     this.unifiedWorkspace = false,
+    this.commandSession,
     this.targetLabel = '',
     this.timelineBuilder,
     this.onInspectContext,
@@ -70,6 +74,7 @@ class TerminalAiWorkspace extends StatefulWidget {
 
   /// One input and timeline for human commands and AI tasks on every platform.
   final bool unifiedWorkspace;
+  final ComposerPaneSession? commandSession;
   final String targetLabel;
   final AiTimelineBuilder? timelineBuilder;
   final ValueChanged<AiBlockContext>? onInspectContext;
@@ -88,8 +93,21 @@ class TerminalAiWorkspace extends StatefulWidget {
 class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     with WidgetsBindingObserver {
   late final TextEditingController _input;
+  TerminalComposerController? _commandEditor;
+  final _commandField = GlobalKey<ComposerEditorState>();
+  final _completionOverlay = OverlayPortalController();
+  final GlobalKey _completionPortalKey = GlobalKey();
+  final _completionScroll = ScrollController();
+  bool _commandUpdateScheduled = false;
+  bool _updatingCommandDocument = false;
+  bool _commandHasDependencies = false;
+  int _completionNavigation = 0;
+  double _completionWidth = 320;
+  String? _lastCommandLease;
+  String? _submittedCommandLease;
+  double? _submittedCommandHeight;
   late final CommandTimelineScrollController _scroll;
-  final _focus = FocusNode(debugLabel: 'AI task input');
+  late final FocusNode _focus;
   final _workspaceFocus = FocusNode(debugLabel: 'AI task');
   final _sendFocus = FocusNode(debugLabel: 'Send to AI');
   final _approvalFocus = FocusNode(debugLabel: 'Approve AI command');
@@ -134,10 +152,13 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
   bool get zh => Localizations.localeOf(context).languageCode == 'zh';
   String t(String en, String cn) => zh ? cn : en;
   bool get _commandIntent =>
+      _commandEditor?.historyOpen == true ||
       c
-          .inputIntentDecision(composing: !_input.value.composing.isCollapsed)
-          .intent ==
-      InputIntent.command;
+              .inputIntentDecision(
+                composing: !_input.value.composing.isCollapsed,
+              )
+              .intent ==
+          InputIntent.command;
   bool get _mobile =>
       Theme.of(context).platform == TargetPlatform.iOS ||
       Theme.of(context).platform == TargetPlatform.android;
@@ -146,7 +167,28 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
   void initState() {
     super.initState();
     _taskId = c.taskId;
-    _input = TextEditingController(text: c.draft)..addListener(_saveDraft);
+    _focus =
+        widget.commandSession?.draftFocus ??
+        FocusNode(debugLabel: 'AI task input');
+    widget.commandSession?.addListener(_commandSessionChanged);
+    _commandEditor = widget.commandSession?.createDraftEditor();
+    _input = _commandEditor?.editor ?? TextEditingController();
+    if (_commandEditor == null) {
+      _input.text = c.draft;
+    } else if (widget.commandSession?.draftDocumentId != c.taskId) {
+      _commandEditor?.resetDocument(
+        TextEditingValue(
+          text: c.draft,
+          selection: TextSelection.collapsed(offset: c.draft.length),
+        ),
+      );
+    } else if (_input.text != c.draft) {
+      _input.text = c.draft;
+    }
+    widget.commandSession?.draftDocumentId = c.taskId;
+    _input.addListener(_saveDraft);
+    _commandEditor?.addListener(_commandEditorChanged);
+    _focus.addListener(_commandEditorChanged);
     _scroll = CommandTimelineScrollController(
       initialScrollOffset: c.readingOffset,
       onReadingAnchorChanged: (anchor) {
@@ -213,7 +255,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
   }
 
   void _saveDraft() {
-    if (c.followUpEnded) return;
+    if (c.followUpEnded || _updatingCommandDocument) return;
     c.setDraft(_input.text, composing: !_input.value.composing.isCollapsed);
   }
 
@@ -294,6 +336,18 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     _lastEntry = reply;
     _count = c.transcript.length;
     _revision = c.proposalRevision;
+    if (switched) {
+      widget.commandSession?.draftDocumentId = c.taskId;
+      _submittedCommandHeight = null;
+      _updatingCommandDocument = true;
+      _commandEditor?.resetDocument(
+        TextEditingValue(
+          text: c.draft,
+          selection: TextSelection.collapsed(offset: c.draft.length),
+        ),
+      );
+    }
+    _updatingCommandDocument = false;
     if (_input.text != c.draft) {
       _input.value = TextEditingValue(
         text: c.draft,
@@ -310,6 +364,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     } else if (changed && _follow) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _latest());
     }
+    _syncCommandEditor();
     setState(() {});
     if (finishedReply) _restoreReplyFocus(c.taskId, reply!.id);
   }
@@ -388,6 +443,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
   @override
   void didUpdateWidget(TerminalAiWorkspace oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _syncCommandEditor();
     if (widget.active != oldWidget.active) {
       _replyFocusAllowed = false;
       if (widget.active) {
@@ -396,7 +452,14 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
         _paneRevision++;
       }
     }
-    if (widget.fullScreenTerminal && !oldWidget.fullScreenTerminal) {
+    if (widget.fullScreenTerminal &&
+        !oldWidget.fullScreenTerminal &&
+        !c.isUserCommand(
+          c.transcript
+              .where((entry) => entry.action != null)
+              .lastOrNull
+              ?.action,
+        )) {
       _observeTerminalAfterFrame(stillCurrent: () => widget.fullScreenTerminal);
     }
   }
@@ -416,6 +479,8 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _commandHasDependencies = true;
+    _syncCommandEditor();
     final view = View.of(context);
     if (_keyboardView != view) {
       _keyboardView = view;
@@ -454,11 +519,19 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     WidgetsBinding.instance.removeObserver(this);
     c.removeListener(_changed);
     _input.removeListener(_saveDraft);
-    _input.dispose();
+    _focus.removeListener(_commandEditorChanged);
+    _commandEditor?.removeListener(_commandEditorChanged);
+    if (_commandEditor case final model?) {
+      widget.commandSession!.releaseDraftEditor(model);
+    } else {
+      _input.dispose();
+    }
+    _completionScroll.dispose();
     _scroll.removeListener(_savePosition);
     _scroll.dispose();
     _following.dispose();
-    _focus.dispose();
+    widget.commandSession?.removeListener(_commandSessionChanged);
+    if (widget.commandSession == null) _focus.dispose();
     _workspaceFocus.dispose();
     _sendFocus.dispose();
     _approvalFocus.dispose();
@@ -475,9 +548,16 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     if (_input.value.composing.isValid && !_input.value.composing.isCollapsed) {
       return;
     }
+    if (_acceptCommandCandidate()) return;
     final prompt = _input.text.trim();
     if (prompt.isEmpty) return;
     if (_commandIntent) {
+      if (!c.canRunUserCommand) return;
+      // Explicit execution reveals its own live block; background output and
+      // AI actions still preserve the user's reading position.
+      _follow = true;
+      _submittedCommandHeight = _commandField.currentContext?.size?.height;
+      _submittedCommandLease = _commandEditor?.readyLease;
       await c.runUserCommand(_input.text);
       return;
     }
@@ -2056,7 +2136,17 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     bool dense = false,
   }) => Focus(
     onKeyEvent: (_, event) {
-      if (!_input.value.composing.isCollapsed) return KeyEventResult.ignored;
+      if (!_input.value.composing.isCollapsed) {
+        // Native IME owns the text. Do not let Flutter Tab traversal dismiss
+        // composition or turn Enter into a command while candidates are open.
+        return event.logicalKey == LogicalKeyboardKey.tab ||
+                event.logicalKey == LogicalKeyboardKey.enter ||
+                event.logicalKey == LogicalKeyboardKey.numpadEnter
+            ? KeyEventResult.handled
+            : KeyEventResult.ignored;
+      }
+      final commandResult = _commandKey(event);
+      if (commandResult != KeyEventResult.ignored) return commandResult;
       final keyboard = HardwareKeyboard.instance;
       final shortcut = Theme.of(context).platform == TargetPlatform.macOS
           ? keyboard.isMetaPressed
@@ -2070,7 +2160,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
             c.pending == null &&
             c.attachments.isEmpty &&
             !widget.fullScreenTerminal) {
-          c.chooseInputIntent(
+          _chooseInputIntent(
             _commandIntent ? InputIntentChoice.ai : InputIntentChoice.command,
           );
         }
@@ -2087,39 +2177,41 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
       }
       return KeyEventResult.ignored;
     },
-    child: TextField(
-      key: const Key('ai-prompt'),
-      readOnly: c.followUpEnded || !_paneInteractive,
-      controller: _input,
-      focusNode: _focus,
-      minLines: 1,
-      maxLines: maxLines,
-      keyboardType: TextInputType.multiline,
-      textInputAction: TextInputAction.newline,
-      onEditingComplete: () {},
-      style: Theme.of(context).textTheme.bodyLarge,
-      strutStyle: StrutStyle.fromTextStyle(
-        Theme.of(context).textTheme.bodyLarge!,
-        forceStrutHeight: true,
-      ),
-      decoration: InputDecoration(
-        hintText:
-            hintText ??
-            (widget.unifiedWorkspace
-                ? (_commandIntent
-                      ? t('Enter a command…', '输入命令…')
-                      : t('Ask AI…', '向 AI 提问…'))
-                : t('Ask about this terminal…', '向当前终端提问…')),
-        // Retain the standard tap row; symmetric compact padding keeps the
-        // text centered rather than adding empty space below a dense field.
-        isDense: dense ? false : null,
-        hintMaxLines: dense ? 1 : null,
-        contentPadding: dense ? EdgeInsets.zero : null,
-        border: InputBorder.none,
-        enabledBorder: InputBorder.none,
-        focusedBorder: InputBorder.none,
-      ),
-    ),
+    child: _commandEditor != null
+        ? _commandPrompt(maxLines: maxLines, hintText: hintText, dense: dense)
+        : TextField(
+            key: const Key('ai-prompt'),
+            readOnly: c.followUpEnded || !_paneInteractive,
+            controller: _input,
+            focusNode: _focus,
+            minLines: 1,
+            maxLines: maxLines,
+            keyboardType: TextInputType.multiline,
+            textInputAction: TextInputAction.newline,
+            onEditingComplete: () {},
+            style: Theme.of(context).textTheme.bodyLarge,
+            strutStyle: StrutStyle.fromTextStyle(
+              Theme.of(context).textTheme.bodyLarge!,
+              forceStrutHeight: true,
+            ),
+            decoration: InputDecoration(
+              hintText:
+                  hintText ??
+                  (widget.unifiedWorkspace
+                      ? (_commandIntent
+                            ? t('Enter a command…', '输入命令…')
+                            : t('Ask AI…', '向 AI 提问…'))
+                      : t('Ask about this terminal…', '向当前终端提问…')),
+              // Retain the standard tap row; symmetric compact padding keeps the
+              // text centered rather than adding empty space below a dense field.
+              isDense: dense ? false : null,
+              hintMaxLines: dense ? 1 : null,
+              contentPadding: dense ? EdgeInsets.zero : null,
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+            ),
+          ),
   );
 
   void _insertDiagnosis(AiBlockContext block) {
@@ -2139,7 +2231,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
       text: value.text.replaceRange(offset, offset, insert),
       selection: TextSelection.collapsed(offset: offset + insert.length),
     );
-    c.chooseInputIntent(InputIntentChoice.ai);
+    _chooseInputIntent(InputIntentChoice.ai);
   }
 
   Widget _pendingContexts({bool compact = false}) => TextButton.icon(
@@ -2222,7 +2314,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
             : t('Command · remove sources first', '命令 · 请先移除来源'),
         onSelected: (choice) {
           if (!_paneInteractive || c.followUpEnded) return;
-          c.chooseInputIntent(choice);
+          _chooseInputIntent(choice);
           _focus.requestFocus();
         },
       );
@@ -2234,7 +2326,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
       tooltip: t('Input intent', '输入意图'),
       onSelected: (choice) {
         if (!_paneInteractive || c.followUpEnded) return;
-        c.chooseInputIntent(choice);
+        _chooseInputIntent(choice);
         _focus.requestFocus();
       },
       itemBuilder: (_) => [
@@ -2328,15 +2420,18 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
 
   Widget _sendButton({bool iconOnly = false}) {
     final command = _commandIntent;
+    final accepting = _hasCommandCandidate;
     final canSend =
         _paneInteractive &&
         !c.followUpEnded &&
-        _input.text.trim().isNotEmpty &&
+        (accepting || _input.text.trim().isNotEmpty) &&
         (!c.hasUnresolvedSubmission || !command) &&
         _input.value.composing.isCollapsed &&
         (!command || c.canRunUserCommand) &&
         (!_useCompactMobile || _mobileCanSubmit);
-    final label = c.hasUnresolvedSubmission && !command
+    final label = accepting
+        ? t('Accept', '采用')
+        : c.hasUnresolvedSubmission && !command
         ? t('Save requirement', '暂存要求')
         : command
         ? t('Run', '执行')
@@ -2440,6 +2535,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
       );
     }
     return Container(
+      key: const Key('ai-command-surface'),
       margin: EdgeInsets.all(
         singleRow
             ? 4
@@ -2524,6 +2620,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                       child: _inputIntentMenu(),
                     ),
                   ),
+                if (_commandEditor != null) _commandActions(),
                 _expandDraftButton(),
                 if (singleRow)
                   _sendButton(iconOnly: bounds.maxWidth < 480)

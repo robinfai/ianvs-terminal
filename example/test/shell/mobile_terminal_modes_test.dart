@@ -207,6 +207,83 @@ class _MobileBackend extends FakePtyBackend {
   }
 }
 
+class _InteractiveBackend extends _MobileBackend {
+  bool receiptRunning = true;
+  @override
+  String? requestSessionJson(String sessionId, String requestJson) {
+    final request = jsonDecode(requestJson) as Map<String, Object?>;
+    if (request['kind'] == 'composer.submit') owner = 'running';
+    final result = super.requestSessionJson(sessionId, requestJson);
+    if (request['kind'] == 'composer.receipt') {
+      return jsonEncode({
+        ...jsonDecode(result!) as Map,
+        'running': receiptRunning,
+      });
+    }
+    return result;
+  }
+}
+
+class _CompletionBackend extends _MobileBackend {
+  final completionRequests = <Map<String, Object?>>[];
+  Map<String, Object?>? localQuery;
+  bool delayLocal = false;
+  int cancelled = 0;
+  @override
+  String? requestSessionJson(String sessionId, String requestJson) {
+    final request = jsonDecode(requestJson) as Map<String, Object?>;
+    switch (request['kind']) {
+      case 'composer.state':
+        final state =
+            jsonDecode(super.requestSessionJson(sessionId, requestJson)!)
+                as Map<String, Object?>;
+        return jsonEncode({
+          ...state,
+          'commandNames': ['ls', 'echo', 'uname', 'vim'],
+          'historyRevision': 1,
+          'history': ['ls ./archive/', 'echo older command'],
+        });
+      case 'completion.query':
+        completionRequests.add(request);
+      case 'completion.local_start':
+        localQuery = (request['query']! as Map).cast<String, Object?>();
+        return jsonEncode({'status': 'pending', 'jobId': 'files'});
+      case 'completion.local_cancel':
+        cancelled++;
+        return jsonEncode({'status': 'cancelled'});
+      case 'completion.local_poll':
+        if (delayLocal) return jsonEncode({'status': 'pending'});
+        final query = localQuery!;
+        return jsonEncode({
+          'status': 'complete',
+          'batch': {
+            'schemaVersion': 1,
+            'query': query,
+            'status': 'ok',
+            'items': query['text'] == 'ls ./'
+                ? [
+                    for (final name in ['alpha/', 'beta/'])
+                      {
+                        'itemId': name,
+                        'label': name,
+                        'detail': 'Directory',
+                        'kind': 'directory',
+                        'source': 'files',
+                        'replaceStartUtf16': 3,
+                        'replaceEndUtf16': 5,
+                        'newText': './$name',
+                        'finalCursorUtf16': 5 + name.length,
+                        'riskHint': false,
+                      },
+                  ]
+                : <Object?>[],
+          },
+        });
+    }
+    return super.requestSessionJson(sessionId, requestJson);
+  }
+}
+
 Future<void> _settle(WidgetTester tester) async {
   for (var i = 0; i < 8; i++) {
     await tester.pump(const Duration(milliseconds: 100));
@@ -573,6 +650,407 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     debugDefaultTargetPlatformOverride = null;
   });
+
+  for (final platform in [
+    TargetPlatform.macOS,
+    TargetPlatform.windows,
+    TargetPlatform.linux,
+  ]) {
+    testWidgets('unified Composer Tab history undo and IME on $platform', (
+      tester,
+    ) async {
+      final backend = _CompletionBackend()..owner = 'ready';
+      await _pump(
+        tester,
+        backend,
+        platform: platform,
+        size: const Size(1200, 800),
+        preference: TerminalViewMode.blocks,
+      );
+      final ai = tester
+          .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
+          .controller;
+      final prompt = find.byKey(const Key('ai-prompt'));
+      await tester.enterText(prompt, 'ls ./');
+      await _settle(tester);
+      expect(ai.inputIntentDecision().intent, InputIntent.command);
+      expect(
+        tester.widget<TextField>(prompt).focusNode!.hasFocus,
+        isTrue,
+        reason: 'focus before Tab',
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await _settle(tester);
+      expect(
+        find.byKey(const Key('composer-completion-list')).hitTestable(),
+        findsOneWidget,
+        reason:
+            'query=${backend.localQuery} requests=${backend.completionRequests} focus=${tester.widget<TextField>(prompt).focusNode?.hasFocus} feedback=${tester.widgetList<Text>(find.byKey(const Key('ai-completion-feedback'))).map((e) => e.data)}',
+      );
+      expect(find.text('alpha/'), findsWidgets);
+      expect(ai.draft, 'ls ./');
+      expect(backend.submissions, isEmpty);
+      await _capture(tester, 'unified-composer-completions-${platform.name}');
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await _settle(tester);
+      expect(ai.draft, 'ls ./beta/');
+      expect(
+        backend.submissions,
+        isEmpty,
+        reason: 'Accepting a candidate never executes',
+      );
+      final modifier = platform == TargetPlatform.macOS
+          ? LogicalKeyboardKey.metaLeft
+          : LogicalKeyboardKey.controlLeft;
+      await tester.sendKeyDownEvent(modifier);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyZ);
+      await tester.sendKeyUpEvent(modifier);
+      await _settle(tester);
+      expect(ai.draft, 'ls ./');
+      await tester.sendKeyDownEvent(modifier);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyZ);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyUpEvent(modifier);
+      await _settle(tester);
+      expect(ai.draft, 'ls ./beta/');
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await _settle(tester);
+      expect(backend.submissions, ['ls ./beta/']);
+      await tester.enterText(prompt, 'ls ./');
+      await _settle(tester);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyR);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await _settle(tester);
+      expect(
+        find.byKey(const Key('composer-history-list')).hitTestable(),
+        findsOneWidget,
+      );
+      await tester.enterText(prompt, 'archive');
+      await _settle(tester);
+      expect(tester.widget<TextField>(prompt).controller!.text, 'archive');
+      expect(find.byKey(const Key('composer-history-list')), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await _settle(tester);
+      expect(ai.draft, 'ls ./');
+      await tester.enterText(prompt, 'ls .');
+      await tester.enterText(prompt, 'ls ./');
+      await _settle(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await _settle(tester);
+      expect(
+        ai.draft,
+        'ls ./archive/',
+        reason: 'Original history inline suggestion remains available',
+      );
+      expect(backend.submissions, hasLength(1));
+      await tester.sendKeyDownEvent(modifier);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.sendKeyUpEvent(modifier);
+      await _settle(tester);
+      expect(
+        tester
+            .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
+            .commandSession!
+            .blocks
+            .activeId,
+        '1',
+      );
+      expect(ai.draft, 'ls ./archive/');
+      // Block navigation intentionally focuses the selected command block.
+      await tester.tap(prompt);
+      await _settle(tester);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await _settle(tester);
+      expect(ai.draft, 'ls ./archive/\n');
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyC);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await _settle(tester);
+      expect(ai.draft, isEmpty);
+      expect(backend.writes, isEmpty);
+      // Composing belongs to the IME, not completion or command submission.
+      final editor = tester.widget<TextField>(prompt).controller!;
+      editor.value = const TextEditingValue(
+        text: 'ls ./zhong',
+        selection: TextSelection.collapsed(offset: 10),
+        composing: TextRange(start: 5, end: 10),
+      );
+      await _settle(tester);
+      final count = backend.completionRequests.length;
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await _settle(tester);
+      expect(backend.completionRequests, hasLength(count));
+      expect(backend.submissions, hasLength(1));
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      debugDefaultTargetPlatformOverride = null;
+    });
+  }
+
+  for (final platform in [TargetPlatform.macOS, TargetPlatform.iOS]) {
+    testWidgets('unified Composer action menu and empty history on $platform', (
+      tester,
+    ) async {
+      final backend = _CompletionBackend()..owner = 'ready';
+      await _pump(
+        tester,
+        backend,
+        platform: platform,
+        size: platform == TargetPlatform.iOS
+            ? const Size(402, 874)
+            : const Size(640, 400),
+        preference: TerminalViewMode.blocks,
+      );
+      final workspace = tester.widget<TerminalAiWorkspace>(
+        find.byType(TerminalAiWorkspace),
+      );
+      final ai = workspace.controller;
+      final prompt = find.byKey(const Key('ai-prompt'));
+      await tester.enterText(prompt, '');
+      await _settle(tester);
+      Future<void> action(String value) async {
+        await tester.ensureVisible(find.byKey(const Key('ai-command-actions')));
+        await tester.tap(find.byKey(const Key('ai-command-actions')));
+        await _settle(tester);
+        final item = find.byWidgetPredicate(
+          (w) => w is PopupMenuItem<String> && w.value == value,
+        );
+        await tester.ensureVisible(item);
+        await tester.tap(item);
+        await _settle(tester);
+      }
+
+      await action('history');
+      await _capture(tester, 'composer-history-${platform.name}');
+      expect(
+        find.byKey(const Key('composer-history-list')).hitTestable(),
+        findsOneWidget,
+        reason:
+            'count=${find.byKey(const Key('composer-history-list')).evaluate().length} focus=${tester.widget<TextField>(prompt).focusNode!.hasFocus} intent=${ai.inputIntentDecision().intent} draft=${ai.draft}',
+      );
+      expect(
+        tester.widget<FilledButton>(find.byKey(const Key('ai-send'))).onPressed,
+        isNotNull,
+      );
+      await tester.tap(find.byKey(const Key('ai-send')));
+      await _settle(tester);
+      expect(ai.draft, 'ls ./archive/');
+      expect(backend.submissions, isEmpty);
+      await action('clear');
+      expect(ai.draft, isEmpty);
+      await action('undo');
+      expect(ai.draft, 'ls ./archive/');
+      await action('redo');
+      expect(ai.draft, isEmpty);
+      await tester.enterText(prompt, 'ls ./');
+      await _settle(tester);
+      await action('suggest');
+      expect(backend.localQuery?['text'], 'ls ./');
+      expect(
+        find.byKey(const Key('composer-completion-list')).hitTestable(),
+        findsOneWidget,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await _settle(tester);
+      await action('help');
+      expect(find.byType(AlertDialog), findsOneWidget);
+      await tester.tap(
+        find
+            .descendant(
+              of: find.byType(AlertDialog),
+              matching: find.byType(TextButton),
+            )
+            .last,
+      );
+      await _settle(tester);
+      expect(ai.draft, 'ls ./');
+      expect(backend.submissions, isEmpty);
+      expect(backend.writes, isEmpty);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      debugDefaultTargetPlatformOverride = null;
+    });
+  }
+
+  testWidgets('unified Composer running input is scoped and revoked', (
+    tester,
+  ) async {
+    final backend = _InteractiveBackend()..owner = 'ready';
+    await _pump(
+      tester,
+      backend,
+      platform: TargetPlatform.macOS,
+      size: const Size(1200, 800),
+      preference: TerminalViewMode.blocks,
+    );
+    final workspace = tester.widget<TerminalAiWorkspace>(
+      find.byType(TerminalAiWorkspace),
+    );
+    final ai = workspace.controller;
+    TerminalCommandBlocksView timeline() =>
+        tester.widget<TerminalCommandBlocksView>(
+          find.byType(TerminalCommandBlocksView),
+        );
+    // An externally/AI-started command does not grant raw input to this UI.
+    backend.owner = 'running';
+    await ai.refreshContext();
+    await _settle(tester);
+    expect(timeline().liveInput, isNull);
+    backend.owner = 'ready';
+    await ai.refreshContext();
+    await _settle(tester);
+    final prompt = find.byKey(const Key('ai-prompt'));
+    await tester.enterText(prompt, 'uname -a');
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await _settle(tester);
+    expect(backend.submissions, ['uname -a']);
+    for (var attempt = 0; attempt < 200 && ai.busy; attempt++) {
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 20)),
+      );
+    }
+    await _settle(tester);
+    expect(ai.busy, isFalse);
+    expect(
+      timeline().liveInput,
+      isNotNull,
+      reason:
+          'phase=${ai.phase} changed=${ai.targetChanged} pending=${ai.pending} target=${ai.context?.contextId} entries=${ai.transcript.map((e) => '${e.state}:${e.submissionId}:${e.blockId}')}',
+    );
+    final input = timeline().liveInput!;
+    input.sendText('hello');
+    expect(utf8.decode(backend.writes.last), 'hello');
+    final count = backend.writes.length;
+    backend.receiptRunning = false;
+    input.sendText('completed receipt');
+    expect(backend.writes, hasLength(count));
+    backend.receiptRunning = true;
+    backend.contextId = 'another-shell';
+    input.sendText('changed context');
+    expect(backend.writes, hasLength(count));
+    backend.contextId = 'root';
+    workspace.onObserveTerminal!();
+    input.sendText('stale before rebuild');
+    expect(backend.writes, hasLength(count));
+    await _settle(tester);
+    await tester.tap(find.byKey(const Key('ai-observer-back')));
+    await _settle(tester);
+    input.sendText('stale after return');
+    expect(backend.writes, hasLength(count));
+    final current = timeline().liveInput!;
+    current.sendText('current');
+    expect(utf8.decode(backend.writes.last), 'current');
+    final nextCount = backend.writes.length;
+    ai.chooseInputIntent(InputIntentChoice.ai);
+    current.sendText('old input after AI selection');
+    expect(backend.writes, hasLength(nextCount));
+    await _settle(tester);
+    await tester.enterText(prompt, 'Explain this running command');
+    expect(ai.draft, 'Explain this running command');
+    expect(timeline().liveInput, isNull);
+    ai.chooseInputIntent(InputIntentChoice.command);
+    await _settle(tester);
+    current.sendText('old input after selecting command again');
+    expect(backend.writes, hasLength(nextCount));
+    final foreground = timeline().liveInput!;
+    ai.suspendForBackground();
+    foreground.sendText('background');
+    expect(backend.writes, hasLength(nextCount));
+    await ai.resumeFromBackground();
+    foreground.sendText('stale after resume');
+    expect(backend.writes, hasLength(nextCount));
+    await _settle(tester);
+    final resumed = timeline().liveInput!;
+    ai.newTask();
+    resumed.sendText('old task');
+    expect(backend.writes, hasLength(nextCount));
+    await _settle(tester);
+    expect(timeline().liveInput, isNull);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets(
+    'unified Composer rejects late results and isolates new-task undo',
+    (tester) async {
+      final backend = _CompletionBackend()
+        ..owner = 'ready'
+        ..delayLocal = true;
+      final (:id, :container) = await _pump(
+        tester,
+        backend,
+        platform: TargetPlatform.macOS,
+        size: const Size(1200, 800),
+        preference: TerminalViewMode.blocks,
+      );
+      final workspace = tester.widget<TerminalAiWorkspace>(
+        find.byType(TerminalAiWorkspace),
+      );
+      final ai = workspace.controller;
+      final prompt = find.byKey(const Key('ai-prompt'));
+      await tester.enterText(prompt, 'ls ./');
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump(const Duration(milliseconds: 30));
+      await tester.enterText(prompt, 'echo replacement');
+      backend.delayLocal = false;
+      await _settle(tester);
+      expect(ai.draft, 'echo replacement');
+      expect(
+        find.byKey(const Key('composer-completion-list')).hitTestable(),
+        findsNothing,
+      );
+      await tester.enterText(prompt, 'ls ./');
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await _settle(tester);
+      final staleAccept = tester
+          .widget<InkWell>(
+            find
+                .ancestor(
+                  of: find.text('alpha/').first,
+                  matching: find.byType(InkWell),
+                )
+                .first,
+          )
+          .onTap!;
+      workspace.onObserveTerminal!();
+      staleAccept();
+      expect(ai.draft, 'ls ./');
+      expect(backend.submissions, isEmpty);
+      await _settle(tester);
+      await tester.tap(find.byKey(const Key('ai-observer-back')));
+      await _settle(tester);
+      ai.chooseInputIntent(InputIntentChoice.ai);
+      await _settle(tester);
+      final count = backend.completionRequests.length;
+      await tester.enterText(prompt, 'Explain this output');
+      await _settle(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await _settle(tester);
+      expect(backend.completionRequests, hasLength(count));
+      ai.newTask();
+      await _settle(tester);
+      await tester.tap(prompt);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyZ);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+      await _settle(tester);
+      expect(ai.draft, isEmpty);
+      expect(backend.submissions, isEmpty);
+      expect(backend.writes, isEmpty);
+      expect(container.read(sessionControllerProvider).activeSessionId, id);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      debugDefaultTargetPlatformOverride = null;
+    },
+  );
 
   for (final brightness in Brightness.values) {
     for (final (size, scale) in [

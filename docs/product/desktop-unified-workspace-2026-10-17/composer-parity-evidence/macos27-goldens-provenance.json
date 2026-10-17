@@ -1,0 +1,16 @@
+{
+  "os": "macOS 27.0.1 (26A434)",
+  "source": "local test/design rendered testImage output",
+  "files": [
+    "terminal-layout-review-20260916/implementation-narrow.png",
+    "terminal-layout-review-20260916/implementation-dark.png",
+    "terminal-layout-review-20260916/implementation-light.png",
+    "config-refresh/adaptive/settings-compact-scaled.png",
+    "settings-tabs/current/01-general.png",
+    "settings-general-20260912/renders/light-general.png",
+    "settings-general-20260912/renders/dark-general.png",
+    "app-surfaces/current/03-profiles-sheet.png",
+    "app-surfaces/current/01-desktop-shell.png"
+  ],
+  "review": "Same nine expected workspace icon / settings text changes as macOS 26, independently rendered and reviewed on macOS 27."
+}
