@@ -295,7 +295,14 @@ fn checks(registered: bool) -> serde_json::Value {
         "command_output_ranges",
         "user_variables",
     ] {
-        map.insert(name.into(), json!("unverified"));
+        map.insert(
+            name.into(),
+            json!(if registered {
+                "provided"
+            } else {
+                "not_provided"
+            }),
+        );
     }
     map.into()
 }

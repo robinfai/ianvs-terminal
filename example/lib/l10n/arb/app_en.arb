@@ -4133,5 +4133,10 @@
   "mobileLlmWelcomeDetail": "Use Trail as a regular terminal, or configure an LLM to use commands and AI in one Block + AI workspace. With an LLM, new mobile sessions default to this workspace; you can choose Normal in settings. Connection details stay on this device.",
   "mobileConfigureLlm": "Configure LLM",
   "mobileLlmConfigured": "LLM configured · Edit",
-  "mobileSkipLlm": "Skip · Use regular terminal"
+  "mobileSkipLlm": "Skip · Use regular terminal",
+  "shellCapabilityAwaitingEvent": "Waiting for an event",
+  "shellCapabilityAwaitingEventHelp": "The current Shell provides this capability. It will be confirmed when valid data arrives.",
+  "shellCapabilityNotProvided": "Not provided",
+  "shellCapabilityNotProvidedHelp": "The current Shell integration does not provide this capability. Waiting will not enable it; a compatible integration can still supply it.",
+  "shellCapabilityProviderReady": "Implementation provided"
 }

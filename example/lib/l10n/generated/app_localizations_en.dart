@@ -5522,4 +5522,21 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get mobileSkipLlm => 'Skip · Use regular terminal';
+
+  @override
+  String get shellCapabilityAwaitingEvent => 'Waiting for an event';
+
+  @override
+  String get shellCapabilityAwaitingEventHelp =>
+      'The current Shell provides this capability. It will be confirmed when valid data arrives.';
+
+  @override
+  String get shellCapabilityNotProvided => 'Not provided';
+
+  @override
+  String get shellCapabilityNotProvidedHelp =>
+      'The current Shell integration does not provide this capability. Waiting will not enable it; a compatible integration can still supply it.';
+
+  @override
+  String get shellCapabilityProviderReady => 'Implementation provided';
 }

@@ -40,6 +40,34 @@ void main() {
             .load(),
       ]);
     });
+    testWidgets('missing provider differs from waiting for runtime data', (
+      tester,
+    ) async {
+      await tester.pumpApp(
+        ShellCapabilitiesDialog(
+          sessionTitle: 'Local',
+          capabilities: const ShellIntegrationCapabilities.pending()
+              .applyRegistration({
+                'hostname': 'provided',
+                'username': 'not_provided',
+              }),
+          onClose: () {},
+        ),
+      );
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('shell-capability-hostname')),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('Waiting for an event'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('shell-capability-username')),
+        100,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('Not provided'), findsOneWidget);
+    });
+
     testWidgets('startup readiness distinguishes runtime observations', (
       tester,
     ) async {

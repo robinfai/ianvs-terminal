@@ -3797,6 +3797,8 @@ class SessionController extends Notifier<SessionState> {
                                   'registered',
                                   'unavailable',
                                   'unverified',
+                                  'provided',
+                                  'not_provided',
                                 }.contains(value) =>
                               value,
                             _ => 'unknown',
@@ -4749,6 +4751,9 @@ class SessionController extends Notifier<SessionState> {
           hostname: hostname ?? current.hostname,
           username: username ?? current.username,
           shell: shell ?? current.shell,
+          integrationVersion:
+              _boundedShellMetadata(event.integrationVersion, 32) ??
+              current.integrationVersion,
           lastCommand: command ?? current.lastCommand,
           lastExitCode: event.exitCode ?? current.lastExitCode,
           recentCommands: nextCommands,

@@ -1,0 +1,23 @@
+analyze:
+Analyzing example...
+No issues found! (ran in 3.6s)
+
+
+package-analyze:
+Analyzing ianvs_terminal...
+No issues found! (ran in 1.7s)
+
+
+format:
+Formatted 14 files (0 changed) in 0.57 seconds.
+
+
+rust-format:
+Passed (no diagnostics).
+
+diff:
+Passed (no diagnostics).
+
+sync:
+Synchronized 438 generated files into packages/ianvs_terminal_core.
+ianvs_terminal_core generated sources are current.

@@ -5151,4 +5151,20 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get mobileSkipLlm => '跳过，使用普通终端';
+
+  @override
+  String get shellCapabilityAwaitingEvent => '等待实际事件';
+
+  @override
+  String get shellCapabilityAwaitingEventHelp => '当前 Shell 已提供此能力，收到有效数据后确认激活。';
+
+  @override
+  String get shellCapabilityNotProvided => '尚未提供';
+
+  @override
+  String get shellCapabilityNotProvidedHelp =>
+      '当前 Shell 集成未提供此能力，等待不会自动启用；兼容集成仍可提供对应数据。';
+
+  @override
+  String get shellCapabilityProviderReady => '已提供实现';
 }

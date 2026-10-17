@@ -8707,6 +8707,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Skip · Use regular terminal'**
   String get mobileSkipLlm;
+
+  /// No description provided for @shellCapabilityAwaitingEvent.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for an event'**
+  String get shellCapabilityAwaitingEvent;
+
+  /// No description provided for @shellCapabilityAwaitingEventHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'The current Shell provides this capability. It will be confirmed when valid data arrives.'**
+  String get shellCapabilityAwaitingEventHelp;
+
+  /// No description provided for @shellCapabilityNotProvided.
+  ///
+  /// In en, this message translates to:
+  /// **'Not provided'**
+  String get shellCapabilityNotProvided;
+
+  /// No description provided for @shellCapabilityNotProvidedHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'The current Shell integration does not provide this capability. Waiting will not enable it; a compatible integration can still supply it.'**
+  String get shellCapabilityNotProvidedHelp;
+
+  /// No description provided for @shellCapabilityProviderReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Implementation provided'**
+  String get shellCapabilityProviderReady;
 }
 
 class _AppLocalizationsDelegate
