@@ -7679,13 +7679,13 @@ abstract class AppLocalizations {
   /// No description provided for @shellCapabilityVariables.
   ///
   /// In en, this message translates to:
-  /// **'Custom shell variables'**
+  /// **'Custom shell variables (optional)'**
   String get shellCapabilityVariables;
 
   /// No description provided for @shellCapabilityVariablesHelp.
   ///
   /// In en, this message translates to:
-  /// **'Accepts allowed IANVS_ variables for session metadata and configured queries.'**
+  /// **'Lets scripts store session information such as a project name and read it through permitted variable queries. IANVS_ is the name prefix; terminal and AI features work without these variables.'**
   String get shellCapabilityVariablesHelp;
 
   /// No description provided for @shellCapabilityPending.

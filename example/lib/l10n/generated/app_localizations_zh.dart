@@ -4603,10 +4603,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get shellCapabilityOutputHelp => '报告明确的输出区域边界。当前复制命令输出使用相邻提示符位置。';
 
   @override
-  String get shellCapabilityVariables => '自定义 shell 变量';
+  String get shellCapabilityVariables => '自定义 Shell 变量（可选）';
 
   @override
-  String get shellCapabilityVariablesHelp => '接收允许的 IANVS_ 变量，用于会话元数据和已配置的查询。';
+  String get shellCapabilityVariablesHelp =>
+      '供脚本保存项目名等会话信息，并通过获准的变量查询读取。IANVS_ 是变量名前缀；不设置也不影响终端或 AI 功能。';
 
   @override
   String get shellCapabilityPending => '待确认';

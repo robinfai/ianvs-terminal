@@ -1,3 +1,6 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+
 import 'package:app/features/ai/terminal_ai_controller.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/sessions/session_state.dart';
@@ -5,6 +8,8 @@ import 'package:app/features/shell/widgets/desktop_session_status.dart';
 import 'package:app/features/terminal_composer/composer_pane.dart';
 import 'package:app/features/terminal_composer/terminal_mode.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 
@@ -42,6 +47,26 @@ class _UnknownAi extends Fake
 }
 
 void main() {
+  setUpAll(() async {
+    if (Platform.environment['IANVS_STATUS_CAPTURE_DIR'] == null) return;
+    await (FontLoader('StatusCapture')..addFont(
+          File(
+            '/System/Library/Fonts/SFNS.ttf',
+          ).readAsBytes().then(ByteData.sublistView),
+        ))
+        .load();
+    final flutterRoot =
+        Platform.environment['FLUTTER_ROOT'] ??
+        File(
+          Platform.resolvedExecutable,
+        ).parent.parent.parent.parent.parent.path;
+    await (FontLoader('MaterialIcons')..addFont(
+          File(
+            '$flutterRoot/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
+          ).readAsBytes().then(ByteData.sublistView),
+        ))
+        .load();
+  });
   const first = TerminalPane(
     sessionId: 'a',
     title: 'Fixture A',
@@ -75,6 +100,79 @@ void main() {
       onDetails: onDetails,
     ),
   );
+
+  for (final width in [1440.0, 520.0, 360.0]) {
+    for (final brightness in Brightness.values) {
+      testWidgets('status stays at the trailing edge at $width / $brightness', (
+        tester,
+      ) async {
+        tester.view.physicalSize = Size(width, 200);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final composer = ComposerPaneSession(
+          sessionId: 'a',
+          runtime: _Runtime(),
+        );
+        addTearDown(composer.dispose);
+        composer.controller.updateShell(
+          contextKey: 'a/root',
+          cwd: '/fixture/a',
+          ownership: ComposerOwnership.ready,
+          lease: 'a-lease',
+        );
+        composer.mode.updateAvailability(null);
+        final captureDir = Platform.environment['IANVS_STATUS_CAPTURE_DIR'];
+        var opened = 0;
+        await tester.pumpApp(
+          RepaintBoundary(
+            key: const Key('status-capture'),
+            child: status(composer: composer, onDetails: () => opened++),
+          ),
+          brightness: brightness,
+          textScale: width == 360 ? 2 : 1,
+          fontFamily: captureDir == null ? null : 'StatusCapture',
+        );
+        await tester.pumpAndSettle();
+        final bar = tester.getRect(
+          find.byKey(const Key('desktop-session-status')),
+        );
+        final state = tester.getRect(
+          find.byKey(const Key('desktop-status-state')),
+        );
+        final icon = tester.getRect(find.byIcon(Icons.info_outline));
+        expect(bar.right - icon.right, lessThanOrEqualTo(20));
+        expect(icon.left - state.right, inInclusiveRange(0, 12));
+        expect(
+          state.left,
+          greaterThanOrEqualTo(
+            tester
+                .getRect(find.byKey(const Key('desktop-status-target')))
+                .right,
+          ),
+        );
+        expect(tester.takeException(), isNull);
+        await tester.tap(find.byKey(const Key('desktop-status-state')));
+        expect(opened, 1);
+        if (captureDir != null) {
+          final boundary = tester.renderObject<RenderRepaintBoundary>(
+            find.byKey(const Key('status-capture')),
+          );
+          await tester.pumpAndSettle();
+          await tester.runAsync(() async {
+            final image = await boundary.toImage();
+            final data = await image.toByteData(format: ui.ImageByteFormat.png);
+            await Directory(captureDir).create(recursive: true);
+            await File(
+              '$captureDir/status-${width.toInt()}-${brightness.name}.png',
+            ).writeAsBytes(data!.buffer.asUint8List());
+            image.dispose();
+          });
+        }
+        await tester.pumpWidget(const SizedBox.shrink());
+      });
+    }
+  }
 
   testWidgets('switching targets never carries the previous ready state', (
     tester,

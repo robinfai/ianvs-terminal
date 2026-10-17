@@ -4932,11 +4932,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'Reports explicit output boundaries. Current output copying uses adjacent prompt positions.';
 
   @override
-  String get shellCapabilityVariables => 'Custom shell variables';
+  String get shellCapabilityVariables => 'Custom shell variables (optional)';
 
   @override
   String get shellCapabilityVariablesHelp =>
-      'Accepts allowed IANVS_ variables for session metadata and configured queries.';
+      'Lets scripts store session information such as a project name and read it through permitted variable queries. IANVS_ is the name prefix; terminal and AI features work without these variables.';
 
   @override
   String get shellCapabilityPending => 'Pending confirmation';

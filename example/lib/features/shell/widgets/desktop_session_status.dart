@@ -158,13 +158,17 @@ class DesktopSessionStatus extends StatelessWidget {
                           ),
                         ),
                         SizedBox(width: palette.spacing.md),
-                        Flexible(
-                          child: Text(
-                            state,
-                            key: const Key('desktop-status-state'),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodySmall,
+                        Expanded(
+                          child: Align(
+                            alignment: AlignmentDirectional.centerEnd,
+                            heightFactor: 1,
+                            child: Text(
+                              state,
+                              key: const Key('desktop-status-state'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
                           ),
                         ),
                         if (onDetails != null) ...[
