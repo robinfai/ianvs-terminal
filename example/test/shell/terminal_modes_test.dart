@@ -373,6 +373,88 @@ void main() {
     debugDefaultTargetPlatformOverride = null;
   });
 
+  for (final initialOwner in ['ready', 'draft']) {
+    testWidgets(
+      'unmounted background tab detects support and keeps polling: $initialOwner',
+      (tester) async {
+        debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+        addTearDown(() => debugDefaultTargetPlatformOverride = null);
+        await tester.binding.setSurfaceSize(const Size(1200, 800));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        final backend = _ModeBackend();
+        await pumpShellScreen(
+          tester,
+          fakeBindings: backend,
+          repository: MemoryProfileRepository(
+            TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+          ),
+        );
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(ShellScreen)),
+        );
+        final controller = container.read(sessionControllerProvider.notifier);
+        SessionState state() => container.read(sessionControllerProvider);
+        // Restored/background tabs can exist before their pane is ever built.
+        // Do not pump between these creations: only the last pane mounts.
+        final background = controller.createSession(defaultTerminalProfile())!;
+        backend.owners[background] = initialOwner;
+        final active = controller.createSession(defaultTerminalProfile())!;
+        await _settleMode(tester);
+        TerminalModeState mode() => state().tabs
+            .firstWhere((tab) => tab.sessionId == background)
+            .activePane
+            .terminalMode;
+        expect(mode().unavailableReason, BlockUnavailableReason.checking);
+        final created = backend.lastCreatedSessionPayload;
+        await tester.tap(
+          find.byKey(Key('shell-tab-$background')),
+          buttons: kSecondaryMouseButton,
+        );
+        await tester.pumpAndSettle();
+        bool enabled() => tester
+            .widget<CheckedPopupMenuItem<Object>>(
+              find.byKey(Key('terminal-mode-blocks-$background')),
+            )
+            .enabled;
+        expect(enabled(), initialOwner == 'ready');
+        expect(
+          mode().unavailableReason,
+          initialOwner == 'ready'
+              ? isNull
+              : BlockUnavailableReason.unsupportedShell,
+        );
+        expect(find.text('Checking shell support…'), findsNothing);
+        expect(state().activeSessionId, active);
+
+        // A background handshake completing while the popup is open must
+        // update it without activating the pane or sending terminal input.
+        backend.owners[background] = 'ready';
+        await tester.pump(const Duration(milliseconds: 600));
+        await tester.pump();
+        expect(enabled(), isTrue);
+        await tester.tap(find.byKey(Key('terminal-mode-recheck-$background')));
+        await _settleMode(tester);
+        expect(mode().notice, TerminalModeNotice.supportChecked);
+        expect(mode().mode, TerminalViewMode.normal);
+        expect(state().activeSessionId, active);
+        expect(backend.lastCreatedSessionPayload, same(created));
+        expect(backend.closedSessionIds, isEmpty);
+        expect(backend.writes, isEmpty);
+
+        await _chooseMode(tester, background, 'blocks');
+        expect(state().activeSessionId, background);
+        expect(mode().mode, TerminalViewMode.blocks);
+        expect(
+          find.byKey(const Key('ai-prompt')).hitTestable(),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+        debugDefaultTargetPlatformOverride = null;
+      },
+    );
+  }
+
   testWidgets(
     'desktop tab recheck preserves Normal, draft and the same session',
     (tester) async {

@@ -12,6 +12,7 @@ import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/ui/app_ui.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -307,6 +308,43 @@ void main() {
     expect(ai.draft, 'shared draft\nsecond line');
     expect(runtime.commandBlocks(id)!['blocks'], hasLength(count));
     expect(requests, 1);
+    // A restored/background tab has no mounted ComposerPane to start its
+    // detector. The tab menu must negotiate the real zsh bridge itself.
+    final sessions = container.read(sessionControllerProvider.notifier);
+    await sessions.setPreferredTerminalMode(TerminalViewMode.normal);
+    final background = sessions.createSession(profile)!;
+    final foreground = sessions.createSession(profile)!;
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.tap(
+      find.byKey(Key('shell-tab-$background')),
+      buttons: kSecondaryMouseButton,
+    );
+    final backgroundModeEntry = find.byKey(
+      Key('terminal-mode-blocks-$background'),
+    );
+    await waitFor(
+      () =>
+          backgroundModeEntry.evaluate().isNotEmpty &&
+          tester
+              .widget<CheckedPopupMenuItem<Object>>(backgroundModeEntry)
+              .enabled,
+      'unmounted background zsh support',
+    );
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      foreground,
+    );
+    await tester.tap(find.byKey(Key('terminal-mode-recheck-$background')));
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(
+      container.read(sessionControllerProvider).activeSessionId,
+      foreground,
+    );
+    expect(
+      runtime.composerRequest(background, 'composer.state', const {})!['state'],
+      'ready',
+    );
+    expect(runtime.commandBlocks(background)!['blocks'], isEmpty);
     expect(tester.takeException(), isNull);
   });
 }

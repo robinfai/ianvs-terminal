@@ -193,7 +193,10 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
     }
     if (selection == _TerminalModeMenuAction.recheck) {
       if (activeSessionIdBeforeOpen != null) {
-        _recheckTerminalSupport(activeSessionIdBeforeOpen);
+        _refreshTerminalSupport(
+          activeSessionIdBeforeOpen,
+          recheckSupport: true,
+        );
       }
       return;
     }
@@ -994,6 +997,9 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
       );
     }
 
+    if (!context.usesMobileNavigation) {
+      _refreshTerminalSupport(targetSessionId);
+    }
     final action = await showMenu<Object>(
       context: context,
       popUpAnimationStyle: appDialogAnimation(context),
@@ -1112,7 +1118,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
       if (currentTab?.sessionId != tab.sessionId) return;
     }
     if (action == _TerminalModeMenuAction.recheck) {
-      _recheckTerminalSupport(targetSessionId);
+      _refreshTerminalSupport(targetSessionId, recheckSupport: true);
       return;
     }
     if (action is TerminalViewMode) {
@@ -1150,20 +1156,27 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
     _takeOverAiInput(sessionId);
   }
 
-  void _recheckTerminalSupport(String sessionId) {
-    final session = _composerSessions[sessionId];
+  void _refreshTerminalSupport(
+    String sessionId, {
+    bool recheckSupport = false,
+  }) {
     final pane = _paneForSession(
       ref.read(sessionControllerProvider),
       sessionId,
     );
-    if (session == null ||
-        pane == null ||
-        pane.isExited ||
-        _isSessionReadOnly(sessionId)) {
-      return;
+    if (pane == null) return;
+    final wasInitialized = _composerSessions.containsKey(sessionId);
+    final session = _composerFor(sessionId);
+    final readOnly = _isSessionReadOnly(sessionId);
+    session.updateEnvironment(pane, readOnly: readOnly);
+    if (pane.isExited || readOnly) return;
+    if (!wasInitialized) {
+      // Restored/background tabs may never have mounted a ComposerPane.
+      // Observe their handshake without activating the tab or granting input.
+      // Keep polling so an open menu also sees a delayed shell becoming ready.
+      session.setVisible(false);
     }
-    session.updateEnvironment(pane, readOnly: false);
-    session.refreshShellState(recheckSupport: true);
+    session.refreshShellState(recheckSupport: recheckSupport);
   }
 
   Future<void> _runTabContextAction(
