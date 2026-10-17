@@ -1,0 +1,69 @@
+{
+  "run": 38992833766,
+  "head": "62f45975570f3213789ae0073ee630903052ffac",
+  "artifact": "visual-comparison-failures",
+  "artifact_id": 12086571221,
+  "source": "actual testImage output rendered on macOS 26 CI; reviewed against corresponding masterImage, which matches the checked-in old baseline",
+  "files": [
+    {
+      "path": "example/test/design/goldens/macos-26/app-surfaces/current/01-desktop-shell.png",
+      "sha256": "ece01ed7e3a06c0577bb16d65e622d863e8829d9cca9edf7a72604b29f013b52",
+      "difference_bounds": [
+        118,
+        4,
+        1180,
+        40
+      ]
+    },
+    {
+      "path": "example/test/design/goldens/macos-26/app-surfaces/current/02-command-palette.png",
+      "sha256": "de4cb74b985422f7c15c8aead33163d75bfb2ca17536c88b1380c5355885e5fc",
+      "difference_bounds": [
+        118,
+        4,
+        1180,
+        40
+      ]
+    },
+    {
+      "path": "example/test/design/goldens/macos-26/app-surfaces/current/03-profiles-sheet.png",
+      "sha256": "95ac3b436fea06d1abdb54b398ac628546e5e309e0edaeabab6bc852c3a5b07c",
+      "difference_bounds": [
+        118,
+        4,
+        1180,
+        40
+      ]
+    },
+    {
+      "path": "example/test/design/goldens/macos-26/terminal-layout-review-20260916/implementation-dark.png",
+      "sha256": "8ef88bb6a6d885638bc02ff4cf21778685d577d319057d49886f3c86ebccf235",
+      "difference_bounds": [
+        118,
+        4,
+        980,
+        41
+      ]
+    },
+    {
+      "path": "example/test/design/goldens/macos-26/terminal-layout-review-20260916/implementation-light.png",
+      "sha256": "3e6299ad94e663a9f6687de85e7e27c5581a196955ebb371d34688f80b4786d9",
+      "difference_bounds": [
+        117,
+        4,
+        980,
+        42
+      ]
+    },
+    {
+      "path": "example/test/design/goldens/macos-26/terminal-layout-review-20260916/implementation-narrow.png",
+      "sha256": "20e1d805618d26e8914d2458fb622ae2b262227afd6a02250b7233e47873d0cd",
+      "difference_bounds": [
+        118,
+        4,
+        620,
+        41
+      ]
+    }
+  ]
+}

@@ -139,6 +139,32 @@ void main() {
           );
           await tester.pump();
           expect(find.byKey(const Key('shell-tab-shortcut-1')), findsOneWidget);
+          tester.binding.handleViewFocusChanged(
+            ui.ViewFocusEvent(
+              viewId: tester.view.viewId,
+              state: ui.ViewFocusState.unfocused,
+              direction: ui.ViewFocusDirection.undefined,
+            ),
+          );
+          await tester.pump();
+          expect(find.byKey(const Key('shell-tab-shortcut-1')), findsNothing);
+          await tester.sendKeyUpEvent(
+            LogicalKeyboardKey.metaRight,
+            platform: 'macos',
+          );
+          tester.binding.handleViewFocusChanged(
+            ui.ViewFocusEvent(
+              viewId: tester.view.viewId,
+              state: ui.ViewFocusState.focused,
+              direction: ui.ViewFocusDirection.undefined,
+            ),
+          );
+          await tester.sendKeyDownEvent(
+            LogicalKeyboardKey.metaRight,
+            platform: 'macos',
+          );
+          await tester.pump();
+          expect(find.byKey(const Key('shell-tab-shortcut-1')), findsOneWidget);
           tester.binding.handleAppLifecycleStateChanged(
             AppLifecycleState.inactive,
           );

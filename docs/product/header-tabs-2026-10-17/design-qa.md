@@ -22,10 +22,10 @@ final result: passed
 ## Interaction verification
 
 - Active close is visible by default; inactive close appears on hover or keyboard focus. Hidden controls are excluded from hit testing and accessibility semantics.
-- Cmd alone shows ⌘1…⌘9 in the same trailing slot, including compact tabs. Cmd with another key hides the hint; actual Cmd-number switching still works. Both Command keys and release/background reset are covered. The observer consumes no key events.
+- Cmd alone shows ⌘1…⌘9 in the same trailing slot, including compact tabs. Cmd with another key hides the hint; actual Cmd-number switching still works. Both Command keys, window focus loss and release/background reset are covered. The observer consumes no key events.
 - Close hit area increases from 12 to 28 logical px on desktop. Existing close protection remains the only close path. Touch presentation retains existing behavior.
-- Four new theme/width scenarios pass, including 520 px with doubled text. Associated regression suite: 139 passed; all design tests: 839 passed, 1 existing skip. Native macOS unified workspace test: 1 passed. Analysis clean.
+- Four new theme/width scenarios pass, including 520 px with doubled text. Associated regression suite: 139 passed; all design tests: 839 passed, 1 existing skip. Main application interaction suite: 103 passed. Native macOS unified workspace test: 1 passed; production Release build passed. Analysis clean.
 
 ## Limits and follow-up
 
-macOS 27.0.1 local Flutter rendering; no new physical-device installation or full OS compatibility matrix. macOS 26 CI baseline review is tracked separately; a local design pass is not a claim of green CI. No open design decisions. PR remains Draft and unmerged.
+macOS 27.0.1 local Flutter rendering; no new physical-device installation or full OS compatibility matrix. The six macOS 26 baselines were independently reviewed from CI run 38992833766, commit 62f45975570f3213789ae0073ee630903052ffac, artifact visual-comparison-failures (12086571221). Each old master image was verified byte-for-byte against the checked-in baseline before replacement with that same runner’s actual test image. See [macOS 26 comparison](screenshots/macos26-baseline-review.png) and [provenance](evidence/macos26-baseline-provenance.json). Latest CI must rerun after this baseline-only/test follow-up; this review does not claim green CI. No open design decisions. PR remains Draft and unmerged.

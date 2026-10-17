@@ -9,3 +9,5 @@
 [设计对比与完整验收](design-qa.md) · [浅色](screenshots/light-871.0-default.png) · [深色](screenshots/dark-871.0-default.png) · [窄窗口 Cmd](screenshots/dark-640.0-cmd.png) · [关联回归](evidence/regressions.log)
 
 本轮不安装手机、不合并；CI 状态以最新 PR Checks 为准。
+
+验证：139 项关联回归、103 项主应用回归、4 组标签专项状态均通过；设计回归 839 通过、1 项原有跳过；macOS 原生融合验收、静态分析和 Release 构建通过。macOS 26 与 27 的六张变更基线分别取自各自系统渲染并审阅，详见验收记录。
