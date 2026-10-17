@@ -1,3 +1,11 @@
+# Latest design review: header tabs
+
+final result: passed
+
+[Header tabs comparison, interaction verification and limitations](docs/product/header-tabs-2026-10-17/design-qa.md).
+
+---
+
 # Full application UI refinement — reviewed; remote gates pending
 
 The selected Focused Reading style now covers default Block, AI, SSH/configuration

@@ -14,6 +14,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../design/visual_capture_fonts.dart';
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_local_terminal_config_repository.dart';
@@ -27,6 +28,7 @@ Future<void> pumpShellScreen(
   required FakePtyBackend fakeBindings,
   required MemoryProfileRepository repository,
   bool referenceDemoMode = false,
+  bool captureFonts = false,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -53,8 +55,12 @@ Future<void> pumpShellScreen(
         ),
       ],
       child: MaterialApp(
-        theme: buildIanvsTerminalTheme(Brightness.light),
-        darkTheme: buildIanvsTerminalTheme(Brightness.dark),
+        theme: captureFonts
+            ? withVisualCaptureFonts(buildIanvsTerminalTheme(Brightness.light))
+            : buildIanvsTerminalTheme(Brightness.light),
+        darkTheme: captureFonts
+            ? withVisualCaptureFonts(buildIanvsTerminalTheme(Brightness.dark))
+            : buildIanvsTerminalTheme(Brightness.dark),
         home: const ShellScreen(),
       ),
     ),
@@ -252,7 +258,7 @@ void main() {
       final singleTabWidth = tester
           .getSize(find.byKey(const Key('shell-tab-1')))
           .width;
-      expect(singleTabWidth, closeTo(math.min(240, stripWidth - 40), 1));
+      expect(singleTabWidth, closeTo(math.min(240, stripWidth - 40) - 6, 1));
 
       await openNewShellTab(tester);
 
@@ -266,11 +272,14 @@ void main() {
       expect(
         tester.getRect(find.byKey(const Key('shell-chrome-new-tab'))).left,
         closeTo(
-          tester.getRect(find.byKey(const Key('shell-tab-2'))).right + 6,
+          tester.getRect(find.byKey(const Key('shell-tab-2'))).right + 9,
           1,
         ),
       );
-      expect(firstTabWidth, closeTo(math.min(240, (stripWidth - 40) / 2), 1));
+      expect(
+        firstTabWidth,
+        closeTo(math.min(240, (stripWidth - 40) / 2) - 6, 1),
+      );
       expect(find.byKey(const Key('shell-tab-overflow-button')), findsNothing);
 
       await openNewShellTab(tester);
@@ -284,7 +293,7 @@ void main() {
       expect(threeTabWidths[1], closeTo(threeTabWidths[2], 1));
       expect(
         threeTabWidths[0],
-        closeTo(math.min(240, (stripWidth - 40) / 3), 1),
+        closeTo(math.min(240, (stripWidth - 40) / 3) - 6, 1),
       );
       expect(
         tester.getRect(find.byKey(const Key('shell-chrome-new-tab'))).right,
@@ -1356,8 +1365,8 @@ void main() {
       await _hoverShellTab(tester, '1');
       final closeRect = tester.getRect(tabOneClose);
       expect(titleRect.left, closeTo(tabOneRect.left + 12, 1));
-      expect(closeRect.left, greaterThan(tabOneRect.right - 32));
-      expect(closeRect.right, lessThan(tabOneRect.right - 4));
+      expect(closeRect.left, greaterThanOrEqualTo(tabOneRect.right - 32));
+      expect(closeRect.right, lessThanOrEqualTo(tabOneRect.right - 4));
 
       final tabOneBodyDragStart = Offset(
         tabOneRect.left + tabOneRect.width * 0.18,

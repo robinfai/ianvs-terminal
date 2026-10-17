@@ -872,7 +872,7 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
                                   tab.containsSession(widget.activeSessionId!);
                               final isDragging =
                                   _draggingSessionId == tab.sessionId;
-                              final shortcutIndex = !compactTabs && index < 9
+                              final shortcutIndex = index < 9
                                   ? index + 1
                                   : null;
                               return _ShellReorderableTabItem(
@@ -2582,8 +2582,68 @@ class _ShellTabButton extends StatefulWidget {
   State<_ShellTabButton> createState() => _ShellTabButtonState();
 }
 
-class _ShellTabButtonState extends State<_ShellTabButton> {
+class _ShellTabButtonState extends State<_ShellTabButton>
+    with WidgetsBindingObserver {
   bool _hovered = false;
+  bool _showShortcut = false;
+  bool _windowFocused = true;
+
+  bool get _cmdOnly {
+    final keyboard = HardwareKeyboard.instance;
+    return _windowFocused &&
+        defaultTargetPlatform == TargetPlatform.macOS &&
+        keyboard.isMetaPressed &&
+        keyboard.logicalKeysPressed.every(
+          (key) =>
+              key == LogicalKeyboardKey.metaLeft ||
+              key == LogicalKeyboardKey.metaRight,
+        );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _showShortcut = _cmdOnly;
+    HardwareKeyboard.instance.addHandler(_keyboardChanged);
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  bool _keyboardChanged(KeyEvent event) {
+    final show = _cmdOnly;
+    if (_showShortcut != show) setState(() => _showShortcut = show);
+    // Presentation only: the existing command shortcuts retain ownership.
+    return false;
+  }
+
+  @override
+  void didChangeViewFocus(ViewFocusEvent event) {
+    if (event.viewId != View.of(context).viewId) return;
+    _windowFocused = event.state == ViewFocusState.focused;
+    if (!_windowFocused && (_showShortcut || _hovered)) {
+      setState(() {
+        _showShortcut = false;
+        _hovered = false;
+      });
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _windowFocused = state == AppLifecycleState.resumed;
+    if (!_windowFocused && (_showShortcut || _hovered)) {
+      setState(() {
+        _showShortcut = false;
+        _hovered = false;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    HardwareKeyboard.instance.removeHandler(_keyboardChanged);
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
 
   Widget _buildCloseControl(String title, _ShellTabTone tone, bool touch) {
     final icon = Icon(
@@ -2606,7 +2666,7 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
             widget.onClose();
           },
           child: SizedBox.square(
-            dimension: touch ? 44 : 12,
+            dimension: touch ? 44 : 28,
             child: Center(
               child: touch
                   ? DecoratedBox(
@@ -2630,6 +2690,10 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
   @override
   Widget build(BuildContext context) {
     final title = _shellTabDisplayTitle(widget.tab);
+    final actionWidth = math.max(
+      28.0,
+      MediaQuery.textScalerOf(context).scale(22),
+    );
     final pending =
         _ShellApprovalScope.of(context)?.pending([widget.tab]) ?? [];
     final usesPersistentTouchClose =
@@ -2637,7 +2701,7 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
         defaultTargetPlatform == TargetPlatform.iOS;
     final closeVisible = usesPersistentTouchClose
         ? widget.isActive
-        : _hovered || widget.focusNode.hasFocus;
+        : widget.isActive || _hovered || widget.focusNode.hasFocus;
     final badgeInfos = _shellTabBadgeInfos(widget.tab);
     final paneSignalInfos = _shellTabPaneSignalInfos(context.l10n, widget.tab);
     final paneSignalInfo = paneSignalInfos.isEmpty
@@ -2652,6 +2716,14 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
       tabStatus.statusColor,
     );
     final tone = _ShellTabTone.fromTerminalBackground(palette: widget.palette);
+    final activeSurface =
+        !usesPersistentTouchClose &&
+            Theme.of(context).brightness == Brightness.dark
+        ? Color.alphaBlend(
+            tone.primaryText.withValues(alpha: 0.06),
+            tone.activeBackground,
+          )
+        : tone.activeBackground;
     final tabTextStyle = Theme.of(context).textTheme.titleSmall!.copyWith(
       color: widget.isActive ? tone.primaryText : tone.mutedText,
       fontSize: 12.5,
@@ -2699,7 +2771,7 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
             text: statusText,
             requestedColor: requestedStatusColor,
             backgroundColor: widget.isActive
-                ? tone.activeBackground
+                ? activeSurface
                 : widget.chromeBackgroundColor,
             fallbackColor: widget.isActive ? tone.primaryText : tone.mutedText,
             maxWidth: widget.compact ? 48 : 72,
@@ -2764,10 +2836,26 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
             widget.onShowContextMenu(event.position);
           }
         },
-        child: SizedBox.expand(
+        child: Padding(
+          padding: usesPersistentTouchClose
+              ? EdgeInsets.zero
+              : const EdgeInsets.symmetric(horizontal: 3, vertical: 3),
           child: DecoratedBox(
             key: Key('shell-tab-border-${widget.tab.sessionId}'),
-            decoration: const BoxDecoration(),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(widget.palette.radius.md),
+              boxShadow: !usesPersistentTouchClose && widget.isActive
+                  ? [
+                      BoxShadow(
+                        color: Theme.of(
+                          context,
+                        ).shadowColor.withValues(alpha: 0.08),
+                        blurRadius: 3,
+                        offset: const Offset(0, 1),
+                      ),
+                    ]
+                  : null,
+            ),
             child: Stack(
               children: [
                 Semantics(
@@ -2801,7 +2889,9 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                                 ? const EdgeInsets.only(left: 8, right: 48)
                                 : EdgeInsets.only(
                                     left: widget.compact ? 8 : 12,
-                                    right: 28,
+                                    right: usesPersistentTouchClose
+                                        ? 28
+                                        : actionWidth + 10,
                                   ),
                           ),
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -2819,7 +2909,7 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                             states,
                           ) {
                             if (widget.isActive) {
-                              return tone.activeBackground;
+                              return activeSurface;
                             }
                             if (states.contains(WidgetState.hovered) ||
                                 states.contains(WidgetState.focused)) {
@@ -2913,7 +3003,9 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                                   )
                                 else
                                   details,
-                                if (widget.shortcutIndex != null &&
+                                // Touch chrome retains its existing presentation.
+                                if (usesPersistentTouchClose &&
+                                    widget.shortcutIndex != null &&
                                     !widget.compact &&
                                     pending.isEmpty &&
                                     badgeInfos.isEmpty &&
@@ -2968,18 +3060,51 @@ class _ShellTabButtonState extends State<_ShellTabButton> {
                   Positioned(
                     top: 0,
                     bottom: 0,
-                    right: usesPersistentTouchClose
-                        ? 0
-                        : widget.palette.spacing.md,
+                    right: usesPersistentTouchClose ? 0 : 4,
                     child: usesPersistentTouchClose
                         ? _buildCloseControl(title, tone, true)
-                        : IgnorePointer(
-                            ignoring: !closeVisible,
-                            child: AnimatedOpacity(
-                              duration: const Duration(milliseconds: 80),
-                              opacity: closeVisible ? 1 : 0,
-                              child: _buildCloseControl(title, tone, false),
+                        : SizedBox(
+                            key: Key(
+                              'shell-tab-action-slot-${widget.tab.sessionId}',
                             ),
+                            width: actionWidth,
+                            child: _showShortcut && widget.shortcutIndex != null
+                                ? IgnorePointer(
+                                    child: Center(
+                                      child: Text(
+                                        '⌘${widget.shortcutIndex}',
+                                        key: Key(
+                                          'shell-tab-shortcut-${widget.tab.sessionId}',
+                                        ),
+                                        maxLines: 1,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .labelSmall
+                                            ?.copyWith(
+                                              color: tone.subtleText,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                      ),
+                                    ),
+                                  )
+                                : ExcludeSemantics(
+                                    excluding: !closeVisible,
+                                    child: IgnorePointer(
+                                      ignoring: !closeVisible,
+                                      child: AnimatedOpacity(
+                                        duration: const Duration(
+                                          milliseconds: 80,
+                                        ),
+                                        opacity: closeVisible ? 1 : 0,
+                                        child: _buildCloseControl(
+                                          title,
+                                          tone,
+                                          false,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
                           ),
                   ),
               ],

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert' show utf8;
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:ui' show AppExitResponse;
+import 'dart:ui' show AppExitResponse, ViewFocusEvent, ViewFocusState;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
