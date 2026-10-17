@@ -470,14 +470,6 @@ class _SessionSidebarState extends ConsumerState<_SessionSidebar> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     _ShellApprovalBadge(tab: tab),
-                    if (tab.activePane.terminalMode.notice != null)
-                      TerminalModeIndicator(
-                        key: Key('terminal-mode-notice-${tab.activeSessionId}'),
-                        state: tab.activePane.terminalMode,
-                        color: colors.onSurfaceVariant,
-                        onOpenMenu: (position) =>
-                            widget.onContextMenu(tab, position),
-                      ),
                     if (elapsed && started != null)
                       Text(
                         sessionSidebarElapsed(

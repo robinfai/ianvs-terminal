@@ -622,10 +622,7 @@ void main() {
       expect(find.byKey(Key('composer-toggle-$id')), findsNothing);
       expect(find.byType(TerminalComposerView), findsNothing);
       expect(mode().canUseBlocks, isTrue);
-      expect(
-        find.byKey(Key('terminal-mode-notice-$id')).hitTestable(),
-        findsOneWidget,
-      );
+      expect(find.byKey(Key('terminal-mode-notice-$id')), findsNothing);
       await _chooseMode(tester, id, 'blocks');
       final editor = find.byKey(const Key('ai-prompt'));
       await tester.enterText(editor, 'saved local draft');

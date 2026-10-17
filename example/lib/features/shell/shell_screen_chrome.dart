@@ -2734,13 +2734,6 @@ class _ShellTabButtonState extends State<_ShellTabButton>
       mainAxisSize: MainAxisSize.min,
       children: [
         if (pending.isNotEmpty) _ShellApprovalBadge(tab: widget.tab),
-        if (widget.tab.activePane.terminalMode.notice != null)
-          TerminalModeIndicator(
-            key: Key('terminal-mode-notice-${widget.tab.activeSessionId}'),
-            state: widget.tab.activePane.terminalMode,
-            color: tone.mutedText,
-            onOpenMenu: widget.onShowContextMenu,
-          ),
         if (!widget.compact && widget.tab.effectivePanes.length > 1) ...[
           const SizedBox(width: 6),
           Tooltip(
