@@ -5,6 +5,7 @@ import '../../ui/foundation/app_motion.dart';
 import 'ai_models.dart';
 import 'terminal_ai_connections.dart';
 import 'terminal_ai_controller.dart';
+import 'unified_terminal_timeline.dart';
 
 /// Renders retained native evidence alongside the task's current connection.
 /// The only copied fields are presentation identities; reads use native IDs.
@@ -18,9 +19,11 @@ class TerminalAiRetainedTimeline extends StatelessWidget {
     required this.onReinput,
     this.onOpenLinkTarget,
     this.sourceLabelFor,
+    this.unifiedWorkspace = false,
     super.key,
   });
   final TerminalAiController controller;
+  final bool unifiedWorkspace;
   final List<CommandBlockTimelineItem> items;
   final ScrollController scroll;
   final ValueNotifier<bool> followTail;
@@ -34,44 +37,65 @@ class TerminalAiRetainedTimeline extends StatelessWidget {
     final connections = controller.terminal as TerminalAiConnections;
     void attach(CommandBlock block, {bool range = false}) => controller
         .attachContext(connections.evidenceContext(block, useSnapshot: range));
-    return TerminalCommandBlocksView(
-      controller: connections.evidence,
-      timeline: [
-        for (final item in items)
-          if (item.blockId == null)
-            item
-          else
-            CommandBlockTimelineItem.block(
-              TerminalAiConnections.evidenceId(
-                item.sourceSessionId ?? connections.sessionId,
-                item.blockId!,
-              ),
-              id: item.id,
-              sourceSessionId: item.sourceSessionId ?? connections.sessionId,
-              sourceLabel:
-                  sourceLabelFor?.call(
-                    item.sourceSessionId ?? connections.sessionId,
-                  ) ??
-                  (Localizations.localeOf(context).languageCode == 'zh'
-                      ? '保留的来源终端'
-                      : 'Retained source terminal'),
+    final projected = <CommandBlockTimelineItem>[
+      for (final item in items)
+        if (item.blockId == null)
+          item
+        else
+          CommandBlockTimelineItem.block(
+            TerminalAiConnections.evidenceId(
+              item.sourceSessionId ?? connections.sessionId,
+              item.blockId!,
             ),
-      ],
-      scrollController: scroll,
-      followTail: followTail,
-      showToolbar: false,
-      chinese: Localizations.localeOf(context).languageCode == 'zh',
-      font: font,
-      onReinput: onReinput,
-      onAskAi: attach,
-      onAttachRange: (block) => attach(block, range: true),
-      onAttachBlocks: (blocks) {
-        for (final block in blocks) {
-          attach(block);
-        }
-      },
-      onOpenLinkTarget: onOpenLinkTarget,
-    );
+            id: item.id,
+            sourceSessionId: item.sourceSessionId ?? connections.sessionId,
+            sourceLabel:
+                sourceLabelFor?.call(
+                  item.sourceSessionId ?? connections.sessionId,
+                ) ??
+                (Localizations.localeOf(context).languageCode == 'zh'
+                    ? '保留的来源终端'
+                    : 'Retained source terminal'),
+          ),
+    ];
+    Widget buildTimeline(List<CommandBlockTimelineItem> timeline) =>
+        TerminalCommandBlocksView(
+          controller: connections.evidence,
+          timeline: timeline,
+          scrollController: scroll,
+          followTail: followTail,
+          showToolbar: false,
+          chinese: Localizations.localeOf(context).languageCode == 'zh',
+          font: font,
+          onReinput: onReinput,
+          onAskAi: attach,
+          onAttachRange: (block) => attach(block, range: true),
+          onAttachBlocks: (blocks) {
+            for (final block in blocks) {
+              attach(block);
+            }
+          },
+          onOpenLinkTarget: onOpenLinkTarget,
+        );
+    return unifiedWorkspace
+        ? UnifiedTerminalTimeline(
+            controller: connections.evidence,
+            taskId: controller.taskId,
+            sourceSessionId: connections.sessionId,
+            globalBlockIds: true,
+            items: projected,
+            blockItemBuilder: (block) {
+              final source = block.id.split('/').first;
+              return CommandBlockTimelineItem.block(
+                block.id,
+                id: 'native-${block.id}',
+                sourceSessionId: source,
+                sourceLabel: sourceLabelFor?.call(source) ?? source,
+              );
+            },
+            builder: buildTimeline,
+          )
+        : buildTimeline(projected);
   }
 }
 

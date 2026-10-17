@@ -243,7 +243,7 @@ fn local_registration_is_reported_without_a_user_command() {
         assert_eq!(ready["checks"]["command_start"], "registered");
         assert_eq!(ready["checks"]["command_finish"], "registered");
         assert_eq!(ready["checks"]["exit_code"], "registered");
-        assert_eq!(ready["checks"]["prompt_navigation"], "unverified");
+        assert_eq!(ready["checks"]["prompt_navigation"], "provided");
         assert!(
             !super::tests::events(&terminal.output)
                 .iter()

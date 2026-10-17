@@ -140,7 +140,10 @@ class _ShellChromeBar extends ConsumerWidget {
     if (!isMobilePlatform) {
       final track = DecoratedBox(
         key: const Key('shell-chrome-tab-rail-surface'),
-        decoration: BoxDecoration(color: railSurface),
+        decoration: BoxDecoration(
+          color: railSurface,
+          borderRadius: BorderRadius.circular(palette.radius.md),
+        ),
         child: DecoratedBox(
           key: const Key('shell-chrome-tab-track'),
           decoration: BoxDecoration(

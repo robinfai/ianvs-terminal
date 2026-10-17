@@ -2658,6 +2658,8 @@ void main() {
         'command_start': 'registered',
         'command_finish': 'registered',
         'exit_code': 'registered',
+        'command_output_ranges': 'provided',
+        'user_variables': 'not_provided',
       },
       'sftp_route': true,
     });
@@ -2665,6 +2667,20 @@ void main() {
     expect(
       pane().shellIntegration.registrationChecks['current_directory'],
       'registered',
+    );
+    expect(
+      pane().shellIntegration.registrationChecks['command_output_ranges'],
+      'provided',
+    );
+    expect(
+      pane()
+          .shellCapabilities[ShellIntegrationCapability.commandOutputRanges]
+          .reason,
+      ShellCapabilityReason.awaitingEvent,
+    );
+    expect(
+      pane().shellCapabilities[ShellIntegrationCapability.userVariables].status,
+      ShellCapabilityStatus.notProvided,
     );
     expect(pane().shellIntegration.lastCommand, isNull);
     expect(pane().shellIntegration.lastExitCode, isNull);
@@ -2682,9 +2698,17 @@ void main() {
       'hook': 'precmd.pwd',
       'context_id': 'hop-a',
       'pwd': '/remote',
+      'integration_version': '2',
       'shell': 'bash',
     });
     expect(pane().shellIntegration.currentDirectory, '/remote');
+    expect(pane().shellIntegration.integrationVersion, '2');
+    expect(
+      pane()
+          .shellCapabilities[ShellIntegrationCapability.integrationVersion]
+          .isActive,
+      isTrue,
+    );
     await hook({
       'hook': 'bootstrap.checking',
       'context_id': 'bash-a',

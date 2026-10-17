@@ -16,14 +16,16 @@
       "captured_at": "2026-10-11T02:24:19.195904+00:00",
       "captured_at_source": "file mtime immediately after CUA screenshot",
       "pixel_size": [
-        4718592,
-        4292935744
+        768,
+        1694
       ],
       "modified": false,
       "capture_method": "CUA iPhone Mirroring full window, includes Mac frame and pointer",
       "physical_device": true,
       "phone_native_resolution": false,
-      "counts_as_required_raw_phone_screenshot": false
+      "counts_as_required_raw_phone_screenshot": false,
+      "format": "jpeg",
+      "metadata_verified_by": "sips decoder; original bytes and SHA-256 unchanged"
     },
     {
       "path": "evidence/shared/20261011T022419Z-c2d88f7b/02-focused-mirroring.png",
@@ -31,14 +33,16 @@
       "captured_at": "2026-10-11T02:24:50.001313+00:00",
       "captured_at_source": "file mtime immediately after CUA screenshot",
       "pixel_size": [
-        4718592,
-        4292935744
+        768,
+        1694
       ],
       "modified": false,
       "capture_method": "CUA iPhone Mirroring full window, includes Mac frame and pointer",
       "physical_device": true,
       "phone_native_resolution": false,
-      "counts_as_required_raw_phone_screenshot": false
+      "counts_as_required_raw_phone_screenshot": false,
+      "format": "jpeg",
+      "metadata_verified_by": "sips decoder; original bytes and SHA-256 unchanged"
     },
     {
       "path": "evidence/shared/20261011T022419Z-c2d88f7b/03-multiline-saved-mirroring.png",
@@ -46,14 +50,16 @@
       "captured_at": "2026-10-11T02:25:09.000514+00:00",
       "captured_at_source": "file mtime immediately after CUA screenshot",
       "pixel_size": [
-        4718592,
-        4292935744
+        768,
+        1694
       ],
       "modified": false,
       "capture_method": "CUA iPhone Mirroring full window, includes Mac frame and pointer",
       "physical_device": true,
       "phone_native_resolution": false,
-      "counts_as_required_raw_phone_screenshot": false
+      "counts_as_required_raw_phone_screenshot": false,
+      "format": "jpeg",
+      "metadata_verified_by": "sips decoder; original bytes and SHA-256 unchanged"
     },
     {
       "path": "evidence/shared/20261011T022419Z-c2d88f7b/04-cancel-retains-mirroring.png",
@@ -61,14 +67,16 @@
       "captured_at": "2026-10-11T02:25:19.707229+00:00",
       "captured_at_source": "file mtime immediately after CUA screenshot",
       "pixel_size": [
-        4718592,
-        4292935744
+        768,
+        1694
       ],
       "modified": false,
       "capture_method": "CUA iPhone Mirroring full window, includes Mac frame and pointer",
       "physical_device": true,
       "phone_native_resolution": false,
-      "counts_as_required_raw_phone_screenshot": false
+      "counts_as_required_raw_phone_screenshot": false,
+      "format": "jpeg",
+      "metadata_verified_by": "sips decoder; original bytes and SHA-256 unchanged"
     },
     {
       "path": "evidence/shared/20261011T022419Z-c2d88f7b/05-task-menu-mirroring.png",
@@ -76,14 +84,16 @@
       "captured_at": "2026-10-11T02:25:26.418928+00:00",
       "captured_at_source": "file mtime immediately after CUA screenshot",
       "pixel_size": [
-        4718592,
-        4292935744
+        768,
+        1694
       ],
       "modified": false,
       "capture_method": "CUA iPhone Mirroring full window, includes Mac frame and pointer",
       "physical_device": true,
       "phone_native_resolution": false,
-      "counts_as_required_raw_phone_screenshot": false
+      "counts_as_required_raw_phone_screenshot": false,
+      "format": "jpeg",
+      "metadata_verified_by": "sips decoder; original bytes and SHA-256 unchanged"
     },
     {
       "path": "evidence/shared/20261011T022419Z-c2d88f7b/06-exit-blank-mirroring.png",
@@ -91,14 +101,16 @@
       "captured_at": "2026-10-11T02:26:28.279118+00:00",
       "captured_at_source": "file mtime immediately after CUA screenshot",
       "pixel_size": [
-        4718592,
-        4292935744
+        768,
+        1694
       ],
       "modified": false,
       "capture_method": "CUA iPhone Mirroring full window, includes Mac frame and pointer",
       "physical_device": true,
       "phone_native_resolution": false,
-      "counts_as_required_raw_phone_screenshot": false
+      "counts_as_required_raw_phone_screenshot": false,
+      "format": "jpeg",
+      "metadata_verified_by": "sips decoder; original bytes and SHA-256 unchanged"
     },
     {
       "path": "evidence/shared/20261011T022419Z-c2d88f7b/07-reentered-blank-mirroring.png",
@@ -106,14 +118,16 @@
       "captured_at": "2026-10-11T02:27:08.135380+00:00",
       "captured_at_source": "file mtime immediately after CUA screenshot",
       "pixel_size": [
-        4718592,
-        4292935744
+        768,
+        1694
       ],
       "modified": false,
       "capture_method": "CUA iPhone Mirroring full window, includes Mac frame and pointer",
       "physical_device": true,
       "phone_native_resolution": false,
-      "counts_as_required_raw_phone_screenshot": false
+      "counts_as_required_raw_phone_screenshot": false,
+      "format": "jpeg",
+      "metadata_verified_by": "sips decoder; original bytes and SHA-256 unchanged"
     }
   ],
   "observations": [

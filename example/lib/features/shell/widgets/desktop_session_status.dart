@@ -63,7 +63,7 @@ class DesktopSessionStatus extends StatelessWidget {
           : observing
           ? t('Read-only observer', '只读观察')
           : aiVisible
-          ? t('AI task', 'AI 任务')
+          ? 'Block + AI'
           : currentComposer?.enabled == true
           ? 'Blocks'
           : t('Terminal', '终端');
@@ -71,13 +71,14 @@ class DesktopSessionStatus extends StatelessWidget {
           current == null ||
               current.isExited ||
               readOnly ||
+              observing ||
               replaying ||
               reader?.blocksInput == true
           ? t('Read-only', '只读')
           : aiVisible
           ? ai?.phase == AiPhase.executing
                 ? t('AI · this operation', 'AI · 本次操作')
-                : t('Human input paused', '人工输入已暂停')
+                : t('Shared input', '共用输入')
           : t('Human input', '人工输入');
       final shellState = current == null
           ? t('Checking…', '正在核对…')
@@ -157,13 +158,17 @@ class DesktopSessionStatus extends StatelessWidget {
                           ),
                         ),
                         SizedBox(width: palette.spacing.md),
-                        Flexible(
-                          child: Text(
-                            state,
-                            key: const Key('desktop-status-state'),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodySmall,
+                        Expanded(
+                          child: Align(
+                            alignment: AlignmentDirectional.centerEnd,
+                            heightFactor: 1,
+                            child: Text(
+                              state,
+                              key: const Key('desktop-status-state'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
                           ),
                         ),
                         if (onDetails != null) ...[

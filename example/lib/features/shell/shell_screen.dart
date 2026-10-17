@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert' show utf8;
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:ui' show AppExitResponse;
+import 'dart:ui' show AppExitResponse, ViewFocusEvent, ViewFocusState;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -23,6 +23,7 @@ import '../../data/sync/local_first_sync.dart';
 import '../../platform/clipboard_bridge.dart';
 import '../../platform/terminal_graphic_image_actions.dart';
 import '../../ui/app_ui.dart';
+import '../ai/ai_models.dart' show AiActionKind;
 import '../ai/ai_settings.dart';
 import '../ai/ai_settings_dialog.dart';
 import '../ai/terminal_ai_connections.dart';
@@ -31,6 +32,7 @@ import '../ai/terminal_ai_observer.dart';
 import '../ai/terminal_ai_retained_timeline.dart';
 import '../ai/terminal_ai_runtime.dart';
 import '../ai/terminal_ai_workspace.dart';
+import '../ai/unified_terminal_timeline.dart';
 import '../config/local_terminal_config_bootstrap.dart';
 import '../config/local_terminal_config_models.dart';
 import '../config/shortcut_editor.dart';
@@ -248,6 +250,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, CommandBlockReaderHostController> _readerControllers = {};
   final Map<String, Future<String?>> _terminalReconnects = {};
   final Set<String> _openAiSessions = {};
+  late final AiSettingsController _modeAiSettings;
   final Map<String, String> _observedAiTargets = {};
   final Map<String, int> _manualInputEpochs = {};
   int _manualInputSerial = 0;
@@ -301,6 +304,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   bool _isCommandMenuOpen = false;
   bool _isShellCapabilitiesOpen = false;
   bool _isDefaultsOpen = false;
+  bool _isMobileLlmSetupOpen = false;
   bool _isProfilesOpen = false;
   bool _remoteFallbackSnapshotLoadStarted = false;
   bool _remoteFallbackSwitching = false;
@@ -408,6 +412,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   @override
   void initState() {
     super.initState();
+    _modeAiSettings = ref.read(aiSettingsProvider);
+    _modeAiSettings.addListener(_handleLlmConfigurationChanged);
     final runtime = ref.read(referenceDemoModeProvider)
         ? null
         : ref.read(terminalRuntimeControllerProvider);
@@ -458,6 +464,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   @override
   void dispose() {
+    _modeAiSettings.removeListener(_handleLlmConfigurationChanged);
     WindowBridge.setNativeMenuHandlers();
     _appLifecycleListener.dispose();
     unawaited(_osc72DragDropController.dispose());
@@ -491,78 +498,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   // Callbacks outlive title-only updates, so read their display metadata
   // when invoked instead of capturing it from the last layout build.
   SessionState get _sessionState => ref.read(sessionControllerProvider);
-
-  void _handleSessionStateChanged(SessionState? previous, SessionState next) {
-    for (final tab in next.tabs) {
-      for (final pane in tab.effectivePanes) {
-        _composerSessions[pane.sessionId]?.updateEnvironment(
-          pane,
-          readOnly: _isSessionReadOnly(pane.sessionId),
-        );
-      }
-    }
-    _syncPresentationState(next);
-    _publishAcceptanceSnapshot(next);
-    final noticeSource = _runtimeErrorNotice?.sessionId;
-    if (noticeSource != null &&
-        !next.tabs.any((tab) => tab.containsSession(noticeSource))) {
-      _runtimeErrorNoticeTimer?.cancel();
-      _runtimeErrorNoticeTimer = null;
-      _runtimeErrorNotice = null;
-    }
-    final newRuntimeError = _newRuntimeError(previous, next);
-    if (newRuntimeError != null) {
-      _runtimeErrorNoticeTimer?.cancel();
-      _runtimeErrorNotice = newRuntimeError;
-      _runtimeErrorNoticeTimer = Timer(_runtimeErrorNoticeDuration, () {
-        if (!mounted || _runtimeErrorNotice != newRuntimeError) {
-          return;
-        }
-        _mutateState(() {
-          _runtimeErrorNotice = null;
-          _runtimeErrorNoticeTimer = null;
-        });
-      });
-    }
-    if (!next.isReady && next.lastError != null) {
-      unawaited(_loadRemoteFallbackSnapshot());
-    }
-    final activeSessionId = next.activeSessionId;
-    final pendingMessage = activeSessionId == null
-        ? null
-        : _pendingZmodemTerminalMessages.remove(activeSessionId);
-    if (pendingMessage != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted &&
-            ref.read(sessionControllerProvider).activeSessionId ==
-                activeSessionId) {
-          _showShellSnackBar(pendingMessage);
-        }
-      });
-    }
-  }
-
-  ({String sessionId, TerminalPaneRuntimeErrorState error})? _newRuntimeError(
-    SessionState? previous,
-    SessionState next,
-  ) {
-    for (final tab in next.tabs) {
-      for (final pane in tab.effectivePanes) {
-        final error = pane.runtimeError;
-        if (error == null) {
-          continue;
-        }
-        final previousPane = previous?.tabs
-            .where((candidate) => candidate.containsSession(pane.sessionId))
-            .firstOrNull
-            ?.paneFor(pane.sessionId);
-        if (!identical(previousPane?.runtimeError, error)) {
-          return (sessionId: pane.sessionId, error: error);
-        }
-      }
-    }
-    return null;
-  }
 
   void _dismissRuntimeErrorNotice() {
     if (_runtimeErrorNotice == null) {
@@ -819,28 +754,39 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
         return KeyEventResult.ignored;
       }
-      if (_handleAiShortcut(event, activeSessionId)) {
-        return KeyEventResult.handled;
-      }
       final editor = focusedEditableTextForCurrentRoute();
       if (editor != null) {
         final composer = editor.context
             .findAncestorWidgetOfExactType<ComposerPane>();
-        if (_shellModalInputBlocked ||
-            composer == null ||
-            !composer.active ||
-            !composer.available ||
-            composer.session.sessionId != activeSessionId ||
-            !identical(
+        final workspace = editor.context
+            .findAncestorWidgetOfExactType<TerminalAiWorkspace>();
+        final field = editor.context.findAncestorWidgetOfExactType<TextField>();
+        final unifiedInput =
+            workspace != null &&
+            workspace.active &&
+            (workspace.canInteract?.call() ?? true) &&
+            identical(workspace.controller, _aiSessions[activeSessionId]) &&
+            field?.key == const Key('ai-prompt');
+        final legacyInput =
+            composer != null &&
+            composer.active &&
+            composer.available &&
+            composer.session.sessionId == activeSessionId &&
+            identical(
               editor.widget.controller,
               composer.session.controller.editor,
-            ) ||
-            !identical(editor.widget.focusNode, composer.session.editorFocus) ||
+            ) &&
+            identical(editor.widget.focusNode, composer.session.editorFocus);
+        if (_shellModalInputBlocked ||
+            (!unifiedInput && !legacyInput) ||
             !editor.textEditingValue.composing.isCollapsed) {
           return KeyEventResult.ignored;
         }
       }
       if (_shellModalInputBlocked) return KeyEventResult.handled;
+      if (_handleAiShortcut(event, activeSessionId)) {
+        return KeyEventResult.handled;
+      }
 
       final shortcut = _shortcutActionFor(
         event,

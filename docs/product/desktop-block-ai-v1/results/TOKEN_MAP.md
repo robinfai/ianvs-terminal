@@ -126,20 +126,22 @@ Mac UI `bodyMedium = 13`、`bodySmall = 12`、`labelSmall = 11`；Composer comma
 
 |文件|用途 / SHA-256|
 |---|---|
-|[theme_export_test.dart](../../../../tmp/desktop-prd-v1/iteration-1/theme_export_test.dart)|生产导出工具；`a2122c477101755652e72f950eb1abaae103967017f97537f606ada992e3ab6f`|
-|[theme-colors-before.json](../../../../build/desktop-prd-v1/iteration-1/theme-colors-before.json)|修前完整值；`f31bbd6f6f1fbc55e612ba59288d92105b5745a5a987e1ea76d01c9c3a229a20`|
-|[theme-colors.json](../../../../build/desktop-prd-v1/iteration-1/theme-colors.json)|修后完整值（UTC 2026-10-10 02:47:54）；含生产/共享库源码 hash、色对、字体、状态层与终端策略；`13725ccedd94fcc740f9c0db15a0a49bebfb526c08f6f27828df1619748d340a`|
-|[theme-contrast-before.log](../../../../build/desktop-prd-v1/iteration-1/theme-contrast-before.log)|7 项预期红测；`5753ea6d22b05cfabc0139e35dfacab9db874edcfd8da414b523eb4fadb658d6`|
-|[theme-contrast-after.log](../../../../build/desktop-prd-v1/iteration-1/theme-contrast-after.log)|25 项绿测；`bbf1b5d970bba0732497dac1e1717094228feed106c95c4a1a35e00585e1bb6a`|
-|[theme-analyze.log](../../../../build/desktop-prd-v1/iteration-1/theme-analyze.log)|4 个生产变更文件与新增回归的定向静态分析|
+|`tmp/desktop-prd-v1/iteration-1/theme_export_test.dart`|生产导出工具；`a2122c477101755652e72f950eb1abaae103967017f97537f606ada992e3ab6f`|
+|`build/desktop-prd-v1/iteration-1/theme-colors-before.json`|修前完整值；`f31bbd6f6f1fbc55e612ba59288d92105b5745a5a987e1ea76d01c9c3a229a20`|
+|`build/desktop-prd-v1/iteration-1/theme-colors.json`|修后完整值（UTC 2026-10-10 02:47:54）；含生产/共享库源码 hash、色对、字体、状态层与终端策略；`13725ccedd94fcc740f9c0db15a0a49bebfb526c08f6f27828df1619748d340a`|
+|`build/desktop-prd-v1/iteration-1/theme-contrast-before.log`|7 项预期红测；`5753ea6d22b05cfabc0139e35dfacab9db874edcfd8da414b523eb4fadb658d6`|
+|`build/desktop-prd-v1/iteration-1/theme-contrast-after.log`|25 项绿测；`bbf1b5d970bba0732497dac1e1717094228feed106c95c4a1a35e00585e1bb6a`|
+|`build/desktop-prd-v1/iteration-1/theme-analyze.log`|4 个生产变更文件与新增回归的定向静态分析|
 
-从仓库根目录使用既有 Flutter SDK 可重算：
+上表中的 `tmp/` 与 `build/` 文件是当时的本机产物，不随 Git 仓库分发；路径及哈希仅用于核对原始记录，不能视为干净 checkout 中可下载的附件。
+
+从仓库根目录可重新验证已入库的主题回归：
 
 ```sh
-flutter test --no-pub --reporter expanded example/test/ui/desktop_action_contrast_test.dart example/test/ui/app_theme_contract_test.dart packages/ianvs_terminal/test/composer/composer_theme_test.dart tmp/desktop-prd-v1/iteration-1/theme_export_test.dart
+flutter test --no-pub --reporter expanded example/test/ui/desktop_action_contrast_test.dart example/test/ui/app_theme_contract_test.dart packages/ianvs_terminal/test/composer/composer_theme_test.dart
 ```
 
-导出只针对当时源码；重跑会更新 `theme-colors.json`，必须重新记录 hash，不能冒用上表修后身份。
+原机导出脚本只针对当时源码；重新导出 `theme-colors.json` 时必须记录新 hash，不能冒用上表修后身份。
 
 ## 6. 不在本次通过计数内的边界
 

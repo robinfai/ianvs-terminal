@@ -253,7 +253,8 @@ extension _ShellScreenStateInstantReplay on _ShellScreenState {
 
   Future<void> _seedInstantReplayFrame(String sessionId) async {
     final sessionController = ref.read(sessionControllerProvider.notifier);
-    final frame = sessionController.viewportFor(sessionId).frame;
+    final frame = sessionController.existingViewportFor(sessionId)?.frame;
+    if (frame == null) return;
     final windowMetrics = await WindowBridge.metrics();
     if (!mounted) {
       return;

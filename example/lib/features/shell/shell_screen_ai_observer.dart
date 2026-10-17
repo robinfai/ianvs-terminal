@@ -37,6 +37,10 @@ extension _ShellScreenAiObserver on _ShellScreenState {
 
   bool _manualInputBlocked(String sessionId, {int? epoch}) =>
       !mounted ||
+      !ref.read(terminalRuntimeControllerProvider).hasSession(sessionId) ||
+      ref
+          .read(terminalRuntimeControllerProvider)
+          .isSessionRetainedAfterExit(sessionId) ||
       (epoch != null && epoch != _manualInputEpoch(sessionId)) ||
       _readerControllers[sessionId]?.blocksInput == true ||
       _openAiSessions.contains(sessionId) ||
@@ -44,6 +48,7 @@ extension _ShellScreenAiObserver on _ShellScreenState {
 
   void _observeAiTerminal(String sessionId, {String? targetSessionId}) {
     if (!_openAiSessions.contains(sessionId)) return;
+    _revokeManualInput(sessionId);
     FocusManager.instance.primaryFocus?.unfocus();
     unawaited(SystemChannels.textInput.invokeMethod<void>('TextInput.hide'));
     _mutateState(() {
@@ -53,7 +58,7 @@ extension _ShellScreenAiObserver on _ShellScreenState {
 
   Widget _presentAiWorkspace(
     String sessionId, {
-    required Widget workspace,
+    required Widget Function(bool dual) workspaceBuilder,
     required String targetLabel,
     required terminal.TerminalFontConfig font,
     TerminalViewportColors? colors,
@@ -64,6 +69,7 @@ extension _ShellScreenAiObserver on _ShellScreenState {
             defaultTargetPlatform == TargetPlatform.iOS &&
             constraints.maxWidth >= 960 &&
             constraints.maxHeight >= 600;
+        final workspace = workspaceBuilder(dual);
         final observing = _observedAiTargets.containsKey(sessionId);
         final source = _observedAiTargets[sessionId] ?? sessionId;
         final sessions = ref.read(sessionControllerProvider.notifier);

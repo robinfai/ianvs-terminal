@@ -18,7 +18,7 @@ const _captureTextFallback = <String>[
 ];
 
 /// Load only repository assets and fonts from the pinned Flutter SDK.
-Future<void> loadVisualCaptureFonts() async {
+Future<void> loadVisualCaptureFonts({bool productionIcons = false}) async {
   installVisualGoldenComparator();
   final flutterRoot =
       Platform.environment['FLUTTER_ROOT'] ??
@@ -44,7 +44,12 @@ Future<void> loadVisualCaptureFonts() async {
     visualCaptureMonoFont: [mono],
     // Code/path widgets explicitly request this generic family.
     'monospace': [mono],
-    'MaterialIcons': ['$sdkFonts/MaterialIcons-Regular.otf'],
+    'MaterialIcons': [
+      if (productionIcons)
+        '${repository.path}/example/assets/fonts/TrailLightIcons.ttf'
+      else
+        '$sdkFonts/MaterialIcons-Regular.otf',
+    ],
   }.entries) {
     final loader = FontLoader(entry.key);
     for (final path in entry.value) {

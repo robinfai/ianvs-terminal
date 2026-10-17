@@ -26,6 +26,7 @@ import 'package:ianvs_terminal/ianvs_terminal.dart';
 import '../ai/terminal_ai_test.dart' show MemoryAiStore;
 import '../design/configuration_capture_binding.dart';
 import '../design/visual_capture_fonts.dart';
+import '../helpers/ai_workspace_actions.dart';
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_local_terminal_config_repository.dart';
@@ -42,8 +43,9 @@ class _LoopbackHttpOverrides extends HttpOverrides {}
 
 Future<void> _completeAiTask(
   WidgetTester tester,
-  TerminalAiController ai,
-) async {
+  TerminalAiController ai, {
+  bool throughInput = false,
+}) async {
   final server = (await tester.runAsync(
     () => HttpServer.bind(InternetAddress.loopbackIPv4, 0),
   ))!;
@@ -70,13 +72,29 @@ Future<void> _completeAiTask(
       ),
     );
     var finished = false;
-    final turn = HttpOverrides.runWithHttpOverrides(
-      () => ai.ask('分析已有输出，只给建议。').whenComplete(() => finished = true),
-      _LoopbackHttpOverrides(),
-    );
+    final turn = throughInput
+        ? HttpOverrides.runWithHttpOverrides(() async {
+            await tester.enterText(
+              find.byKey(const Key('ai-prompt')),
+              '分析已有输出，只给建议。',
+            );
+            await _settle(tester);
+            expect(ai.inputIntentDecision().intent, InputIntent.ai);
+            await tester.tap(find.byKey(const Key('ai-send')));
+          }, _LoopbackHttpOverrides())
+        : HttpOverrides.runWithHttpOverrides(
+            () => ai.ask('分析已有输出，只给建议。').whenComplete(() => finished = true),
+            _LoopbackHttpOverrides(),
+          );
+    if (throughInput) await turn;
     // Keep widget-owned microtasks in their original fake-async zone while
     // allowing the loopback socket to make progress outside it.
     for (var attempt = 0; attempt < 100 && !finished; attempt++) {
+      if (throughInput &&
+          ai.transcript.any((entry) => entry.role == 'assistant') &&
+          !ai.busy) {
+        finished = true;
+      }
       await tester.pump(const Duration(milliseconds: 20));
       await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 10)),
@@ -126,7 +144,9 @@ class _MobileBackend extends FakePtyBackend {
     if (request['kind'] == 'composer.state') {
       return jsonEncode({
         'state': owner,
-        'lease': owner == 'ready' ? 'lease-$contextId' : null,
+        'lease': owner == 'ready'
+            ? 'lease-$contextId-${submissions.length}'
+            : null,
         'contextId': contextId,
         'transport': 'shell',
         'cwd': '/srv/app',
@@ -137,6 +157,13 @@ class _MobileBackend extends FakePtyBackend {
     if (request['kind'] == 'composer.submit') {
       submissions.add(request['text']! as String);
       return jsonEncode({'outcome': 'accepted'});
+    }
+    if (request['kind'] == 'composer.receipt') {
+      return jsonEncode({
+        'submissionId': request['submissionId'],
+        'outcome': 'accepted',
+        'blockId': '1',
+      });
     }
     if (request['kind'] == 'terminal.live_screen') {
       return jsonEncode({
@@ -180,6 +207,83 @@ class _MobileBackend extends FakePtyBackend {
   }
 }
 
+class _InteractiveBackend extends _MobileBackend {
+  bool receiptRunning = true;
+  @override
+  String? requestSessionJson(String sessionId, String requestJson) {
+    final request = jsonDecode(requestJson) as Map<String, Object?>;
+    if (request['kind'] == 'composer.submit') owner = 'running';
+    final result = super.requestSessionJson(sessionId, requestJson);
+    if (request['kind'] == 'composer.receipt') {
+      return jsonEncode({
+        ...jsonDecode(result!) as Map,
+        'running': receiptRunning,
+      });
+    }
+    return result;
+  }
+}
+
+class _CompletionBackend extends _MobileBackend {
+  final completionRequests = <Map<String, Object?>>[];
+  Map<String, Object?>? localQuery;
+  bool delayLocal = false;
+  int cancelled = 0;
+  @override
+  String? requestSessionJson(String sessionId, String requestJson) {
+    final request = jsonDecode(requestJson) as Map<String, Object?>;
+    switch (request['kind']) {
+      case 'composer.state':
+        final state =
+            jsonDecode(super.requestSessionJson(sessionId, requestJson)!)
+                as Map<String, Object?>;
+        return jsonEncode({
+          ...state,
+          'commandNames': ['ls', 'echo', 'uname', 'vim'],
+          'historyRevision': 1,
+          'history': ['ls ./archive/', 'echo older command'],
+        });
+      case 'completion.query':
+        completionRequests.add(request);
+      case 'completion.local_start':
+        localQuery = (request['query']! as Map).cast<String, Object?>();
+        return jsonEncode({'status': 'pending', 'jobId': 'files'});
+      case 'completion.local_cancel':
+        cancelled++;
+        return jsonEncode({'status': 'cancelled'});
+      case 'completion.local_poll':
+        if (delayLocal) return jsonEncode({'status': 'pending'});
+        final query = localQuery!;
+        return jsonEncode({
+          'status': 'complete',
+          'batch': {
+            'schemaVersion': 1,
+            'query': query,
+            'status': 'ok',
+            'items': query['text'] == 'ls ./'
+                ? [
+                    for (final name in ['alpha/', 'beta/'])
+                      {
+                        'itemId': name,
+                        'label': name,
+                        'detail': 'Directory',
+                        'kind': 'directory',
+                        'source': 'files',
+                        'replaceStartUtf16': 3,
+                        'replaceEndUtf16': 5,
+                        'newText': './$name',
+                        'finalCursorUtf16': 5 + name.length,
+                        'riskHint': false,
+                      },
+                  ]
+                : <Object?>[],
+          },
+        });
+    }
+    return super.requestSessionJson(sessionId, requestJson);
+  }
+}
+
 Future<void> _settle(WidgetTester tester) async {
   for (var i = 0; i < 8; i++) {
     await tester.pump(const Duration(milliseconds: 100));
@@ -210,6 +314,7 @@ Future<({ProviderContainer container, String id})> _pump(
   Size size = const Size(390, 844),
   double scale = 1,
   TerminalViewMode? preference,
+  AiConfiguration? configuration = const AiConfiguration.mock(),
 }) async {
   debugDefaultTargetPlatformOverride = platform;
   tester.view.devicePixelRatio = 1;
@@ -232,7 +337,7 @@ Future<({ProviderContainer container, String id})> _pump(
   );
   var theme = buildIanvsTerminalTheme(brightness, platform: platform);
   if (_evidence.isNotEmpty) theme = withVisualCaptureFonts(theme);
-  final aiSettings = AiSettingsController(MemoryAiStore());
+  final aiSettings = AiSettingsController(MemoryAiStore(configuration));
   addTearDown(aiSettings.dispose);
   await tester.pumpWidget(
     ProviderScope(
@@ -322,7 +427,14 @@ Future<void> _choose(
   String id,
   TerminalViewMode mode,
 ) async {
-  await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+  if (_isPhone) {
+    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+  } else {
+    await tester.tap(
+      find.byKey(Key('shell-tab-$id')),
+      buttons: kSecondaryMouseButton,
+    );
+  }
   await _settle(tester);
   final item = find.byKey(Key('terminal-mode-${mode.name}-$id'));
   await tester.ensureVisible(item);
@@ -346,8 +458,724 @@ Future<void> _capture(WidgetTester tester, String name) async {
   });
 }
 
+bool get _isPhone =>
+    defaultTargetPlatform == TargetPlatform.iOS ||
+    defaultTargetPlatform == TargetPlatform.android;
+
+Finder _commandEditor(WidgetTester tester) =>
+    find.byKey(const Key('ai-prompt'));
+
+Future<void> _showWorkspace(WidgetTester tester, String id) async {
+  if (find.byType(TerminalAiWorkspace).evaluate().isEmpty) {
+    await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+    await _settle(tester);
+  }
+}
+
 void main() {
   ConfigurationCaptureBinding();
+  for (final platform in [TargetPlatform.iOS, TargetPlatform.android]) {
+    for (final preference in [null, TerminalViewMode.blocks]) {
+      testWidgets(
+        'mobile without LLM only offers Normal: $platform $preference',
+        (tester) async {
+          final backend = _MobileBackend()..owner = 'ready';
+          final (:id, :container) = await _pump(
+            tester,
+            backend,
+            platform: platform,
+            configuration: null,
+            preference: preference,
+          );
+          expect(_mode(container).mode, TerminalViewMode.normal);
+          expect(
+            _mode(container).unavailableReason,
+            BlockUnavailableReason.llmRequired,
+          );
+          await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+          await _settle(tester);
+          expect(
+            tester
+                .widget<ListTile>(find.byKey(Key('terminal-mode-blocks-$id')))
+                .enabled,
+            isFalse,
+          );
+          await tester.tap(find.byKey(Key('terminal-mode-recheck-$id')));
+          await _settle(tester);
+          expect(_mode(container).canUseBlocks, isFalse);
+          await _showWorkspace(tester, id);
+          await _settle(tester);
+          expect(find.byKey(const Key('ai-settings-dialog')), findsOneWidget);
+          expect(find.byType(TerminalAiWorkspace), findsNothing);
+          expect(backend.submissions, isEmpty);
+          await tester.pumpWidget(const SizedBox.shrink());
+          debugDefaultTargetPlatformOverride = null;
+        },
+      );
+    }
+    testWidgets(
+      'removing LLM revokes Blocks and retains command draft on $platform',
+      (tester) async {
+        final backend = _MobileBackend()..owner = 'ready';
+        final (:id, :container) = await _pump(
+          tester,
+          backend,
+          platform: platform,
+        );
+        expect(_mode(container).mode, TerminalViewMode.blocks);
+        await tester.enterText(_commandEditor(tester), 'echo keep draft');
+        final settings = container.read(aiSettingsProvider);
+        await settings.save(null);
+        await _settle(tester);
+        expect(_mode(container).mode, TerminalViewMode.normal);
+        expect(_mode(container).canUseBlocks, isFalse);
+        await settings.save(const AiConfiguration.mock());
+        await _settle(tester);
+        // Capability restoration never silently changes the current input owner.
+        expect(_mode(container).mode, TerminalViewMode.normal);
+        await _choose(tester, id, TerminalViewMode.blocks);
+        expect(
+          tester.widget<TextField>(_commandEditor(tester)).controller!.text,
+          'echo keep draft',
+        );
+        await _showWorkspace(tester, id);
+        await _settle(tester);
+        expect(find.byType(TerminalAiWorkspace), findsOneWidget);
+        await settings.save(null);
+        await _settle(tester);
+        expect(find.byType(TerminalAiWorkspace), findsNothing);
+        expect(_mode(container).mode, TerminalViewMode.normal);
+        expect(backend.submissions, isEmpty);
+        await tester.pumpWidget(const SizedBox.shrink());
+        debugDefaultTargetPlatformOverride = null;
+      },
+    );
+  }
+
+  for (final platform in [
+    TargetPlatform.iOS,
+    TargetPlatform.android,
+    TargetPlatform.macOS,
+    TargetPlatform.windows,
+    TargetPlatform.linux,
+  ]) {
+    testWidgets(
+      'unified command then AI uses one owner and draft on $platform',
+      (tester) async {
+        final backend = _MobileBackend()..owner = 'ready';
+        final (:id, :container) = await _pump(
+          tester,
+          backend,
+          platform: platform,
+          preference: TerminalViewMode.blocks,
+          size:
+              platform == TargetPlatform.iOS ||
+                  platform == TargetPlatform.android
+              ? const Size(390, 844)
+              : const Size(1200, 800),
+        );
+        final workspace = tester.widget<TerminalAiWorkspace>(
+          find.byType(TerminalAiWorkspace),
+        );
+        final ai = workspace.controller;
+        expect(workspace.unifiedWorkspace, isTrue);
+        expect(
+          find.byKey(const Key('ai-prompt')).hitTestable(),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('composer-editor')).hitTestable(),
+          findsNothing,
+        );
+        expect(ai.transcript, isEmpty);
+        expect(backend.submissions, isEmpty);
+        await tester.enterText(
+          find.byKey(const Key('ai-prompt')),
+          'echo unified',
+        );
+        await _settle(tester);
+        expect(ai.inputIntentDecision().intent, InputIntent.command);
+        await tester.tap(find.byKey(const Key('ai-send')));
+        await _settle(tester);
+        expect(backend.submissions, ['echo unified']);
+        expect(ai.transcript.single.state, AiEntryState.accepted);
+        expect(ai.draft, isEmpty);
+        expect(
+          tester
+              .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
+              .controller,
+          same(ai),
+        );
+        final task = ai.taskId;
+        await _completeAiTask(tester, ai, throughInput: true);
+        expect(ai.taskId, task);
+        expect(backend.submissions, [
+          'echo unified',
+        ], reason: 'AI text must not execute as a command.');
+        await tester.enterText(find.byKey(const Key('ai-prompt')), '中文草稿\n第二行');
+        await _choose(tester, id, TerminalViewMode.normal);
+        expect(find.byType(TerminalAiWorkspace), findsNothing);
+        await _choose(tester, id, TerminalViewMode.blocks);
+        expect(
+          tester
+              .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
+              .controller,
+          same(ai),
+        );
+        expect(ai.taskId, task);
+        expect(ai.draft, '中文草稿\n第二行');
+        expect(_mode(container).mode, TerminalViewMode.blocks);
+        expect(backend.submissions, ['echo unified']);
+        expect(backend.writes, isEmpty);
+        await tester.pumpWidget(const SizedBox.shrink());
+        debugDefaultTargetPlatformOverride = null;
+      },
+    );
+  }
+
+  testWidgets('desktop Blocks has no LLM prerequisite', (tester) async {
+    final backend = _MobileBackend()..owner = 'ready';
+    final (:container, :id) = await _pump(
+      tester,
+      backend,
+      platform: TargetPlatform.macOS,
+      configuration: null,
+      preference: TerminalViewMode.blocks,
+      size: const Size(1200, 800),
+    );
+    expect(_mode(container).mode, TerminalViewMode.blocks);
+    await _showWorkspace(tester, id);
+    await _settle(tester);
+    expect(find.byType(TerminalAiWorkspace), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  for (final platform in [
+    TargetPlatform.macOS,
+    TargetPlatform.windows,
+    TargetPlatform.linux,
+  ]) {
+    testWidgets('unified Composer Tab history undo and IME on $platform', (
+      tester,
+    ) async {
+      final backend = _CompletionBackend()..owner = 'ready';
+      await _pump(
+        tester,
+        backend,
+        platform: platform,
+        size: const Size(1200, 800),
+        preference: TerminalViewMode.blocks,
+      );
+      final ai = tester
+          .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
+          .controller;
+      final prompt = find.byKey(const Key('ai-prompt'));
+      await tester.enterText(prompt, 'ls ./');
+      await _settle(tester);
+      expect(ai.inputIntentDecision().intent, InputIntent.command);
+      expect(
+        tester.widget<TextField>(prompt).focusNode!.hasFocus,
+        isTrue,
+        reason: 'focus before Tab',
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await _settle(tester);
+      expect(
+        find.byKey(const Key('composer-completion-list')).hitTestable(),
+        findsOneWidget,
+        reason:
+            'query=${backend.localQuery} requests=${backend.completionRequests} focus=${tester.widget<TextField>(prompt).focusNode?.hasFocus} feedback=${tester.widgetList<Text>(find.byKey(const Key('ai-completion-feedback'))).map((e) => e.data)}',
+      );
+      expect(find.text('alpha/'), findsWidgets);
+      expect(ai.draft, 'ls ./');
+      expect(backend.submissions, isEmpty);
+      await _capture(tester, 'unified-composer-completions-${platform.name}');
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await _settle(tester);
+      expect(ai.draft, 'ls ./beta/');
+      expect(
+        backend.submissions,
+        isEmpty,
+        reason: 'Accepting a candidate never executes',
+      );
+      final modifier = platform == TargetPlatform.macOS
+          ? LogicalKeyboardKey.metaLeft
+          : LogicalKeyboardKey.controlLeft;
+      await tester.sendKeyDownEvent(modifier);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyZ);
+      await tester.sendKeyUpEvent(modifier);
+      await _settle(tester);
+      expect(ai.draft, 'ls ./');
+      await tester.sendKeyDownEvent(modifier);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyZ);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyUpEvent(modifier);
+      await _settle(tester);
+      expect(ai.draft, 'ls ./beta/');
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await _settle(tester);
+      expect(backend.submissions, ['ls ./beta/']);
+      await tester.enterText(prompt, 'ls ./');
+      await _settle(tester);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyR);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await _settle(tester);
+      expect(
+        find.byKey(const Key('composer-history-list')).hitTestable(),
+        findsOneWidget,
+      );
+      await tester.enterText(prompt, 'archive');
+      await _settle(tester);
+      expect(tester.widget<TextField>(prompt).controller!.text, 'archive');
+      expect(find.byKey(const Key('composer-history-list')), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await _settle(tester);
+      expect(ai.draft, 'ls ./');
+      await tester.enterText(prompt, 'ls .');
+      await tester.enterText(prompt, 'ls ./');
+      await _settle(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await _settle(tester);
+      expect(
+        ai.draft,
+        'ls ./archive/',
+        reason: 'Original history inline suggestion remains available',
+      );
+      expect(backend.submissions, hasLength(1));
+      await tester.sendKeyDownEvent(modifier);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.sendKeyUpEvent(modifier);
+      await _settle(tester);
+      expect(
+        tester
+            .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
+            .commandSession!
+            .blocks
+            .activeId,
+        '1',
+      );
+      expect(ai.draft, 'ls ./archive/');
+      // Block navigation intentionally focuses the selected command block.
+      await tester.tap(prompt);
+      await _settle(tester);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await _settle(tester);
+      expect(ai.draft, 'ls ./archive/\n');
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyC);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await _settle(tester);
+      expect(ai.draft, isEmpty);
+      expect(backend.writes, isEmpty);
+      // Composing belongs to the IME, not completion or command submission.
+      final editor = tester.widget<TextField>(prompt).controller!;
+      editor.value = const TextEditingValue(
+        text: 'ls ./zhong',
+        selection: TextSelection.collapsed(offset: 10),
+        composing: TextRange(start: 5, end: 10),
+      );
+      await _settle(tester);
+      final count = backend.completionRequests.length;
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await _settle(tester);
+      expect(backend.completionRequests, hasLength(count));
+      expect(backend.submissions, hasLength(1));
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      debugDefaultTargetPlatformOverride = null;
+    });
+  }
+
+  for (final platform in [TargetPlatform.macOS, TargetPlatform.iOS]) {
+    testWidgets('unified Composer action menu and empty history on $platform', (
+      tester,
+    ) async {
+      final backend = _CompletionBackend()..owner = 'ready';
+      await _pump(
+        tester,
+        backend,
+        platform: platform,
+        size: platform == TargetPlatform.iOS
+            ? const Size(402, 874)
+            : const Size(640, 400),
+        preference: TerminalViewMode.blocks,
+      );
+      final workspace = tester.widget<TerminalAiWorkspace>(
+        find.byType(TerminalAiWorkspace),
+      );
+      final ai = workspace.controller;
+      final prompt = find.byKey(const Key('ai-prompt'));
+      await tester.enterText(prompt, '');
+      await _settle(tester);
+      Future<void> action(String value) async {
+        await tester.ensureVisible(find.byKey(const Key('ai-command-actions')));
+        await tester.tap(find.byKey(const Key('ai-command-actions')));
+        await _settle(tester);
+        final item = find.byWidgetPredicate(
+          (w) => w is PopupMenuItem<String> && w.value == value,
+        );
+        await tester.ensureVisible(item);
+        await tester.tap(item);
+        await _settle(tester);
+      }
+
+      await action('history');
+      await _capture(tester, 'composer-history-${platform.name}');
+      expect(
+        find.byKey(const Key('composer-history-list')).hitTestable(),
+        findsOneWidget,
+        reason:
+            'count=${find.byKey(const Key('composer-history-list')).evaluate().length} focus=${tester.widget<TextField>(prompt).focusNode!.hasFocus} intent=${ai.inputIntentDecision().intent} draft=${ai.draft}',
+      );
+      expect(
+        tester.widget<FilledButton>(find.byKey(const Key('ai-send'))).onPressed,
+        isNotNull,
+      );
+      await tester.tap(find.byKey(const Key('ai-send')));
+      await _settle(tester);
+      expect(ai.draft, 'ls ./archive/');
+      expect(backend.submissions, isEmpty);
+      await action('clear');
+      expect(ai.draft, isEmpty);
+      await action('undo');
+      expect(ai.draft, 'ls ./archive/');
+      await action('redo');
+      expect(ai.draft, isEmpty);
+      await tester.enterText(prompt, 'ls ./');
+      await _settle(tester);
+      await action('suggest');
+      expect(backend.localQuery?['text'], 'ls ./');
+      expect(
+        find.byKey(const Key('composer-completion-list')).hitTestable(),
+        findsOneWidget,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await _settle(tester);
+      await action('help');
+      expect(find.byType(AlertDialog), findsOneWidget);
+      await tester.tap(
+        find
+            .descendant(
+              of: find.byType(AlertDialog),
+              matching: find.byType(TextButton),
+            )
+            .last,
+      );
+      await _settle(tester);
+      expect(ai.draft, 'ls ./');
+      expect(backend.submissions, isEmpty);
+      expect(backend.writes, isEmpty);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      debugDefaultTargetPlatformOverride = null;
+    });
+  }
+
+  testWidgets('unified Composer running input is scoped and revoked', (
+    tester,
+  ) async {
+    final backend = _InteractiveBackend()..owner = 'ready';
+    await _pump(
+      tester,
+      backend,
+      platform: TargetPlatform.macOS,
+      size: const Size(1200, 800),
+      preference: TerminalViewMode.blocks,
+    );
+    final workspace = tester.widget<TerminalAiWorkspace>(
+      find.byType(TerminalAiWorkspace),
+    );
+    final ai = workspace.controller;
+    TerminalCommandBlocksView timeline() =>
+        tester.widget<TerminalCommandBlocksView>(
+          find.byType(TerminalCommandBlocksView),
+        );
+    // An externally/AI-started command does not grant raw input to this UI.
+    backend.owner = 'running';
+    await ai.refreshContext();
+    await _settle(tester);
+    expect(timeline().liveInput, isNull);
+    backend.owner = 'ready';
+    await ai.refreshContext();
+    await _settle(tester);
+    final prompt = find.byKey(const Key('ai-prompt'));
+    await tester.enterText(prompt, 'uname -a');
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await _settle(tester);
+    expect(backend.submissions, ['uname -a']);
+    for (var attempt = 0; attempt < 200 && ai.busy; attempt++) {
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 20)),
+      );
+    }
+    await _settle(tester);
+    expect(ai.busy, isFalse);
+    expect(
+      timeline().liveInput,
+      isNotNull,
+      reason:
+          'phase=${ai.phase} changed=${ai.targetChanged} pending=${ai.pending} target=${ai.context?.contextId} entries=${ai.transcript.map((e) => '${e.state}:${e.submissionId}:${e.blockId}')}',
+    );
+    final input = timeline().liveInput!;
+    input.sendText('hello');
+    expect(utf8.decode(backend.writes.last), 'hello');
+    final count = backend.writes.length;
+    backend.receiptRunning = false;
+    input.sendText('completed receipt');
+    expect(backend.writes, hasLength(count));
+    backend.receiptRunning = true;
+    backend.contextId = 'another-shell';
+    input.sendText('changed context');
+    expect(backend.writes, hasLength(count));
+    backend.contextId = 'root';
+    workspace.onObserveTerminal!();
+    input.sendText('stale before rebuild');
+    expect(backend.writes, hasLength(count));
+    await _settle(tester);
+    await tester.tap(find.byKey(const Key('ai-observer-back')));
+    await _settle(tester);
+    input.sendText('stale after return');
+    expect(backend.writes, hasLength(count));
+    final current = timeline().liveInput!;
+    current.sendText('current');
+    expect(utf8.decode(backend.writes.last), 'current');
+    final nextCount = backend.writes.length;
+    ai.chooseInputIntent(InputIntentChoice.ai);
+    current.sendText('old input after AI selection');
+    expect(backend.writes, hasLength(nextCount));
+    await _settle(tester);
+    await tester.enterText(prompt, 'Explain this running command');
+    expect(ai.draft, 'Explain this running command');
+    expect(timeline().liveInput, isNull);
+    ai.chooseInputIntent(InputIntentChoice.command);
+    await _settle(tester);
+    current.sendText('old input after selecting command again');
+    expect(backend.writes, hasLength(nextCount));
+    final foreground = timeline().liveInput!;
+    ai.suspendForBackground();
+    foreground.sendText('background');
+    expect(backend.writes, hasLength(nextCount));
+    await ai.resumeFromBackground();
+    foreground.sendText('stale after resume');
+    expect(backend.writes, hasLength(nextCount));
+    await _settle(tester);
+    final resumed = timeline().liveInput!;
+    ai.newTask();
+    resumed.sendText('old task');
+    expect(backend.writes, hasLength(nextCount));
+    await _settle(tester);
+    expect(timeline().liveInput, isNull);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets(
+    'unified Composer rejects late results and isolates new-task undo',
+    (tester) async {
+      final backend = _CompletionBackend()
+        ..owner = 'ready'
+        ..delayLocal = true;
+      final (:id, :container) = await _pump(
+        tester,
+        backend,
+        platform: TargetPlatform.macOS,
+        size: const Size(1200, 800),
+        preference: TerminalViewMode.blocks,
+      );
+      final workspace = tester.widget<TerminalAiWorkspace>(
+        find.byType(TerminalAiWorkspace),
+      );
+      final ai = workspace.controller;
+      final prompt = find.byKey(const Key('ai-prompt'));
+      await tester.enterText(prompt, 'ls ./');
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump(const Duration(milliseconds: 30));
+      await tester.enterText(prompt, 'echo replacement');
+      backend.delayLocal = false;
+      await _settle(tester);
+      expect(ai.draft, 'echo replacement');
+      expect(
+        find.byKey(const Key('composer-completion-list')).hitTestable(),
+        findsNothing,
+      );
+      await tester.enterText(prompt, 'ls ./');
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await _settle(tester);
+      final staleAccept = tester
+          .widget<InkWell>(
+            find
+                .ancestor(
+                  of: find.text('alpha/').first,
+                  matching: find.byType(InkWell),
+                )
+                .first,
+          )
+          .onTap!;
+      workspace.onObserveTerminal!();
+      staleAccept();
+      expect(ai.draft, 'ls ./');
+      expect(backend.submissions, isEmpty);
+      await _settle(tester);
+      await tester.tap(find.byKey(const Key('ai-observer-back')));
+      await _settle(tester);
+      ai.chooseInputIntent(InputIntentChoice.ai);
+      await _settle(tester);
+      final count = backend.completionRequests.length;
+      await tester.enterText(prompt, 'Explain this output');
+      await _settle(tester);
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await _settle(tester);
+      expect(backend.completionRequests, hasLength(count));
+      ai.newTask();
+      await _settle(tester);
+      await tester.tap(prompt);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyZ);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+      await _settle(tester);
+      expect(ai.draft, isEmpty);
+      expect(backend.submissions, isEmpty);
+      expect(backend.writes, isEmpty);
+      expect(container.read(sessionControllerProvider).activeSessionId, id);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      debugDefaultTargetPlatformOverride = null;
+    },
+  );
+
+  for (final brightness in Brightness.values) {
+    for (final (size, scale) in [
+      (const Size(1200, 800), 1.0),
+      (const Size(640, 400), 2.0),
+    ]) {
+      testWidgets(
+        'desktop unified keyboard and layout $brightness $size scale $scale',
+        (tester) async {
+          final backend = _MobileBackend()..owner = 'ready';
+          final (:id, :container) = await _pump(
+            tester,
+            backend,
+            platform: TargetPlatform.macOS,
+            brightness: brightness,
+            size: size,
+            scale: scale,
+            preference: TerminalViewMode.blocks,
+          );
+          final workspace = tester.widget<TerminalAiWorkspace>(
+            find.byType(TerminalAiWorkspace),
+          );
+          final ai = workspace.controller;
+          expect(
+            tester
+                .widget<TextField>(_commandEditor(tester))
+                .focusNode!
+                .hasFocus,
+            isTrue,
+          );
+          expect(
+            find.byKey(const Key('composer-editor')).hitTestable(),
+            findsNothing,
+          );
+          await tester.enterText(_commandEditor(tester), 'echo keyboard');
+          await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+          await _settle(tester);
+          expect(backend.submissions, ['echo keyboard']);
+          await _completeAiTask(tester, ai, throughInput: true);
+          await tester.enterText(_commandEditor(tester), 'echo draft');
+          await _settle(tester);
+          expect(ai.inputIntentDecision().intent, InputIntent.command);
+          await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+          await tester.sendKeyEvent(LogicalKeyboardKey.keyI);
+          await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+          await _settle(tester);
+          expect(ai.inputIntentDecision().intent, InputIntent.ai);
+          expect(backend.submissions, ['echo keyboard']);
+          await tester.enterText(_commandEditor(tester), '中文草稿\n第二行');
+          await _settle(tester);
+          await _capture(
+            tester,
+            'desktop-unified-${brightness.name}-${size.width.toInt()}-scale-$scale',
+          );
+          await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+          await _settle(tester);
+          expect(
+            find.byKey(const Key('ai-observer-viewport')).hitTestable(),
+            findsOneWidget,
+          );
+          expect(ai.draft, '中文草稿\n第二行');
+          await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+          await tester.sendKeyEvent(LogicalKeyboardKey.keyI);
+          await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+          await _settle(tester);
+          expect(
+            find.byKey(const Key('ai-prompt')).hitTestable(),
+            findsOneWidget,
+          );
+          expect(
+            tester
+                .widget<TextField>(_commandEditor(tester))
+                .focusNode!
+                .hasFocus,
+            isTrue,
+          );
+          expect(ai.draft, '中文草稿\n第二行');
+          expect(container.read(sessionControllerProvider).activeSessionId, id);
+          expect(backend.submissions, ['echo keyboard']);
+          expect(backend.writes, isEmpty);
+          expect(tester.takeException(), isNull);
+          await tester.pumpWidget(const SizedBox.shrink());
+          debugDefaultTargetPlatformOverride = null;
+        },
+      );
+    }
+  }
+
+  testWidgets(
+    'desktop unconfigured model still runs commands and configuration never sends a draft',
+    (tester) async {
+      final backend = _MobileBackend()..owner = 'ready';
+      await _pump(
+        tester,
+        backend,
+        platform: TargetPlatform.macOS,
+        size: const Size(1200, 800),
+        configuration: null,
+        preference: TerminalViewMode.blocks,
+      );
+      final ai = tester
+          .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
+          .controller;
+      await tester.enterText(_commandEditor(tester), 'echo no-model');
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await _settle(tester);
+      expect(backend.submissions, ['echo no-model']);
+      for (var i = 0; i < 5; i++) {
+        await _settle(tester);
+      }
+      expect(ai.busy, isFalse);
+      ai.chooseInputIntent(InputIntentChoice.ai);
+      await tester.enterText(_commandEditor(tester), 'Explain the output');
+      await _settle(tester);
+      await tester.tap(find.byKey(const Key('ai-send')));
+      await _settle(tester);
+      expect(find.byKey(const Key('ai-settings-dialog')), findsOneWidget);
+      expect(ai.draft, 'Explain the output');
+      expect(backend.submissions, ['echo no-model']);
+      expect(backend.writes, isEmpty);
+      await tester.pumpWidget(const SizedBox.shrink());
+      debugDefaultTargetPlatformOverride = null;
+    },
+  );
+
   group('AI evidence reinput', () {
     Future<void> insertEvidence(WidgetTester tester, String sourceId) async {
       tester
@@ -390,7 +1218,7 @@ void main() {
                   : const Size(390, 844),
               preference: TerminalViewMode.normal,
             );
-            await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+            await _showWorkspace(tester, id);
             await _settle(tester);
             final ai = tester
                 .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
@@ -408,10 +1236,15 @@ void main() {
                   .read(terminalRuntimeControllerProvider)
                   .refreshSession(id);
               await _settle(tester);
-              await tester.ensureVisible(
-                find.byKey(const Key('ai-reconnect-terminal')),
+              final reconnectButton = find.byKey(
+                Key(
+                  platform == TargetPlatform.iOS
+                      ? 'ai-mobile-primary-reconnect'
+                      : 'ai-reconnect-terminal',
+                ),
               );
-              await tester.tap(find.byKey(const Key('ai-reconnect-terminal')));
+              await tester.ensureVisible(reconnectButton);
+              await tester.tap(reconnectButton);
               await _settle(tester);
               targetId = container
                   .read(sessionControllerProvider)
@@ -428,18 +1261,18 @@ void main() {
             expect(pane.terminalMode.mode, TerminalViewMode.blocks);
             expect(state.preferredTerminalMode, TerminalViewMode.normal);
             expect(state.activeSessionId, targetId);
-            expect(find.byType(TerminalAiWorkspace), findsNothing);
-            final editor = tester.widget<TextField>(
-              find.byKey(const Key('composer-editor')),
-            );
+            expect(find.byType(TerminalAiWorkspace), findsOneWidget);
+            final editor = tester.widget<TextField>(_commandEditor(tester));
             expect(editor.controller!.text, 'uname -a');
-            expect(
-              editor.controller!.selection,
-              const TextSelection.collapsed(offset: 8),
-            );
-            expect(editor.focusNode!.hasFocus, true);
+            if (!_isPhone) {
+              expect(
+                editor.controller!.selection,
+                const TextSelection.collapsed(offset: 8),
+              );
+              expect(editor.focusNode!.hasFocus, true);
+            }
             expect(ai.taskId, taskId);
-            expect(ai.draft, 'keep task draft');
+            expect(ai.draft, 'uname -a');
             expect(backend.writes, hasLength(writes));
             expect(backend.submissions, isEmpty);
             expect(tester.takeException(), isNull);
@@ -450,16 +1283,19 @@ void main() {
       }
     }
 
-    testWidgets('keeps both drafts when the editor is unavailable', (
+    testWidgets('keeps the shared draft when the editor is unavailable', (
       tester,
     ) async {
       final backend = _MobileBackend()..owner = 'ready';
-      final (:id, :container) = await _pump(tester, backend);
-      await tester.enterText(
-        find.byKey(const Key('composer-editor')),
-        'original command draft',
+      final (:id, :container) = await _pump(
+        tester,
+        backend,
+        platform: TargetPlatform.macOS,
+        size: const Size(1200, 800),
+        preference: TerminalViewMode.blocks,
       );
-      await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+      await tester.enterText(_commandEditor(tester), 'original command draft');
+      await _showWorkspace(tester, id);
       await _settle(tester);
       final ai = tester
           .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
@@ -475,13 +1311,16 @@ void main() {
       expect(find.text('当前 Shell 不支持命令块。'), findsWidgets);
       backend.owner = 'ready';
       await _settle(tester);
-      await _choose(tester, id, TerminalViewMode.blocks);
+      await tester.tap(
+        find.byKey(Key('shell-tab-$id')),
+        buttons: kSecondaryMouseButton,
+      );
+      await _settle(tester);
+      await tester.tap(find.byKey(Key('terminal-mode-blocks-$id')));
+      await _settle(tester);
       expect(
-        tester
-            .widget<TextField>(find.byKey(const Key('composer-editor')))
-            .controller!
-            .text,
-        'original command draft',
+        tester.widget<TextField>(_commandEditor(tester)).controller!.text,
+        'keep task draft',
       );
       expect(backend.writes, isEmpty);
       expect(backend.submissions, isEmpty);
@@ -507,10 +1346,10 @@ void main() {
             preference: TerminalViewMode.blocks,
           );
           await tester.enterText(
-            find.byKey(const Key('composer-editor')),
+            _commandEditor(tester),
             'retained command draft',
           );
-          await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+          await _showWorkspace(tester, id);
           await _settle(tester);
           final ai = tester
               .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
@@ -543,7 +1382,12 @@ void main() {
 
           await choose(targetMode);
           expect(_mode(container).mode, targetMode);
-          expect(find.byType(TerminalAiWorkspace), findsNothing);
+          expect(
+            find.byType(TerminalAiWorkspace),
+            targetMode == TerminalViewMode.blocks
+                ? findsOneWidget
+                : findsNothing,
+          );
           if (targetMode == TerminalViewMode.normal) {
             final terminal = find.byType(TerminalViewport).hitTestable();
             expect(terminal, findsOneWidget);
@@ -551,15 +1395,15 @@ void main() {
               tester.widget<TerminalViewport>(terminal).focusNode!.hasFocus,
               isTrue,
             );
-            expect(find.byKey(const Key('composer-editor')), findsNothing);
+            expect(_commandEditor(tester), findsNothing);
           } else {
             final editor = tester.widget<TextField>(
-              find.byKey(const Key('composer-editor')).hitTestable(),
+              _commandEditor(tester).hitTestable(),
             );
-            expect(editor.controller!.text, 'retained command draft');
-            expect(editor.focusNode!.hasFocus, isTrue);
+            expect(editor.controller!.text, 'retained follow-up draft');
+            if (!_isPhone) expect(editor.focusNode!.hasFocus, isTrue);
           }
-          await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+          await _showWorkspace(tester, id);
           await _settle(tester);
           final reopened = tester
               .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
@@ -679,7 +1523,7 @@ void main() {
       );
       final id = mounted.id;
       final container = mounted.container;
-      await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+      await _showWorkspace(tester, id);
       await _settle(tester);
       final ai = tester
           .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
@@ -730,7 +1574,10 @@ void main() {
         findsOneWidget,
       );
       await _capture(tester, 'D10-ssh-disconnected-${platform.name}');
-      await tester.tap(find.byKey(const Key('ai-close')));
+      await observeAiTerminal(
+        tester,
+        compactMobile: platform == TargetPlatform.iOS,
+      );
       await _settle(tester);
       await _expectReadOnlyObservation(tester, backend);
       expect(
@@ -742,15 +1589,29 @@ void main() {
       expect(ai.taskId, taskId);
       expect(ai.draft, 'Keep this SSH follow-up');
       expect(ai.attachments, [evidence]);
-      await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+      await _showWorkspace(tester, id);
       await _settle(tester);
       expect(ai.draft, 'Keep this SSH follow-up');
       expect(ai.attachments, [evidence]);
       expect(tester.takeException(), isNull);
-      final configure = find.byKey(const Key('ai-terminal-settings'));
+      final phone = platform == TargetPlatform.iOS;
+      if (phone) {
+        final details = find.byKey(const Key('ai-mobile-recovery-details'));
+        final staleDetails = tester.widget<IconButton>(details).onPressed!;
+        await tester.tap(details);
+        staleDetails();
+        await _settle(tester);
+        expect(find.byKey(const Key('ai-mobile-details')), findsOneWidget);
+      }
+      final configure = find.byKey(
+        Key(phone ? 'ai-mobile-detail-ssh-settings' : 'ai-terminal-settings'),
+      );
       await tester.ensureVisible(configure);
+      final staleConfigure = phone
+          ? null
+          : tester.widget<TextButton>(configure).onPressed;
       await tester.tap(configure);
-      await tester.tap(configure);
+      staleConfigure?.call();
       await _settle(tester);
       expect(find.byKey(const Key('ssh-host')), findsOneWidget);
       await tester.enterText(
@@ -769,13 +1630,21 @@ void main() {
       expect(ai.draft, 'Keep this SSH follow-up');
       expect(ai.attachments, [evidence]);
       expect(backend.submissions, isEmpty);
-      final reconnect = find.byKey(const Key('ai-reconnect-terminal'));
+      final reconnect = find.byKey(
+        Key(phone ? 'ai-mobile-primary-reconnect' : 'ai-reconnect-terminal'),
+      );
       await tester.ensureVisible(reconnect);
+      final staleReconnect = tester
+          .widget<ButtonStyleButton>(reconnect)
+          .onPressed;
+      expect(staleReconnect, isNotNull);
       if (platform == TargetPlatform.iOS) {
         expect(tester.getSize(reconnect).height, greaterThanOrEqualTo(44));
       }
       await tester.tap(reconnect);
-      await tester.tap(reconnect);
+      // Exercise a late callback after transfer without targeting a stale
+      // render tree before the next frame installs the successor pane.
+      staleReconnect!();
       await _settle(tester);
       final reconnectedState = container.read(sessionControllerProvider);
       final next = reconnectedState.activeSessionId!;
@@ -819,11 +1688,8 @@ void main() {
     (tester) async {
       final backend = _MobileBackend()..owner = 'ready';
       final (:id, :container) = await _pump(tester, backend);
-      await tester.enterText(
-        find.byKey(const Key('composer-editor')),
-        'command draft',
-      );
-      await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+      await tester.enterText(_commandEditor(tester), 'command draft');
+      await _showWorkspace(tester, id);
       await _settle(tester);
       await tester.enterText(find.byKey(const Key('ai-prompt')), 'task draft');
       backend.owner = 'draft';
@@ -864,13 +1730,10 @@ void main() {
       await tester.tap(find.byKey(Key('terminal-mode-blocks-$id')));
       await _settle(tester);
       expect(_mode(container).mode, TerminalViewMode.blocks);
-      expect(find.byType(TerminalAiWorkspace), findsNothing);
+      expect(find.byType(TerminalAiWorkspace), findsOneWidget);
       expect(
-        tester
-            .widget<TextField>(find.byKey(const Key('composer-editor')))
-            .controller!
-            .text,
-        'command draft',
+        tester.widget<TextField>(_commandEditor(tester)).controller!.text,
+        'task draft',
       );
       expect(backend.writes, isEmpty);
       expect(backend.submissions, isEmpty);
@@ -888,11 +1751,8 @@ void main() {
       ..lineCount = 800;
     final (:id, :container) = await _pump(tester, backend);
     expect(_mode(container).mode, TerminalViewMode.blocks);
-    await tester.enterText(
-      find.byKey(const Key('composer-editor')),
-      'keep command draft',
-    );
-    await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+    await tester.enterText(_commandEditor(tester), 'keep command draft');
+    await _showWorkspace(tester, id);
     await _settle(tester);
     await tester.enterText(find.byKey(const Key('ai-prompt')), 'keep AI draft');
     final ai = tester
@@ -900,7 +1760,7 @@ void main() {
         .controller;
     expect(ai.context?.sessionId, id);
     final taskId = ai.taskId;
-    await tester.tap(find.byKey(const Key('ai-close')));
+    await observeAiTerminal(tester);
     await _settle(tester);
     await _expectReadOnlyObservation(tester, backend);
     expect(ai.taskId, taskId);
@@ -913,12 +1773,18 @@ void main() {
     expect(find.byKey(const Key('ai-observer-viewport')), findsNothing);
     expect(ai.taskId, taskId);
     expect(ai.draft, 'keep AI draft');
+    await _choose(tester, id, TerminalViewMode.blocks);
     await tester.tap(
-      find.byKey(const ValueKey('block-expand-1')).hitTestable(),
+      find
+          .byKey(const ValueKey('block-expand-1'))
+          .hitTestable()
+          .last
+          .hitTestable()
+          .last,
     );
     await _settle(tester);
     expect(tester.testTextInput.isVisible, false);
-    expect(find.byKey(const Key('composer-editor')), findsNothing);
+    expect(_commandEditor(tester), findsNothing);
     expect(find.byKey(const Key('ai-prompt')), findsNothing);
     final reader = find.byKey(const Key('block-reader-scroll'));
     await tester.dragFrom(
@@ -988,7 +1854,11 @@ void main() {
     expect(backend.writes, isEmpty);
     await _capture(tester, 'M04-return-to-task');
     await tester.tap(
-      find.byKey(const ValueKey('block-expand-1')).hitTestable(),
+      find
+          .byKey(const ValueKey('block-expand-1'))
+          .hitTestable()
+          .last
+          .hitTestable(),
     );
     await _settle(tester);
     expect(
@@ -1013,8 +1883,9 @@ void main() {
     );
     container.read(terminalRuntimeControllerProvider).refreshSession(id);
     await _settle(tester);
-    await tester.ensureVisible(find.byKey(const Key('ai-reconnect-terminal')));
-    await tester.tap(find.byKey(const Key('ai-reconnect-terminal')));
+    final reconnect = find.byKey(const Key('ai-mobile-primary-reconnect'));
+    await tester.ensureVisible(reconnect);
+    await tester.tap(reconnect);
     await _settle(tester);
     final nextId = container.read(sessionControllerProvider).activeSessionId!;
     expect(nextId, isNot(id));
@@ -1040,7 +1911,7 @@ void main() {
     expect(ai.attachments.single.sourceSessionId, id);
     expect(ai.attachments.single.output, attached.output);
     expect(backend.submissions, isEmpty);
-    await tester.tap(find.byKey(const Key('ai-close')));
+    await observeAiTerminal(tester);
     await _settle(tester);
     await _expectReadOnlyObservation(tester, backend);
     expect(ai.taskId, taskId);
@@ -1049,14 +1920,16 @@ void main() {
       find.byKey(const Key('ai-observer-take-over')).hitTestable(),
     );
     await _settle(tester);
+    await _showWorkspace(
+      tester,
+      container.read(sessionControllerProvider).activeSessionId!,
+    );
     expect(
       tester
-          .widget<TextField>(
-            find.byKey(const Key('composer-editor')).hitTestable(),
-          )
+          .widget<TextField>(_commandEditor(tester).hitTestable())
           .controller!
           .text,
-      'keep command draft',
+      'keep AI draft',
     );
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
@@ -1092,10 +1965,7 @@ void main() {
         size: scene.size,
         brightness: scene.brightness,
       );
-      await tester.enterText(
-        find.byKey(const Key('composer-editor')),
-        'retained before TUI',
-      );
+      await tester.enterText(_commandEditor(tester), 'retained before TUI');
       backend.owner = 'running';
       backend.alternateScreen = true;
       backend.setFrame(id, {
@@ -1118,7 +1988,7 @@ void main() {
       );
       final fullSize = tester.getSize(viewport);
       final fullGrid = List<int>.of(backend.resizeCalls.last);
-      await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+      await _showWorkspace(tester, id);
       await _settle(tester);
       expect(tester.getSize(viewport), fullSize);
       expect(backend.resizeCalls.last, fullGrid);
@@ -1126,7 +1996,7 @@ void main() {
         find.byKey(const Key('mobile-show-keyboard')).hitTestable(),
         findsNothing,
       );
-      await tester.tap(find.byKey(const Key('ai-close')));
+      await observeAiTerminal(tester);
       await _settle(tester);
       await _expectReadOnlyObservation(tester, backend);
       expect(tester.getSize(viewport), fullSize);
@@ -1146,7 +2016,7 @@ void main() {
         orderedEquals([3]),
       ]);
       backend.writes.clear();
-      await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+      await _showWorkspace(tester, id);
       await _settle(tester);
       expect(tester.getSize(viewport), keyboardSize);
       expect(backend.resizeCalls.last, keyboardGrid);
@@ -1166,7 +2036,15 @@ void main() {
             .draft,
         'explain this TUI',
       );
-      expect(find.text('终端程序：vim notes.txt'), findsOneWidget);
+      expect(
+        tester
+            .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
+            .controller
+            .context!
+            .runningCommand,
+        'vim notes.txt',
+      );
+      expect(find.byKey(const Key('ai-task-status')), findsOneWidget);
       expect(backend.writes, isEmpty);
       final prompt = find.byKey(const Key('ai-prompt'));
       final promptFocus = tester.widget<TextField>(prompt).focusNode!;
@@ -1178,7 +2056,16 @@ void main() {
       tester.view.viewInsets = FakeViewPadding.zero;
       await _settle(tester);
       expect(tester.getSize(viewport), fullSize);
-      expect(promptFocus.hasFocus, isTrue);
+      expect(promptFocus.hasFocus, isFalse);
+      expect(
+        tester.getSize(find.byKey(const Key('ai-mobile-composer'))).height,
+        lessThanOrEqualTo(56),
+      );
+      expect(
+        tester.widget<TextField>(prompt).controller!.selection,
+        promptSelection,
+      );
+      await tester.showKeyboard(prompt);
       tester.view.viewInsets = FakeViewPadding(bottom: scene.keyboard);
       await _settle(tester);
       expect(tester.getSize(viewport), keyboardSize);
@@ -1191,27 +2078,20 @@ void main() {
         tester.widget<TextField>(prompt).controller!.text,
         'explain this TUI',
       );
-      for (final key in ['ai-close', 'ai-send']) {
+      for (final key in ['ai-mobile-task-menu', 'ai-send']) {
         final button = find.byKey(Key(key));
         expect(button.hitTestable(), findsOneWidget);
         expect(tester.getSize(button).height, greaterThanOrEqualTo(44));
       }
+      await openAiMobileTaskMenu(tester);
       final newTask = find.byKey(const Key('ai-new-task'));
-      if (newTask.hitTestable().evaluate().isEmpty) {
-        await tester.tap(find.byKey(const Key('ai-task-actions')));
-        await _settle(tester);
-        expect(newTask.hitTestable(), findsOneWidget);
-        expect(tester.getSize(newTask).height, greaterThanOrEqualTo(44));
-        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-        await _settle(tester);
-      } else {
-        expect(tester.getSize(newTask).height, greaterThanOrEqualTo(44));
-      }
+      expect(newTask.hitTestable(), findsOneWidget);
+      expect(tester.getSize(newTask).height, greaterThanOrEqualTo(44));
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await _settle(tester);
       expect(tester.takeException(), isNull);
       await _capture(tester, 'M06-${scene.name}-ai-keyboard');
-      await tester.tap(find.byKey(const Key('ai-task-actions')));
-      await _settle(tester);
-      await tester.tap(find.byKey(const Key('ai-hide-keyboard')));
+      await tester.tap(find.byKey(const Key('ai-dismiss-keyboard')));
       await _settle(tester);
       expect(promptFocus.hasFocus, isFalse);
       expect(find.byType(TerminalAiWorkspace), findsOneWidget);
@@ -1269,7 +2149,7 @@ void main() {
       expect(ai.draft, 'explain this TUI');
       expect(backend.writes, isEmpty);
       // Only the explicit takeover control returns raw keyboard ownership.
-      await tester.tap(find.byKey(const Key('ai-close')));
+      await observeAiTerminal(tester);
       await _settle(tester);
       await _expectReadOnlyObservation(tester, backend);
       expect(ai.phase, phase);
@@ -1300,11 +2180,8 @@ void main() {
       await _capture(tester, 'M06-${scene.name}-manual-restoration');
       await _choose(tester, id, TerminalViewMode.blocks);
       expect(
-        tester
-            .widget<TextField>(find.byKey(const Key('composer-editor')))
-            .controller!
-            .text,
-        'retained before TUI',
+        tester.widget<TextField>(_commandEditor(tester)).controller!.text,
+        'explain this TUI',
       );
       expect(backend.writes, isEmpty);
       expect(backend.submissions, isEmpty);
@@ -1318,11 +2195,8 @@ void main() {
     (tester) async {
       final backend = _MobileBackend()..owner = 'ready';
       final (:id, :container) = await _pump(tester, backend);
-      await tester.enterText(
-        find.byKey(const Key('composer-editor')),
-        'command draft',
-      );
-      await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+      await tester.enterText(_commandEditor(tester), 'command draft');
+      await _showWorkspace(tester, id);
       await _settle(tester);
       await tester.enterText(find.byKey(const Key('ai-prompt')), 'task draft');
       final ai = tester
@@ -1340,12 +2214,12 @@ void main() {
       expect(_mode(container).mode, TerminalViewMode.normal);
       expect(ai.draft, 'task draft');
       expect(find.byType(TerminalAiWorkspace), findsNothing);
-      await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+      await _showWorkspace(tester, id);
       await _settle(tester);
       await _choose(tester, id, TerminalViewMode.blocks);
       expect(_mode(container).mode, TerminalViewMode.blocks);
-      expect(find.byType(TerminalAiWorkspace), findsNothing);
-      await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+      expect(find.byType(TerminalAiWorkspace), findsOneWidget);
+      await _showWorkspace(tester, id);
       await _settle(tester);
       backend.owner = 'draft';
       backend.enqueueEvent(
@@ -1382,17 +2256,12 @@ void main() {
       expect(_mode(container).mode, TerminalViewMode.blocks);
       expect(ai.draft, 'task draft');
       expect(ai.transcript, isEmpty);
-      expect(find.byType(TerminalAiWorkspace), findsNothing);
-      await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
-      await _settle(tester);
-      await tester.tap(find.byKey(const Key('ai-close')));
+      expect(find.byType(TerminalAiWorkspace), findsOneWidget);
+      await _showWorkspace(tester, id);
       await _settle(tester);
       expect(
-        tester
-            .widget<TextField>(find.byKey(const Key('composer-editor')))
-            .controller!
-            .text,
-        'command draft',
+        tester.widget<TextField>(_commandEditor(tester)).controller!.text,
+        'task draft',
       );
       expect(backend.writes, isEmpty);
       expect(backend.submissions, isEmpty);
@@ -1437,19 +2306,17 @@ void main() {
         await _settle(tester);
         expect(_mode(container).mode, TerminalViewMode.normal);
         await _choose(tester, id, TerminalViewMode.blocks);
-        await tester.enterText(
-          find.byKey(const Key('composer-editor')),
-          'echo 移动端',
-        );
+        await tester.enterText(_commandEditor(tester), 'echo 移动端');
         expect(backend.writes, isEmpty);
         await _choose(tester, id, TerminalViewMode.normal);
         await _choose(tester, id, TerminalViewMode.blocks);
-        final editor = tester.widget<TextField>(
-          find.byKey(const Key('composer-editor')),
-        );
+        final editor = tester.widget<TextField>(_commandEditor(tester));
         expect(editor.controller!.text, 'echo 移动端');
+        await tester.tap(_commandEditor(tester));
         expect(editor.focusNode!.hasFocus, isTrue);
-        await tester.tap(find.byKey(const Key('composer-primary-action')));
+        await tester.tap(
+          find.byKey(Key(_isPhone ? 'ai-send' : 'composer-primary-action')),
+        );
         await _settle(tester);
         expect(backend.submissions, ['echo 移动端']);
         expect(backend.writes, isEmpty);
@@ -1466,10 +2333,7 @@ void main() {
     final backend = _MobileBackend()..owner = 'ready';
     final (:container, :id) = await _pump(tester, backend);
     expect(_mode(container).mode, TerminalViewMode.blocks);
-    await tester.enterText(
-      find.byKey(const Key('composer-editor')),
-      'saved draft',
-    );
+    await tester.enterText(_commandEditor(tester), 'saved draft');
     backend.owner = 'draft';
     backend.enqueueEvent(
       id,
@@ -1510,7 +2374,9 @@ void main() {
     expect(_mode(container).notice, TerminalModeNotice.blocksRestored);
     await tester.tap(find.byKey(Key('terminal-mode-blocks-$id')));
     await _settle(tester);
+    await _showWorkspace(tester, id);
     backend.owner = 'running';
+    backend.alternateScreen = true;
     backend.setFrame(id, {
       'rows': [
         {'index': 0, 'text': 'top — process list'},
@@ -1527,6 +2393,17 @@ void main() {
     );
     expect(find.byType(TerminalComposerView), findsNothing);
     expect(find.byType(TerminalCommandBlocksView), findsNothing);
+    if (find
+        .byKey(const Key('ai-observer-viewport'))
+        .hitTestable()
+        .evaluate()
+        .isEmpty) {
+      await observeAiTerminal(tester);
+      await _settle(tester);
+    }
+    await _expectReadOnlyObservation(tester, backend);
+    await tester.tap(find.byKey(const Key('ai-observer-take-over')));
+    await _settle(tester);
     expect(
       tester
           .widget<TerminalViewport>(find.byType(TerminalViewport))
@@ -1540,15 +2417,13 @@ void main() {
       'viewport_cols': 80,
     });
     backend.owner = 'ready';
+    backend.alternateScreen = false;
     await _settle(tester);
     expect(_mode(container).mode, TerminalViewMode.normal);
     expect(_mode(container).canUseBlocks, isTrue);
     await _choose(tester, id, TerminalViewMode.blocks);
     expect(
-      tester
-          .widget<TextField>(find.byKey(const Key('composer-editor')))
-          .controller!
-          .text,
+      tester.widget<TextField>(_commandEditor(tester)).controller!.text,
       'saved draft',
     );
     expect(tester.takeException(), isNull);
@@ -1675,13 +2550,15 @@ void main() {
       );
       expect(_mode(container).mode, TerminalViewMode.blocks);
       if (scene.name == 'phone') {
-        expect(find.text('末尾 6 / 12 行 · 查看全部'), findsOneWidget);
+        expect(find.text('末尾 6 / 12 行 · 查看全部').hitTestable(), findsOneWidget);
         await _capture(tester, 'ios-block');
         expect(
           find.byKey(const ValueKey('block-output-scroll-1')),
           findsNothing,
         );
-        await tester.tap(find.byKey(const ValueKey('block-expand-1')));
+        await tester.tap(
+          find.byKey(const ValueKey('block-expand-1')).hitTestable().last,
+        );
         await _settle(tester);
         expect(find.byKey(const Key('block-reader-scroll')), findsOneWidget);
         final readerBack = find.byKey(const Key('block-reader-close'));
@@ -1694,15 +2571,12 @@ void main() {
         await tester.tap(find.byKey(const Key('block-reader-close')));
         await _settle(tester);
       }
-      await tester.enterText(
-        find.byKey(const Key('composer-editor')),
-        'echo 移动端',
-      );
+      await tester.enterText(_commandEditor(tester), 'echo 移动端');
       tester.view.viewInsets = FakeViewPadding(bottom: scene.keyboard);
       await _settle(tester);
       expect(find.byKey(const Key('ios-terminal-input-bar')), findsNothing);
       expect(tester.takeException(), isNull);
-      final run = find.byKey(const Key('composer-primary-action'));
+      final run = find.byKey(const Key('ai-send'));
       await tester.ensureVisible(run);
       await _settle(tester);
       expect(run.hitTestable(), findsOneWidget);
@@ -1711,7 +2585,11 @@ void main() {
         tester.getBottomRight(run).dy,
         lessThanOrEqualTo(scene.size.height - scene.keyboard),
       );
-      final surface = tester.getRect(find.byKey(const Key('composer-surface')));
+      final surface = tester.getRect(
+        scene.name == 'ipad'
+            ? _commandEditor(tester)
+            : find.byKey(const Key('ai-mobile-composer')),
+      );
       expect(surface.top, greaterThanOrEqualTo(0));
       expect(
         surface.bottom,
@@ -1720,9 +2598,10 @@ void main() {
       );
       if (scene.name.startsWith('landscape')) {
         final editable = find.descendant(
-          of: find.byKey(const Key('composer-editor')),
+          of: _commandEditor(tester),
           matching: find.byType(EditableText),
         );
+        await _capture(tester, 'unified-${scene.name}');
         expect(
           tester.getRect(editable).center.dy,
           closeTo(tester.getRect(run).center.dy, 2),
@@ -1731,11 +2610,15 @@ void main() {
       }
       if (scene.name.startsWith('landscape') || scene.name == 'ipad') {
         expect(
-          find.byKey(const ValueKey('block-expand-1')).hitTestable(),
+          find
+              .byKey(const ValueKey('block-expand-1'))
+              .hitTestable()
+              .last
+              .hitTestable(),
           findsOneWidget,
           reason: 'Full output remains reachable with the keyboard open.',
         );
-        expect(find.text('末尾 6 / 12 行 · 查看全部'), findsOneWidget);
+        expect(find.text('末尾 6 / 12 行 · 查看全部').hitTestable(), findsOneWidget);
       }
       await _capture(tester, 'ios-${scene.name}-keyboard');
       if (scene.name == 'ipad') {
@@ -1748,24 +2631,25 @@ void main() {
       if (scene.name == 'phone') {
         backend.owner = 'running';
         await _settle(tester);
-        expect(find.byKey(const Key('ios-terminal-input-bar')), findsOneWidget);
-        await tester.tap(find.byKey(const Key('ios-terminal-key-Control C')));
-        expect(backend.writes, contains(orderedEquals([3])));
-        backend.writes.clear();
+        expect(
+          find.byKey(const Key('ios-terminal-input-bar')).hitTestable(),
+          findsNothing,
+        );
         backend.owner = 'ready';
         await _settle(tester);
-        expect(find.byKey(const Key('ios-terminal-input-bar')), findsNothing);
-        await tester.tap(find.byKey(const Key('composer-dismiss-keyboard')));
-        tester.view.viewInsets = FakeViewPadding.zero;
-        await _settle(tester);
-        await tester.tap(find.byKey(const Key('mobile-show-keyboard')));
-        await _settle(tester);
+      }
+      tester.testTextInput.hide();
+      FocusManager.instance.primaryFocus?.unfocus();
+      tester.view.viewInsets = FakeViewPadding.zero;
+      await _settle(tester);
+      if (scene.name != 'ipad') {
         expect(
-          tester
-              .widget<TextField>(find.byKey(const Key('composer-editor')))
-              .focusNode!
-              .hasFocus,
-          isTrue,
+          tester.getSize(find.byKey(const Key('ai-mobile-composer'))).height,
+          lessThanOrEqualTo(56),
+        );
+        expect(
+          tester.widget<TextField>(_commandEditor(tester)).controller!.text,
+          'echo 移动端',
         );
       }
       expect(backend.writes, isEmpty);

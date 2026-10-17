@@ -1,5 +1,6 @@
 __iv_valid() {
   command -v od >/dev/null && command -v tr >/dev/null || return 1
+  declare -F ianvs_set_user_var >/dev/null &&
   declare -F __ianvs_emit_shell_hook >/dev/null &&
   declare -F __ianvs_json_escape >/dev/null &&
   declare -F __ianvs_run_original_prompt_command >/dev/null &&

@@ -1088,116 +1088,123 @@ class _ShortcutCaptureDialogState extends State<_ShortcutCaptureDialog> {
       title: Text(context.l10n.recordShortcut),
       content: SizedBox(
         width: 420,
-        child: Focus(
-          key: const Key('shortcut-capture-focus'),
-          autofocus: true,
-          onKeyEvent: _handleKeyEvent,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                widget.actionLabel,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: theme.textPrimary,
-                  fontWeight: FontWeight.w700,
+        child: SingleChildScrollView(
+          child: Focus(
+            key: const Key('shortcut-capture-focus'),
+            autofocus: true,
+            onKeyEvent: _handleKeyEvent,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  widget.actionLabel,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: theme.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
-              SizedBox(height: theme.spacing.md),
-              Semantics(
-                label: context.l10n.activeWhen,
-                container: true,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      context.l10n.activeWhen,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
-                    ),
-                    SizedBox(height: theme.spacing.xs),
-                    AppDropdownFormField<TerminalKeyBindingScope>(
-                      key: const Key('shortcut-capture-scope'),
-                      initialValue: _scope,
-                      decoration: const InputDecoration(isDense: true),
-                      items: [
-                        for (final scope in editableTerminalShortcutScopes)
-                          DropdownMenuItem(
-                            value: scope,
-                            child: Text(
-                              LocalTerminalShortcutFormatter.scopeLabel(
-                                context.l10n,
-                                scope,
-                              ),
-                            ),
-                          ),
-                      ],
-                      onChanged: (scope) {
-                        if (scope == null) return;
-                        setState(() {
-                          _scope = scope;
-                          if (_candidate != null) {
-                            _candidate = _bindingWithScope(_candidate!, scope);
-                          }
-                        });
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(height: theme.spacing.lg),
-              Semantics(
-                liveRegion: true,
-                label: _candidate == null
-                    ? context.l10n.waitingForShortcut
-                    : context.l10n.recordedShortcut(
-                        LocalTerminalShortcutFormatter.bindingLabel(
-                          _candidate!,
-                        ),
-                      ),
-                child: AppPanel(
-                  tone: _error == null
-                      ? AppPanelTone.selected
-                      : AppPanelTone.danger,
-                  padding: EdgeInsets.all(theme.spacing.xl),
+                SizedBox(height: theme.spacing.md),
+                Semantics(
+                  label: context.l10n.activeWhen,
+                  container: true,
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Icon(
-                        Icons.keyboard_rounded,
-                        color: _error == null ? theme.accent : theme.danger,
-                      ),
-                      SizedBox(height: theme.spacing.sm),
                       Text(
-                        _candidate == null
-                            ? context.l10n.pressShortcut
-                            : LocalTerminalShortcutFormatter.bindingLabel(
-                                _candidate!,
-                              ),
-                        key: const Key('shortcut-capture-value'),
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: theme.textPrimary,
-                          fontWeight: FontWeight.w700,
+                        context.l10n.activeWhen,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: theme.textSubtle,
                         ),
                       ),
                       SizedBox(height: theme.spacing.xs),
-                      Text(
-                        _error ?? context.l10n.shortcutCaptureHelp,
-                        key: _error == null
-                            ? null
-                            : const Key('shortcut-capture-error'),
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: _error == null
-                              ? theme.textSubtle
-                              : theme.danger,
-                        ),
+                      AppDropdownFormField<TerminalKeyBindingScope>(
+                        key: const Key('shortcut-capture-scope'),
+                        initialValue: _scope,
+                        decoration: const InputDecoration(isDense: true),
+                        items: [
+                          for (final scope in editableTerminalShortcutScopes)
+                            DropdownMenuItem(
+                              value: scope,
+                              child: Text(
+                                LocalTerminalShortcutFormatter.scopeLabel(
+                                  context.l10n,
+                                  scope,
+                                ),
+                              ),
+                            ),
+                        ],
+                        onChanged: (scope) {
+                          if (scope == null) return;
+                          setState(() {
+                            _scope = scope;
+                            if (_candidate != null) {
+                              _candidate = _bindingWithScope(
+                                _candidate!,
+                                scope,
+                              );
+                            }
+                          });
+                        },
                       ),
                     ],
                   ),
                 ),
-              ),
-            ],
+                SizedBox(height: theme.spacing.lg),
+                Semantics(
+                  liveRegion: true,
+                  label: _candidate == null
+                      ? context.l10n.waitingForShortcut
+                      : context.l10n.recordedShortcut(
+                          LocalTerminalShortcutFormatter.bindingLabel(
+                            _candidate!,
+                          ),
+                        ),
+                  child: AppPanel(
+                    tone: _error == null
+                        ? AppPanelTone.selected
+                        : AppPanelTone.danger,
+                    padding: EdgeInsets.all(theme.spacing.xl),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.keyboard_rounded,
+                          color: _error == null ? theme.accent : theme.danger,
+                        ),
+                        SizedBox(height: theme.spacing.sm),
+                        Text(
+                          _candidate == null
+                              ? context.l10n.pressShortcut
+                              : LocalTerminalShortcutFormatter.bindingLabel(
+                                  _candidate!,
+                                ),
+                          key: const Key('shortcut-capture-value'),
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                color: theme.textPrimary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                        SizedBox(height: theme.spacing.xs),
+                        Text(
+                          _error ?? context.l10n.shortcutCaptureHelp,
+                          key: _error == null
+                              ? null
+                              : const Key('shortcut-capture-error'),
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: _error == null
+                                    ? theme.textSubtle
+                                    : theme.danger,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

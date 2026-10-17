@@ -96,8 +96,15 @@ class _Fixture {
   late ProviderContainer container;
   late TerminalProfile profile;
 
-  Future<void> mount(WidgetTester tester, {bool keepAiOpen = false}) async {
-    const size = Size(390, 844);
+  Future<void> mount(
+    WidgetTester tester, {
+    bool keepAiOpen = false,
+    bool normalDefault = false,
+    TargetPlatform platform = TargetPlatform.iOS,
+  }) async {
+    final size = platform == TargetPlatform.macOS
+        ? const Size(1200, 800)
+        : const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = size;
     await tester.binding.setSurfaceSize(size);
@@ -120,7 +127,7 @@ class _Fixture {
     );
     await tester.pumpApp(
       const ShellScreen(),
-      platform: TargetPlatform.iOS,
+      platform: platform,
       wrapper: (app) => ProviderScope(
         overrides: [
           aiSettingsProvider.overrideWithValue(settings),
@@ -135,10 +142,12 @@ class _Fixture {
           ),
           localTerminalConfigRepositoryProvider.overrideWithValue(
             MemoryLocalTerminalConfigRepository(
-              const LocalTerminalConfigDocument(
+              LocalTerminalConfigDocument(
                 defaultProfileId: 'fixture',
                 appearance: TerminalAppAppearance(
-                  preferredTerminalMode: TerminalViewMode.blocks,
+                  preferredTerminalMode: normalDefault
+                      ? TerminalViewMode.normal
+                      : TerminalViewMode.blocks,
                 ),
               ),
             ),
@@ -167,7 +176,9 @@ class _Fixture {
     final state = container.read(sessionControllerProvider);
     expect(state.activeSessionId, isNotNull, reason: state.lastError);
     sessionId = state.activeSessionId!;
-    await tester.tap(find.byKey(Key('terminal-ai-open-$sessionId')));
+    if (find.byType(TerminalAiWorkspace).evaluate().isEmpty) {
+      await tester.tap(find.byKey(Key('terminal-ai-open-$sessionId')));
+    }
     await _settle(tester);
     final workspace = tester.widget<TerminalAiWorkspace>(
       find.byType(TerminalAiWorkspace),
@@ -257,6 +268,8 @@ class _ModelResponse extends Stream<List<int>> implements HttpClientResponse {
   @override
   int get statusCode => 200;
   @override
+  HttpHeaders get headers => _ModelHeaders()..contentType = ContentType.json;
+  @override
   StreamSubscription<List<int>> listen(
     void Function(List<int>)? onData, {
     Function? onError,
@@ -331,16 +344,16 @@ void main() {
           await HttpOverrides.runZoned(
             () async {
               final fixture = _Fixture();
-              await fixture.mount(tester, keepAiOpen: true);
               fixture.store.result.complete(
                 const AiConfiguration.mock(approvalMode: AiApprovalMode.smart),
               );
+              await fixture.mount(tester, keepAiOpen: true);
               await _settle(tester);
               final turn = fixture.ai.ask('Inspect the current directory');
               await _settle(tester);
               expect(
                 fixture.ai.phase,
-                waitingFor == 'model' ? AiPhase.thinking : AiPhase.reviewing,
+                waitingFor == 'model' ? AiPhase.connecting : AiPhase.reviewing,
               );
 
               if (destination == 'connections home') {
@@ -353,7 +366,14 @@ void main() {
                     .createSession(fixture.profile);
               }
               await _settle(tester);
-              expect(find.byType(TerminalAiWorkspace), findsNothing);
+              expect(
+                find.byWidgetPredicate(
+                  (widget) =>
+                      widget is TerminalAiWorkspace &&
+                      identical(widget.controller, fixture.ai),
+                ),
+                findsNothing,
+              );
               tester.binding.handleAppLifecycleStateChanged(
                 AppLifecycleState.inactive,
               );
@@ -399,8 +419,8 @@ void main() {
         await HttpOverrides.runZoned(
           () async {
             final fixture = _Fixture();
-            await fixture.mount(tester, keepAiOpen: true);
             fixture.store.result.complete(const AiConfiguration.mock());
+            await fixture.mount(tester, keepAiOpen: true);
             await _settle(tester);
             final firstTurn = fixture.ai.ask('Inspect the first directory');
             await _settle(tester);
@@ -411,7 +431,9 @@ void main() {
                 .read(sessionControllerProvider.notifier)
                 .createSession(fixture.profile)!;
             await _settle(tester);
-            await tester.tap(find.byKey(Key('terminal-ai-open-$secondId')));
+            if (find.byType(TerminalAiWorkspace).evaluate().isEmpty) {
+              await tester.tap(find.byKey(Key('terminal-ai-open-$secondId')));
+            }
             await _settle(tester);
             final second = tester
                 .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
@@ -486,8 +508,8 @@ void main() {
       await HttpOverrides.runZoned(
         () async {
           final fixture = _Fixture();
-          await fixture.mount(tester);
           fixture.store.result.complete(const AiConfiguration.mock());
+          await fixture.mount(tester, normalDefault: true);
           await _settle(tester);
           final secondId = fixture.container
               .read(sessionControllerProvider.notifier)
@@ -525,11 +547,14 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.iOS),
   );
 
+  // Deferred settings submissions are desktop-only now: mobile gates the
+  // entire workspace until LLM settings have loaded. Mobile gating is covered
+  // by mobile_llm_availability_test and mobile_terminal_modes_test.
   testWidgets(
     'Composer send freezes draft and sources before settings load',
     (tester) async {
       final fixture = _Fixture();
-      await fixture.mount(tester);
+      await fixture.mount(tester, platform: TargetPlatform.macOS);
       final original = fixture.source('original');
       final later = fixture.source('later');
       fixture.ai.attachContext(original);
@@ -549,14 +574,14 @@ void main() {
       expect(fixture.ai.attachments, [later]);
       expect(fixture.backend.writes, isEmpty);
     },
-    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
   testWidgets(
     'Composer send cannot cross a task switch while loading settings',
     (tester) async {
       final fixture = _Fixture();
-      await fixture.mount(tester);
+      await fixture.mount(tester, platform: TargetPlatform.macOS);
       final originalTask = fixture.ai.taskId;
       fixture.sendFromComposer(tester, 'Original task request');
       fixture.ai.newTask();
@@ -572,14 +597,14 @@ void main() {
       expect(fixture.ai.draft, 'Original task request');
       expect(fixture.backend.writes, isEmpty);
     },
-    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
   testWidgets(
     'taking over and reopening AI does not revive an old Composer send',
     (tester) async {
       final fixture = _Fixture();
-      await fixture.mount(tester);
+      await fixture.mount(tester, platform: TargetPlatform.macOS);
       fixture.sendFromComposer(tester, 'Canceled request');
       await _settle(tester);
       tester
@@ -597,14 +622,14 @@ void main() {
       expect(fixture.ai.draft, 'Canceled request');
       expect(fixture.backend.writes, isEmpty);
     },
-    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
   testWidgets(
     'missing configuration opens settings and saving does not send',
     (tester) async {
       final fixture = _Fixture();
-      await fixture.mount(tester);
+      await fixture.mount(tester, platform: TargetPlatform.macOS);
       final original = fixture.source('original');
       fixture.ai.attachContext(original);
       fixture.sendFromComposer(tester, 'Retain this unsent request');
@@ -634,14 +659,14 @@ void main() {
       expect(fixture.ai.attachments, [original]);
       expect(fixture.backend.writes, isEmpty);
     },
-    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
   testWidgets(
     'late missing settings do not open over a different task',
     (tester) async {
       final fixture = _Fixture();
-      await fixture.mount(tester);
+      await fixture.mount(tester, platform: TargetPlatform.macOS);
       fixture.sendFromComposer(tester, 'Old task request');
       fixture.ai.newTask();
       fixture.ai.setDraft('Current task draft');
@@ -653,7 +678,7 @@ void main() {
       expect(fixture.ai.draft, 'Current task draft');
       expect(fixture.backend.writes, isEmpty);
     },
-    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
   test(

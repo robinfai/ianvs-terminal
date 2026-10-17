@@ -90,7 +90,12 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         isActiveRecordingBusy: isActiveRecordingBusy,
         modeSelection:
             context.usesTouchControlDensity && activeSessionIdBeforeOpen != null
-            ? _MobileTerminalModes(sessionId: activeSessionIdBeforeOpen)
+            ? _MobileTerminalModes(
+                sessionId: activeSessionIdBeforeOpen,
+                hasUnifiedWorkspace: () =>
+                    _mobileRequiresLlm &&
+                    _openAiSessions.contains(activeSessionIdBeforeOpen),
+              )
             : null,
       );
     }
@@ -147,6 +152,9 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         showDragHandle: true,
         builder: (_) => _MobileSessionMenu(
           sessionId: activeSessionIdBeforeOpen,
+          hasUnifiedWorkspace: () =>
+              _mobileRequiresLlm &&
+              _openAiSessions.contains(activeSessionIdBeforeOpen),
           readOnly: isActiveSessionReadOnly,
           canReopen: sessionController.canReopenClosedTab,
         ),
@@ -185,7 +193,10 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
     }
     if (selection == _TerminalModeMenuAction.recheck) {
       if (activeSessionIdBeforeOpen != null) {
-        _recheckTerminalSupport(activeSessionIdBeforeOpen);
+        _refreshTerminalSupport(
+          activeSessionIdBeforeOpen,
+          recheckSupport: true,
+        );
       }
       return;
     }
@@ -986,6 +997,9 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
       );
     }
 
+    if (!context.usesMobileNavigation) {
+      _refreshTerminalSupport(targetSessionId);
+    }
     final action = await showMenu<Object>(
       context: context,
       popUpAnimationStyle: appDialogAnimation(context),
@@ -996,7 +1010,12 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
       items: [
         if (!context.usesMobileNavigation) ...[
           for (final mode in TerminalViewMode.values)
-            TerminalModeMenuEntry(sessionId: targetSessionId, value: mode),
+            TerminalModeMenuEntry(
+              sessionId: targetSessionId,
+              value: mode,
+              hasUnifiedWorkspace: () =>
+                  _openAiSessions.contains(targetSessionId),
+            ),
           TerminalModeMenuEntry(
             sessionId: targetSessionId,
             value: _TerminalModeMenuAction.recheck,
@@ -1099,7 +1118,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
       if (currentTab?.sessionId != tab.sessionId) return;
     }
     if (action == _TerminalModeMenuAction.recheck) {
-      _recheckTerminalSupport(targetSessionId);
+      _refreshTerminalSupport(targetSessionId, recheckSupport: true);
       return;
     }
     if (action is TerminalViewMode) {
@@ -1128,25 +1147,36 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
     session.updateEnvironment(pane, readOnly: _isSessionReadOnly(sessionId));
     if (!session.selectMode(mode)) return;
     _activateSession(sessionController, sessionId, requestFocus: false);
+    if (mode == TerminalViewMode.blocks) {
+      _openAi(sessionId);
+      return;
+    }
     // A manual terminal choice also leaves the AI workspace that covers it.
     // Keep its task/draft, revoke pending agent input, then focus the chosen view.
     _takeOverAiInput(sessionId);
   }
 
-  void _recheckTerminalSupport(String sessionId) {
-    final session = _composerSessions[sessionId];
+  void _refreshTerminalSupport(
+    String sessionId, {
+    bool recheckSupport = false,
+  }) {
     final pane = _paneForSession(
       ref.read(sessionControllerProvider),
       sessionId,
     );
-    if (session == null ||
-        pane == null ||
-        pane.isExited ||
-        _isSessionReadOnly(sessionId)) {
-      return;
+    if (pane == null) return;
+    final wasInitialized = _composerSessions.containsKey(sessionId);
+    final session = _composerFor(sessionId);
+    final readOnly = _isSessionReadOnly(sessionId);
+    session.updateEnvironment(pane, readOnly: readOnly);
+    if (pane.isExited || readOnly) return;
+    if (!wasInitialized) {
+      // Restored/background tabs may never have mounted a ComposerPane.
+      // Observe their handshake without activating the tab or granting input.
+      // Keep polling so an open menu also sees a delayed shell becoming ready.
+      session.setVisible(false);
     }
-    session.updateEnvironment(pane, readOnly: false);
-    session.refreshShellState(recheckSupport: true);
+    session.refreshShellState(recheckSupport: recheckSupport);
   }
 
   Future<void> _runTabContextAction(

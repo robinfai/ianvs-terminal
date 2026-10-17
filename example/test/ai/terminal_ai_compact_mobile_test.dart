@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_terminal/input_intent.dart';
 
 import '../helpers/pump_app.dart';
 import 'terminal_ai_test.dart'
@@ -27,8 +28,11 @@ class _Terminal extends FakeTerminal implements AiSubmissionInspector {
   }
 
   @override
-  Future<Map<String, Object?>> execute(AiAction action,
-      AiTerminalContext expected, AiCancellation cancellation) async {
+  Future<Map<String, Object?>> execute(
+    AiAction action,
+    AiTerminalContext expected,
+    AiCancellation cancellation,
+  ) async {
     if (!unknown) return super.execute(action, expected, cancellation);
     cancellation.check();
     writes.add(action);
@@ -59,8 +63,13 @@ void main() {
     settings = AiSettingsController(MemoryAiStore());
     await settings.loaded;
     terminal = _Terminal();
-    api = FakeApi()..respond = (_) async => const AiReply(text: 'Read-only answer.');
-    controller = TerminalAiController(settings: settings, terminal: terminal, api: api);
+    api = FakeApi()
+      ..respond = (_) async => const AiReply(text: 'Read-only answer.');
+    controller = TerminalAiController(
+      settings: settings,
+      terminal: terminal,
+      api: api,
+    );
     await controller.refreshContext();
     observations = 0;
     takeovers = 0;
@@ -73,11 +82,13 @@ void main() {
     settings.dispose();
   });
 
-  Future<void> mount(WidgetTester tester, {
+  Future<void> mount(
+    WidgetTester tester, {
     Size size = const Size(390, 844),
     Brightness brightness = Brightness.dark,
     TargetPlatform platform = TargetPlatform.iOS,
     bool active = true,
+    Locale locale = const Locale('zh'),
   }) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = size;
@@ -104,7 +115,7 @@ void main() {
       ),
       platform: platform,
       brightness: brightness,
-      locale: const Locale('zh'),
+      locale: locale,
     );
     await tester.pumpAndSettle();
     addTearDown(() => tester.pumpWidget(const SizedBox.shrink()));
@@ -115,9 +126,50 @@ void main() {
   FilledButton send(WidgetTester tester) =>
       tester.widget<FilledButton>(find.byKey(const Key('ai-send')));
 
+  // A smaller visual send surface must retain its hit target, while longer
+  // localized intent labels must not grow the collapsed composer.
+  for (final locale in [const Locale('zh'), const Locale('en')]) {
+    for (final intent in InputIntentChoice.values) {
+      testWidgets('compact controls retain touch area $locale $intent', (
+        tester,
+      ) async {
+        await mount(tester, size: const Size(320, 844), locale: locale);
+        controller.chooseInputIntent(intent);
+        await tester.enterText(find.byKey(const Key('ai-prompt')), '中文草稿\n第二行');
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('ai-dismiss-keyboard')));
+        await tester.pumpAndSettle();
+        expect(
+          tester.getSize(find.byKey(const Key('ai-mobile-composer'))).height,
+          lessThanOrEqualTo(56),
+        );
+        for (final key in ['ai-send', 'ai-expand-draft', 'ai-input-intent']) {
+          final size = tester.getSize(find.byKey(ValueKey(key)));
+          expect(size.width, greaterThanOrEqualTo(44), reason: key);
+          expect(size.height, greaterThanOrEqualTo(44), reason: key);
+        }
+        // Exercise the outer hit area, beyond the smaller filled circle.
+        final target = tester.getRect(find.byKey(const Key('ai-send')));
+        expect(send(tester).onPressed, isNotNull);
+        await tester.runAsync(() async {
+          await tester.tapAt(Offset(target.left + 1, target.center.dy));
+        });
+        await tester.pumpAndSettle();
+        if (intent == InputIntentChoice.command) {
+          expect(terminal.writes, hasLength(1));
+        } else {
+          expect(api.requests, hasLength(1));
+        }
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
+
   for (final width in [320.0, 375.0, 390.0, 430.0]) {
     for (final brightness in Brightness.values) {
-      testWidgets('empty reading composer $width $brightness is compact', (tester) async {
+      testWidgets('empty reading composer $width $brightness is compact', (
+        tester,
+      ) async {
         await mount(tester, size: Size(width, 844), brightness: brightness);
         final composer = find.byKey(const Key('ai-mobile-composer'));
         expect(tester.getSize(composer).height, lessThanOrEqualTo(56));
@@ -132,7 +184,78 @@ void main() {
     }
   }
 
-  testWidgets('focus/draft/rotation retain the editing value and controller', (tester) async {
+  for (final brightness in Brightness.values) {
+    for (final size in [
+      const Size(320, 844),
+      const Size(402, 874),
+      const Size(874, 260),
+    ]) {
+      testWidgets('dismissed multiline draft stays compact $size $brightness', (
+        tester,
+      ) async {
+        await mount(tester, size: size, brightness: brightness);
+        final prompt = find.byKey(const Key('ai-prompt'));
+        await tester.showKeyboard(prompt);
+        final input = field(tester).controller!;
+        const value = TextEditingValue(
+          text: '中文\n第二行，路径 /srv/应用 🧭',
+          selection: TextSelection(baseOffset: 0, extentOffset: 2),
+        );
+        input.value = value;
+        await tester.pump();
+        await tester.tap(find.byKey(const Key('ai-dismiss-keyboard')));
+        await tester.pumpAndSettle();
+        expect(field(tester).focusNode!.hasFocus, isFalse);
+        expect(
+          tester.getSize(find.byKey(const Key('ai-mobile-composer'))).height,
+          lessThanOrEqualTo(56),
+        );
+        expect(field(tester).controller, same(input));
+        expect(input.value, value);
+        expect(field(tester).maxLines, 1);
+        expect(find.byKey(const Key('ai-expand-draft')), findsOneWidget);
+        await tester.tap(prompt);
+        await tester.pump();
+        expect(field(tester).controller, same(input));
+        expect(input.text, value.text);
+        expect(field(tester).maxLines, size.height < 320 ? 1 : 4);
+        expect(api.requests, isEmpty);
+        expect(terminal.writes, isEmpty);
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
+
+  testWidgets('system keyboard dismissal returns a draft to reading mode', (
+    tester,
+  ) async {
+    await mount(tester);
+    await tester.showKeyboard(find.byKey(const Key('ai-prompt')));
+    tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+    await tester.pump();
+    final input = field(tester).controller!;
+    const value = TextEditingValue(
+      text: '中文\n第二行',
+      selection: TextSelection(baseOffset: 0, extentOffset: 2),
+    );
+    input.value = value;
+    await tester.pump();
+    expect(field(tester).focusNode!.hasFocus, isTrue);
+    tester.view.viewInsets = FakeViewPadding.zero;
+    await tester.pumpAndSettle();
+    expect(field(tester).focusNode!.hasFocus, isFalse);
+    expect(input.value, value);
+    expect(
+      tester.getSize(find.byKey(const Key('ai-mobile-composer'))).height,
+      lessThanOrEqualTo(56),
+    );
+    expect(api.requests, isEmpty);
+    expect(terminal.writes, isEmpty);
+  });
+
+  testWidgets('focus/draft/rotation retain the editing value and controller', (
+    tester,
+  ) async {
     await mount(tester);
     final original = field(tester).controller!;
     await tester.tap(find.byKey(const Key('ai-prompt')));
@@ -177,11 +300,16 @@ void main() {
     expect(send(tester).onPressed, isNull);
   });
 
-  testWidgets('offline drafts do not infer; recovery lives in the task strip', (tester) async {
+  testWidgets('offline drafts do not infer; recovery lives in the task strip', (
+    tester,
+  ) async {
     terminal.unavailable = true;
     await controller.refreshContext();
     await mount(tester);
-    expect(find.byKey(const Key('ai-mobile-primary-reconnect')), findsOneWidget);
+    expect(
+      find.byKey(const Key('ai-mobile-primary-reconnect')),
+      findsOneWidget,
+    );
     expect(find.byKey(const Key('ai-terminal-settings')), findsNothing);
     expect(find.byKey(const Key('ai-terminal-error')), findsNothing);
     await tester.enterText(find.byKey(const Key('ai-prompt')), '保留断线草稿');
@@ -195,64 +323,82 @@ void main() {
     await tester.tap(find.byKey(const Key('ai-mobile-recovery-details')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('ai-mobile-details')), findsOneWidget);
-    expect(find.byKey(const Key('ai-mobile-detail-ssh-settings')), findsOneWidget);
+    expect(
+      find.byKey(const Key('ai-mobile-detail-ssh-settings')),
+      findsOneWidget,
+    );
     expect(find.byKey(const Key('ai-terminal-error')), findsOneWidget);
     expect(api.requests, isEmpty);
     expect(terminal.writes, isEmpty);
   });
 
-  testWidgets('reconnect is single-flight and never submits the retained draft', (tester) async {
-    terminal.unavailable = true;
-    await controller.refreshContext();
-    controller.setDraft('连接恢复后也不要自动发送');
-    reconnectGate = Completer<void>();
-    await mount(tester);
-    final button = find.byKey(const Key('ai-mobile-primary-reconnect'));
-    final press = tester.widget<TextButton>(button).onPressed!;
-    press();
-    press(); // A stale callback is guarded too, not merely a disabled button.
-    await tester.pump();
-    expect(reconnects, 1);
-    expect(tester.widget<TextButton>(button).onPressed, isNull);
-    reconnectGate!.complete();
-    await tester.pumpAndSettle();
-    expect(controller.draft, '连接恢复后也不要自动发送');
-    expect(api.requests, isEmpty);
-    expect(terminal.writes, isEmpty);
-  });
+  testWidgets(
+    'reconnect is single-flight and never submits the retained draft',
+    (tester) async {
+      terminal.unavailable = true;
+      await controller.refreshContext();
+      controller.setDraft('连接恢复后也不要自动发送');
+      reconnectGate = Completer<void>();
+      await mount(tester);
+      final button = find.byKey(const Key('ai-mobile-primary-reconnect'));
+      final press = tester.widget<TextButton>(button).onPressed!;
+      press();
+      press(); // A stale callback is guarded too, not merely a disabled button.
+      await tester.pump();
+      expect(reconnects, 1);
+      expect(tester.widget<TextButton>(button).onPressed, isNull);
+      reconnectGate!.complete();
+      await tester.pumpAndSettle();
+      expect(controller.draft, '连接恢复后也不要自动发送');
+      expect(api.requests, isEmpty);
+      expect(terminal.writes, isEmpty);
+    },
+  );
 
-  testWidgets('unknown receipt takes priority over reconnect and only saves supplements', (tester) async {
-    terminal.unknown = true;
-    api.respond = (_) async => commandReply('pwd');
-    await controller.ask('Inspect the working directory');
-    await controller.approve(revision: controller.proposalRevision);
-    expect(controller.hasUnresolvedSubmission, isTrue);
-    terminal.unavailable = true;
-    await controller.refreshContext();
-    final calls = api.requests.length;
-    final writes = terminal.writes.length;
-    await mount(tester);
-    expect(find.byKey(const Key('ai-mobile-primary-check')), findsOneWidget);
-    expect(find.byKey(const Key('ai-mobile-primary-reconnect')), findsNothing);
-    await tester.enterText(find.byKey(const Key('ai-prompt')), '稍后解释原结果');
-    await tester.pump();
-    expect(find.text('仅暂存要求，不会发送或执行'), findsOneWidget);
-    expect(send(tester).onPressed, isNotNull);
-    await tester.tap(find.byKey(const Key('ai-send')));
-    await tester.pumpAndSettle();
-    expect(api.requests.length, calls);
-    expect(terminal.writes.length, writes);
-    expect(controller.hasDeferredSupplement, isTrue);
-    expect(controller.hasUnresolvedSubmission, isTrue);
-  });
+  testWidgets(
+    'unknown receipt takes priority over reconnect and only saves supplements',
+    (tester) async {
+      terminal.unknown = true;
+      api.respond = (_) async => commandReply('pwd');
+      await tester.runAsync(() async {
+        await controller.ask('Inspect the working directory');
+        await controller.approve(revision: controller.proposalRevision);
+      });
+      expect(controller.hasUnresolvedSubmission, isTrue);
+      terminal.unavailable = true;
+      await controller.refreshContext();
+      final calls = api.requests.length;
+      final writes = terminal.writes.length;
+      await mount(tester);
+      expect(find.byKey(const Key('ai-mobile-primary-check')), findsOneWidget);
+      expect(
+        find.byKey(const Key('ai-mobile-primary-reconnect')),
+        findsNothing,
+      );
+      await tester.enterText(find.byKey(const Key('ai-prompt')), '稍后解释原结果');
+      await tester.pump();
+      expect(find.text('仅暂存要求，不会发送或执行'), findsOneWidget);
+      expect(send(tester).onPressed, isNotNull);
+      await tester.tap(find.byKey(const Key('ai-send')));
+      await tester.pumpAndSettle();
+      expect(api.requests.length, calls);
+      expect(terminal.writes.length, writes);
+      expect(controller.hasDeferredSupplement, isTrue);
+      expect(controller.hasUnresolvedSubmission, isTrue);
+    },
+  );
 
-  testWidgets('old detail choices cannot affect a different task', (tester) async {
+  testWidgets('old detail choices cannot affect a different task', (
+    tester,
+  ) async {
     terminal.unavailable = true;
     await controller.refreshContext();
     await mount(tester);
     await tester.tap(find.byKey(const Key('ai-mobile-recovery-details')));
     await tester.pumpAndSettle();
-    final tile = tester.widget<ListTile>(find.byKey(const Key('ai-mobile-detail-reconnect')));
+    final tile = tester.widget<ListTile>(
+      find.byKey(const Key('ai-mobile-detail-reconnect')),
+    );
     final oldTap = tile.onTap!;
     controller.newTask();
     await tester.pump();
@@ -263,12 +409,17 @@ void main() {
     expect(terminal.writes, isEmpty);
   });
 
-  testWidgets('old primary callback cannot reconnect a replacement task', (tester) async {
+  testWidgets('old primary callback cannot reconnect a replacement task', (
+    tester,
+  ) async {
     terminal.unavailable = true;
     await controller.refreshContext();
     await mount(tester);
-    final oldPress = tester.widget<TextButton>(
-        find.byKey(const Key('ai-mobile-primary-reconnect'))).onPressed!;
+    final oldPress = tester
+        .widget<TextButton>(
+          find.byKey(const Key('ai-mobile-primary-reconnect')),
+        )
+        .onPressed!;
     controller.newTask();
     await controller.refreshContext();
     await tester.pump();
@@ -292,8 +443,10 @@ void main() {
     expect(terminal.writes, isEmpty);
   });
 
-  testWidgets('pause copy does not claim a ready shell is still running', (tester) async {
-    await controller.ask('Explain only');
+  testWidgets('pause copy does not claim a ready shell is still running', (
+    tester,
+  ) async {
+    controller.phase = AiPhase.thinking;
     controller.takeOver();
     await mount(tester);
     final status = tester.widget<Text>(find.byKey(const Key('ai-task-status')));
@@ -301,29 +454,46 @@ void main() {
     expect(terminal.writes, isEmpty);
   });
 
-  testWidgets('desktop remains on its existing presentation even with host opt-in', (tester) async {
-    await mount(tester, platform: TargetPlatform.macOS, size: const Size(1000, 800));
-    expect(find.byKey(const Key('ai-mobile-composer')), findsNothing);
-    expect(find.byKey(const Key('ai-close')), findsOneWidget);
-    expect(find.byKey(const Key('ai-expand-draft')), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
+  testWidgets(
+    'desktop remains on its existing presentation even with host opt-in',
+    (tester) async {
+      await mount(
+        tester,
+        platform: TargetPlatform.macOS,
+        size: const Size(1000, 800),
+      );
+      expect(find.byKey(const Key('ai-mobile-composer')), findsNothing);
+      expect(find.byKey(const Key('ai-close')), findsOneWidget);
+      expect(find.byKey(const Key('ai-expand-draft')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
-  testWidgets('mobile inline code has no opaque background; fenced container remains', (tester) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(390, 844);
-    addTearDown(tester.view.reset);
-    await tester.pumpApp(const TerminalAiMessage(text: 'Use `pwd`.\n\n```sh\npwd\n```'),
-        platform: TargetPlatform.iOS);
-    final markdown = tester.widget<MarkdownBody>(find.byType(MarkdownBody));
-    expect(markdown.styleSheet!.code!.backgroundColor!.a, 0);
-    expect((markdown.styleSheet!.codeblockDecoration as BoxDecoration).color!.a, greaterThan(0));
-    expect(markdown.data, 'Use `pwd`.\n\n```sh\npwd\n```');
-    expect(find.byType(SelectionArea), findsOneWidget);
-  });
+  testWidgets(
+    'mobile inline code has no opaque background; fenced container remains',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(tester.view.reset);
+      await tester.pumpApp(
+        const TerminalAiMessage(text: 'Use `pwd`.\n\n```sh\npwd\n```'),
+        platform: TargetPlatform.iOS,
+      );
+      final markdown = tester.widget<MarkdownBody>(find.byType(MarkdownBody));
+      expect(markdown.styleSheet!.code!.backgroundColor!.a, 0);
+      expect(
+        (markdown.styleSheet!.codeblockDecoration! as BoxDecoration).color!.a,
+        greaterThan(0),
+      );
+      expect(markdown.data, 'Use `pwd`.\n\n```sh\npwd\n```');
+      expect(find.byType(SelectionArea), findsOneWidget);
+    },
+  );
 
   test('production host opts in to compact phone navigation', () {
-    final source = File('lib/features/shell/shell_screen_ai.dart').readAsStringSync();
+    final source = File(
+      'lib/features/shell/shell_screen_ai.dart',
+    ).readAsStringSync();
     expect(source, contains('compactMobile: paneContext.usesMobileNavigation'));
   });
 }

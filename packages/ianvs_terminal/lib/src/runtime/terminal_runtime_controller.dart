@@ -252,6 +252,8 @@ final class TerminalSessionShellHookEvent extends TerminalSessionEvent {
   String? get command => _stringValue(rawPayload['command']);
   String? get cwd => _stringValue(rawPayload['cwd'] ?? rawPayload['pwd']);
   String? get shell => _stringValue(rawPayload['shell']);
+  String? get integrationVersion =>
+      _stringValue(rawPayload['integration_version']);
   String? get hostname =>
       _stringValue(rawPayload['hostname'] ?? rawPayload['host']);
   String? get username =>

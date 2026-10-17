@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
+import '../../ui/components/app_configuration_field.dart';
 import '../../ui/components/app_dropdown_form_field.dart';
 import '../../ui/foundation/app_motion.dart';
 import 'acp/acp_installation.dart';
@@ -309,27 +310,28 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          AppDropdownFormField<AiBackendKind>(
-            isExpanded: true,
-            key: const Key('ai-backend'),
-            initialValue: _backend,
-            decoration: InputDecoration(
-              labelText: t('Connection type', '连接方式'),
-            ),
-            items: [
-              DropdownMenuItem(
-                value: AiBackendKind.llm,
-                child: Text(t('Model API', '模型 API')),
-              ),
-              if (_supportsLocalAcp)
-                const DropdownMenuItem(
-                  value: AiBackendKind.acp,
-                  child: Text('Codex ACP'),
+          AppConfigurationField(
+            label: t('Connection type', '连接方式'),
+            child: AppDropdownFormField<AiBackendKind>(
+              isExpanded: true,
+              key: const Key('ai-backend'),
+              initialValue: _backend,
+              decoration: const InputDecoration(),
+              items: [
+                DropdownMenuItem(
+                  value: AiBackendKind.llm,
+                  child: Text(t('Model API', '模型 API')),
                 ),
-            ],
-            onChanged: !_loaded || _busy || !_supportsLocalAcp
-                ? null
-                : _selectBackend,
+                if (_supportsLocalAcp)
+                  const DropdownMenuItem(
+                    value: AiBackendKind.acp,
+                    child: Text('Codex ACP'),
+                  ),
+              ],
+              onChanged: !_loaded || _busy || !_supportsLocalAcp
+                  ? null
+                  : _selectBackend,
+            ),
           ),
           const SizedBox(height: 16),
           if (_savedAcpUnsupported) ...[
@@ -352,6 +354,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
                     'Connect directly to an OpenAI-compatible endpoint. Configuration stays on this device.',
                     '直接连接 OpenAI 兼容端点。配置仅保存在本机。',
                   ),
+            style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 20),
           if (_backend == AiBackendKind.acp) ...[
@@ -382,116 +385,128 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
                 ),
               ),
             const SizedBox(height: 12),
-            TextField(
-              key: const Key('ai-agent-command'),
-              controller: _agentCommand,
-              enabled: _loaded && !_busy,
-              autocorrect: false,
-              onChanged: _edited,
-              decoration: InputDecoration(
-                labelText: t('Executable path', '可执行文件路径'),
+            AppConfigurationField(
+              label: t('Executable path', '可执行文件路径'),
+              child: TextField(
+                key: const Key('ai-agent-command'),
+                controller: _agentCommand,
+                enabled: _loaded && !_busy,
+                autocorrect: false,
+                onChanged: _edited,
+                decoration: const InputDecoration(),
               ),
             ),
             const SizedBox(height: 16),
-            TextField(
-              key: const Key('ai-agent-arguments'),
-              controller: _agentArguments,
-              enabled: _loaded && !_busy,
-              autocorrect: false,
-              onChanged: _edited,
-              decoration: InputDecoration(
-                labelText: t('Arguments (JSON array)', '启动参数（JSON 数组）'),
+            AppConfigurationField(
+              label: t('Arguments (JSON array)', '启动参数（JSON 数组）'),
+              child: TextField(
+                key: const Key('ai-agent-arguments'),
+                controller: _agentArguments,
+                enabled: _loaded && !_busy,
+                autocorrect: false,
+                onChanged: _edited,
+                decoration: const InputDecoration(),
               ),
             ),
             const SizedBox(height: 16),
           ] else ...[
-            TextField(
-              key: const Key('ai-endpoint'),
-              controller: _endpoint,
-              enabled: _loaded && !_busy,
-              autocorrect: false,
-              keyboardType: TextInputType.url,
-              onChanged: _edited,
-              decoration: const InputDecoration(
-                labelText: 'Endpoint',
-                hintText: 'https://api.example.com/v1',
+            AppConfigurationField(
+              label: 'Endpoint',
+              child: TextField(
+                key: const Key('ai-endpoint'),
+                controller: _endpoint,
+                enabled: _loaded && !_busy,
+                autocorrect: false,
+                keyboardType: TextInputType.url,
+                onChanged: _edited,
+                decoration: const InputDecoration(
+                  hintText: 'https://api.example.com/v1',
+                ),
               ),
             ),
             const SizedBox(height: 16),
-            TextField(
-              key: const Key('ai-api-key'),
-              controller: _key,
-              enabled: _loaded && !_busy,
-              obscureText: true,
-              autocorrect: false,
-              enableSuggestions: false,
-              onChanged: _edited,
-              decoration: const InputDecoration(labelText: 'API Key'),
+            AppConfigurationField(
+              label: 'API Key',
+              child: TextField(
+                key: const Key('ai-api-key'),
+                controller: _key,
+                enabled: _loaded && !_busy,
+                obscureText: true,
+                autocorrect: false,
+                enableSuggestions: false,
+                onChanged: _edited,
+                decoration: const InputDecoration(),
+              ),
             ),
           ],
           const SizedBox(height: 16),
-          TextField(
-            key: const Key('ai-model'),
-            controller: _model,
-            enabled: _loaded && !_busy,
-            autocorrect: false,
-            onChanged: _edited,
-            decoration: InputDecoration(labelText: t('Model', '模型')),
+          AppConfigurationField(
+            label: t('Model', '模型'),
+            child: TextField(
+              key: const Key('ai-model'),
+              controller: _model,
+              enabled: _loaded && !_busy,
+              autocorrect: false,
+              onChanged: _edited,
+              decoration: const InputDecoration(),
+            ),
           ),
           const SizedBox(height: 16),
-          AppDropdownFormField<AiApprovalMode>(
-            key: const Key('ai-approval-mode'),
-            initialValue: _approvalMode,
-            isExpanded: true,
-            decoration: InputDecoration(
-              labelText: t('Command approval', '命令审批'),
-            ),
-            items: [
-              DropdownMenuItem(
-                value: AiApprovalMode.smart,
-                child: Text(t('Smart review', '智能审核')),
-              ),
-              DropdownMenuItem(
-                value: AiApprovalMode.manual,
-                child: Text(t('Confirm every command', '每次确认')),
-              ),
-            ],
-            onChanged: !_loaded || _busy
-                ? null
-                : (value) {
-                    if (value != null) setState(() => _approvalMode = value);
-                  },
-          ),
-          if (_approvalMode == AiApprovalMode.smart) ...[
-            const SizedBox(height: 16),
-            AppDropdownFormField<AiApprovalSensitivity>(
-              key: const Key('ai-approval-sensitivity'),
-              initialValue: _approvalSensitivity,
+          AppConfigurationField(
+            label: t('Command approval', '命令审批'),
+            child: AppDropdownFormField<AiApprovalMode>(
+              key: const Key('ai-approval-mode'),
+              initialValue: _approvalMode,
               isExpanded: true,
-              decoration: InputDecoration(
-                labelText: t('Review sensitivity', '审核敏感性'),
-              ),
+              decoration: const InputDecoration(),
               items: [
                 DropdownMenuItem(
-                  value: AiApprovalSensitivity.cautious,
-                  child: Text(t('Cautious', '谨慎')),
+                  value: AiApprovalMode.smart,
+                  child: Text(t('Smart review', '智能审核')),
                 ),
                 DropdownMenuItem(
-                  value: AiApprovalSensitivity.balanced,
-                  child: Text(t('Standard', '标准')),
-                ),
-                DropdownMenuItem(
-                  value: AiApprovalSensitivity.relaxed,
-                  child: Text(t('Relaxed · confirm high risk', '宽松 · 高危确认')),
+                  value: AiApprovalMode.manual,
+                  child: Text(t('Confirm every command', '每次确认')),
                 ),
               ],
               onChanged: !_loaded || _busy
                   ? null
                   : (value) {
-                      if (value != null) {
-                        setState(() => _approvalSensitivity = value);
-                      }
+                      if (value != null) setState(() => _approvalMode = value);
                     },
+            ),
+          ),
+          if (_approvalMode == AiApprovalMode.smart) ...[
+            const SizedBox(height: 16),
+            AppConfigurationField(
+              label: t('Review sensitivity', '审核敏感性'),
+              child: AppDropdownFormField<AiApprovalSensitivity>(
+                key: const Key('ai-approval-sensitivity'),
+                initialValue: _approvalSensitivity,
+                isExpanded: true,
+                decoration: const InputDecoration(),
+                items: [
+                  DropdownMenuItem(
+                    value: AiApprovalSensitivity.cautious,
+                    child: Text(t('Cautious', '谨慎')),
+                  ),
+                  DropdownMenuItem(
+                    value: AiApprovalSensitivity.balanced,
+                    child: Text(t('Standard', '标准')),
+                  ),
+                  DropdownMenuItem(
+                    value: AiApprovalSensitivity.relaxed,
+                    child: Text(t('Relaxed · confirm high risk', '宽松 · 高危确认')),
+                  ),
+                ],
+                onChanged: !_loaded || _busy
+                    ? null
+                    : (value) {
+                        if (value != null) {
+                          setState(() => _approvalSensitivity = value);
+                        }
+                      },
+              ),
             ),
             const SizedBox(height: 8),
             Text(switch (_approvalSensitivity) {

@@ -2,6 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:app/app.dart';
+import 'package:app/features/ai/ai_settings.dart';
+import 'package:app/features/ai/terminal_ai_workspace.dart';
+import 'package:app/features/config/local_terminal_config_models.dart';
+import 'package:app/features/config/shortcut_editor.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/profiles/profile_editor.dart';
 import 'package:app/features/profiles/profile_models.dart';
@@ -20,10 +24,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
 import 'package:integration_test/integration_test.dart';
 
+import '../test/ai/terminal_ai_test.dart' show MemoryAiStore;
 import '../test/support/fake_pty_backend.dart';
 import '../test/support/memory_app_preferences_repository.dart';
+import '../test/support/memory_local_terminal_config_repository.dart';
 import '../test/support/memory_profile_repository.dart';
 import '../test/support/no_io_local_session_recording_repository.dart';
+import '../test/support/no_io_local_terminal_layout_repository.dart';
 
 class _IosMobileReviewPtyBackend extends FakePtyBackend
     implements PtyReplaySessionBackend, PtyReplaySessionConfigV1Backend {
@@ -71,6 +78,44 @@ class _IosMobileReviewPtyBackend extends FakePtyBackend
           ptyRuntimeFeatureSftpFileOperationsV1,
         ],
       });
+}
+
+class _BlockReviewBackend extends _IosMobileReviewPtyBackend {
+  final submissions = <String>[];
+  @override
+  String? requestSessionJson(String sessionId, String requestJson) {
+    final request = jsonDecode(requestJson) as Map<String, Object?>;
+    switch (request['kind']) {
+      case 'composer.state':
+        return jsonEncode({
+          'state': 'ready',
+          'lease': 'review-lease',
+          'contextId': 'root',
+          'transport': 'shell',
+          'cwd': '/srv/review',
+          'dialect': 'bash',
+          'commandNames': ['echo'],
+        });
+      case 'terminal.command_blocks':
+        return jsonEncode({'blocks': <Object>[]});
+      case 'terminal.live_screen':
+        return jsonEncode({'text': 'review shell', 'alternateScreen': false});
+      case 'composer.submit':
+        submissions.add(request['text']! as String);
+        return jsonEncode({'outcome': 'rejected'});
+      case 'completion.query':
+        final query = Map<String, Object?>.of(request)..remove('kind');
+        return jsonEncode({
+          'schemaVersion': 1,
+          'query': query,
+          'status': 'ok',
+          'items': <Object>[],
+        });
+      case 'completion.local_start':
+        return jsonEncode({'status': 'unsupported_context'});
+    }
+    return super.requestSessionJson(sessionId, requestJson);
+  }
 }
 
 class _ReviewRecordings extends LocalSessionRecordingRepository
@@ -197,7 +242,7 @@ Future<void> _waitForWidget(
   fail('Timed out waiting for $description.');
 }
 
-void main() {
+void main({bool unifiedOnly = false}) {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   Future<void> capture(WidgetTester tester, String name) async {
     await tester.pumpAndSettle();
@@ -213,6 +258,11 @@ void main() {
       'mobile-replay-toggle',
       'defaults-section-general',
       'defaults-mobile-back',
+      'ai-mobile-composer',
+      'composer-editor',
+      'composer-surface',
+      'blocks-toolbar',
+      'ai-mobile-task-strip',
     ]) {
       final finder = find.byKey(Key(key));
       if (finder.evaluate().length == 1) {
@@ -221,17 +271,66 @@ void main() {
       }
     }
     debugPrint(
-      'TRAIL_DENSITY_METRICS ${jsonEncode({'screen': name, 'metrics': metrics})}',
+      'TRAIL_DENSITY_METRICS ${jsonEncode({
+        'screen': name,
+        'metrics': metrics,
+        'physical_size': [tester.view.physicalSize.width, tester.view.physicalSize.height],
+        'dpr': tester.view.devicePixelRatio,
+        'keyboard_inset': tester.view.viewInsets.bottom / tester.view.devicePixelRatio,
+      })}',
     );
     await binding.takeScreenshot(name);
   }
 
   Future<void> tapKey(WidgetTester tester, String name) async {
-    final finder = find.byKey(Key(name));
+    final finder = name == 'ssh-more-settings-toggle'
+        ? find
+              .descendant(
+                of: find.byKey(Key(name)),
+                matching: find.byType(Text),
+              )
+              .first
+        : find.byKey(Key(name));
     await tester.ensureVisible(finder);
     await tester.pumpAndSettle();
     await tester.tap(finder);
     await tester.pumpAndSettle();
+  }
+
+  Future<void> captureIntentMenu(
+    WidgetTester tester,
+    String editorKey,
+    String buttonKey,
+    String name,
+  ) async {
+    await tapKey(tester, editorKey);
+    final field = tester.widget<TextField>(find.byKey(Key(editorKey)));
+    final draft = field.controller!.value;
+    await tapKey(tester, buttonKey);
+    expect(field.focusNode!.hasFocus, isTrue);
+    expect(find.byType(MenuItemButton), findsNWidgets(3));
+    await capture(tester, '29-$name-menu-editing');
+    field.focusNode!.unfocus();
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(find.byType(MenuItemButton), findsNWidgets(3));
+    final menu = tester.getRect(
+      find
+          .ancestor(
+            of: find.byType(MenuItemButton).first,
+            matching: find.byType(Material),
+          )
+          .first,
+    );
+    final anchor = tester.getRect(find.byKey(Key(buttonKey)));
+    expect((anchor.top - menu.bottom).abs(), lessThan(14));
+    expect(field.controller!.value, draft);
+    await capture(tester, '30-$name-menu-dismissed');
+    // Tapping the anchor again closes the menu without selecting an intent.
+    await tapKey(tester, buttonKey);
+    expect(find.byType(MenuItemButton), findsNothing);
+    expect(field.controller!.value, draft);
   }
 
   testWidgets('iPhone main flows render with the shared design system', (
@@ -455,7 +554,7 @@ void main() {
         binding.shouldPropagateDevicePointerEvents = previousPointers;
       }
     }
-  });
+  }, skip: unifiedOnly);
   testWidgets('iPhone profile configuration renders all sections', (
     tester,
   ) async {
@@ -488,5 +587,230 @@ void main() {
       await tester.pumpWidget(const SizedBox());
       await tester.pumpAndSettle();
     }
-  });
+  }, skip: unifiedOnly);
+  testWidgets('native shortcut capture fits the available viewport', (
+    tester,
+  ) async {
+    for (final brightness in Brightness.values) {
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: buildIanvsTerminalTheme(
+            brightness,
+            platform: TargetPlatform.iOS,
+          ),
+          home: Scaffold(
+            body: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: ShortcutEditorPanel(
+                  config: const LocalTerminalKeybindingsConfig(),
+                  expandList: true,
+                  onChanged: (_) {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('shortcut-editor-filter')),
+        'new tab',
+      );
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      await tapKey(tester, 'shortcut-edit-newTab');
+      await capture(tester, '21-shortcut-${brightness.name}');
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyN, platform: 'ios');
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.byKey(const Key('shortcut-capture-error')),
+      );
+      await capture(tester, '22-shortcut-error-${brightness.name}');
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpAndSettle();
+    }
+  }, skip: unifiedOnly);
+  testWidgets(
+    'native shell shares Block and AI input across appearance and orientation',
+    (tester) async {
+      for (final brightness in Brightness.values) {
+        for (final landscape in [false, true]) {
+          await SystemChrome.setPreferredOrientations([
+            if (landscape)
+              DeviceOrientation.landscapeLeft
+            else
+              DeviceOrientation.portraitUp,
+          ]);
+          final scene =
+              '${brightness.name}-${landscape ? 'landscape' : 'portrait'}';
+          final backend = _BlockReviewBackend();
+          final settings = AiSettingsController(MemoryAiStore());
+          await settings.loaded;
+          final profile = defaultTerminalProfile().copyWith(
+            id: 'native-block',
+            name: 'UI review',
+            connection: const terminal.TerminalConnectionConfig.ssh(
+              host: 'review.example.test',
+              user: 'review',
+            ),
+          );
+          await tester.pumpWidget(
+            ProviderScope(
+              overrides: [
+                aiSettingsProvider.overrideWithValue(settings),
+                ptySessionBackendProvider.overrideWithValue(backend),
+                profileRepositoryProvider.overrideWithValue(
+                  MemoryProfileRepository(
+                    TerminalProfilesDocument(profiles: [profile]),
+                  ),
+                ),
+                appPreferencesRepositoryProvider.overrideWithValue(
+                  MemoryAppPreferencesRepository(null),
+                ),
+                localTerminalConfigRepositoryProvider.overrideWithValue(
+                  MemoryLocalTerminalConfigRepository(
+                    const LocalTerminalConfigDocument(
+                      appearance: TerminalAppAppearance(
+                        preferredTerminalMode: TerminalViewMode.blocks,
+                      ),
+                    ),
+                  ),
+                ),
+                localTerminalLayoutRepositoryProvider.overrideWithValue(
+                  noIoLocalTerminalLayoutRepository(),
+                ),
+                localSessionRecordingRepositoryProvider.overrideWithValue(
+                  _ReviewRecordings(),
+                ),
+              ],
+              child: const IanvsTerminalApp(),
+            ),
+          );
+          await tester.pumpAndSettle();
+          final container = ProviderScope.containerOf(
+            tester.element(find.byType(ShellScreen)),
+          );
+          await container
+              .read(sessionControllerProvider.notifier)
+              .setThemeMode(
+                brightness == Brightness.dark
+                    ? TerminalThemeMode.dark
+                    : TerminalThemeMode.light,
+              );
+          container
+              .read(sessionControllerProvider.notifier)
+              .createSession(profile);
+          for (var i = 0; i < 12; i++) {
+            await tester.pump(const Duration(milliseconds: 100));
+          }
+          final id = container.read(sessionControllerProvider).activeSessionId!;
+          expect(
+            container
+                .read(sessionControllerProvider)
+                .tabs
+                .first
+                .activePane
+                .terminalMode
+                .mode,
+            TerminalViewMode.blocks,
+          );
+          expect(
+            find.byKey(const Key('ai-prompt')).hitTestable(),
+            findsOneWidget,
+          );
+          expect(
+            find.byKey(const Key('composer-editor')).hitTestable(),
+            findsNothing,
+          );
+          final ai = tester
+              .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
+              .controller;
+          final taskId = ai.taskId;
+          FocusManager.instance.primaryFocus?.unfocus();
+          for (var i = 0; i < 10; i++) {
+            await tester.pump(const Duration(milliseconds: 100));
+          }
+          final size = MediaQuery.sizeOf(
+            tester.element(find.byType(ShellScreen)),
+          );
+          expect(
+            size.width > size.height,
+            landscape,
+            reason: 'Native orientation $scene',
+          );
+          await capture(tester, 'unified-empty-$scene');
+          expect(
+            tester.getSize(find.byKey(const Key('ai-mobile-composer'))).height,
+            lessThanOrEqualTo(56),
+          );
+          await tester.enterText(
+            find.byKey(const Key('ai-prompt')),
+            'echo shared',
+          );
+          ai.chooseInputIntent(terminal.InputIntentChoice.command);
+          await capture(tester, 'unified-command-$scene');
+          ai.chooseInputIntent(terminal.InputIntentChoice.automatic);
+          await tapKey(tester, 'ai-expand-draft');
+          await tester.enterText(
+            find.byKey(const Key('composer-draft-editor')),
+            '中文草稿\n第二行',
+          );
+          await tapKey(tester, 'composer-draft-done');
+          FocusManager.instance.primaryFocus?.unfocus();
+          for (var i = 0; i < 10; i++) {
+            await tester.pump(const Duration(milliseconds: 100));
+          }
+          expect(ai.draft, '中文草稿\n第二行');
+          await captureIntentMenu(
+            tester,
+            'ai-prompt',
+            'ai-input-intent',
+            'unified-$scene',
+          );
+          await capture(tester, 'unified-collapsed-$scene');
+          expect(
+            tester.getSize(find.byKey(const Key('ai-mobile-composer'))).height,
+            lessThanOrEqualTo(56),
+          );
+          await tapKey(tester, 'terminal-ai-open-$id');
+          expect(
+            find.byKey(const Key('ai-observer-viewport')).hitTestable(),
+            findsOneWidget,
+          );
+          await tapKey(tester, 'ai-observer-back');
+          expect(
+            tester
+                .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
+                .controller,
+            same(ai),
+          );
+          expect(ai.taskId, taskId);
+          expect(ai.draft, '中文草稿\n第二行');
+          await tapKey(tester, 'shell-chrome-menu');
+          await tapKey(tester, 'terminal-mode-normal-$id');
+          expect(find.byType(TerminalAiWorkspace), findsNothing);
+          await tapKey(tester, 'shell-chrome-menu');
+          await tapKey(tester, 'terminal-mode-blocks-$id');
+          expect(
+            tester
+                .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
+                .controller,
+            same(ai),
+          );
+          expect(ai.draft, '中文草稿\n第二行');
+          expect(backend.submissions, isEmpty);
+          expect(backend.writes, isEmpty);
+          await tester.pumpWidget(const SizedBox());
+          await tester.pumpAndSettle();
+          settings.dispose();
+        }
+      }
+      await SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+      ]);
+    },
+  );
 }

@@ -1,0 +1,23 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading <repo>/example/test/startup/app_startup_host_test.dart
+00:00 +0: first install LLM can be configured or skipped: TargetPlatform.iOS false (variant: TargetPlatform.iOS)
+00:00 +1: first install LLM can be configured or skipped: TargetPlatform.iOS true (variant: TargetPlatform.iOS)
+00:00 +2: first install LLM can be configured or skipped: TargetPlatform.android false (variant: TargetPlatform.android)
+00:00 +3: first install LLM can be configured or skipped: TargetPlatform.android true (variant: TargetPlatform.android)
+00:01 +4: ancestor GlobalKey reparent keeps the Ready graph alive
+00:01 +5: shows loading before starting the asynchronous pipeline
+00:01 +6: macOS initial data setup can be skipped and is persisted (variant: TargetPlatform.macOS)
+00:01 +7: macOS initial setup can select the bundled local API (variant: TargetPlatform.macOS)
+00:01 +8: optional setup without local API keeps data locally (variant: TargetPlatform.macOS)
+00:01 +9: iPhone starts locally and exposes sync as an optional setup (variant: TargetPlatform.iOS)
+00:01 +10: iPhone landscape setup keeps credentials and actions usable with keyboard (variant: TargetPlatform.iOS)
+00:01 +11: required data setup blocks use until remote login succeeds (variant: TargetPlatform.iOS)
+00:01 +12: retry replaces the complete keyed ProviderScope graph
+00:01 +13: retry keeps the old ProviderScope mounted until graph shutdown settles
+00:01 +14: direct Ready Host unmount starts ordered shutdown before child disposal
+00:01 +15: remote recovery settings reconnect the same URL then retry (variant: TargetPlatform.macOS)
+00:01 +16: explicit Disabled recovery works when recovery load fails
+00:01 +17: stable shutdown channel survives keyed runtime graph replacement
+00:01 +18: loading state exposes the same bounded shutdown channel
+00:01 +19: native shutdown and dispose share the same runtime close completion
+00:01 +20: All tests passed!

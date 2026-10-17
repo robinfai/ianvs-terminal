@@ -571,7 +571,52 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
                   child: LayoutBuilder(
                     builder: (context, constraints) => Stack(
                       children: [
-                        if (_items.isEmpty)
+                        if (_items.isEmpty && _readerLayout)
+                          SingleChildScrollView(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                24,
+                                48,
+                                24,
+                                24,
+                              ),
+                              child: SizedBox(
+                                width: double.infinity,
+                                child: Column(
+                                  children: [
+                                    Text(
+                                      t(
+                                        'Run a command to start a block',
+                                        '执行命令后会显示命令块',
+                                      ),
+                                      textAlign: TextAlign.center,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodyLarge
+                                          ?.copyWith(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w500,
+                                            height: 1.45,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      t(
+                                        'View commands and their output here.',
+                                        '在这里查看命令与输出。',
+                                      ),
+                                      textAlign: TextAlign.center,
+                                      style: tokens.contextStyle.copyWith(
+                                        fontSize: 13,
+                                        height: 1.45,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          )
+                        else if (_items.isEmpty)
                           Center(
                             child: Text(
                               t(

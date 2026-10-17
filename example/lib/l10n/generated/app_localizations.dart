@@ -7679,13 +7679,13 @@ abstract class AppLocalizations {
   /// No description provided for @shellCapabilityVariables.
   ///
   /// In en, this message translates to:
-  /// **'Custom shell variables'**
+  /// **'Custom shell variables (optional)'**
   String get shellCapabilityVariables;
 
   /// No description provided for @shellCapabilityVariablesHelp.
   ///
   /// In en, this message translates to:
-  /// **'Accepts allowed IANVS_ variables for session metadata and configured queries.'**
+  /// **'Lets scripts store session information such as a project name and read it through permitted variable queries. IANVS_ is the name prefix; terminal and AI features work without these variables.'**
   String get shellCapabilityVariablesHelp;
 
   /// No description provided for @shellCapabilityPending.
@@ -8399,7 +8399,7 @@ abstract class AppLocalizations {
   /// No description provided for @terminalModeBlocks.
   ///
   /// In en, this message translates to:
-  /// **'Command Blocks'**
+  /// **'Block + AI'**
   String get terminalModeBlocks;
 
   /// Read the current session capability without reconnecting or changing display mode.
@@ -8453,7 +8453,7 @@ abstract class AppLocalizations {
   /// No description provided for @preferredTerminalModeHelp.
   ///
   /// In en, this message translates to:
-  /// **'New sessions only. Platform defaults: Blocks on phones, Normal on desktop. Blocks requires shell support; after support returns, switch back manually from the tab or session menu.'**
+  /// **'Applies to new sessions. On mobile, a configured LLM enables the unified Block + AI workspace by default, with one input for commands and AI; choose Normal to turn this default off. Without an LLM, only Normal is available. Desktop defaults to Normal. Blocks also requires shell support; switch back manually after capability is restored.'**
   String get preferredTerminalModeHelp;
 
   /// No description provided for @blockUnavailableChecking.
@@ -8677,6 +8677,66 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No active connections'**
   String get mobileSessionsNoActive;
+
+  /// No description provided for @blockUnavailableLlm.
+  ///
+  /// In en, this message translates to:
+  /// **'Configure an LLM in settings to use Block + AI on mobile.'**
+  String get blockUnavailableLlm;
+
+  /// No description provided for @mobileLlmWelcomeDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Use Trail as a regular terminal, or configure an LLM to use commands and AI in one Block + AI workspace. With an LLM, new mobile sessions default to this workspace; you can choose Normal in settings. Connection details stay on this device.'**
+  String get mobileLlmWelcomeDetail;
+
+  /// No description provided for @mobileConfigureLlm.
+  ///
+  /// In en, this message translates to:
+  /// **'Configure LLM'**
+  String get mobileConfigureLlm;
+
+  /// No description provided for @mobileLlmConfigured.
+  ///
+  /// In en, this message translates to:
+  /// **'LLM configured · Edit'**
+  String get mobileLlmConfigured;
+
+  /// No description provided for @mobileSkipLlm.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip · Use regular terminal'**
+  String get mobileSkipLlm;
+
+  /// No description provided for @shellCapabilityAwaitingEvent.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for an event'**
+  String get shellCapabilityAwaitingEvent;
+
+  /// No description provided for @shellCapabilityAwaitingEventHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'The current Shell provides this capability. It will be confirmed when valid data arrives.'**
+  String get shellCapabilityAwaitingEventHelp;
+
+  /// No description provided for @shellCapabilityNotProvided.
+  ///
+  /// In en, this message translates to:
+  /// **'Not provided'**
+  String get shellCapabilityNotProvided;
+
+  /// No description provided for @shellCapabilityNotProvidedHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'The current Shell integration does not provide this capability. Waiting will not enable it; a compatible integration can still supply it.'**
+  String get shellCapabilityNotProvidedHelp;
+
+  /// No description provided for @shellCapabilityProviderReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Implementation provided'**
+  String get shellCapabilityProviderReady;
 }
 
 class _AppLocalizationsDelegate

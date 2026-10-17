@@ -23,11 +23,14 @@ Sans SC supplies Chinese glyphs; JetBrains Mono also supplies shortcut symbols
 missing from Roboto and Noto Sans SC. The fixtures do not use the production
 terminal's system-font fallback chain. Production themes remain unchanged.
 
-The existing OS baselines contain 44 PNGs covering 42 capture tests. Composer
-adds three captures on macOS 27. Its three new baselines and six affected app
-surface/layout baselines still require a capture/review on macOS 26; that CI
-comparison is not yet accepted for this branch. Run all
-suites and the comparator contract tests with `flutter test test/design`.
+Both OS directories contain the current fixtures. The macOS 26 expectations
+were reviewed from CI run 38148482678 (macOS 26.6.2, Flutter 3.44.2): nine
+missing Composer captures, six shell/chrome captures, and five settings
+captures reflecting the preferred terminal mode control. The profile-menu
+capture differs only at the visible edge of that new section below the menu.
+No comparator tolerance was widened. See the [PR 12 repair record](../../../../docs/product/mobile-block-ai-v1/results/PR12_REPAIR_2026-10-12.md)
+for the artifact identity and validation. Run all suites and comparator contract tests
+with `flutter test test/design`.
 Use Flutter 3.44.2 (Dart 3.12.2) for these baselines; CI pins the same SDK and
 engine. The package's minimum supported SDK is a separate compatibility floor.
 CI runs visual comparisons before the longer repository gate and records the

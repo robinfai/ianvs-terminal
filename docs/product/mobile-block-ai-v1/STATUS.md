@@ -1,5 +1,11 @@
 # 移动端 Block × AI 实施状态
 
+## 2026-10-11 流式与退出修复
+
+基于 `composer@0abfacee` 完成 exit/viewport 竞态、56px 手机阅读态输入、真实 SSE 增量、请求状态和取消隔离修复，独立分支提交供 Draft PR 审阅。相关回归 1445 通过、12 项基线失败；两项 macOS 原生集成通过。原始截图、基线失败复核及手机补证要求见[本轮结果](results/STREAMING_EXIT_2026-10-11.md)。这不改变完整 PRD 尚未验收的状态。
+
+## 2026-10-09 记录
+
 核对日期 2026-10-09。最终手机实现 C3 `1a678e38f0b9b5765f468d339d564faa16a03f25` 已安装到 iPhone 17 / iOS 27.0.1，使用保存的 `cloud` 完成连接及真实 DeepSeek 只读诊断、全文审阅、明确审批、输出引用跳转。私钥由独立 PRD 的本设备密钥加密保存，临时明文已清空；更新后重连成功。旧 bash-preexec 误报成功的问题已修复，真机 Reader 核对 `/bin/false` 退出码 1。
 
 精确 clean C3 的完整 `make verify` 于 2026-10-09 03:14:37–03:28:31 UTC 通过（exit 0），开始/结束源码一致且干净，macOS integration 未跳过，覆盖重复 Debug/Release 严格签名和最终原生 Xcode tests；原始完整日志 SHA-256：`b95470c11556159f6bbedac10e9e085017b931aab706576584443ee52288de1b`。日志保留私有。

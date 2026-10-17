@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'ai_models.dart';
+import 'ai_response_stream.dart';
+
+export 'ai_response_stream.dart' show AiResponseStage, AiResponseUpdate;
 
 abstract interface class AiApi {
   Future<AiReply> complete(
@@ -12,9 +15,18 @@ abstract interface class AiApi {
   );
 }
 
+abstract interface class AiStreamingApi implements AiApi {
+  Future<AiReply> completeStreaming(
+    AiConfiguration configuration,
+    List<Map<String, Object?>> messages,
+    AiCancellation cancellation,
+    void Function(AiResponseUpdate) onUpdate,
+  );
+}
+
 /// OpenAI-compatible Chat Completions, including terminal tool calls.
 /// Each request owns its socket so takeover can cancel in-flight inference.
-class AiApiClient implements AiApi {
+class AiApiClient implements AiStreamingApi {
   const AiApiClient({
     this.timeout = const Duration(seconds: 45),
     this.reasoningEffort,
@@ -29,14 +41,29 @@ class AiApiClient implements AiApi {
     AiConfiguration configuration,
     List<Map<String, Object?>> messages,
     AiCancellation cancellation,
-  ) async {
+  ) => _complete(configuration, messages, cancellation);
+
+  @override
+  Future<AiReply> completeStreaming(
+    AiConfiguration configuration,
+    List<Map<String, Object?>> messages,
+    AiCancellation cancellation,
+    void Function(AiResponseUpdate) onUpdate,
+  ) => _complete(configuration, messages, cancellation, onUpdate: onUpdate);
+
+  Future<AiReply> _complete(
+    AiConfiguration configuration,
+    List<Map<String, Object?>> messages,
+    AiCancellation cancellation, {
+    void Function(AiResponseUpdate)? onUpdate,
+  }) async {
     cancellation.check();
     final uri = configuration.completionsUri;
     final client = HttpClient()..connectionTimeout = timeout;
     cancellation.onCancel(() => client.close(force: true));
     try {
-      return await (() async {
-        final request = await client.postUrl(uri);
+      final result = (() async {
+        final request = await client.postUrl(uri).timeout(timeout);
         request.followRedirects = false;
         request.headers.contentType = ContentType.json;
         request.headers.set(
@@ -52,7 +79,7 @@ class AiApiClient implements AiApi {
               'tool_choice': 'auto',
               'parallel_tool_calls': false,
             },
-            'stream': false,
+            'stream': onUpdate != null,
             if (reasoningEffort != null) 'reasoning_effort': reasoningEffort,
           }),
         );
@@ -60,7 +87,7 @@ class AiApiClient implements AiApi {
         // Count UTF-8 bytes, not Dart string units (prompts may contain CJK).
         request.contentLength = payload.length;
         request.add(payload);
-        final response = await request.close();
+        final response = await request.close().timeout(timeout);
         cancellation.check();
         if (response.statusCode < 200 || response.statusCode >= 300) {
           throw AiFailure(switch (response.statusCode) {
@@ -69,15 +96,35 @@ class AiApiClient implements AiApi {
             _ => 'http_${response.statusCode}',
           });
         }
-        final bytes = <int>[];
-        await for (final chunk in response) {
-          cancellation.check();
-          if (bytes.length + chunk.length > 1024 * 1024) {
-            throw const AiFailure('response_too_large');
-          }
-          bytes.addAll(chunk);
+        Map<String, Object?> data;
+        if (onUpdate != null) {
+          onUpdate(
+            const AiResponseUpdate(AiResponseStage.waitingForFirstToken),
+          );
         }
-        final data = jsonDecode(utf8.decode(bytes)) as Map<String, Object?>;
+        if (onUpdate != null &&
+            response.headers.contentType?.mimeType == 'text/event-stream') {
+          data = await readAiResponseStream(
+            response.timeout(timeout),
+            cancellation,
+            onUpdate,
+          );
+        } else {
+          // Compatibility for gateways returning a single JSON response. Never
+          // retry the request or simulate deltas for an already buffered reply.
+          data = await (() async {
+            final bytes = <int>[];
+            await for (final chunk in response) {
+              cancellation.check();
+              if (bytes.length + chunk.length > 1024 * 1024) {
+                throw const AiFailure('response_too_large');
+              }
+              bytes.addAll(chunk);
+            }
+            return jsonDecode(utf8.decode(bytes)) as Map<String, Object?>;
+          })().timeout(timeout);
+        }
+        cancellation.check();
         final choices = data['choices']! as List<Object?>;
         final choice = choices.first! as Map<String, Object?>;
         final message = choice['message']! as Map<String, Object?>;
@@ -126,7 +173,10 @@ class AiApiClient implements AiApi {
           requestId: data['id'] as String?,
           usage: (data['usage'] as Map?)?.cast<String, Object?>(),
         );
-      })().timeout(timeout);
+      })();
+      // Streaming has an inactivity timeout, not a whole-answer deadline.
+      // A long answer remains healthy while data continues to arrive.
+      return await (onUpdate == null ? result.timeout(timeout) : result);
     } on AiFailure {
       rethrow;
     } on TimeoutException {

@@ -8,6 +8,8 @@ import 'package:app/features/ai/ai_settings.dart';
 import 'package:app/features/ai/terminal_ai_connections.dart';
 import 'package:app/features/ai/terminal_ai_controller.dart';
 import 'package:app/features/ai/terminal_ai_workspace.dart';
+import 'package:app/features/config/local_terminal_config_models.dart';
+import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/recording/local_session_recording_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
@@ -33,7 +35,7 @@ import '../support/shell_command_actions.dart';
 
 class _Store implements AiConfigurationStore {
   @override
-  Future<AiConfiguration?> read() async => null;
+  Future<AiConfiguration?> read() async => const AiConfiguration.mock();
 
   @override
   Future<void> write(AiConfiguration? value) async {}
@@ -242,6 +244,7 @@ _pump(
   _Backend backend, {
   TargetPlatform platform = TargetPlatform.iOS,
   LocalSessionRecordingRepository? recordingRepository,
+  bool normalDefault = false,
 }) async {
   debugDefaultTargetPlatformOverride = platform;
   final size = platform == TargetPlatform.macOS
@@ -279,7 +282,15 @@ _pump(
           MemoryAppPreferencesRepository(null),
         ),
         localTerminalConfigRepositoryProvider.overrideWithValue(
-          MemoryLocalTerminalConfigRepository(null),
+          MemoryLocalTerminalConfigRepository(
+            normalDefault
+                ? const LocalTerminalConfigDocument(
+                    appearance: TerminalAppAppearance(
+                      preferredTerminalMode: TerminalViewMode.normal,
+                    ),
+                  )
+                : null,
+          ),
         ),
         pasteHistoryRepositoryProvider.overrideWithValue(
           MemoryPasteHistoryRepository(),
@@ -317,7 +328,9 @@ _pump(
 }
 
 Future<TerminalAiController> _openAi(WidgetTester tester, String id) async {
-  await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+  if (find.byType(TerminalAiWorkspace).evaluate().isEmpty) {
+    await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+  }
   await _settle(tester);
   return tester
       .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
@@ -479,28 +492,13 @@ void main() {
           id,
           next,
         });
-        ai.setDraft('new AI draft');
-        tester
-            .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
-            .onTakeOver!();
-        await _settle(tester);
-        await tester.enterText(
-          find.byKey(const Key('composer-editor')),
-          'new terminal draft',
-        );
+        ai.setDraft('new shared draft');
         await reconnect();
         await _settle(tester);
         expect(container.read(sessionControllerProvider).activeSessionId, next);
         expect(container.read(sessionControllerProvider).tabs, hasLength(2));
-        expect(find.byType(TerminalAiWorkspace), findsNothing);
-        expect(
-          tester
-              .widget<TextField>(find.byKey(const Key('composer-editor')))
-              .controller!
-              .text,
-          'new terminal draft',
-        );
-        expect(ai.draft, 'new AI draft');
+        expect(find.byType(TerminalAiWorkspace), findsOneWidget);
+        expect(ai.draft, 'new shared draft');
         expect(backend.submissions, isEmpty);
         expect(backend.writes, isEmpty);
         await tester.pumpWidget(const SizedBox.shrink());
@@ -526,15 +524,7 @@ void main() {
         final second = container
             .read(sessionControllerProvider)
             .activeSessionId!;
-        ai.setDraft('latest AI draft');
-        tester
-            .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
-            .onTakeOver!();
-        await _settle(tester);
-        await tester.enterText(
-          find.byKey(const Key('composer-editor')),
-          'latest terminal draft',
-        );
+        ai.setDraft('latest shared draft');
         await _disconnect(tester, backend, container, second);
         await _showDisconnected(tester);
         final reconnect = find.byKey(Key('mobile-session-reconnect-$id'));
@@ -547,17 +537,10 @@ void main() {
         expect(state.tabs, hasLength(3));
         expect(state.liveReconnectionFor(id), third);
         expect(state.liveReconnectionFor(second), third);
-        expect(find.byType(TerminalAiWorkspace), findsNothing);
-        expect(
-          tester
-              .widget<TextField>(find.byKey(const Key('composer-editor')))
-              .controller!
-              .text,
-          'latest terminal draft',
-        );
+        expect(find.byType(TerminalAiWorkspace), findsOneWidget);
         expect(await _openAi(tester, third), same(ai));
         expect(ai.taskId, task);
-        expect(ai.draft, 'latest AI draft');
+        expect(ai.draft, 'latest shared draft');
         expect(ai.attachments.single.sourceSessionId, id);
         expect((ai.terminal as TerminalAiConnections).sourceSessionIds, {
           id,
@@ -577,7 +560,11 @@ void main() {
         await tester.binding.setSurfaceSize(const Size(390, 844));
         addTearDown(() => tester.binding.setSurfaceSize(null));
         final backend = _Backend();
-        final (:container, :id, profile: _) = await _pump(tester, backend);
+        final (:container, :id, profile: _) = await _pump(
+          tester,
+          backend,
+          normalDefault: true,
+        );
         expect(find.byKey(Key('terminal-ai-open-$id')), findsOneWidget);
         await _disconnect(tester, backend, container, id);
         await tester.tap(find.byKey(Key('mobile-disconnected-reconnect-$id')));
@@ -617,7 +604,7 @@ void main() {
         await _settle(tester);
         final next = container.read(sessionControllerProvider).activeSessionId!;
         expect(next, isNot(original));
-        expect(find.byType(TerminalAiWorkspace), findsNothing);
+        expect(find.byType(TerminalAiWorkspace), findsOneWidget);
         final ai = await _openAi(tester, next);
         expect(ai.transcript, isEmpty);
         expect(ai.retainsSource(original), isFalse);

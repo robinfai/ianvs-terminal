@@ -376,6 +376,49 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
     );
   }
 
+  Widget _unavailableTerminalPane(
+    BuildContext context,
+    SessionController sessionController,
+    TerminalPane pane,
+    AppThemeTokens palette,
+    bool isActive,
+  ) {
+    // A task's text and recovery controls do not depend on a native viewport.
+    if (_openAiSessions.contains(pane.sessionId)) {
+      return _aiOverlay(
+        pane.sessionId,
+        palette,
+        targetLabel: pane.title,
+        paneContext: context,
+        active: isActive,
+      );
+    }
+    final chinese = Localizations.localeOf(context).languageCode == 'zh';
+    return Center(
+      key: Key('terminal-unavailable-${pane.sessionId}'),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(chinese ? '终端会话已不可用' : 'Terminal session unavailable'),
+            const SizedBox(height: 12),
+            TextButton(
+              key: Key('terminal-unavailable-ai-${pane.sessionId}'),
+              onPressed: () => _openAi(pane.sessionId),
+              child: Text(chinese ? '查看 AI 任务' : 'View AI task'),
+            ),
+            TextButton(
+              onPressed: () =>
+                  unawaited(sessionController.closeSession(pane.sessionId)),
+              child: Text(chinese ? '关闭会话' : 'Close session'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildTerminalPane({
     required BuildContext context,
     required SessionController sessionController,
@@ -390,7 +433,13 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
     final sessionId = pane.sessionId;
     final viewportController = sessionController.existingViewportFor(sessionId);
     if (viewportController == null) {
-      return const SizedBox.shrink();
+      return _unavailableTerminalPane(
+        context,
+        sessionController,
+        pane,
+        palette,
+        isActive,
+      );
     }
     final graphicsCache = sessionController.graphicsCacheFor(sessionId);
     final focusNode = _focusNodeFor(sessionId);
@@ -469,6 +518,14 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
       pane,
       readOnly: sessionReadOnly,
     );
+    if (isActive &&
+        !_mobileConnectionsOpen &&
+        composerSession?.enabled == true &&
+        !_openAiSessions.contains(sessionId)) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _ensureUnifiedWorkspace(sessionId),
+      );
+    }
     final annotations = _annotationsForSession(sessionId);
 
     final terminalViewportPadding = _terminalViewportPaddingFor(sessionState);
@@ -509,7 +566,13 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
           sessionController.existingViewportFor(sessionId),
           viewportController,
         )) {
-          return const SizedBox.shrink();
+          return _unavailableTerminalPane(
+            context,
+            sessionController,
+            pane,
+            palette,
+            isActive,
+          );
         }
         final dropTarget = _dropTargetForPane(sessionId);
         final compactDisconnected =
@@ -926,6 +989,10 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                                 'blocks-pane-$sessionId',
                                               ),
                                               session: composerSession,
+                                              presentationVisible:
+                                                  !_openAiSessions.contains(
+                                                    sessionId,
+                                                  ),
                                               viewport: viewportController,
                                               input: inputController,
                                               terminalFocus: focusNode,
@@ -1071,33 +1138,35 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                             ),
                           ),
                           if (composerSession != null)
-                            ConstrainedBox(
-                              constraints: BoxConstraints(
-                                maxHeight: context.usesTouchControlDensity
-                                    ? constraints.maxHeight * .65
-                                    : double.infinity,
-                              ),
-                              // The Composer uses the pane's actual height to
-                              // select its inline or scrollable short layout.
-                              // An outer scroll view would remove that bound.
-                              child: Actions(
-                                actions: {
-                                  EditableTextTapOutsideIntent:
-                                      _PaneComposerTapOutsideAction(),
-                                },
-                                child: ComposerPane(
-                                  key: ValueKey('composer-$sessionId'),
-                                  session: composerSession,
-                                  targetLabel: pane.title,
-                                  active:
-                                      isActive &&
-                                      !_manualInputBlocked(sessionId),
-                                  available: !pane.isExited && !sessionReadOnly,
-                                  onAskAi: (prompt) =>
-                                      _openAi(sessionId, prompt: prompt),
-                                  onOpenAi: () => _openAi(sessionId),
-                                  onTerminalFocus: focusNode.requestFocus,
-                                  terminalFocus: focusNode,
+                            Offstage(
+                              offstage: _openAiSessions.contains(sessionId),
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxHeight: constraints.maxHeight * .65,
+                                ),
+                                // The Composer uses the pane's actual height to
+                                // select its inline or scrollable short layout.
+                                // An outer scroll view would remove that bound.
+                                child: Actions(
+                                  actions: {
+                                    EditableTextTapOutsideIntent:
+                                        _PaneComposerTapOutsideAction(),
+                                  },
+                                  child: ComposerPane(
+                                    key: ValueKey('composer-$sessionId'),
+                                    session: composerSession,
+                                    targetLabel: pane.title,
+                                    active:
+                                        isActive &&
+                                        !_manualInputBlocked(sessionId),
+                                    available:
+                                        !pane.isExited && !sessionReadOnly,
+                                    onAskAi: (prompt) =>
+                                        _openAi(sessionId, prompt: prompt),
+                                    onOpenAi: () => _openAi(sessionId),
+                                    onTerminalFocus: focusNode.requestFocus,
+                                    terminalFocus: focusNode,
+                                  ),
                                 ),
                               ),
                             ),
@@ -1147,16 +1216,69 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                       timelineBuilder:
                           composerSession != null &&
                               (composerSession.enabled || pane.isExited) &&
-                              composerSession.blocks.available &&
                               !viewportController.frame.modes.alternateScreen &&
                               viewportController.frame.modes.mouseMode == 'off'
-                          ? (items, scroll, followTail) =>
-                                terminal.TerminalCommandBlocksView(
+                          ? (items, scroll, followTail) {
+                              Widget buildTimeline(
+                                List<terminal.CommandBlockTimelineItem> merged,
+                              ) {
+                                final action = _humanRunningAction(sessionId);
+                                final taskId = _aiFor(sessionId).taskId;
+                                final epoch = _manualInputEpoch(sessionId);
+                                final humanEpoch = _aiFor(
+                                  sessionId,
+                                ).humanInputEpoch;
+                                final live =
+                                    action != null &&
+                                    _humanBlockInputAllowed(
+                                      sessionId,
+                                      taskId,
+                                      action,
+                                      epoch,
+                                    );
+                                final commandInput = !live
+                                    ? null
+                                    : TerminalInputController(
+                                        sessionId: sessionId,
+                                        runtime: ref.read(
+                                          terminalRuntimeControllerProvider,
+                                        ),
+                                        readFrame: () =>
+                                            viewportController.frame,
+                                        emulation:
+                                            terminalConfig?.emulation ??
+                                            terminal.TerminalEmulation.xterm256,
+                                        readSelection: () => '',
+                                        copySelection: (text) =>
+                                            ClipboardBridge.copyWithFeedback(
+                                              context,
+                                              text,
+                                            ),
+                                        readClipboard: ClipboardBridge.paste,
+                                        readOnly: () =>
+                                            _aiFor(sessionId).humanInputEpoch !=
+                                                humanEpoch ||
+                                            !_humanBlockInputAllowed(
+                                              sessionId,
+                                              taskId,
+                                              action,
+                                              epoch,
+                                            ),
+                                      );
+                                return terminal.TerminalCommandBlocksView(
                                   controller: composerSession.blocks,
-                                  timeline: items,
+                                  timeline: merged,
                                   scrollController: scroll,
                                   followTail: followTail,
                                   showToolbar: false,
+                                  liveInput: commandInput,
+                                  liveFocus: live
+                                      ? composerSession.runningFocus
+                                      : null,
+                                  liveFocusSource: composerSession.draftFocus,
+                                  liveModes: viewportController.frame.modes,
+                                  onReturnToInput:
+                                      composerSession.draftFocus.requestFocus,
                                   chinese:
                                       Localizations.localeOf(
                                         context,
@@ -1174,7 +1296,17 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                   ),
                                   onReinput: (command) =>
                                       _reinputAiCommand(sessionId, command),
-                                )
+                                );
+                              }
+
+                              return UnifiedTerminalTimeline(
+                                controller: composerSession.blocks,
+                                taskId: _aiFor(sessionId).taskId,
+                                sourceSessionId: sessionId,
+                                items: items,
+                                builder: buildTimeline,
+                              );
+                            }
                           : null,
                     ),
                   ),
@@ -1297,7 +1429,10 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
     TerminalSplitAxis axis,
   ) {
     if (node.isLeaf) {
-      final frame = sessionController.viewportFor(node.pane!.sessionId).frame;
+      final frame = sessionController
+          .existingViewportFor(node.pane!.sessionId)
+          ?.frame;
+      if (frame == null) return 0;
       return axis == TerminalSplitAxis.horizontal
           ? frame.viewportCols
           : frame.viewportRows;

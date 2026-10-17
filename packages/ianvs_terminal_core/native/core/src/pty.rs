@@ -857,6 +857,16 @@ __ianvs_install_shell_hooks() {
     __ianvs_emit_preexec_hook "${1:-}"
   }
 
+  ianvs_set_user_var() {
+    [[ $# == 2 && "$1" == IANVS_* && "$1" != *[!a-zA-Z0-9_]* && ${#1} -le 80 && ${#2} -le 512 ]] || return 2
+    local __ianvs_name="$(__ianvs_json_escape "$1")"
+    local __ianvs_value="$(__ianvs_json_escape "$2")"
+    __ianvs_emit_shell_hook "{\"hook\":\"user_variable\",\"name\":\"$__ianvs_name\",\"value\":\"$__ianvs_value\"}"
+  }
+
+  __ianvs_host=$(__ianvs_json_escape "$(command hostname 2>/dev/null)")
+  __ianvs_user=$(__ianvs_json_escape "$(command id -un 2>/dev/null)")
+
   __ianvs_precmd() {
     local __ianvs_status=$?
     __ianvs_trim_startup_prompt_newline
@@ -869,7 +879,7 @@ __ianvs_install_shell_hooks() {
     fi
     __ianvs_emit_shell_hook '{"hook":"precmd","shell":"zsh"}'
     local __ianvs_pwd="$(__ianvs_json_escape "${PWD:-}")"
-    __ianvs_emit_shell_hook "{\"hook\":\"precmd.pwd\",\"pwd\":\"$__ianvs_pwd\",\"shell\":\"zsh\"}"
+    __ianvs_emit_shell_hook "{\"hook\":\"precmd.pwd\",\"pwd\":\"$__ianvs_pwd\",\"shell\":\"zsh\",\"hostname\":\"$__ianvs_host\",\"username\":\"$__ianvs_user\",\"integration_version\":\"2\"}"
     return $__ianvs_status
   }
 
@@ -1010,6 +1020,16 @@ __ianvs_install_shell_hooks() {
     fi
   }
 
+  ianvs_set_user_var() {
+    [[ $# == 2 && "$1" == IANVS_* && "$1" != *[!a-zA-Z0-9_]* && ${#1} -le 80 && ${#2} -le 512 ]] || return 2
+    local __ianvs_name="$(__ianvs_json_escape "$1")"
+    local __ianvs_value="$(__ianvs_json_escape "$2")"
+    __ianvs_emit_shell_hook "{\"hook\":\"user_variable\",\"name\":\"$__ianvs_name\",\"value\":\"$__ianvs_value\"}"
+  }
+
+  __ianvs_host=$(__ianvs_json_escape "$(command hostname 2>/dev/null)")
+  __ianvs_user=$(__ianvs_json_escape "$(command id -un 2>/dev/null)")
+
   __ianvs_prompt_command() {
     local __ianvs_status=$?
     __ianvs_inside_prompt=1
@@ -1027,7 +1047,7 @@ __ianvs_install_shell_hooks() {
     fi
     __ianvs_emit_shell_hook '{"hook":"precmd","shell":"bash"}'
     local __ianvs_pwd="$(__ianvs_json_escape "${PWD:-}")"
-    __ianvs_emit_shell_hook "{\"hook\":\"precmd.pwd\",\"pwd\":\"$__ianvs_pwd\",\"shell\":\"bash\"}"
+    __ianvs_emit_shell_hook "{\"hook\":\"precmd.pwd\",\"pwd\":\"$__ianvs_pwd\",\"shell\":\"bash\",\"hostname\":\"$__ianvs_host\",\"username\":\"$__ianvs_user\",\"integration_version\":\"2\"}"
     __ianvs_inside_prompt=0
     return "$__ianvs_status"
   }
@@ -1100,10 +1120,22 @@ if test -n "$IANVS_SHELL_INTEGRATION"; and not set -q __IANVS_SHELL_INTEGRATION_
     end
   end
 
+  function ianvs_set_user_var
+    test (count $argv) -eq 2; or return 2
+    string match -qr '^IANVS_[a-zA-Z0-9_]*$' -- "$argv[1]"; or return 2
+    test (string length -- "$argv[1]") -le 80; or return 2
+    test (string length -- "$argv[2]") -le 512; or return 2
+    set -l __ianvs_name (__ianvs_json_escape "$argv[1]")
+    set -l __ianvs_value (__ianvs_json_escape "$argv[2]")
+    __ianvs_emit_shell_hook "{\"hook\":\"user_variable\",\"name\":\"$__ianvs_name\",\"value\":\"$__ianvs_value\"}"
+  end
+  set -g __ianvs_host (__ianvs_json_escape (command hostname 2>/dev/null))
+  set -g __ianvs_user (__ianvs_json_escape (command id -un 2>/dev/null))
+
   function __ianvs_prompt --on-event fish_prompt
     __ianvs_emit_shell_hook '{"hook":"precmd","shell":"fish"}'
     set -l __ianvs_pwd (__ianvs_json_escape "$PWD")
-    __ianvs_emit_shell_hook "{\"hook\":\"precmd.pwd\",\"pwd\":\"$__ianvs_pwd\",\"shell\":\"fish\"}"
+    __ianvs_emit_shell_hook "{\"hook\":\"precmd.pwd\",\"pwd\":\"$__ianvs_pwd\",\"shell\":\"fish\",\"hostname\":\"$__ianvs_host\",\"username\":\"$__ianvs_user\",\"integration_version\":\"2\"}"
   end
 end
 "#;

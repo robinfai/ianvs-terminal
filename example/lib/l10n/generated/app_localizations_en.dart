@@ -4932,11 +4932,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'Reports explicit output boundaries. Current output copying uses adjacent prompt positions.';
 
   @override
-  String get shellCapabilityVariables => 'Custom shell variables';
+  String get shellCapabilityVariables => 'Custom shell variables (optional)';
 
   @override
   String get shellCapabilityVariablesHelp =>
-      'Accepts allowed IANVS_ variables for session metadata and configured queries.';
+      'Lets scripts store session information such as a project name and read it through permitted variable queries. IANVS_ is the name prefix; terminal and AI features work without these variables.';
 
   @override
   String get shellCapabilityPending => 'Pending confirmation';
@@ -5343,7 +5343,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get terminalModeNormal => 'Normal terminal';
 
   @override
-  String get terminalModeBlocks => 'Command Blocks';
+  String get terminalModeBlocks => 'Block + AI';
 
   @override
   String get terminalModeRecheck => 'Recheck Command Block support';
@@ -5375,7 +5375,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get preferredTerminalModeHelp =>
-      'New sessions only. Platform defaults: Blocks on phones, Normal on desktop. Blocks requires shell support; after support returns, switch back manually from the tab or session menu.';
+      'Applies to new sessions. On mobile, a configured LLM enables the unified Block + AI workspace by default, with one input for commands and AI; choose Normal to turn this default off. Without an LLM, only Normal is available. Desktop defaults to Normal. Blocks also requires shell support; switch back manually after capability is restored.';
 
   @override
   String get blockUnavailableChecking => 'Checking shell support…';
@@ -5505,4 +5505,38 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get mobileSessionsNoActive => 'No active connections';
+
+  @override
+  String get blockUnavailableLlm =>
+      'Configure an LLM in settings to use Block + AI on mobile.';
+
+  @override
+  String get mobileLlmWelcomeDetail =>
+      'Use Trail as a regular terminal, or configure an LLM to use commands and AI in one Block + AI workspace. With an LLM, new mobile sessions default to this workspace; you can choose Normal in settings. Connection details stay on this device.';
+
+  @override
+  String get mobileConfigureLlm => 'Configure LLM';
+
+  @override
+  String get mobileLlmConfigured => 'LLM configured · Edit';
+
+  @override
+  String get mobileSkipLlm => 'Skip · Use regular terminal';
+
+  @override
+  String get shellCapabilityAwaitingEvent => 'Waiting for an event';
+
+  @override
+  String get shellCapabilityAwaitingEventHelp =>
+      'The current Shell provides this capability. It will be confirmed when valid data arrives.';
+
+  @override
+  String get shellCapabilityNotProvided => 'Not provided';
+
+  @override
+  String get shellCapabilityNotProvidedHelp =>
+      'The current Shell integration does not provide this capability. Waiting will not enable it; a compatible integration can still supply it.';
+
+  @override
+  String get shellCapabilityProviderReady => 'Implementation provided';
 }

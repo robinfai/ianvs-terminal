@@ -14,6 +14,7 @@ class CommandBlocksPane extends StatefulWidget {
     required this.input,
     required this.terminalFocus,
     required this.active,
+    this.presentationVisible = true,
     required this.font,
     required this.onMeasuredCellSizeChanged,
     required this.child,
@@ -27,6 +28,7 @@ class CommandBlocksPane extends StatefulWidget {
   final TerminalInputController input;
   final FocusNode terminalFocus;
   final bool active;
+  final bool presentationVisible;
   final TerminalFontConfig font;
   final ValueChanged<Size> onMeasuredCellSizeChanged;
   final Widget child;
@@ -266,7 +268,8 @@ class _CommandBlocksPaneState extends State<CommandBlocksPane> {
   bool get _showBlocks {
     final modes = widget.viewport.frame.modes;
     final owner = widget.session.controller.ownership;
-    return widget.session.enabled &&
+    return widget.presentationVisible &&
+        widget.session.enabled &&
         _blocks.available &&
         !_richOutput &&
         !_mainScreenApplication &&

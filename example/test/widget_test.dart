@@ -934,10 +934,22 @@ void main() {
       expect(find.byKey(const Key('shell-tab-overflow-button')), findsNothing);
 
       final compactTabWidth = tester
-          .getSize(find.byKey(const Key('shell-tab-8')))
+          .getSize(find.byKey(const ValueKey('shell-tab-reorder-8')))
           .width;
       expect(compactTabWidth, greaterThanOrEqualTo(104));
       expect(compactTabWidth, lessThan(140));
+      expect(find.text('⌘8'), findsNothing);
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.metaLeft,
+        platform: 'macos',
+      );
+      await tester.pump();
+      expect(find.text('⌘8'), findsOneWidget);
+      await tester.sendKeyUpEvent(
+        LogicalKeyboardKey.metaLeft,
+        platform: 'macos',
+      );
+      await tester.pump();
       expect(find.text('⌘8'), findsNothing);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),

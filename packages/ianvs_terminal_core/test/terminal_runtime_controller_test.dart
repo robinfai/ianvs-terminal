@@ -5823,6 +5823,7 @@ void main() {
           'shell': 'zsh',
           'hostname': 'buildbox.local',
           'username': 'dev',
+          'integration_version': '2',
           'prompt_scrollback_offset': 17,
           'exit_code': 7,
           'extra': <String, Object?>{'kept': true},
@@ -5842,6 +5843,7 @@ void main() {
     expect(event.shell, 'zsh');
     expect(event.hostname, 'buildbox.local');
     expect(event.username, 'dev');
+    expect(event.integrationVersion, '2');
     expect(event.promptScrollbackOffset, 17);
     expect(event.exitCode, 7);
   });

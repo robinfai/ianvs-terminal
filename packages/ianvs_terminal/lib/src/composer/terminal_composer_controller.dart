@@ -759,6 +759,18 @@ final class TerminalComposerController extends ChangeNotifier {
 
   /// Clears only this local draft and remains undoable. A history filter is
   /// cancelled first so undo restores the draft, not a temporary search string.
+  /// Changing tasks must not expose another task's undo/redo or candidates.
+  void resetDocument(TextEditingValue value) {
+    dismissHistory(notify: false);
+    dismissCompletions(notify: false);
+    _restoring = true;
+    editor.value = value;
+    _restoring = false;
+    _undo.clear();
+    _redo.clear();
+    notifyListeners();
+  }
+
   void clearDraft() {
     if (_disposed || !_active || !editor.value.composing.isCollapsed) return;
     dismissHistory(notify: false);

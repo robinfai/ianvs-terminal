@@ -10,6 +10,7 @@ String blockUnavailableMessage(
   AppLocalizations l10n,
   BlockUnavailableReason? reason,
 ) => switch (reason) {
+  BlockUnavailableReason.llmRequired => l10n.blockUnavailableLlm,
   BlockUnavailableReason.checking => l10n.blockUnavailableChecking,
   BlockUnavailableReason.unsupportedShell => l10n.blockUnavailableShell,
   BlockUnavailableReason.remoteShell => l10n.blockUnavailableRemote,
@@ -49,10 +50,12 @@ class TerminalModeMenuEntry extends PopupMenuEntry<Object> {
     super.key,
     required this.sessionId,
     required this.value,
+    this.hasUnifiedWorkspace,
   });
 
   final String sessionId;
   final Object value;
+  final bool Function()? hasUnifiedWorkspace;
 
   @override
   double get height => kMinInteractiveDimension;
@@ -89,11 +92,13 @@ class _TerminalModeMenuEntryState extends State<TerminalModeMenuEntry> {
           child: Text(context.l10n.terminalModeRecheck),
         );
       }
+      final unified = widget.hasUnifiedWorkspace?.call() ?? false;
+      final selectedMode = unified ? TerminalViewMode.blocks : state?.mode;
       final canUseBlocks = state?.canUseBlocks ?? false;
       return CheckedPopupMenuItem<Object>(
         key: Key('terminal-mode-${value.name}-${widget.sessionId}'),
         value: value,
-        checked: state?.mode == value,
+        checked: selectedMode == value,
         enabled:
             state != null && (value == TerminalViewMode.normal || canUseBlocks),
         child: Column(

@@ -21,15 +21,23 @@ enum ShellIntegrationCapability {
 
   final String id;
 
-  /// Whether the bundled zsh/bash/fish scripts emit this capability's data.
-  /// This describes the scripts, never the current session's activation.
+  /// Whether hook registration alone establishes this capability's readiness.
+  /// Extensions still require their own runtime data, even when provided.
   final bool localHook;
 }
 
-enum ShellCapabilityStatus { pending, active, disabled, unavailable }
+enum ShellCapabilityStatus {
+  pending,
+  active,
+  disabled,
+  unavailable,
+  notProvided,
+}
 
 enum ShellCapabilityReason {
   awaitingEvidence,
+  awaitingEvent,
+  notProvided,
   initializationChecked,
   initializationFailed,
   observed,
@@ -133,11 +141,24 @@ class ShellIntegrationCapabilities {
     if (_policy != null) return this;
     final next = Map.of(_observations);
     for (final capability in ShellIntegrationCapability.values) {
-      if (!capability.localHook ||
-          this[capability].reason == ShellCapabilityReason.observed) {
+      if (this[capability].reason == ShellCapabilityReason.observed) {
         continue;
       }
       final check = checks[capability.id];
+      if (!capability.localHook) {
+        if (check == 'provided' || check == 'not_provided') {
+          next[capability] = ShellCapabilityActivation(
+            status: check == 'provided'
+                ? ShellCapabilityStatus.pending
+                : ShellCapabilityStatus.notProvided,
+            reason: check == 'provided'
+                ? ShellCapabilityReason.awaitingEvent
+                : ShellCapabilityReason.notProvided,
+            evidence: ShellCapabilityEvidence.bootstrapRegistration,
+          );
+        }
+        continue;
+      }
       if (check != 'registered' && check != 'unavailable') continue;
       next[capability] = ShellCapabilityActivation(
         status: check == 'registered'
@@ -199,6 +220,9 @@ class ShellIntegrationCapabilities {
         if (_hasText(event.shell)) {
           add(ShellIntegrationCapability.shellIdentity, proof);
         }
+        if (_hasText(event.integrationVersion)) {
+          add(ShellIntegrationCapability.integrationVersion, proof);
+        }
         if (_hasText(event.hostname)) {
           add(ShellIntegrationCapability.hostname, proof);
         }
@@ -232,6 +256,17 @@ class ShellIntegrationCapabilities {
         // command_executed confirms execution, equivalent to DCS preexec.
         if (type == 'command_executed') {
           add(ShellIntegrationCapability.commandStart, proof);
+        }
+        if (type == 'zone_opened' &&
+            event.zoneType == 'prompt' &&
+            event.zoneId != null &&
+            event.zoneId! >= 0 &&
+            event.absRowStart != null &&
+            event.absRowStart! >= 0) {
+          add(
+            ShellIntegrationCapability.promptNavigation,
+            ShellCapabilityEvidence.shellPromptMark,
+          );
         }
         final completedOutput =
             type == 'zone_closed' && event.zoneType == 'output';

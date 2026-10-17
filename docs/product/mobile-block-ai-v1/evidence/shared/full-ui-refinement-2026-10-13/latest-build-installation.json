@@ -1,0 +1,22 @@
+{
+  "source_base": "4e62adb4c4d7de32a7e83becc5fe1067063a9452",
+  "source_patch": "Current commit: iOS CJK fallback and tablet toolbar width; exact production source hashes in source-sha256.json",
+  "bundle_id": "work.ianvs.trail",
+  "entrypoint": "lib/main.dart",
+  "mode": "release",
+  "signed_build": "passed",
+  "codesign_verify_deep_strict": "passed outside sandbox",
+  "installation": "passed; devicectl in-place installation",
+  "verified_at": "2026-10-13T07:01:34.131214+00:00",
+  "sha256": {
+    "Runner": "55bce138482fed99cb2edc26d95327f11f5c5e6c9493c7bc46e8bcd55d9a51f1",
+    "Frameworks/App.framework/App": "ad0d6f72cb3fdd5cd6ebc2074067ff53cf4b52e1d000f3b394542db7ff3bcd10",
+    "Info.plist": "401ec2e06dd6aad043b973d3750e7d8acfb1b4a4f0c541848ac28704d8dfe50b"
+  },
+  "source_manifest_sha256": "66c70e28346134fe76703ec4bbcbce1c16438a97317927dbb6b7228a1c75acc1",
+  "launch": "passed; both saved connections present, no onboarding",
+  "phone_model": "iPhone 17",
+  "phone_os": "iOS 27.0.1",
+  "phone_screenshot": "local only; saved connection identifiers excluded from public evidence",
+  "physical_ui_matrix_retested": false
+}

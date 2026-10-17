@@ -4,6 +4,7 @@ import '../preferences/app_preferences_models.dart';
 
 enum BlockUnavailableReason {
   checking,
+  llmRequired,
   unsupportedShell,
   remoteShell,
   nestedShell,
@@ -56,12 +57,30 @@ class TerminalModeController extends ChangeNotifier {
   TerminalModeState get state => _state;
   bool _initialChoiceApplied = false;
   bool _manualChoice = false;
+  TerminalViewMode? _selectedMode;
+
+  /// Reconnect preserves the user's mode, not a temporary capability fallback.
+  TerminalViewMode get chosenMode => _selectedMode ?? preferredMode;
   bool _offerRestore = false;
+  bool _llmRequired = false;
+  BlockUnavailableReason? _shellReason = BlockUnavailableReason.checking;
+
+  /// Keep the product restriction separate from shell capability so polling or
+  /// an explicit support check cannot accidentally re-enable Blocks.
+  void setLlmRequired(bool required) {
+    if (_llmRequired == required) return;
+    _llmRequired = required;
+    updateAvailability(_shellReason);
+  }
 
   void updateAvailability(
-    BlockUnavailableReason? reason, {
+    BlockUnavailableReason? shellReason, {
     bool rechecked = false,
   }) {
+    _shellReason = shellReason;
+    final reason = _llmRequired
+        ? BlockUnavailableReason.llmRequired
+        : shellReason;
     // An explicit check reports capability; it does not choose a display mode.
     if (rechecked) _initialChoiceApplied = true;
     var mode = _state.mode;
@@ -101,6 +120,7 @@ class TerminalModeController extends ChangeNotifier {
     if (mode == TerminalViewMode.blocks && !_state.canUseBlocks) return false;
     _initialChoiceApplied = true;
     _manualChoice = true;
+    _selectedMode = mode;
     _offerRestore = false;
     _publish(
       TerminalModeState(

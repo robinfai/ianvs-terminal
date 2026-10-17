@@ -95,6 +95,8 @@ PROFILE=debug "$ROOT_DIR/tools/build_core.sh"
   IANVS_CORE_LIB="$CORE_DIR/target/debug/libianvs_core.dylib" \
     flutter test -d macos integration_test/real_pty_acceptance_test.dart
   flutter test -d macos integration_test/composer_acceptance_test.dart
+  flutter test -d macos integration_test/desktop_unified_workspace_test.dart
+  flutter test -d macos integration_test/ai_streaming_acceptance_test.dart
   flutter test -d macos \
     integration_test/macos_keychain_profile_secret_test.dart
   flutter build macos --debug
@@ -129,10 +131,18 @@ PROFILE=debug "$ROOT_DIR/tools/build_core.sh"
   if [ -n "${TOOLCHAINS:-}" ]; then
     xcode_test_env+=("TOOLCHAINS=$TOOLCHAINS")
   fi
+  mkdir -p "$ROOT_DIR/build/macos-native-results"
+  native_result_dir="$(mktemp -d "$ROOT_DIR/build/macos-native-results/run.XXXXXX")"
+  native_test_status=0
   "${xcode_test_env[@]}" xcodebuild test \
     -workspace macos/Runner.xcworkspace \
     -scheme Runner \
     -configuration Debug \
     -destination 'platform=macOS' \
-    CODE_SIGNING_ALLOWED=NO
+    -resultBundlePath "$native_result_dir/RunnerTests.xcresult" \
+    CODE_SIGNING_ALLOWED=NO || native_test_status=$?
+  # Preserve assertion/crash details instead of only the final test-case names.
+  "${xcode_test_env[@]}" xcrun xcresulttool get test-results summary \
+    --path "$native_result_dir/RunnerTests.xcresult" || true
+  exit "$native_test_status"
 )

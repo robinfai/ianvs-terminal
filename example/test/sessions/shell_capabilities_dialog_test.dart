@@ -40,6 +40,34 @@ void main() {
             .load(),
       ]);
     });
+    testWidgets('missing provider differs from waiting for runtime data', (
+      tester,
+    ) async {
+      await tester.pumpApp(
+        ShellCapabilitiesDialog(
+          sessionTitle: 'Local',
+          capabilities: const ShellIntegrationCapabilities.pending()
+              .applyRegistration({
+                'hostname': 'provided',
+                'username': 'not_provided',
+              }),
+          onClose: () {},
+        ),
+      );
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('shell-capability-hostname')),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('Waiting for an event'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('shell-capability-username')),
+        100,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('Not provided'), findsOneWidget);
+    });
+
     testWidgets('startup readiness distinguishes runtime observations', (
       tester,
     ) async {
@@ -116,7 +144,9 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Current shell'), findsOneWidget);
-      await tester.ensureVisible(find.text('Custom shell variables'));
+      await tester.ensureVisible(
+        find.text('Custom shell variables (optional)'),
+      );
       expect(tester.takeException(), isNull);
     });
     testWidgets(
@@ -163,10 +193,12 @@ void main() {
           ),
           findsOneWidget,
         );
-        await tester.ensureVisible(find.text('Custom shell variables'));
+        await tester.ensureVisible(
+          find.text('Custom shell variables (optional)'),
+        );
         await tester.pump();
         expect(
-          find.text('Custom shell variables').hitTestable(),
+          find.text('Custom shell variables (optional)').hitTestable(),
           findsOneWidget,
         );
         await tester.sendKeyEvent(LogicalKeyboardKey.tab);
@@ -219,9 +251,9 @@ void main() {
           await tester.pump();
           expect(tester.takeException(), isNull);
           await _capture(tester, captureKey, 'compact-${brightness.name}.png');
-          await tester.ensureVisible(find.text('自定义 shell 变量'));
+          await tester.ensureVisible(find.text('自定义 Shell 变量（可选）'));
           await tester.pump();
-          expect(find.text('自定义 shell 变量').hitTestable(), findsOneWidget);
+          expect(find.text('自定义 Shell 变量（可选）').hitTestable(), findsOneWidget);
           expect(tester.takeException(), isNull);
         },
       );
@@ -271,7 +303,7 @@ void main() {
         );
         await tester.pump();
         await _capture(tester, key, 'desktop-light.png');
-        await tester.ensureVisible(find.text('自定义 shell 变量'));
+        await tester.ensureVisible(find.text('自定义 Shell 变量（可选）'));
         await tester.pump();
         expect(find.byTooltip('关闭对话框').hitTestable(), findsOneWidget);
         expect(tester.takeException(), isNull);

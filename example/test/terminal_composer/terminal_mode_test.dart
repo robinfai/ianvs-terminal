@@ -3,6 +3,19 @@ import 'package:app/features/terminal_composer/terminal_mode.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('chosen mode survives capability fallback for reconnect', () {
+    final mode = TerminalModeController(preferredMode: TerminalViewMode.blocks);
+    addTearDown(mode.dispose);
+    mode.updateAvailability(null);
+    expect(mode.chosenMode, TerminalViewMode.blocks);
+    mode.updateAvailability(BlockUnavailableReason.exited);
+    expect(mode.state.mode, TerminalViewMode.normal);
+    expect(mode.chosenMode, TerminalViewMode.blocks);
+    mode.select(TerminalViewMode.normal);
+    expect(mode.chosenMode, TerminalViewMode.normal);
+    mode.updateAvailability(null);
+    expect(mode.state.mode, TerminalViewMode.normal);
+  });
   test(
     'explicit first check preserves Normal even with a Blocks preference',
     () {

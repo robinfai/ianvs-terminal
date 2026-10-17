@@ -85,10 +85,22 @@ extension _CommandBlocksControls on _CommandBlocksViewState {
     ),
   );
 
-  Widget _toolbar(ComposerTheme tokens) => Padding(
-    padding: const EdgeInsets.fromLTRB(18, 4, 12, 2),
+  Widget _toolbar(ComposerTheme tokens) => Container(
+    key: const Key('blocks-toolbar'),
+    decoration: _readerLayout
+        ? BoxDecoration(
+            border: Border(bottom: BorderSide(color: tokens.divider)),
+          )
+        : null,
+    padding: _readerLayout
+        ? const EdgeInsets.fromLTRB(12, 4, 12, 3)
+        : const EdgeInsets.fromLTRB(18, 4, 12, 2),
     child: Row(
       children: [
+        if (_readerLayout) ...[
+          Icon(Icons.terminal_outlined, size: 20, color: tokens.muted),
+          const SizedBox(width: 8),
+        ],
         if (c.selected.isNotEmpty && widget.onAttachBlocks != null)
           _icon(
             Icons.attach_file,
@@ -106,7 +118,13 @@ extension _CommandBlocksControls on _CommandBlocksViewState {
                     '已选择 ${c.selected.length} 个',
                   )
                 : t('Blocks · ${c.blocks.length}', '命令块 · ${c.blocks.length}'),
-            style: tokens.metadataStyle,
+            style: _readerLayout
+                ? Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: tokens.foreground,
+                  )
+                : tokens.metadataStyle,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -145,6 +163,13 @@ extension _CommandBlocksControls on _CommandBlocksViewState {
           },
         ),
         PopupMenuButton<String>(
+          style: _readerLayout
+              ? IconButton.styleFrom(
+                  minimumSize: const Size.square(44),
+                  maximumSize: const Size.square(44),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                )
+              : null,
           popUpAnimationStyle: ComposerTheme.overlayAnimation(context),
           tooltip: t('Block view options', '命令块显示选项'),
           icon: Icon(Icons.tune, size: 17, color: tokens.muted),

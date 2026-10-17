@@ -1751,26 +1751,22 @@ fn inline_progress_split_clear_repaint_profile() -> TerminalProfile {
     local_profile(
         "inline-progress-split-clear-repaint",
         "Inline Progress Split Clear Repaint",
-        "/bin/sh",
+        "/usr/bin/env",
         vec![
-            "-lc".to_string(),
-            r#"python3 - <<'PY'
-import sys
-import time
+            "python3".to_string(),
+            "-c".to_string(),
+            r#"import sys, termios
 
-sys.stdout.write("READY\n")
-sys.stdout.flush()
-time.sleep(0.35)
-sys.stdout.write("Downloading 100%")
-sys.stdout.flush()
-time.sleep(0.35)
-sys.stdout.write("\r\x1b[K")
-sys.stdout.flush()
-time.sleep(0.12)
-sys.stdout.write("OK\n")
-sys.stdout.flush()
-time.sleep(0.1)
-PY"#
+attrs = termios.tcgetattr(sys.stdin.fileno())
+attrs[3] &= ~(termios.ECHO | termios.ECHONL)
+termios.tcsetattr(sys.stdin.fileno(), termios.TCSANOW, attrs)
+
+for output in ["READY\n", "Downloading 100%", "\r\x1b[K", "OK\n"]:
+    sys.stdout.write(output)
+    sys.stdout.flush()
+    if sys.stdin.readline() == "":
+        sys.exit(2)
+"#
             .to_string(),
         ],
         BTreeMap::new(),
@@ -17722,10 +17718,10 @@ fn prompt_sp_clear_sequence_marks_cleared_marker_row_dirty() {
             "/bin/sh",
             vec![
                 "-lc".to_string(),
-                "printf '\\033[1m\\033[7m%%\\033[27m\\033[1m\\033[0m                                                                               '; \
-                 sleep 0.2; \
+                "stty -echo -echonl; printf '\\033[1m\\033[7m%%\\033[27m\\033[1m\\033[0m                                                                               '; \
+                 IFS= read -r advance; \
                  printf '\\r \\r\\033Phook;68656c6c6f\\033\\\\\\r\\033[0m\\033[27m\\033[24m\\033[J\\r\\nianvs terminal-prompt\\r\\n> '; \
-                 sleep 0.2"
+                 IFS= read -r release"
                     .to_string(),
             ],
             BTreeMap::new(),
@@ -17734,6 +17730,7 @@ fn prompt_sp_clear_sequence_marks_cleared_marker_row_dirty() {
         .unwrap(),
     )
     .unwrap();
+    let _session_guard = SessionGuard::new(session_id);
 
     let _ = wait_for_frame_where(session_id, |frame| {
         let parsed: serde_json::Value = serde_json::from_str(frame).unwrap();
@@ -17746,6 +17743,9 @@ fn prompt_sp_clear_sequence_marks_cleared_marker_row_dirty() {
                     && row["text"].as_str().unwrap_or_default().starts_with('%')
             })
     });
+    // Advance only after consuming the marker frame. Timed sleeps can let
+    // startup and clearing coalesce before a busy CI runner polls the PTY.
+    session::write_session(session_id, b"\n").unwrap();
     let frame = wait_for_frame_containing(session_id, "ianvs terminal-prompt");
     let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
     let row_zero = frame_row_at_index(&parsed, 0);
@@ -17756,8 +17756,6 @@ fn prompt_sp_clear_sequence_marks_cleared_marker_row_dirty() {
             .starts_with('%'),
         "clearing zsh's PROMPT_SP marker must dirty row 0: {frame}"
     );
-
-    session::close_session(session_id).unwrap();
 }
 
 #[test]
@@ -18746,31 +18744,62 @@ fn session_frame_diff_overwrites_wide_inline_progress_with_cr_only_repaint() {
 
 #[test]
 fn session_frame_diff_defers_split_inline_clear_until_repaint() {
-    let session_id = session::create_session(
-        &serde_json::to_string(&inline_progress_split_clear_repaint_profile()).unwrap(),
-    )
-    .unwrap();
+    let guard = SessionGuard::new(
+        session::create_session(
+            &serde_json::to_string(&inline_progress_split_clear_repaint_profile()).unwrap(),
+        )
+        .unwrap(),
+    );
+    let session_id = guard.id();
     let _ = wait_for_frame_containing(session_id, "READY");
+    session::write_session(session_id, b"progress\n").unwrap();
     let _ = wait_for_frame_containing(session_id, "Downloading 100%");
 
-    let deadline = Instant::now() + Duration::from_millis(700);
-    let mut final_frame = None;
-    while Instant::now() < deadline {
-        if let Some(frame) = session::take_frame_diff(session_id).unwrap() {
-            assert!(
-                !frame_has_blank_viewport_row(&frame, 1),
-                "split CR+EL should not publish a blank progress row before repaint: {frame}"
-            );
-            if frame.contains("OK") {
-                final_frame = Some(frame);
-                break;
+    // Observe the PTY parser without consuming frame damage. The child waits
+    // for each phase, so a busy host cannot collapse the clear and repaint or
+    // accidentally turn the split-write case into a grace-expiry test.
+    let wait_for_live_progress_row = |expected: &str| {
+        for _ in 0..SESSION_WAIT_ATTEMPTS {
+            let screen = session::request_session(
+                session_id,
+                "terminal.live_screen",
+                &serde_json::json!({}),
+            )
+            .unwrap()
+            .expect("live screen should be available");
+            let screen: serde_json::Value = serde_json::from_str(&screen).unwrap();
+            if screen["text"].as_str().unwrap().lines().nth(1) == Some(expected) {
+                return;
             }
+            thread::sleep(Duration::from_millis(25));
         }
-        thread::sleep(Duration::from_millis(25));
-    }
+        panic!("timed out waiting for live progress row {expected:?}");
+    };
 
-    let frame = final_frame.unwrap_or_else(|| wait_for_frame_containing(session_id, "OK"));
+    session::write_session(session_id, b"clear\n").unwrap();
+    wait_for_live_progress_row("");
+    let cleared_frame = session::take_frame_diff(session_id).unwrap();
+    assert!(
+        cleared_frame.is_none(),
+        "split CR+EL should defer its blank progress row before repaint: {cleared_frame:?}"
+    );
+
+    session::write_session(session_id, b"repaint\n").unwrap();
+    wait_for_live_progress_row("OK");
+    let frame = session::take_frame_diff(session_id)
+        .unwrap()
+        .expect("repaint should release the deferred progress frame");
+    let parsed: serde_json::Value = serde_json::from_str(&frame).unwrap();
     let visible_text = logical_rows_from_frame(&frame).join("\n");
+    assert_eq!(
+        parsed["frame_kind"].as_str(),
+        Some("delta"),
+        "split inline repaint should remain an incremental update: {frame}"
+    );
+    assert!(
+        !frame_has_blank_viewport_row(&frame, 1),
+        "split inline repaint must replace the blank progress row: {frame}"
+    );
     assert!(
         visible_text.contains("OK"),
         "expected repaint after split inline clear: {frame}"
@@ -18779,8 +18808,6 @@ fn session_frame_diff_defers_split_inline_clear_until_repaint() {
         !visible_text.contains("Downloading"),
         "split inline clear repaint must not retain the previous progress tail: {frame}"
     );
-
-    session::close_session(session_id).unwrap();
 }
 
 #[test]

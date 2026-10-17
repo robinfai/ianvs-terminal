@@ -15,6 +15,7 @@ class ComposerSuggestions extends StatelessWidget {
     required this.chinese,
     required this.onAccepted,
     this.onClosed,
+    this.canInteract,
     this.maxHeight = 320,
     super.key,
   });
@@ -24,6 +25,7 @@ class ComposerSuggestions extends StatelessWidget {
   final bool chinese;
   final VoidCallback onAccepted;
   final VoidCallback? onClosed;
+  final bool Function()? canInteract;
   final double maxHeight;
   String tr(String en, String zh) => chinese ? zh : en;
 
@@ -340,7 +342,7 @@ class ComposerSuggestions extends StatelessWidget {
           '${_safe(item.label)}, ${_kind(item.kind)}, ${_safe(item.detail)}, ${index + 1}/${model.items.length}',
       onHover: () => model.highlightCompletion(item),
       onTap: () {
-        if (model.accept(item)) onAccepted();
+        if ((canInteract?.call() ?? true) && model.accept(item)) onAccepted();
       },
     );
   }
@@ -356,7 +358,9 @@ class ComposerSuggestions extends StatelessWidget {
       semantic: '$command, ${index + 1}/${model.historyItems.length}',
       onHover: () => model.highlightHistory(command),
       onTap: () {
-        if (model.acceptHistory(command)) onAccepted();
+        if ((canInteract?.call() ?? true) && model.acceptHistory(command)) {
+          onAccepted();
+        }
       },
     );
   }

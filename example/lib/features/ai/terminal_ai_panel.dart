@@ -28,6 +28,7 @@ class _TerminalAiPanelState extends State<TerminalAiPanel> {
   final _focus = FocusNode(debugLabel: 'AI input');
   final _scroll = ScrollController();
   int _transcriptLength = -1;
+  AiTranscriptEntry? _lastEntry;
   String? _proposalId;
   TerminalAiController get c => widget.controller;
   bool get zh => Localizations.localeOf(context).languageCode == 'zh';
@@ -35,6 +36,12 @@ class _TerminalAiPanelState extends State<TerminalAiPanel> {
 
   String get _status => switch (c.phase) {
     AiPhase.thinking => t('Thinking…', '正在思考…'),
+    AiPhase.connecting => t('Connecting to model…', '正在连接模型…'),
+    AiPhase.waitingForFirstToken => t(
+      'Waiting for first token…',
+      '等待首个 Token…',
+    ),
+    AiPhase.generating => t('Generating…', '正在生成…'),
     AiPhase.reviewing => t('Reviewing command safety…', '正在审核命令…'),
     AiPhase.executing => t('Checking command result…', '正在获取命令结果…'),
     AiPhase.observing => t('Waiting for terminal state…', '正在等待终端状态更新…'),
@@ -66,11 +73,13 @@ class _TerminalAiPanelState extends State<TerminalAiPanel> {
 
   void _contentChanged() {
     if (_transcriptLength == c.transcript.length &&
-        _proposalId == c.pending?.id) {
+        _proposalId == c.pending?.id &&
+        identical(_lastEntry, c.transcript.lastOrNull)) {
       return;
     }
     final follow = !_scroll.hasClients || _scroll.position.extentAfter < 80;
     _transcriptLength = c.transcript.length;
+    _lastEntry = c.transcript.lastOrNull;
     _proposalId = c.pending?.id;
     if (follow) {
       WidgetsBinding.instance.addPostFrameCallback((_) {

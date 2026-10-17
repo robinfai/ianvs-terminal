@@ -4603,10 +4603,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get shellCapabilityOutputHelp => '报告明确的输出区域边界。当前复制命令输出使用相邻提示符位置。';
 
   @override
-  String get shellCapabilityVariables => '自定义 shell 变量';
+  String get shellCapabilityVariables => '自定义 Shell 变量（可选）';
 
   @override
-  String get shellCapabilityVariablesHelp => '接收允许的 IANVS_ 变量，用于会话元数据和已配置的查询。';
+  String get shellCapabilityVariablesHelp =>
+      '供脚本保存项目名等会话信息，并通过获准的变量查询读取。IANVS_ 是变量名前缀；不设置也不影响终端或 AI 功能。';
 
   @override
   String get shellCapabilityPending => '待确认';
@@ -4993,7 +4994,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get terminalModeNormal => '普通终端';
 
   @override
-  String get terminalModeBlocks => '命令块';
+  String get terminalModeBlocks => 'Block + AI';
 
   @override
   String get terminalModeRecheck => '重新检查命令块支持情况';
@@ -5021,7 +5022,7 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get preferredTerminalModeHelp =>
-      '仅用于新会话。平台默认：手机使用命令块，桌面使用普通终端。命令块需要当前 Shell 支持；能力恢复后需在标签页或会话菜单手动切回。';
+      '用于新会话。移动端配置 LLM 后默认使用 Block + AI 融合模式，在同一输入框执行命令或向 AI 提问；可选择普通模式关闭此默认行为；未配置 LLM 时仅可使用普通模式。桌面默认使用普通终端。命令块仍需 Shell 支持，能力恢复后需手动切回。';
 
   @override
   String get blockUnavailableChecking => '正在检测 Shell 支持…';
@@ -5135,4 +5136,36 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get mobileSessionsNoActive => '当前没有进行中的连接';
+
+  @override
+  String get blockUnavailableLlm => '移动端需先在设置中配置 LLM，才能使用 Block + AI。';
+
+  @override
+  String get mobileLlmWelcomeDetail =>
+      '可以直接使用普通终端，也可以配置 LLM，启用 Block + AI 融合模式，在同一工作区执行命令与使用 AI。配置后，新会话默认使用融合模式；可在设置中改为普通模式。连接信息仅保存在此设备。';
+
+  @override
+  String get mobileConfigureLlm => '配置 LLM';
+
+  @override
+  String get mobileLlmConfigured => '已配置 LLM · 编辑';
+
+  @override
+  String get mobileSkipLlm => '跳过，使用普通终端';
+
+  @override
+  String get shellCapabilityAwaitingEvent => '等待实际事件';
+
+  @override
+  String get shellCapabilityAwaitingEventHelp => '当前 Shell 已提供此能力，收到有效数据后确认激活。';
+
+  @override
+  String get shellCapabilityNotProvided => '尚未提供';
+
+  @override
+  String get shellCapabilityNotProvidedHelp =>
+      '当前 Shell 集成未提供此能力，等待不会自动启用；兼容集成仍可提供对应数据。';
+
+  @override
+  String get shellCapabilityProviderReady => '已提供实现';
 }

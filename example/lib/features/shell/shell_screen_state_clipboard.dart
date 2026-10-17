@@ -103,7 +103,8 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
     String sessionId,
     SelectionController selectionController,
   ) {
-    final frame = sessionController.viewportFor(sessionId).frame;
+    final frame = sessionController.existingViewportFor(sessionId)?.frame;
+    if (frame == null) return '';
     final selection = selectionController.selection;
     if (selection == null) {
       return '';

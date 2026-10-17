@@ -54,6 +54,18 @@ class _ModeBackend extends FakePtyBackend {
   }
 }
 
+class _ExitBackend extends _ModeBackend implements PtyRuntimeCapabilityBackend {
+  @override
+  PtyRuntimeCapabilities get runtimeCapabilities =>
+      PtyRuntimeCapabilities.fromJson({
+        'schema_version': 1,
+        'runtime_contract': 'ianvs-runtime-contract-v1',
+        'frame_schema_versions': ['terminal-frame-diff-v1'],
+        'recording_schema_versions': <Object?>[],
+        'features': ['session-config.json.v1', 'ssh-session.v1'],
+      });
+}
+
 class _PreferenceBackend extends _ModeBackend {
   @override
   String? requestSessionJson(String sessionId, String requestJson) {
@@ -95,6 +107,122 @@ Future<void> _chooseMode(WidgetTester tester, String id, String mode) async {
 }
 
 void main() {
+  for (final exitCode in [0, 255]) {
+    testWidgets('queued shell events and resize settle exit $exitCode', (
+      tester,
+    ) async {
+      final backend = _ExitBackend();
+      final profile = TerminalProfile(
+        id: 'exit-regression',
+        name: 'Exit regression',
+        shell: '',
+        connection: const TerminalConnectionConfig.ssh(
+          host: 'fixture.test',
+          user: 'test',
+        ),
+      );
+      await pumpShellScreen(
+        tester,
+        fakeBindings: backend,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [profile]),
+        ),
+      );
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final controller = container.read(sessionControllerProvider.notifier);
+      controller.createSession(profile);
+      await _settleMode(tester);
+      final id = container.read(sessionControllerProvider).activeSessionId!;
+      final runtime = container.read(terminalRuntimeControllerProvider);
+      // ShellScreen attaches the real UI sink. The bell defers reduction of
+      // subsequent hooks until after native exit has disposed the viewport.
+      backend.enqueueEvent(id, PtyEvent(kind: 'bell', sessionId: id));
+      backend.enqueueEvent(
+        id,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: id,
+          payload: {'hook': 'prompt_started', 'prompt_scrollback_offset': 0},
+        ),
+      );
+      backend.enqueueEvent(
+        id,
+        PtyEvent(kind: 'exit', sessionId: id, payload: {'code': exitCode}),
+      );
+      runtime.refreshSession(id);
+      expect(
+        () => controller.resizeSession(id, const Size(390, 600), 1),
+        returnsNormally,
+      );
+      await _settleMode(tester);
+      final state = container.read(sessionControllerProvider);
+      final panes = state.tabs
+          .expand((tab) => tab.effectivePanes)
+          .where((pane) => pane.sessionId == id);
+      if (exitCode == 0) {
+        expect(panes, isEmpty);
+        expect(state.activeSessionId, isNot(id));
+        expect(runtime.existingViewportFor(id), isNull);
+      } else {
+        expect(panes.single.isExited, true);
+        expect(runtime.existingViewportFor(id), isNotNull);
+        final replacement = controller.reconnectSession(id);
+        expect(replacement, isNot(id));
+        expect(
+          container.read(sessionControllerProvider).liveReconnectionFor(id),
+          replacement,
+        );
+        expect(backend.writes, isEmpty);
+      }
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  }
+
+  testWidgets(
+    'missing viewport presents a usable fallback and keeps AI reachable',
+    (tester) async {
+      final backend = _ModeBackend();
+      final profile = defaultTerminalProfile();
+      await pumpShellScreen(
+        tester,
+        fakeBindings: backend,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [profile]),
+        ),
+      );
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final controller = container.read(sessionControllerProvider.notifier);
+      controller.createSession(profile);
+      await _settleMode(tester);
+      final id = container.read(sessionControllerProvider).activeSessionId!;
+      container.read(terminalRuntimeControllerProvider).closeSession(id);
+      // Trigger a real host rebuild without recreating the missing runtime.
+      controller.activateSession(id);
+      await tester.binding.setSurfaceSize(const Size(1000, 700));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await _settleMode(tester);
+      expect(find.byKey(Key('terminal-unavailable-$id')), findsOneWidget);
+      expect(find.text('Close session'), findsOneWidget);
+      await tester.tap(find.byKey(Key('terminal-unavailable-ai-$id')));
+      await _settleMode(tester);
+      expect(find.byKey(ValueKey('ai-workspace-$id')), findsOneWidget);
+      expect(
+        container
+            .read(terminalRuntimeControllerProvider)
+            .existingViewportFor(id),
+        isNull,
+      );
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
   for (final platform in [TargetPlatform.macOS, TargetPlatform.iOS]) {
     testWidgets(
       'reset platform preference affects only new sessions $platform',
@@ -163,7 +291,16 @@ void main() {
         expect(backend.writes, hasLength(writes));
         controller.createSession(profile);
         await _settleMode(tester);
-        expect(state().tabs.last.terminalMode.mode, expected);
+        expect(
+          state().tabs.last.terminalMode.mode,
+          platform == TargetPlatform.iOS ? TerminalViewMode.normal : expected,
+        );
+        if (platform == TargetPlatform.iOS) {
+          expect(
+            state().tabs.last.terminalMode.unavailableReason,
+            BlockUnavailableReason.llmRequired,
+          );
+        }
         expect(
           state().tabs
               .firstWhere((tab) => tab.containsSession(original))
@@ -225,13 +362,98 @@ void main() {
     expect(enabled(), true);
     await tester.tap(entry);
     await _settleMode(tester);
-    expect(find.byType(TerminalCommandBlocksView), findsOneWidget);
+    expect(
+      find.byType(TerminalCommandBlocksView).hitTestable(),
+      findsOneWidget,
+    );
     expect(backend.writes, isEmpty);
     expect(backend.closedSessionIds, isEmpty);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
     debugDefaultTargetPlatformOverride = null;
   });
+
+  for (final initialOwner in ['ready', 'draft']) {
+    testWidgets(
+      'unmounted background tab detects support and keeps polling: $initialOwner',
+      (tester) async {
+        debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+        addTearDown(() => debugDefaultTargetPlatformOverride = null);
+        await tester.binding.setSurfaceSize(const Size(1200, 800));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        final backend = _ModeBackend();
+        await pumpShellScreen(
+          tester,
+          fakeBindings: backend,
+          repository: MemoryProfileRepository(
+            TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+          ),
+        );
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(ShellScreen)),
+        );
+        final controller = container.read(sessionControllerProvider.notifier);
+        SessionState state() => container.read(sessionControllerProvider);
+        // Restored/background tabs can exist before their pane is ever built.
+        // Do not pump between these creations: only the last pane mounts.
+        final background = controller.createSession(defaultTerminalProfile())!;
+        backend.owners[background] = initialOwner;
+        final active = controller.createSession(defaultTerminalProfile())!;
+        await _settleMode(tester);
+        TerminalModeState mode() => state().tabs
+            .firstWhere((tab) => tab.sessionId == background)
+            .activePane
+            .terminalMode;
+        expect(mode().unavailableReason, BlockUnavailableReason.checking);
+        final created = backend.lastCreatedSessionPayload;
+        await tester.tap(
+          find.byKey(Key('shell-tab-$background')),
+          buttons: kSecondaryMouseButton,
+        );
+        await tester.pumpAndSettle();
+        bool enabled() => tester
+            .widget<CheckedPopupMenuItem<Object>>(
+              find.byKey(Key('terminal-mode-blocks-$background')),
+            )
+            .enabled;
+        expect(enabled(), initialOwner == 'ready');
+        expect(
+          mode().unavailableReason,
+          initialOwner == 'ready'
+              ? isNull
+              : BlockUnavailableReason.unsupportedShell,
+        );
+        expect(find.text('Checking shell support…'), findsNothing);
+        expect(state().activeSessionId, active);
+
+        // A background handshake completing while the popup is open must
+        // update it without activating the pane or sending terminal input.
+        backend.owners[background] = 'ready';
+        await tester.pump(const Duration(milliseconds: 600));
+        await tester.pump();
+        expect(enabled(), isTrue);
+        await tester.tap(find.byKey(Key('terminal-mode-recheck-$background')));
+        await _settleMode(tester);
+        expect(mode().notice, TerminalModeNotice.supportChecked);
+        expect(mode().mode, TerminalViewMode.normal);
+        expect(state().activeSessionId, active);
+        expect(backend.lastCreatedSessionPayload, same(created));
+        expect(backend.closedSessionIds, isEmpty);
+        expect(backend.writes, isEmpty);
+
+        await _chooseMode(tester, background, 'blocks');
+        expect(state().activeSessionId, background);
+        expect(mode().mode, TerminalViewMode.blocks);
+        expect(
+          find.byKey(const Key('ai-prompt')).hitTestable(),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+        debugDefaultTargetPlatformOverride = null;
+      },
+    );
+  }
 
   testWidgets(
     'desktop tab recheck preserves Normal, draft and the same session',
@@ -255,7 +477,7 @@ void main() {
       final id = container.read(sessionControllerProvider).activeSessionId!;
       await _chooseMode(tester, id, 'blocks');
       await tester.enterText(
-        find.byKey(const Key('composer-editor')),
+        find.byKey(const Key('ai-prompt')),
         'retained command',
       );
       await _chooseMode(tester, id, 'normal');
@@ -281,7 +503,7 @@ void main() {
       await _chooseMode(tester, id, 'blocks');
       expect(
         tester
-            .widget<TextField>(find.byKey(const Key('composer-editor')))
+            .widget<TextField>(find.byKey(const Key('ai-prompt')))
             .controller!
             .text,
         'retained command',
@@ -400,12 +622,9 @@ void main() {
       expect(find.byKey(Key('composer-toggle-$id')), findsNothing);
       expect(find.byType(TerminalComposerView), findsNothing);
       expect(mode().canUseBlocks, isTrue);
-      expect(
-        find.byKey(Key('terminal-mode-notice-$id')).hitTestable(),
-        findsOneWidget,
-      );
+      expect(find.byKey(Key('terminal-mode-notice-$id')), findsNothing);
       await _chooseMode(tester, id, 'blocks');
-      final editor = find.byKey(const Key('composer-editor'));
+      final editor = find.byKey(const Key('ai-prompt'));
       await tester.enterText(editor, 'saved local draft');
       Future<void> hook(Map<String, Object?> payload) async {
         backend.enqueueEvent(
@@ -432,7 +651,7 @@ void main() {
             .widget<TerminalViewport>(find.byType(TerminalViewport))
             .focusNode!
             .hasFocus,
-        isTrue,
+        isFalse,
       );
       await tester.tap(
         find.byKey(Key('shell-tab-$id')),
@@ -538,7 +757,7 @@ void main() {
       TerminalViewMode.blocks,
     );
     await tester.enterText(
-      find.byKey(const Key('composer-editor')),
+      find.byKey(const Key('ai-prompt')),
       'draft before splitting',
     );
 
@@ -568,7 +787,7 @@ void main() {
     expect(state().tabs.last.terminalMode.mode, TerminalViewMode.blocks);
     expect(
       tester
-          .widget<TextField>(find.byKey(const Key('composer-editor')))
+          .widget<TextField>(find.byKey(const Key('ai-prompt')))
           .controller!
           .text,
       'draft before splitting',

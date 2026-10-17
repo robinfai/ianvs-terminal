@@ -33,16 +33,36 @@ void main() {
         final tokens = theme.extension<AppThemeTokens>()!;
         final design = theme.extension<IanvsTokens>()!;
         expect(theme.extension<IanvsTypography>(), isNotNull);
-        expect(theme.textTheme, shared.textTheme);
-        expect(
-          theme.inputDecorationTheme,
-          platform == TargetPlatform.macOS
-              ? shared.inputDecorationTheme.copyWith(
-                  hoverColor: theme.inputDecorationTheme.hoverColor,
-                  focusedBorder: theme.inputDecorationTheme.focusedBorder,
-                )
-              : shared.inputDecorationTheme,
-        );
+        if (platform == TargetPlatform.macOS) {
+          expect(theme.textTheme, shared.textTheme);
+          expect(
+            theme.inputDecorationTheme,
+            shared.inputDecorationTheme.copyWith(
+              hoverColor: theme.inputDecorationTheme.hoverColor,
+              focusedBorder: theme.inputDecorationTheme.focusedBorder,
+            ),
+          );
+        } else {
+          // Trail's reading hierarchy customizes headings and small labels;
+          // body fonts, editing metrics and target sizes remain shared.
+          expect(theme.textTheme.bodyMedium, shared.textTheme.bodyMedium);
+          expect(theme.textTheme.bodyLarge, shared.textTheme.bodyLarge);
+          expect(theme.textTheme.bodySmall, shared.textTheme.bodySmall);
+          expect(theme.textTheme.titleMedium?.fontSize, 16);
+          expect(theme.textTheme.labelSmall?.fontSize, 12);
+          expect(
+            theme.inputDecorationTheme.contentPadding,
+            shared.inputDecorationTheme.contentPadding,
+          );
+          expect(
+            theme.inputDecorationTheme.constraints,
+            shared.inputDecorationTheme.constraints,
+          );
+          expect(
+            theme.inputDecorationTheme.helperStyle,
+            shared.inputDecorationTheme.helperStyle,
+          );
+        }
         expect(
           theme.filledButtonTheme.style?.minimumSize?.resolve({}),
           shared.filledButtonTheme.style?.minimumSize?.resolve({}),
@@ -90,7 +110,7 @@ void main() {
     expect(theme.extension<IanvsTokens>()!.isCompactTouch, isTrue);
     expect(theme.textTheme.bodyMedium?.fontSize, 16);
     expect(theme.textTheme.bodySmall?.fontSize, 13);
-    expect(theme.textTheme.labelSmall?.fontSize, 13);
+    expect(theme.textTheme.labelSmall?.fontSize, 12);
     expect(theme.textTheme.bodyMedium?.fontFamily, 'CupertinoSystemText');
     expect(
       theme.inputDecorationTheme.prefixIconConstraints,

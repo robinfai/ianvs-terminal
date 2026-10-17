@@ -226,6 +226,7 @@ class _DefaultsAndAppearanceDialogState
   @override
   void initState() {
     super.initState();
+    widget.aiSettings?.addListener(_handleRemoteDataApiFieldChanged);
     final configuredProfileId = widget.configuredDefaultProfileId;
     _selectedProfileId =
         configuredProfileId != null &&
@@ -275,6 +276,7 @@ class _DefaultsAndAppearanceDialogState
 
   @override
   void dispose() {
+    widget.aiSettings?.removeListener(_handleRemoteDataApiFieldChanged);
     for (final controller in <TextEditingController>[
       _remoteDataApiUrlController,
       _remoteDataApiUsernameController,
@@ -718,6 +720,12 @@ class _DefaultsAndAppearanceDialogState
                 for (final mode in _TerminalModePreference.values)
                   DropdownMenuItem(
                     key: Key('default-terminal-mode-${mode.name}'),
+                    enabled:
+                        mode != _TerminalModePreference.blocks ||
+                        (Theme.of(context).platform != TargetPlatform.iOS &&
+                            Theme.of(context).platform !=
+                                TargetPlatform.android) ||
+                        widget.aiSettings?.hasLlmConfiguration == true,
                     value: mode,
                     child: Text(switch (mode) {
                       _TerminalModePreference.platform =>
@@ -725,7 +733,11 @@ class _DefaultsAndAppearanceDialogState
                       _TerminalModePreference.normal =>
                         context.l10n.terminalModeNormal,
                       _TerminalModePreference.blocks =>
-                        context.l10n.terminalModeBlocks,
+                        (Theme.of(context).platform == TargetPlatform.iOS ||
+                                Theme.of(context).platform ==
+                                    TargetPlatform.android)
+                            ? 'Block + AI'
+                            : context.l10n.terminalModeBlocks,
                     }),
                   ),
               ],
@@ -1045,6 +1057,7 @@ class _DefaultsAndAppearanceDialogState
                           children: [
                             if (widget.localSessionsEnabled)
                               SwitchListTile.adaptive(
+                                activeTrackColor: theme.accent,
                                 key: const Key('defaults-ssh-wrapper'),
                                 title: Text(context.l10n.sshWrapper),
                                 subtitle: Text(
@@ -1055,6 +1068,7 @@ class _DefaultsAndAppearanceDialogState
                                     setState(() => _selectedSshWrapper = value),
                               ),
                             SwitchListTile.adaptive(
+                              activeTrackColor: theme.accent,
                               key: const Key('defaults-ssh-auto-inject'),
                               title: Text(context.l10n.sshAutoInject),
                               subtitle: Text(

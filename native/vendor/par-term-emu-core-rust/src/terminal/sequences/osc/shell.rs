@@ -153,6 +153,22 @@ impl Terminal {
                 self.in_command_output =
                     self.shell_integration.state() == ShellIntegrationState::CommandOutput;
             }
+            "user_variable" => {
+                use base64::Engine;
+                let (Some(name), Some(text)) = (value["name"].as_str(), value["value"].as_str())
+                else {
+                    return;
+                };
+                if !name.starts_with("IANVS_")
+                    || name.len() > 80
+                    || !name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_')
+                    || text.chars().count() > 512
+                {
+                    return;
+                }
+                let encoded = base64::engine::general_purpose::STANDARD.encode(text);
+                self.handle_set_user_var(&format!("{name}={encoded}"));
+            }
             "precmd.pwd" => {
                 if let Some(cwd) = value["pwd"]
                     .as_str()
