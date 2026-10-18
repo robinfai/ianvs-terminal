@@ -56,6 +56,7 @@ Future<ProviderContainer> _pump(
   Size size = const Size(1200, 700),
   double scale = 1,
   Locale locale = const Locale('en'),
+  ValueNotifier<double>? contentWidth,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = size;
@@ -118,7 +119,16 @@ Future<ProviderContainer> _pump(
             ).copyWith(textScaler: TextScaler.linear(scale)),
             child: child!,
           ),
-          home: const Scaffold(body: ShellScreen()),
+          home: contentWidth == null
+              ? const Scaffold(body: ShellScreen())
+              : ValueListenableBuilder<double>(
+                  valueListenable: contentWidth,
+                  child: const Scaffold(body: ShellScreen()),
+                  builder: (context, width, child) => Align(
+                    alignment: Alignment.topLeft,
+                    child: SizedBox(width: width, child: child),
+                  ),
+                ),
         ),
       ),
     ),
@@ -225,6 +235,92 @@ void main() {
       variant: TargetPlatformVariant.only(TargetPlatform.macOS),
     );
   }
+
+  testWidgets(
+    'native drag gaps follow restored tabs and layout-only width changes',
+    (tester) async {
+      final layouts = <Map<Object?, Object?>>[];
+      const bridge = MethodChannel('app/window_bridge');
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(bridge, (
+        call,
+      ) async {
+        if (call.method == 'setTitleBarLayout') {
+          layouts.add((call.arguments as Map).cast<Object?, Object?>());
+        }
+        return null;
+      });
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          bridge,
+          null,
+        ),
+      );
+      final width = ValueNotifier<double>(1728);
+      addTearDown(width.dispose);
+      final container = await _pump(
+        tester,
+        FakePtyBackend(),
+        size: const Size(1728, 1084),
+        contentWidth: width,
+      );
+      final sessions = container.read(sessionControllerProvider.notifier);
+      final beforeRestore = layouts.length;
+      for (var i = 0; i < 3; i++) {
+        sessions.createSession(defaultTerminalProfile());
+      }
+      await tester.pumpAndSettle();
+      expect(
+        layouts[beforeRestore]['draggableRegions'],
+        isEmpty,
+        reason:
+            'Revoke empty-session gaps before restored controls become clickable',
+      );
+      void expectCurrentGaps() {
+        final regions = (layouts.last['draggableRegions']! as List)
+            .cast<Map<Object?, Object?>>()
+            .map(
+              (r) => Rect.fromLTWH(
+                (r['x']! as num).toDouble(),
+                (r['y']! as num).toDouble(),
+                (r['width']! as num).toDouble(),
+                (r['height']! as num).toDouble(),
+              ),
+            )
+            .toList();
+        final active = container
+            .read(sessionControllerProvider)
+            .activeSessionId!;
+        for (final key in [
+          'shell-tab-$active',
+          'terminal-ai-open-$active',
+          'shell-chrome-new-tab',
+          'shell-chrome-menu',
+        ]) {
+          final center = tester.getCenter(find.byKey(Key(key)));
+          expect(regions.any((r) => r.contains(center)), isFalse, reason: key);
+        }
+        final blank = Offset(
+          tester.getRect(find.byKey(const Key('shell-chrome-new-tab'))).right +
+              10,
+          22,
+        );
+        expect(
+          regions.any((r) => r.contains(blank)),
+          isTrue,
+          reason: 'The actual rail gap must remain draggable',
+        );
+      }
+
+      expectCurrentGaps();
+      for (final nextWidth in [1450.0, 1728.0]) {
+        width.value = nextWidth;
+        await tester.pumpAndSettle();
+        expectCurrentGaps();
+      }
+      expect(tester.takeException(), isNull);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
 
   for (final collapsed in [false, true]) {
     testWidgets(

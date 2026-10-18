@@ -48,10 +48,9 @@ class _ShellWindowTitleBarState extends State<_ShellWindowTitleBar> {
   @override
   void didUpdateWidget(_ShellWindowTitleBar oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.sidebarOpen != widget.sidebarOpen ||
-        oldWidget.sidebarWidth != widget.sidebarWidth) {
-      _syncNativeControls();
-    }
+    // Session restoration and the AI action can change the occupied area
+    // without changing the window or sidebar size. Revoke the old gaps first.
+    _syncNativeControls();
   }
 
   void _syncNativeControls() {
@@ -119,7 +118,7 @@ class _ShellWindowTitleBarState extends State<_ShellWindowTitleBar> {
     final buttonExtent = defaultTargetPlatform == TargetPlatform.iOS
         ? 44.0
         : 28.0;
-    return SizedBox(
+    final bar = SizedBox(
       key: _boundsKey,
       height: widget.height,
       child: ColoredBox(
@@ -234,6 +233,13 @@ class _ShellWindowTitleBarState extends State<_ShellWindowTitleBar> {
           ],
         ),
       ),
+    );
+    return NotificationListener<SizeChangedLayoutNotification>(
+      onNotification: (_) {
+        _scheduleNativeLayout();
+        return false;
+      },
+      child: SizeChangedLayoutNotifier(child: bar),
     );
   }
 }

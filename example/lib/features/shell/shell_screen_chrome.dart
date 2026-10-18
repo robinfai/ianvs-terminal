@@ -966,9 +966,11 @@ class _ShellTabStripState extends State<_ShellTabStrip> {
                   ),
                 if (visibleTabsWidth < tabsAreaWidth)
                   Expanded(
-                    child: SizedBox(
-                      key: _nativeDragGapKey,
-                      height: double.infinity,
+                    child: SizeChangedLayoutNotifier(
+                      child: SizedBox(
+                        key: _nativeDragGapKey,
+                        height: double.infinity,
+                      ),
                     ),
                   ),
               ],
