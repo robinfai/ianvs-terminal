@@ -646,12 +646,58 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     scheduleTrafficLightCentering()
   }
 
+  private var chromeMouseResponder: NSResponder?
+
   override func sendEvent(_ event: NSEvent) {
     if performNativeWindowDragIfNeeded(for: event) {
       return
     }
 
+    if forwardChromeMouseEvent(event) {
+      return
+    }
     super.sendEvent(event)
+  }
+
+  // AppKit can consume left clicks in the transparent native title bar even
+  // when hitTest resolves to FlutterView. Route only Flutter chrome controls
+  // through their controller, retaining the same responder until mouse-up so
+  // dragging a tab or releasing outside the chrome cannot strand a pointer.
+  @discardableResult
+  func forwardChromeMouseEvent(_ event: NSEvent) -> Bool {
+    if let responder = chromeMouseResponder {
+      switch event.type {
+      case .leftMouseDragged:
+        responder.mouseDragged(with: event)
+        return true
+      case .leftMouseUp:
+        chromeMouseResponder = nil
+        responder.mouseUp(with: event)
+        return true
+      default:
+        break
+      }
+    }
+    guard event.type == .leftMouseDown,
+      let controller = contentViewController,
+      let content = contentView,
+      let parent = content.superview
+    else { return false }
+    let screenPoint = convertPoint(toScreen: event.locationInWindow)
+    let topPoint = NSPoint(x: screenPoint.x - frame.minX,
+                          y: frame.maxY - screenPoint.y)
+    guard topPoint.x >= 0, topPoint.x < frame.width,
+      topPoint.y >= 0, topPoint.y < configuredChromeHeight,
+      !shouldStartNativeWindowDrag(atMouseLocation: screenPoint),
+      !standardWindowButtonFramesInScreenCoordinates().contains(where: {
+        $0.contains(screenPoint)
+      }),
+      let hit = content.hitTest(parent.convert(event.locationInWindow, from: nil)),
+      hit === content || hit.isDescendant(of: content)
+    else { return false }
+    chromeMouseResponder = controller
+    controller.mouseDown(with: event)
+    return true
   }
 
   @discardableResult

@@ -1,0 +1,4 @@
+** TEST SUCCEEDED **
+Test case 'RunnerTests.testChromeControlsReceiveNativeClickAndDragSequence()' passed on 'My Mac - Trail Development (44034)' (0.014 seconds)
+Test case 'RunnerTests.testMeasuredUnifiedChromeGapsExcludeTabsControlsAndTrafficLights()' passed on 'My Mac - Trail Development (44034)' (0.001 seconds)
+Test case 'RunnerTests.testMeasuredUnifiedChromeUsesNativeMouseDownAndRevokesOldResizeRegions()' passed on 'My Mac - Trail Development (44034)' (0.009 seconds)

@@ -33,6 +33,13 @@ private final class DragTrackingMainFlutterWindow: MainFlutterWindow {
   }
 }
 
+private final class ChromeMouseTrackingController: NSViewController {
+  var received: [NSEvent] = []
+  override func mouseDown(with event: NSEvent) { received.append(event) }
+  override func mouseDragged(with event: NSEvent) { received.append(event) }
+  override func mouseUp(with event: NSEvent) { received.append(event) }
+}
+
 class RunnerTests: XCTestCase {
 
   // This is a test-host scheduling budget, not the application's shutdown
@@ -608,6 +615,53 @@ class RunnerTests: XCTestCase {
     window.updateTitleBarLayout(sidebarWidth: nil, height: 54,
       draggableRegions: [NSRect(x: 500, y: 4, width: 100, height: 46)])
     XCTAssertTrue(window.performNativeWindowDragIfNeeded(for: try mouseDown(550)))
+  }
+
+  func testChromeControlsReceiveNativeClickAndDragSequence() throws {
+    let window = DragTrackingMainFlutterWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+      styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
+      backing: .buffered, defer: false)
+    let controller = ChromeMouseTrackingController()
+    controller.view = NSView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
+    window.contentViewController = controller
+    window.setFrame(NSRect(x: 100, y: 200, width: 800, height: 600), display: false)
+    window.updateTitleBarLayout(sidebarWidth: nil, height: 44,
+      draggableRegions: [NSRect(x: 400, y: 0, width: 200, height: 44)])
+    func event(_ type: NSEvent.EventType, _ x: CGFloat, _ y: CGFloat) throws -> NSEvent {
+      try XCTUnwrap(NSEvent.mouseEvent(with: type, location: NSPoint(x: x, y: y),
+        modifierFlags: [], timestamp: 1, windowNumber: window.windowNumber,
+        context: nil, eventNumber: 1, clickCount: 1, pressure: 1))
+    }
+    // A tab and the right AI action both receive an actual window event pair.
+    for x: CGFloat in [200, 740] {
+      let down = try event(.leftMouseDown, x, 578)
+      let up = try event(.leftMouseUp, x, 578)
+      window.sendEvent(down)
+      window.sendEvent(up)
+      XCTAssertTrue(controller.received.suffix(2).first === down)
+      XCTAssertTrue(controller.received.last === up)
+    }
+    let down = try event(.leftMouseDown, 200, 578)
+    let drag = try event(.leftMouseDragged, 300, 400)
+    let up = try event(.leftMouseUp, 300, 400)
+    window.sendEvent(down)
+    window.sendEvent(drag)
+    window.sendEvent(up)
+    XCTAssertTrue(controller.received.suffix(3).first === down)
+    XCTAssertTrue(controller.received.suffix(2).first === drag)
+    XCTAssertTrue(controller.received.last === up)
+    XCTAssertFalse(window.forwardChromeMouseEvent(up), "Release clears the captured responder")
+    XCTAssertFalse(window.forwardChromeMouseEvent(try event(.leftMouseDown, 200, 300)))
+    XCTAssertFalse(window.forwardChromeMouseEvent(try event(.rightMouseDown, 200, 578)))
+    let gap = try event(.leftMouseDown, 450, 578)
+    XCTAssertFalse(window.forwardChromeMouseEvent(gap))
+    window.sendEvent(gap)
+    XCTAssertTrue(window.performedDragEvent === gap)
+    if let close = window.standardWindowButton(.closeButton) {
+      let point = close.convert(NSPoint(x: close.bounds.midX, y: close.bounds.midY), to: nil)
+      XCTAssertFalse(window.forwardChromeMouseEvent(try event(.leftMouseDown, point.x, point.y)))
+    }
   }
 
   func testTerminationWarningIncludesRetainedUnknownAndUnreviewedWork() {
