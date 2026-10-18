@@ -68,15 +68,18 @@ printf %s "$last" > "$IANVS_TEST_COMMAND"
                 .output()
                 .unwrap();
             assert!(output.status.success(), "{shell}: {:?}", output.stderr);
+            let enter_end = output.stdout.iter().position(|&b| b == 7).unwrap() + 1;
+            let frame = std::str::from_utf8(&output.stdout[..enter_end]).unwrap();
+            let id = frame.split(';').nth(2).unwrap();
             let mut wrapped = Bootstrap::new("local".into(), true);
             let result = wrapped.feed(&output.stdout);
-            let entered = tests::events(&result.output)
-                .into_iter()
-                .find(|event| event["hook"] == "bootstrap.checking")
-                .unwrap_or_else(|| panic!("{shell}, socket={socket}: no SSH initialization"));
-            let id = entered["context_id"].as_str().unwrap();
+            assert_eq!(wrapped.active, "root");
+            assert!(
+                !tests::events(&result.output)
+                    .iter()
+                    .any(|e| e["hook"] == "bootstrap.checking")
+            );
             let has_route = socket == "/tmp/ianvs-existing-master";
-            assert_eq!(entered["sftp_route"], has_route, "{shell}: {socket}");
             assert_eq!(
                 decode_launcher(&std::fs::read_to_string(scratch.path().join("command")).unwrap()),
                 decode_launcher(&launcher(id, id)),
@@ -100,6 +103,7 @@ printf %s "$last" > "$IANVS_TEST_COMMAND"
                 let expected =
                     profile.feed(format!("\x1b]6973;root;root;init;{target}\x07").as_bytes());
                 assert_eq!(reply.replies.len(), 1, "{shell}: {socket}");
+                assert_eq!(tests::events(&reply.output)[0]["sftp_route"], has_route);
                 // Context lengths shift Zsh's 256-character wire chunks; join
                 // those chunks before comparing the actual payload contents.
                 assert_eq!(

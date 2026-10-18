@@ -36,8 +36,10 @@ fn shell_launch_script(nonce: &str, context: &str, child: bool) -> String {
     let bash_init = format!(
         "command stty raw -echo || exit 124; printf '{frame}bash\\007'; while IFS= read -r -t 10 __ianvs_wire; do case \"$__ianvs_wire\" in ' true {nonce}-{context}; '*) break;; esac; done; case \"$__ianvs_wire\" in ' true {nonce}-{context}; '*) ;; *) command stty sane; exit 124;; esac; command stty sane; eval \"$__ianvs_wire\"; unset __ianvs_wire"
     );
+    // NUL-delimited read bypasses fish's interactive line editor: bootstrap
+    // input must not be repainted, truncated, or recorded as a user command.
     let fish_init = format!(
-        "command stty raw -echo; or exit 124; printf '{frame}fish\\007'; set -l __ianvs_wire; while read __ianvs_wire; if string match -q ' true {nonce}-{context}; *' -- \"$__ianvs_wire\"; break; end; end; command stty sane; eval $__ianvs_wire; set -e __ianvs_wire"
+        "command stty raw -echo; or exit 124; printf '{frame}fish\\007'; set -l __ianvs_wire; while read --null --delimiter '' __ianvs_wire; if string match -q ' true {nonce}-{context}; *' -- \"$__ianvs_wire\"; break; end; end; command stty sane; eval $__ianvs_wire; set -e __ianvs_wire"
     );
     // -g filters the very first command before rc files can change history options.
     // -f and -d defer user and global rc loading; /etc/zshenv is unavoidable.
@@ -202,7 +204,7 @@ fn body_with_composer(
     let marker = format!(" true {nonce}-{context}; ");
     if shell == "fish" {
         format!(
-            "{marker}eval (printf '%b' {} | string collect)\n",
+            "{marker}eval (printf '%b' {} | string collect)\0",
             fish_quote(&escaped)
         )
     } else if shell == "zsh" {
@@ -225,6 +227,7 @@ fn body_with_composer(
 
 #[derive(Clone)]
 struct Context {
+    entered: bool,
     parent: String,
     started: Option<std::time::Instant>,
     completed: bool,
@@ -239,6 +242,7 @@ struct Context {
 impl Context {
     fn root() -> Self {
         Self {
+            entered: true,
             parent: String::new(),
             started: None,
             completed: false,
@@ -361,6 +365,23 @@ impl Bootstrap {
     pub(crate) fn launch_command(&self) -> String {
         launcher(&self.nonce, "root")
     }
+    // The wrapper announces an attempt before OpenSSH connects. Only a frame
+    // from the launched remote shell confirms that the foreground host changed.
+    fn confirm_ssh(&mut self, ctx: &str) -> bool {
+        if ctx == self.active {
+            return true;
+        }
+        let Some(context) = self.contexts.get_mut(ctx) else {
+            return false;
+        };
+        if context.entered || context.kind != "ssh" || context.parent != self.active {
+            return false;
+        }
+        context.entered = true;
+        self.active = ctx.into();
+        self.composer.activate(ctx, self.local_root);
+        true
+    }
     fn event(&self, ctx: &str, name: &str) -> serde_json::Value {
         let context = &self.contexts[ctx];
         json!({"hook":name, "context_id":ctx, "parent_context_id":context.parent,
@@ -452,7 +473,11 @@ impl Bootstrap {
                         && fields.len() == 8
                         && fields[3] == self.active
                         && self.contexts.len() < 128
-                        && !self.contexts.contains_key(ctx) =>
+                        && !self.contexts.contains_key(ctx)
+                        && !self
+                            .contexts
+                            .values()
+                            .any(|c| !c.entered && c.parent == self.active) =>
                 {
                     let socket = fields[4];
                     if !socket.is_empty()
@@ -482,15 +507,13 @@ impl Bootstrap {
                             user: fields[6].into(),
                             port,
                             kind: "ssh",
+                            entered: false,
                             host_context: ctx.into(),
                             ..Context::root()
                         },
                     );
-                    self.active = ctx.into();
-                    self.composer.activate(ctx, self.local_root);
-                    result
-                        .output
-                        .extend(hook(self.event(ctx, "bootstrap.checking")));
+                    // Do not publish a child, route files to it, or replace the
+                    // parent's composer until the remote launcher responds.
                 }
                 "enter_shell"
                     if fields.len() == 5
@@ -518,7 +541,7 @@ impl Bootstrap {
                         .output
                         .extend(hook(self.event(ctx, "bootstrap.checking")));
                 }
-                "init" if matches!(fields[3], "bash" | "zsh" | "fish") && ctx == self.active => {
+                "init" if matches!(fields[3], "bash" | "zsh" | "fish") && self.confirm_ssh(ctx) => {
                     if let Some(context) = self.contexts.get_mut(ctx)
                         && context.started.is_none()
                         && !context.completed
@@ -541,7 +564,17 @@ impl Bootstrap {
                         );
                     }
                 }
-                "ready" if fields.len() == 6 && ctx == self.active => {
+                "ready" if fields.len() == 6 => {
+                    let pending = self.contexts.get(ctx).is_some_and(|c| !c.entered);
+                    if ctx != self.active && (fields[3] != "unsupported" || !self.confirm_ssh(ctx))
+                    {
+                        continue;
+                    }
+                    if pending {
+                        result
+                            .output
+                            .extend(hook(self.event(ctx, "bootstrap.checking")));
+                    }
                     if let Some(context) = self.contexts.get(ctx)
                         && !context.completed
                         && (context.started.is_some() || fields[3] == "unsupported")
@@ -554,7 +587,7 @@ impl Bootstrap {
                         ));
                     }
                 }
-                "resume" if self.contexts.contains_key(ctx) && ctx != self.active => {
+                "resume" if self.contexts.contains_key(ctx) => {
                     let mut child = self.active.clone();
                     let mut leaving = Vec::new();
                     while let Some(context) = self.contexts.get(&child) {
@@ -565,6 +598,20 @@ impl Bootstrap {
                         child = context.parent.clone();
                     }
                     if child != ctx {
+                        continue;
+                    }
+                    // A failed attempt never became active, but must still be
+                    // retired so delayed init/ready frames cannot revive it.
+                    let pending: Vec<_> = self
+                        .contexts
+                        .iter()
+                        .filter(|(_, c)| {
+                            !c.entered && (c.parent == ctx || leaving.contains(&c.parent))
+                        })
+                        .map(|(id, _)| id.clone())
+                        .collect();
+                    leaving.extend(pending);
+                    if leaving.is_empty() {
                         continue;
                     }
                     // Report retired IDs before pruning; old editors must fail closed.
@@ -865,16 +912,20 @@ mod tests {
     fn ssh_without_a_socket_initializes_but_cannot_route_files() {
         let mut b = Bootstrap::new("local".into(), true);
         let entered = b.feed(b"\x1b]6973;local;a;enter;root;;host;user;22\x07");
+        assert_eq!(b.active, "root");
+        assert!(entered.output.is_empty());
+        let initialized = b.feed(b"\x1b]6973;a;a;init;bash\x07");
         assert_eq!(b.active, "a");
-        assert_eq!(events(&entered.output)[0]["sftp_route"], false);
-        assert_eq!(b.feed(b"\x1b]6973;a;a;init;bash\x07").replies.len(), 1);
+        assert_eq!(events(&initialized.output)[0]["sftp_route"], false);
+        assert_eq!(initialized.replies.len(), 1);
         let ready = b.feed(b"\x1b]6973;a;a;ready;installed;1;bash\x07");
         assert_eq!(events(&ready.output)[0]["registered"], true);
         assert!(b.route_for("a").is_err());
 
         // A later socket must not skip the unrouteable SSH hop and land on a
         // different host. The same restriction applies to child shells.
-        let child = b.feed(b"\x1b]6973;a;b;enter;a;/tmp/b;next;user;22\x07");
+        let child =
+            b.feed(b"\x1b]6973;a;b;enter;a;/tmp/b;next;user;22\x07\x1b]6973;b;b;init;bash\x07");
         assert_eq!(events(&child.output)[0]["sftp_route"], false);
         assert!(b.route_for("b").is_err());
         let shell = b.feed(b"\x1b]6973;b;c;enter_shell;b;zsh\x07");
@@ -887,7 +938,9 @@ mod tests {
     #[test]
     fn child_shell_reuses_host_route_and_does_not_authorize_other_hosts() {
         let mut b = Bootstrap::new("root-secret".into(), true);
-        b.feed(b"\x1b]6973;root-secret;a;enter;root;/tmp/a;a;user;22\x07");
+        b.feed(
+            b"\x1b]6973;root-secret;a;enter;root;/tmp/a;a;user;22\x07\x1b]6973;a;a;init;bash\x07",
+        );
         let checked = b.feed(b"\x1b]6973;a;shell-a;enter_shell;a;bash\x07");
         let event = events(&checked.output).pop().unwrap();
         assert_eq!(event["context_kind"], "shell");
@@ -896,7 +949,9 @@ mod tests {
         assert_eq!(b.route_for("a").unwrap(), vec!["/tmp/a"]);
         assert_eq!(b.route_for("shell-a").unwrap(), vec!["/tmp/a"]);
         assert!(b.route_for("root").is_err());
-        b.feed(b"\x1b]6973;shell-a;c;enter;shell-a;/tmp/c;c;user;22\x07");
+        b.feed(
+            b"\x1b]6973;shell-a;c;enter;shell-a;/tmp/c;c;user;22\x07\x1b]6973;c;c;init;bash\x07",
+        );
         assert_eq!(b.route_for("c").unwrap(), vec!["/tmp/a", "/tmp/c"]);
         assert!(b.route_for("a").is_err());
         b.feed(b"\x1b]6973;shell-a;shell-a;resume;done\x07");
@@ -905,6 +960,53 @@ mod tests {
         assert!(b.route_for("shell-a").is_err());
         assert_eq!(b.route_for("a").unwrap(), vec!["/tmp/a"]);
     }
+    #[test]
+    fn failed_ssh_keeps_parent_and_retires_late_frames() {
+        let mut b = Bootstrap::new("local".into(), true);
+        b.feed(b"\x1b]6973;local;cloud;enter;root;/tmp/cloud;cloud;lab;22\x07\x1b]6973;cloud;cloud;init;bash\x07\x1b]6973;cloud;cloud;ready;installed;1;bash\x07");
+        for id in ["dns", "auth", "refused"] {
+            let attempt = b.feed(
+                format!("\x1b]6973;cloud;{id};enter;cloud;/tmp/{id};sg;lab;22\x07").as_bytes(),
+            );
+            assert!(attempt.output.is_empty());
+            assert_eq!(b.active, "cloud");
+            assert!(!b.checking());
+            assert!(b.route_for(id).is_err());
+            assert_eq!(b.route_for("cloud").unwrap(), vec!["/tmp/cloud"]);
+            let resumed = b.feed(b"\x1b]6973;cloud;cloud;resume;done;255\x07");
+            let event = events(&resumed.output).pop().unwrap();
+            assert_eq!(event["exit_code"], 255);
+            assert_eq!(event["context_id"], "cloud");
+            assert_eq!(event["retired_contexts"], json!([id]));
+            assert!(!b.contexts.contains_key(id));
+            let late = b.feed(format!("\x1b]6973;{id};{id};init;bash\x07\x1b]6973;{id};{id};ready;installed;1;bash\x07").as_bytes());
+            assert!(late.replies.is_empty());
+            assert!(events(&late.output).is_empty());
+            assert_eq!(b.active, "cloud");
+        }
+        let next = b.feed(
+            b"\x1b]6973;cloud;ok;enter;cloud;/tmp/ok;ok;lab;22\x07\x1b]6973;ok;ok;init;bash\x07",
+        );
+        assert_eq!(next.replies.len(), 1);
+        assert_eq!(b.active, "ok");
+        b.feed(b"\x1b]6973;cloud;cloud;resume;done;0\x07");
+        assert_eq!(b.active, "cloud");
+    }
+
+    #[test]
+    fn unsupported_remote_confirms_the_connection_before_degrading() {
+        let mut b = Bootstrap::new("local".into(), true);
+        b.feed(b"\x1b]6973;local;child;enter;root;;host;lab;22\x07");
+        let ready = b.feed(b"\x1b]6973;child;child;ready;unsupported;0;unknown\x07");
+        let events = events(&ready.output);
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0]["hook"], "bootstrap.checking");
+        assert_eq!(events[1]["source"], "unsupported");
+        assert_eq!(b.active, "child");
+        b.feed(b"\x1b]6973;local;root;resume;done;0\x07");
+        assert_eq!(b.active, "root");
+    }
+
     pub(super) fn events(output: &[u8]) -> Vec<serde_json::Value> {
         regex::bytes::Regex::new(r"\x1bPhook;([0-9a-f]+)\x1b\\")
             .unwrap()
@@ -927,7 +1029,7 @@ mod tests {
                 .output
                 .is_empty()
         );
-        b.feed(b"\x1b]6973;test;a;enter;root;/tmp/a;a;user;22\x07");
+        b.feed(b"\x1b]6973;test;a;enter;root;/tmp/a;a;user;22\x07\x1b]6973;a;a;init;bash\x07");
         b.feed(b"\x1b]6973;a;root;enter;a;/tmp/b;b;user;22\x07");
         assert_eq!(b.active, "a");
         b.feed(b"\x1b]6973;a;a;init;bash\x07");
@@ -951,7 +1053,9 @@ mod tests {
     #[test]
     fn a_child_cannot_forge_its_parents_control_frames() {
         let mut b = Bootstrap::new("parent-secret".into(), true);
-        b.feed(b"\x1b]6973;parent-secret;a;enter;root;/tmp/a;a;user;22\x07");
+        b.feed(
+            b"\x1b]6973;parent-secret;a;enter;root;/tmp/a;a;user;22\x07\x1b]6973;a;a;init;bash\x07",
+        );
         b.feed(b"\x1b]6973;a;root;resume;done\x07");
         b.feed(b"\x1b]6973;a;forged;enter;root;/tmp/other;other;user;22\x07");
         assert_eq!(b.active, "a");

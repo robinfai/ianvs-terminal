@@ -1,0 +1,23 @@
+   Compiling ianvs_core v0.1.0 (/Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/native/core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.44s
+     Running unittests src/lib.rs (native/core/target/debug/deps/ianvs_core-8dab59a404009582)
+
+running 1 test
+test shell_bootstrap::acceptance::product_ssh_failure_rollback ... ROLLBACK host=cloud
+ROLLBACK host=cloud failure=sg
+ROLLBACK host=cloud failure=refused
+ROLLBACK host=cloud failure=denied
+ROLLBACK host=cloud failure=sg
+ROLLBACK host=zsh
+ROLLBACK host=zsh failure=sg
+ROLLBACK host=zsh failure=refused
+ROLLBACK host=zsh failure=denied
+ROLLBACK host=zsh failure=sg
+ROLLBACK host=fish
+ROLLBACK host=fish failure=sg
+ROLLBACK host=fish failure=refused
+ROLLBACK host=fish failure=denied
+ROLLBACK host=fish failure=sg
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 450 filtered out; finished in 53.51s

@@ -2709,6 +2709,51 @@ void main() {
           .isActive,
       isTrue,
     );
+    // A rejected SSH attempt never publishes a new context. Its same-parent
+    // resume preserves the connected host and the real command exit code.
+    await hook({'hook': 'preexec', 'context_id': 'hop-a', 'command': 'ssh sg'});
+    await hook({
+      'hook': 'bootstrap.resume',
+      'context_id': 'hop-a',
+      'host_context_id': 'hop-a',
+      'context_kind': 'ssh',
+      'host': 'a.example',
+      'user': 'lab',
+      'port': 2222,
+      'exit_code': 255,
+      'retired_contexts': ['failed-sg'],
+      'sftp_route': true,
+    });
+    await hook({
+      'hook': 'command_finished',
+      'context_id': 'hop-a',
+      'command': 'ssh sg',
+      'exit_code': 255,
+    });
+    await hook({
+      'hook': 'precmd.pwd',
+      'context_id': 'hop-a',
+      'pwd': '/remote',
+      'shell': 'bash',
+    });
+    expect(pane().shellIntegration.contextId, 'hop-a');
+    expect(pane().shellIntegration.bootstrapPhase, 'ready');
+    expect(pane().shellIntegration.currentDirectory, '/remote');
+    expect(pane().shellIntegration.integrationVersion, '2');
+    expect(pane().shellIntegration.lastCommand, 'ssh sg');
+    expect(pane().shellIntegration.lastExitCode, 255);
+    expect(pane().shellIntegration.sftpRoute, isTrue);
+    expect(pane().shellConnectionChain.map((hop) => hop.contextId), [
+      'root',
+      'hop-a',
+    ]);
+    expect(pane().shellConnectionChain.last.address, 'lab@a.example:2222');
+    expect(
+      pane()
+          .shellCapabilities[ShellIntegrationCapability.commandFinish]
+          .isActive,
+      isTrue,
+    );
     await hook({
       'hook': 'bootstrap.checking',
       'context_id': 'bash-a',

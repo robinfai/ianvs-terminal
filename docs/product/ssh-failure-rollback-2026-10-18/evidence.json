@@ -1,0 +1,299 @@
+[
+  {
+    "attempt": "sg",
+    "command_tracking_after_failure": true,
+    "job_notice": false,
+    "native_command_block_exit_code": 255,
+    "resume": {
+      "context_id": "42a8339b7df046e3f4ffe871dbf0ae4e",
+      "context_kind": "ssh",
+      "exit_code": 255,
+      "hook": "bootstrap.resume",
+      "host": "127.0.0.1",
+      "host_context_id": "42a8339b7df046e3f4ffe871dbf0ae4e",
+      "parent_context_id": "root",
+      "port": 32781,
+      "retired_contexts": [
+        "ab53dac1a12a21803145f84b4fe0882f"
+      ],
+      "sftp_route": true,
+      "user": "lab"
+    },
+    "sftp_host_after_failure": "cloud",
+    "shell": "bash"
+  },
+  {
+    "attempt": "refused",
+    "command_tracking_after_failure": true,
+    "job_notice": false,
+    "native_command_block_exit_code": 255,
+    "resume": {
+      "context_id": "42a8339b7df046e3f4ffe871dbf0ae4e",
+      "context_kind": "ssh",
+      "exit_code": 255,
+      "hook": "bootstrap.resume",
+      "host": "127.0.0.1",
+      "host_context_id": "42a8339b7df046e3f4ffe871dbf0ae4e",
+      "parent_context_id": "root",
+      "port": 32781,
+      "retired_contexts": [
+        "aedae2a50bee41ff27e336ae34bd4bb7"
+      ],
+      "sftp_route": true,
+      "user": "lab"
+    },
+    "sftp_host_after_failure": "cloud",
+    "shell": "bash"
+  },
+  {
+    "attempt": "denied",
+    "command_tracking_after_failure": true,
+    "job_notice": false,
+    "native_command_block_exit_code": 255,
+    "resume": {
+      "context_id": "42a8339b7df046e3f4ffe871dbf0ae4e",
+      "context_kind": "ssh",
+      "exit_code": 255,
+      "hook": "bootstrap.resume",
+      "host": "127.0.0.1",
+      "host_context_id": "42a8339b7df046e3f4ffe871dbf0ae4e",
+      "parent_context_id": "root",
+      "port": 32781,
+      "retired_contexts": [
+        "e55b15dfe9effc95b7e349a5dd5d3a76"
+      ],
+      "sftp_route": true,
+      "user": "lab"
+    },
+    "sftp_host_after_failure": "cloud",
+    "shell": "bash"
+  },
+  {
+    "attempt": "sg",
+    "command_tracking_after_failure": true,
+    "job_notice": false,
+    "native_command_block_exit_code": 255,
+    "resume": {
+      "context_id": "42a8339b7df046e3f4ffe871dbf0ae4e",
+      "context_kind": "ssh",
+      "exit_code": 255,
+      "hook": "bootstrap.resume",
+      "host": "127.0.0.1",
+      "host_context_id": "42a8339b7df046e3f4ffe871dbf0ae4e",
+      "parent_context_id": "root",
+      "port": 32781,
+      "retired_contexts": [
+        "38da3c2a430c3c2b8d007c2a3f7c2b19"
+      ],
+      "sftp_route": true,
+      "user": "lab"
+    },
+    "sftp_host_after_failure": "cloud",
+    "shell": "bash"
+  },
+  {
+    "empty_failed_socket_dirs_removed": true,
+    "parent_sftp_preserved": true,
+    "shell": "bash",
+    "successful_second_hop_and_return": true,
+    "user_jobs_empty": true
+  },
+  {
+    "attempt": "sg",
+    "command_tracking_after_failure": true,
+    "job_notice": false,
+    "native_command_block_exit_code": 255,
+    "resume": {
+      "context_id": "355969b6af91084186658742cb32c2d2",
+      "context_kind": "ssh",
+      "exit_code": 255,
+      "hook": "bootstrap.resume",
+      "host": "127.0.0.1",
+      "host_context_id": "355969b6af91084186658742cb32c2d2",
+      "parent_context_id": "root",
+      "port": 32782,
+      "retired_contexts": [
+        "c8176b01c0160cca64fe26e2b8afd073"
+      ],
+      "sftp_route": true,
+      "user": "lab"
+    },
+    "sftp_host_after_failure": "zsh",
+    "shell": "zsh"
+  },
+  {
+    "attempt": "refused",
+    "command_tracking_after_failure": true,
+    "job_notice": false,
+    "native_command_block_exit_code": 255,
+    "resume": {
+      "context_id": "355969b6af91084186658742cb32c2d2",
+      "context_kind": "ssh",
+      "exit_code": 255,
+      "hook": "bootstrap.resume",
+      "host": "127.0.0.1",
+      "host_context_id": "355969b6af91084186658742cb32c2d2",
+      "parent_context_id": "root",
+      "port": 32782,
+      "retired_contexts": [
+        "1b756419f0b0b9d7fb4a15aaecf071e6"
+      ],
+      "sftp_route": true,
+      "user": "lab"
+    },
+    "sftp_host_after_failure": "zsh",
+    "shell": "zsh"
+  },
+  {
+    "attempt": "denied",
+    "command_tracking_after_failure": true,
+    "job_notice": false,
+    "native_command_block_exit_code": 255,
+    "resume": {
+      "context_id": "355969b6af91084186658742cb32c2d2",
+      "context_kind": "ssh",
+      "exit_code": 255,
+      "hook": "bootstrap.resume",
+      "host": "127.0.0.1",
+      "host_context_id": "355969b6af91084186658742cb32c2d2",
+      "parent_context_id": "root",
+      "port": 32782,
+      "retired_contexts": [
+        "4c954f7fe900e1d84b78402aaadc84bf"
+      ],
+      "sftp_route": true,
+      "user": "lab"
+    },
+    "sftp_host_after_failure": "zsh",
+    "shell": "zsh"
+  },
+  {
+    "attempt": "sg",
+    "command_tracking_after_failure": true,
+    "job_notice": false,
+    "native_command_block_exit_code": 255,
+    "resume": {
+      "context_id": "355969b6af91084186658742cb32c2d2",
+      "context_kind": "ssh",
+      "exit_code": 255,
+      "hook": "bootstrap.resume",
+      "host": "127.0.0.1",
+      "host_context_id": "355969b6af91084186658742cb32c2d2",
+      "parent_context_id": "root",
+      "port": 32782,
+      "retired_contexts": [
+        "4d788c79db9a6f5f196389933cefcdac"
+      ],
+      "sftp_route": true,
+      "user": "lab"
+    },
+    "sftp_host_after_failure": "zsh",
+    "shell": "zsh"
+  },
+  {
+    "empty_failed_socket_dirs_removed": true,
+    "parent_sftp_preserved": true,
+    "shell": "zsh",
+    "successful_second_hop_and_return": true,
+    "user_jobs_empty": true
+  },
+  {
+    "attempt": "sg",
+    "command_tracking_after_failure": true,
+    "job_notice": false,
+    "native_command_block_exit_code": 255,
+    "resume": {
+      "context_id": "a095181476505399b3cf62b9fc7602bd",
+      "context_kind": "ssh",
+      "exit_code": 255,
+      "hook": "bootstrap.resume",
+      "host": "127.0.0.1",
+      "host_context_id": "a095181476505399b3cf62b9fc7602bd",
+      "parent_context_id": "root",
+      "port": 32783,
+      "retired_contexts": [
+        "16f7791e42403790de9df131312f1b38"
+      ],
+      "sftp_route": true,
+      "user": "lab"
+    },
+    "sftp_host_after_failure": "fish",
+    "shell": "fish"
+  },
+  {
+    "attempt": "refused",
+    "command_tracking_after_failure": true,
+    "job_notice": false,
+    "native_command_block_exit_code": 255,
+    "resume": {
+      "context_id": "a095181476505399b3cf62b9fc7602bd",
+      "context_kind": "ssh",
+      "exit_code": 255,
+      "hook": "bootstrap.resume",
+      "host": "127.0.0.1",
+      "host_context_id": "a095181476505399b3cf62b9fc7602bd",
+      "parent_context_id": "root",
+      "port": 32783,
+      "retired_contexts": [
+        "b181453184bc18bea4e03daeea61917e"
+      ],
+      "sftp_route": true,
+      "user": "lab"
+    },
+    "sftp_host_after_failure": "fish",
+    "shell": "fish"
+  },
+  {
+    "attempt": "denied",
+    "command_tracking_after_failure": true,
+    "job_notice": false,
+    "native_command_block_exit_code": 255,
+    "resume": {
+      "context_id": "a095181476505399b3cf62b9fc7602bd",
+      "context_kind": "ssh",
+      "exit_code": 255,
+      "hook": "bootstrap.resume",
+      "host": "127.0.0.1",
+      "host_context_id": "a095181476505399b3cf62b9fc7602bd",
+      "parent_context_id": "root",
+      "port": 32783,
+      "retired_contexts": [
+        "c0eaf326278838d7d4afc67762837844"
+      ],
+      "sftp_route": true,
+      "user": "lab"
+    },
+    "sftp_host_after_failure": "fish",
+    "shell": "fish"
+  },
+  {
+    "attempt": "sg",
+    "command_tracking_after_failure": true,
+    "job_notice": false,
+    "native_command_block_exit_code": 255,
+    "resume": {
+      "context_id": "a095181476505399b3cf62b9fc7602bd",
+      "context_kind": "ssh",
+      "exit_code": 255,
+      "hook": "bootstrap.resume",
+      "host": "127.0.0.1",
+      "host_context_id": "a095181476505399b3cf62b9fc7602bd",
+      "parent_context_id": "root",
+      "port": 32783,
+      "retired_contexts": [
+        "161365e52cb3bbffdfdd1edb52d9ca2b"
+      ],
+      "sftp_route": true,
+      "user": "lab"
+    },
+    "sftp_host_after_failure": "fish",
+    "shell": "fish"
+  },
+  {
+    "empty_failed_socket_dirs_removed": true,
+    "parent_sftp_preserved": true,
+    "shell": "fish",
+    "successful_second_hop_and_return": true,
+    "user_jobs_empty": true
+  }
+]

@@ -599,3 +599,144 @@ fn product_ssh_bootstrap_acceptance() {
         .unwrap();
     }
 }
+
+#[test]
+#[ignore = "requires disposable OpenSSH fixtures from tools/ssh_boundary_lab/rollback.py"]
+fn product_ssh_failure_rollback() {
+    let fixture: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(std::env::var("IANVS_BOOTSTRAP_FIXTURE").unwrap()).unwrap(),
+    )
+    .unwrap();
+    let mut evidence = Vec::new();
+    for host in ["cloud", "zsh", "fish"] {
+        println!("ROLLBACK host={host}");
+        let scratch = tempfile::tempdir().unwrap();
+        let mut p: TerminalProfile =
+            serde_json::from_value(json!({"id":"rollback", "name":"Rollback"})).unwrap();
+        p.launch.program = "/bin/bash".into();
+        p.launch
+            .env
+            .insert("HOME".into(), scratch.path().to_string_lossy().into());
+        p.launch
+            .env
+            .insert("BASH_SILENCE_DEPRECATION_WARNING".into(), "1".into());
+        p.launch.cwd = Some(scratch.path().to_string_lossy().into());
+        p.shell_integration.ssh_wrapper = true;
+        let mut t = Terminal::new(&p);
+        t.until(0, |events, _| events.iter().any(|e| e["hook"] == "precmd"));
+        let cloud = t.enter(&format!(
+            "ssh -F {} {host}",
+            quote(fixture["local_config"].as_str().unwrap())
+        ));
+        t.until(0, |events, _| {
+            events
+                .iter()
+                .any(|e| e["hook"] == "precmd.pwd" && e["context_id"] == cloud)
+        });
+        assert_eq!(t.role(&cloud, &scratch.path().join("role")), host);
+        for (target, error) in [
+            ("sg", "Could not resolve hostname"),
+            ("refused", "Connection refused"),
+            ("denied", "Permission denied"),
+            ("sg", "Could not resolve hostname"),
+        ] {
+            println!("ROLLBACK host={host} failure={target}");
+            let start = t.send(&format!("ssh {target}"));
+            let events = t.until(start, |events, _| {
+                events.iter().any(|e| {
+                    e["hook"] == "command_finished"
+                        && e["context_id"] == cloud
+                        && e["exit_code"] == 255
+                }) && events
+                    .iter()
+                    .any(|e| e["hook"] == "bootstrap.resume" && e["context_id"] == cloud)
+                    && events
+                        .iter()
+                        .any(|e| e["hook"] == "precmd.pwd" && e["context_id"] == cloud)
+            });
+            let text = String::from_utf8_lossy(&t.output[start..]);
+            assert!(text.contains(error), "{text}");
+            assert!(
+                !events
+                    .iter()
+                    .any(|e| e["hook"] == "bootstrap.checking" || e["hook"] == "bootstrap.ready"),
+                "failed SSH published a child: {events:?}"
+            );
+            assert!(
+                !regex::Regex::new(r"(?m)\[[0-9]+\] (?:[0-9]+|.*(?:Done|done))")
+                    .unwrap()
+                    .is_match(&text),
+                "housekeeping job leaked: {text}"
+            );
+            let resume = events
+                .iter()
+                .find(|e| e["hook"] == "bootstrap.resume")
+                .unwrap();
+            assert_eq!(resume["exit_code"], 255);
+            assert_eq!(resume["retired_contexts"].as_array().unwrap().len(), 1);
+            // Exercise the production VT command-zone parser as well as raw
+            // hook frames: failed SSH output belongs to the parent command.
+            let mut parsed = par_term_emu_core_rust::terminal::Terminal::new(120, 30);
+            parsed.process(&t.output);
+            let command = format!("ssh {target}");
+            assert!(
+                parsed.get_zones().iter().any(|zone| {
+                    zone.command.as_deref() == Some(command.as_str())
+                        && zone.context_id.as_deref() == Some(cloud.as_str())
+                        && zone.exit_code == Some(255)
+                        && zone.closed
+                }),
+                "missing completed parent command block: {:?}",
+                parsed.get_zones()
+            );
+            assert_eq!(parsed.shell_integration().cwd(), Some("/home/lab"));
+            assert_eq!(t.role(&cloud, &scratch.path().join("after-failure")), host);
+            let start = t.send("false");
+            t.until(start, |events, _| {
+                events.iter().any(|e| {
+                    e["hook"] == "command_finished"
+                        && e["context_id"] == cloud
+                        && e["exit_code"] == 1
+                })
+            });
+            evidence.push(json!({"shell":fixture["nodes"][host]["shell"],"attempt":target,"resume":resume,"command_tracking_after_failure":true,"native_command_block_exit_code":255,"sftp_host_after_failure":host,"job_notice":false}));
+        }
+        let no_empty = r#"command sh -c 'test -z "$(find /tmp -maxdepth 1 -name ivssh.\* -type d -empty -print)"'"#;
+        let start = t.send(no_empty);
+        t.until(start, |events, _| {
+            events.iter().any(|e| {
+                e["hook"] == "command_finished"
+                    && e["context_id"] == cloud
+                    && e["command"] == no_empty
+                    && e["exit_code"] == 0
+            })
+        });
+        // A successful second hop and normal exit must still restore cloud.
+        let child = t.enter("ssh target");
+        assert_eq!(t.role(&child, &scratch.path().join("child")), "target");
+        let leave_start = t.output.len();
+        t.leave(&cloud);
+        assert_eq!(t.role(&cloud, &scratch.path().join("parent")), host);
+        let start = t.send("jobs");
+        t.until(start, |events, _| {
+            events
+                .iter()
+                .any(|e| e["hook"] == "precmd.pwd" && e["context_id"] == cloud)
+        });
+        let text = String::from_utf8_lossy(&t.output[leave_start..]);
+        assert!(
+            !regex::Regex::new(r"(?m)\[[0-9]+\]")
+                .unwrap()
+                .is_match(&text),
+            "cleanup in user job table: {text}"
+        );
+        evidence.push(json!({"shell":fixture["nodes"][host]["shell"],"successful_second_hop_and_return":true,"parent_sftp_preserved":true,"user_jobs_empty":true,"empty_failed_socket_dirs_removed":true}));
+        t.leave("root");
+        t.close_cleanly();
+    }
+    std::fs::write(
+        fixture["evidence"].as_str().unwrap(),
+        serde_json::to_string_pretty(&evidence).unwrap() + "\n",
+    )
+    .unwrap();
+}

@@ -64,12 +64,12 @@ function ssh {
   __iv_status=$?
   printf '\033]6973;@@NONCE@@;%s;resume;done;%s\007' "$__iv_parent" "$__iv_status"
   if [ "$__iv_owned" = 1 ]; then
-    # Do not stop the master: in-flight SFTP channels own their lifetime.
-    (command sleep 65; command rmdir "$__iv_dir" 2>/dev/null) </dev/null >/dev/null 2>&1 &
-    # This housekeeping job must not make the next `exit` warn about jobs.
-    # It is the new current job in both Bash and Zsh (Zsh disown expects a job
-    # spec, not a PID). No other job is launched between these two operations.
-    disown %+ 2>/dev/null || true
+    # Failed connections leave an empty directory; remove it immediately.
+    # Live masters/SFTP channels own their lifetime. A non-interactive subshell
+    # launches delayed cleanup, outside the user's job table (no [1] PID / Done).
+    if ! command rmdir "$__iv_dir" 2>/dev/null; then
+      ( (command sleep 65; command rmdir "$__iv_dir" 2>/dev/null) </dev/null >/dev/null 2>&1 & ) </dev/null >/dev/null 2>&1
+    fi
   fi
   return "$__iv_status"
 }
