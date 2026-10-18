@@ -48,7 +48,8 @@ class TerminalModeState {
 }
 
 /// Per-session choice. A capability loss always returns input to the terminal;
-/// restoring capability offers Blocks without overriding that fallback.
+/// authenticated shell transitions can restore Blocks after a fresh ready lease.
+/// Other capability losses still require a manual choice.
 class TerminalModeController extends ChangeNotifier {
   TerminalModeController({this.preferredMode = TerminalViewMode.normal});
 
@@ -62,6 +63,8 @@ class TerminalModeController extends ChangeNotifier {
   /// Reconnect preserves the user's mode, not a temporary capability fallback.
   TerminalViewMode get chosenMode => _selectedMode ?? preferredMode;
   bool _offerRestore = false;
+  bool _restoreAfterShellTransition = false;
+  bool get awaitingShellResume => _restoreAfterShellTransition;
   bool _llmRequired = false;
   BlockUnavailableReason? _shellReason = BlockUnavailableReason.checking;
 
@@ -76,6 +79,7 @@ class TerminalModeController extends ChangeNotifier {
   void updateAvailability(
     BlockUnavailableReason? shellReason, {
     bool rechecked = false,
+    bool shellTransition = false,
   }) {
     _shellReason = shellReason;
     final reason = _llmRequired
@@ -86,12 +90,24 @@ class TerminalModeController extends ChangeNotifier {
     var mode = _state.mode;
     var notice = _state.notice;
     if (reason != null) {
+      if (!shellTransition || rechecked) {
+        _restoreAfterShellTransition = false;
+      } else if (mode == TerminalViewMode.blocks) {
+        _restoreAfterShellTransition = true;
+      }
       if (mode == TerminalViewMode.blocks) {
         mode = TerminalViewMode.normal;
         _offerRestore = true;
       }
       notice = _offerRestore ? TerminalModeNotice.normalFallback : null;
     } else {
+      // Only the host can certify a matching context and a fresh ready lease.
+      // A capability poll alone (including running/unknown) cannot restore input.
+      if (shellTransition && _restoreAfterShellTransition && !rechecked) {
+        mode = TerminalViewMode.blocks;
+        _restoreAfterShellTransition = false;
+        _offerRestore = false;
+      }
       if (!_initialChoiceApplied) {
         mode = preferredMode;
         _initialChoiceApplied = true;
@@ -106,6 +122,7 @@ class TerminalModeController extends ChangeNotifier {
         notice = null;
       }
     }
+    if (rechecked) _restoreAfterShellTransition = false;
     if (rechecked ||
         (_state.notice == TerminalModeNotice.supportChecked &&
             _state.unavailableReason == reason)) {
@@ -121,6 +138,7 @@ class TerminalModeController extends ChangeNotifier {
     _initialChoiceApplied = true;
     _manualChoice = true;
     _selectedMode = mode;
+    _restoreAfterShellTransition = false;
     _offerRestore = false;
     _publish(
       TerminalModeState(

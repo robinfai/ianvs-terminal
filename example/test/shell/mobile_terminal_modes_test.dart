@@ -1308,7 +1308,7 @@ void main() {
       expect(_mode(container).mode, TerminalViewMode.normal);
       expect(find.byType(TerminalAiWorkspace), findsOneWidget);
       expect(ai.draft, 'keep task draft');
-      expect(find.text('当前 Shell 不支持命令块。'), findsWidgets);
+      expect(find.text('正在检测 Shell 支持…'), findsWidgets);
       backend.owner = 'ready';
       await _settle(tester);
       await tester.tap(
@@ -2247,8 +2247,8 @@ void main() {
       backend.contextId = 'hop';
       backend.owner = 'ready';
       await _settle(tester);
-      expect(_mode(container).mode, TerminalViewMode.normal);
-      expect(_mode(container).notice, TerminalModeNotice.blocksRestored);
+      expect(_mode(container).mode, TerminalViewMode.blocks);
+      expect(_mode(container).notice, isNull);
       expect(tester.widget<ListTile>(blocks).enabled, true);
       expect(ai.draft, 'task draft');
       await tester.tap(blocks);
@@ -2327,7 +2327,7 @@ void main() {
     );
   }
 
-  testWidgets('SSH hop and fullscreen fall back; restore remains manual', (
+  testWidgets('SSH restores Blocks; fullscreen restoration stays manual', (
     tester,
   ) async {
     final backend = _MobileBackend()..owner = 'ready';
@@ -2370,8 +2370,8 @@ void main() {
     backend.contextId = 'hop';
     backend.owner = 'ready';
     await _settle(tester);
-    expect(_mode(container).mode, TerminalViewMode.normal);
-    expect(_mode(container).notice, TerminalModeNotice.blocksRestored);
+    expect(_mode(container).mode, TerminalViewMode.blocks);
+    expect(_mode(container).notice, isNull);
     await tester.tap(find.byKey(Key('terminal-mode-blocks-$id')));
     await _settle(tester);
     await _showWorkspace(tester, id);

@@ -48,3 +48,7 @@ python3 tools/ssh_boundary_lab/rollback.py --output build/ssh-rollback
 ```
 
 可通过 `--context` / `--image` 指定本地 Docker 环境。镜像摘要和实际 Shell/OpenSSH 版本记录于 `environment.json`。
+
+## Block 界面后续修复
+
+父上下文恢复不代表界面恢复。后续用户在 Block 中复现了模式遗留，根因、修复与真实原生 UI 验收见 [Block 工作区恢复](block-ui/README.md)。

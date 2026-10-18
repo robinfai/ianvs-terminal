@@ -593,7 +593,7 @@ void main() {
   });
 
   testWidgets(
-    'tab mode switching follows SSH context and preserves the draft',
+    'SSH transitions restore Blocks only after negotiation and preserve the draft',
     (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
       addTearDown(() => debugDefaultTargetPlatformOverride = null);
@@ -669,8 +669,12 @@ void main() {
       expect(find.text('Checking shell support…'), findsOneWidget);
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await _settleMode(tester);
-      // The remote prompt's own authenticated adapter enables manual restore.
+      // The remote prompt's own authenticated adapter restores the chosen mode.
       backend.contexts[id] = 'hop-a';
+      backend.owners[id] = 'draft';
+      await _settleMode(tester);
+      expect(mode().unavailableReason, BlockUnavailableReason.checking);
+      expect(mode().mode, TerminalViewMode.normal);
       backend.owners[id] = 'ready';
       await hook({
         'hook': 'bootstrap.ready',
@@ -682,10 +686,30 @@ void main() {
         'shell': 'bash',
       });
       expect(mode().canUseBlocks, isTrue);
-      expect(mode().mode, TerminalViewMode.normal);
-      expect(mode().notice, TerminalModeNotice.blocksRestored);
-      await _chooseMode(tester, id, 'blocks');
       expect(mode().mode, TerminalViewMode.blocks);
+      expect(mode().notice, isNull);
+      backend.owners[id] = 'running';
+      await hook({
+        'hook': 'preexec',
+        'context_id': 'hop-a',
+        'command': 'ssh sg',
+      });
+      expect(mode().mode, TerminalViewMode.normal);
+      expect(mode().canUseBlocks, isFalse);
+      backend.owners[id] = 'ready';
+      backend.leases[id] = 'cloud-after-failed-sg';
+      await hook({
+        'hook': 'precmd',
+        'context_id': 'hop-a',
+        'exit_code': 255,
+        'cwd': '/home/lab',
+      });
+      expect(mode().mode, TerminalViewMode.blocks);
+      expect(mode().canUseBlocks, isTrue);
+      expect(
+        tester.widget<TextField>(editor).controller!.text,
+        'saved local draft',
+      );
       // A parent adapter never enables the next node before its negotiation.
       await hook({
         'hook': 'bootstrap.checking',
@@ -703,15 +727,14 @@ void main() {
         'context_kind': 'root',
         'host_context_id': 'root',
       });
-      expect(mode().mode, TerminalViewMode.normal);
+      expect(mode().mode, TerminalViewMode.blocks);
       expect(mode().canUseBlocks, isTrue);
-      expect(mode().notice, TerminalModeNotice.blocksRestored);
-      await _chooseMode(tester, id, 'blocks');
+      expect(mode().notice, isNull);
       expect(
         tester.widget<TextField>(editor).controller!.text,
         'saved local draft',
       );
-      expect(tester.widget<TextField>(editor).focusNode!.hasFocus, isTrue);
+      expect(tester.widget<TextField>(editor).focusNode!.hasFocus, isFalse);
       await controller.setPreferredTerminalMode(TerminalViewMode.normal);
       expect(
         mode().mode,

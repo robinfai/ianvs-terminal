@@ -247,13 +247,7 @@ final class ComposerPaneSession extends ChangeNotifier {
     final pane = _pane;
     final shell = pane?.shellIntegration;
     final remoteCommand = _startsRemoteCommand(shell?.runningCommand);
-    final remote =
-        shell?.contextKind == 'ssh' ||
-        (pane?.shellConnectionChain.any(
-              (hop) => hop.kind == ShellConnectionHopKind.sshShell,
-            ) ??
-            false) ||
-        remoteCommand;
+    final remote = _isRemoteShell;
     final negotiated =
         _composerTransport == 'shell' &&
         _composerContextId == (shell?.contextId ?? 'root') &&
@@ -284,10 +278,39 @@ final class ComposerPaneSession extends ChangeNotifier {
             ComposerOwnership.submitting ||
             ComposerOwnership.unknown => null,
             ComposerOwnership.suspended => BlockUnavailableReason.terminalInput,
+            // A remote adapter can register before its first ready lease. That
+            // gap is still negotiation, not a permanent loss of capability.
+            ComposerOwnership.draft
+                when remote &&
+                    _composerTransport == 'shell' &&
+                    shell?.bootstrapPhase != 'degraded' =>
+              BlockUnavailableReason.checking,
             _ => BlockUnavailableReason.unsupportedShell,
           };
-    mode.updateAvailability(reason, rechecked: recheckSupport);
+    final shellTransition = switch (reason) {
+      BlockUnavailableReason.remoteShell => true,
+      BlockUnavailableReason.checking ||
+      BlockUnavailableReason.nestedShell => remote || mode.awaitingShellResume,
+      BlockUnavailableReason.terminalInput => remote,
+      null =>
+        controller.ownership == ComposerOwnership.ready &&
+            controller.readyLease != null,
+      _ => false,
+    };
+    mode.updateAvailability(
+      reason,
+      rechecked: recheckSupport,
+      shellTransition: shellTransition,
+    );
   }
+
+  bool get _isRemoteShell =>
+      _pane?.shellIntegration.contextKind == 'ssh' ||
+      (_pane?.shellConnectionChain.any(
+            (hop) => hop.kind == ShellConnectionHopKind.sshShell,
+          ) ??
+          false) ||
+      _startsRemoteCommand(_pane?.shellIntegration.runningCommand);
 
   // The bootstrap context is authoritative once available. Also cover a plain
   // ssh invocation while its wrapper is disabled or still connecting.
@@ -302,7 +325,10 @@ final class ComposerPaneSession extends ChangeNotifier {
     final transport = json?['transport'] as String?;
     if (_composerContextId != contextId || _composerTransport != transport) {
       if (_composerContextId != null) {
-        mode.updateAvailability(BlockUnavailableReason.checking);
+        mode.updateAvailability(
+          BlockUnavailableReason.checking,
+          shellTransition: _isRemoteShell || mode.awaitingShellResume,
+        );
       }
       _historyRevision = null;
       _history = const [];

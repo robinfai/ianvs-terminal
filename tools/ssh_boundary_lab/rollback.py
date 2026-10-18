@@ -25,6 +25,8 @@ def main():
     parser.add_argument('--context', default='colima')
     parser.add_argument('--image', default='ianvs-ssh-rollback:20261018')
     parser.add_argument('--output', type=Path, default=ROOT / 'build/ssh-rollback')
+    parser.add_argument('--flutter-ui', action='store_true', help='Run the native Block workspace failure scenario instead of the Rust protocol test')
+    parser.add_argument('--flutter', default='flutter')
     args = parser.parse_args()
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
@@ -90,9 +92,14 @@ chown -R lab:lab /home/lab/.ssh
                                    for i, name in enumerate(nodes)}}
             (output / 'environment.json').write_text(json.dumps(metadata, indent=2) + '\n')
             with (output / 'acceptance.log').open('w') as log:
-                result = subprocess.run(['cargo', 'test', '--manifest-path', str(ROOT / 'native/core/Cargo.toml'),
-                    '--lib', 'product_ssh_failure_rollback', '--', '--ignored', '--nocapture', '--test-threads=1'],
-                    cwd=ROOT, env={**os.environ, 'IANVS_BOOTSTRAP_FIXTURE': str(fixture)}, stdout=log, stderr=subprocess.STDOUT, timeout=240)
+                command = ([args.flutter, 'test', '--no-pub', 'integration_test/ssh_block_rollback_test.dart', '-d', 'macos',
+                            f'--dart-define=SSH_ROLLBACK_FIXTURE={fixture}'] if args.flutter_ui else
+                           ['cargo', 'test', '--manifest-path', str(ROOT / 'native/core/Cargo.toml'),
+                            '--lib', 'product_ssh_failure_rollback', '--', '--ignored', '--nocapture', '--test-threads=1'])
+                result = subprocess.run(command,
+                    cwd=ROOT / 'example' if args.flutter_ui else ROOT,
+                    env={**os.environ, 'IANVS_BOOTSTRAP_FIXTURE': str(fixture)}, stdout=log, stderr=subprocess.STDOUT,
+                    timeout=600 if args.flutter_ui else 240)
             print((output / 'acceptance.log').read_text()[-10000:])
             if result.returncode:
                 raise SystemExit(result.returncode)

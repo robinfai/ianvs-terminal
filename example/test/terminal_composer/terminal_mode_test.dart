@@ -3,6 +3,64 @@ import 'package:app/features/terminal_composer/terminal_mode.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'shell transition waits for ready and preserves the selected Blocks mode',
+    () {
+      final mode = TerminalModeController(
+        preferredMode: TerminalViewMode.blocks,
+      );
+      addTearDown(mode.dispose);
+      mode.updateAvailability(null);
+      mode.updateAvailability(
+        BlockUnavailableReason.remoteShell,
+        shellTransition: true,
+      );
+      expect(mode.state.mode, TerminalViewMode.normal);
+      mode.updateAvailability(null); // running/unknown is not a ready lease
+      expect(mode.state.mode, TerminalViewMode.normal);
+      mode.updateAvailability(null, shellTransition: true);
+      expect(mode.state.mode, TerminalViewMode.blocks);
+    },
+  );
+  for (final interrupt in [
+    'manual',
+    'readOnly',
+    'fullscreen',
+    'recheck',
+    'llm',
+  ]) {
+    test('shell return does not override $interrupt', () {
+      final mode = TerminalModeController(
+        preferredMode: TerminalViewMode.blocks,
+      );
+      addTearDown(mode.dispose);
+      mode.updateAvailability(null);
+      mode.updateAvailability(
+        BlockUnavailableReason.remoteShell,
+        shellTransition: true,
+      );
+      switch (interrupt) {
+        case 'manual':
+          mode.select(TerminalViewMode.normal);
+        case 'readOnly':
+          mode.updateAvailability(BlockUnavailableReason.readOnly);
+        case 'fullscreen':
+          mode.updateAvailability(BlockUnavailableReason.fullScreen);
+        case 'recheck':
+          mode.updateAvailability(
+            BlockUnavailableReason.remoteShell,
+            rechecked: true,
+            shellTransition: true,
+          );
+        case 'llm':
+          mode.setLlmRequired(true);
+          mode.setLlmRequired(false);
+      }
+      mode.updateAvailability(null, shellTransition: true);
+      expect(mode.state.mode, TerminalViewMode.normal);
+    });
+  }
+
   test('chosen mode survives capability fallback for reconnect', () {
     final mode = TerminalModeController(preferredMode: TerminalViewMode.blocks);
     addTearDown(mode.dispose);
@@ -61,30 +119,25 @@ void main() {
       expect(mode.state.notice, TerminalModeNotice.supportChecked);
     },
   );
-  test(
-    'Blocks preference waits for capability and never automatically restores after SSH',
-    () {
-      final mode = TerminalModeController(
-        preferredMode: TerminalViewMode.blocks,
-      );
-      addTearDown(mode.dispose);
-      mode.updateAvailability(BlockUnavailableReason.unsupportedShell);
-      expect(mode.state.mode, TerminalViewMode.normal);
-      mode.updateAvailability(null);
-      expect(mode.state.mode, TerminalViewMode.blocks);
-      mode.updateAvailability(BlockUnavailableReason.remoteShell);
-      expect(mode.state.mode, TerminalViewMode.normal);
-      expect(mode.state.notice, TerminalModeNotice.normalFallback);
-      expect(mode.select(TerminalViewMode.blocks), isFalse);
-      mode.updateAvailability(null);
-      expect(mode.state.mode, TerminalViewMode.normal);
-      expect(mode.state.notice, TerminalModeNotice.blocksRestored);
-      mode.updateAvailability(null);
-      expect(mode.state.mode, TerminalViewMode.normal);
-      expect(mode.select(TerminalViewMode.blocks), isTrue);
-      expect(mode.state.notice, isNull);
-    },
-  );
+  test('unqualified capability recovery still requires manual restoration', () {
+    final mode = TerminalModeController(preferredMode: TerminalViewMode.blocks);
+    addTearDown(mode.dispose);
+    mode.updateAvailability(BlockUnavailableReason.unsupportedShell);
+    expect(mode.state.mode, TerminalViewMode.normal);
+    mode.updateAvailability(null);
+    expect(mode.state.mode, TerminalViewMode.blocks);
+    mode.updateAvailability(BlockUnavailableReason.remoteShell);
+    expect(mode.state.mode, TerminalViewMode.normal);
+    expect(mode.state.notice, TerminalModeNotice.normalFallback);
+    expect(mode.select(TerminalViewMode.blocks), isFalse);
+    mode.updateAvailability(null);
+    expect(mode.state.mode, TerminalViewMode.normal);
+    expect(mode.state.notice, TerminalModeNotice.blocksRestored);
+    mode.updateAvailability(null);
+    expect(mode.state.mode, TerminalViewMode.normal);
+    expect(mode.select(TerminalViewMode.blocks), isTrue);
+    expect(mode.state.notice, isNull);
+  });
 
   test(
     'manual Normal overrides the preference even before the initial handshake',

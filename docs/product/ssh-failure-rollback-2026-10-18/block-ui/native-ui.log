@@ -1,0 +1,22 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/integration_test/ssh_block_rollback_test.dart
+Building macOS application...                                   
+✓ Built build/macos/Build/Products/Debug/Trail Development.app
+Failed to foreground app; open returned 1
+00:00 +0: Block workspace resumes cloud after real second-hop SSH failure
+cloud Block ready: {mode: normal, reason: remoteShell, contextId: root, state: running, lease: null, transport: local, running: ssh -F '/var/folders/k2/8qbf3nrs7t1749d198rw0df40000gn/T/iv-rollback-kol41ffj/config' cloud}
+cloud Block ready: {mode: normal, reason: remoteShell, contextId: 369b2953c7c77120a4608324231ec1b8, state: draft, lease: null, transport: shell, running: ssh -F '/var/folders/k2/8qbf3nrs7t1749d198rw0df40000gn/T/iv-rollback-kol41ffj/config' cloud}
+cloud Block ready: {mode: normal, reason: checking, contextId: 369b2953c7c77120a4608324231ec1b8, state: draft, lease: null, transport: shell, running: null}
+cloud Block ready: {mode: normal, reason: checking, contextId: 369b2953c7c77120a4608324231ec1b8, state: ready, lease: remote.a254958744fdfc2f1d446dfe1bb38da7.1, transport: shell, running: null}
+new cloud task ready: {mode: blocks, reason: null, contextId: 369b2953c7c77120a4608324231ec1b8, state: ready, lease: remote.a254958744fdfc2f1d446dfe1bb38da7.1, transport: shell, running: null}
+failed sg returns to cloud Block: {mode: blocks, reason: null, contextId: 369b2953c7c77120a4608324231ec1b8, state: running, lease: null, transport: shell, running: ssh sg}
+failed sg returns to cloud Block: {mode: normal, reason: remoteShell, contextId: 369b2953c7c77120a4608324231ec1b8, state: draft, lease: null, transport: shell, running: ssh sg}
+failed sg returns to cloud Block: {mode: normal, reason: checking, contextId: 369b2953c7c77120a4608324231ec1b8, state: draft, lease: null, transport: shell, running: null}
+failed sg returns to cloud Block: {mode: normal, reason: checking, contextId: 369b2953c7c77120a4608324231ec1b8, state: ready, lease: remote.a254958744fdfc2f1d446dfe1bb38da7.2, transport: shell, running: null}
+failed sg returns to cloud Block: {mode: blocks, reason: null, contextId: 369b2953c7c77120a4608324231ec1b8, state: running, lease: null, transport: shell, running: ssh sg}
+failed sg returns to cloud Block: {mode: normal, reason: null, contextId: 369b2953c7c77120a4608324231ec1b8, state: draft, lease: null, transport: shell, running: null}
+failed sg returns to cloud Block: {mode: normal, reason: checking, contextId: 369b2953c7c77120a4608324231ec1b8, state: draft, lease: null, transport: shell, running: null}
+failed sg returns to cloud Block: {mode: normal, reason: checking, contextId: 369b2953c7c77120a4608324231ec1b8, state: ready, lease: remote.a254958744fdfc2f1d446dfe1bb38da7.3, transport: shell, running: null}
+cloud command after failure: {mode: blocks, reason: null, contextId: 369b2953c7c77120a4608324231ec1b8, state: running, lease: null, transport: shell, running: null}
+00:14 +1: (tearDownAll)
+00:14 +1: All tests passed!
