@@ -203,7 +203,22 @@ class _ShellWindowTitleBarState extends State<_ShellWindowTitleBar> {
                             width: 16,
                             height: double.infinity,
                           ),
-                        if (widget.aiAction != null) widget.aiAction!,
+                        if (widget.aiAction != null)
+                          ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: widget.sidebarOpen
+                                  ? math.max(
+                                      44,
+                                      widget.sidebarWidth -
+                                          leadingInset -
+                                          12 -
+                                          buttonExtent * 2 -
+                                          44,
+                                    )
+                                  : double.infinity,
+                            ),
+                            child: widget.aiAction,
+                          ),
                         if (widget.onShowCommandMenu != null)
                           SizedBox.square(
                             dimension: buttonExtent,

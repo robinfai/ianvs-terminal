@@ -88,3 +88,9 @@ Mainline reconciliation retains the current PR's single-row tab chrome and
 sidebar layout, including AI actions, close/Cmd-number slots and native mouse
 routing. It incorporates main's SSH-directory grouping, explicit job-control
 suppression for cleanup subshells, and Xcode architecture verification support.
+
+The same six macOS 27 fixtures were rendered locally on macOS 27.0.1 after
+reconciliation. Initial rendering used Flutter 3.44.8; final comparison uses
+the pinned Flutter 3.44.2 SDK as well. Their pixel differences have the same
+status-bar-only bounds as the macOS 26 review; the current local PNGs update
+only macos-27. Each OS keeps its own original rendering.

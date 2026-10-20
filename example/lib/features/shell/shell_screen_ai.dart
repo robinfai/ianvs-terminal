@@ -499,6 +499,8 @@ extension _ShellScreenAi on _ShellScreenState {
                       showTerminal
                           ? (chinese ? '终端预览' : 'Preview')
                           : 'Block + AI',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
             ),
           ),
@@ -652,12 +654,19 @@ extension _ShellScreenAi on _ShellScreenState {
             ? () => _configureAiConnection(sessionId)
             : null,
       );
-      return _presentAiWorkspace(
-        sessionId,
-        workspaceBuilder: workspace,
-        targetLabel: targetLabel,
-        font: font,
-        colors: colors,
+      // Keep the original Composer's secondary-click focus boundary when its
+      // editor is hosted by the unified workspace instead of ComposerPane.
+      return Actions(
+        actions: {
+          EditableTextTapOutsideIntent: _PaneComposerTapOutsideAction(),
+        },
+        child: _presentAiWorkspace(
+          sessionId,
+          workspaceBuilder: workspace,
+          targetLabel: targetLabel,
+          font: font,
+          colors: colors,
+        ),
       );
     }
     return const SizedBox.shrink();

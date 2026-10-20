@@ -626,6 +626,11 @@ void main() {
       await _chooseMode(tester, id, 'blocks');
       final editor = find.byKey(const Key('ai-prompt'));
       await tester.enterText(editor, 'saved local draft');
+      // Start unfocused explicitly: inspecting a tab with a secondary click
+      // now correctly preserves the unified editor's current focus.
+      tester.widget<TextField>(editor).focusNode!.unfocus();
+      await tester.pump();
+      expect(tester.widget<TextField>(editor).focusNode!.hasFocus, isFalse);
       Future<void> hook(Map<String, Object?> payload) async {
         backend.enqueueEvent(
           id,

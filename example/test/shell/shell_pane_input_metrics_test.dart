@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:app/features/ai/terminal_ai_workspace.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
@@ -87,6 +88,8 @@ class _Backend extends FakePtyBackend {
           'status': 'ok',
           'items': <Object?>[],
         });
+      case 'terminal.live_screen':
+        return jsonEncode({'text': 'fixture shell ready'});
       case 'terminal.command_blocks':
         return jsonEncode({'blocks': <Object?>[]});
     }
@@ -147,20 +150,19 @@ _splitWithDraft(WidgetTester tester, ProviderContainer container) async {
   await tester.tap(find.byKey(Key('terminal-mode-blocks-$left')));
   await tester.pumpAndSettle();
   final pane = find.byWidgetPredicate(
-    (widget) => widget is ComposerPane && widget.session.sessionId == left,
+    (widget) =>
+        widget is TerminalAiWorkspace &&
+        widget.commandSession?.sessionId == left,
   );
-  final composer = tester.widget<ComposerPane>(pane).session;
+  final composer = tester.widget<TerminalAiWorkspace>(pane).commandSession!;
   expect(composer.enabled, isTrue);
-  expect(composer.controller.ownership, ComposerOwnership.ready);
+  expect(composer.createDraftEditor().ownership, ComposerOwnership.ready);
   await tester.enterText(
-    find.descendant(
-      of: pane,
-      matching: find.byKey(const Key('composer-editor')),
-    ),
+    find.descendant(of: pane, matching: find.byKey(const Key('ai-prompt'))),
     "printf 'keep this draft'",
   );
   await tester.pumpAndSettle();
-  expect(composer.editorFocus.hasFocus, isTrue);
+  expect(composer.draftFocus.hasFocus, isTrue);
   return (left: left, right: right, composer: composer);
 }
 
@@ -176,7 +178,7 @@ void main() {
       final backend = _Backend();
       final container = await _mount(tester, backend);
       final split = await _splitWithDraft(tester, container);
-      final draft = split.composer.controller.editor.value;
+      final draft = split.composer.createDraftEditor().editor.value;
       final writesBefore = backend.writes.length;
 
       await tester.tapAt(
@@ -190,8 +192,8 @@ void main() {
         container.read(sessionControllerProvider).activeSessionId,
         split.left,
       );
-      expect(split.composer.editorFocus.hasFocus, isTrue);
-      expect(split.composer.controller.editor.value, draft);
+      expect(split.composer.draftFocus.hasFocus, isTrue);
+      expect(split.composer.createDraftEditor().editor.value, draft);
       expect(backend.writes.length, writesBefore);
       expect(backend.submissions, isEmpty);
     },
@@ -205,7 +207,7 @@ void main() {
         final backend = _Backend();
         final container = await _mount(tester, backend);
         final split = await _splitWithDraft(tester, container);
-        final draft = split.composer.controller.editor.value;
+        final draft = split.composer.createDraftEditor().editor.value;
 
         await tester.tapAt(
           tester.getCenter(_viewportFinder(split.right)),
@@ -217,8 +219,8 @@ void main() {
           container.read(sessionControllerProvider).activeSessionId,
           split.right,
         );
-        expect(split.composer.editorFocus.hasFocus, isFalse);
-        expect(split.composer.controller.editor.value, draft);
+        expect(split.composer.draftFocus.hasFocus, isFalse);
+        expect(split.composer.createDraftEditor().editor.value, draft);
         expect(
           tester
               .widget<app_terminal.TerminalViewport>(
@@ -245,9 +247,9 @@ void main() {
       final other = container.read(sessionControllerProvider).activeSessionId!;
       controller.activateSession(split.left);
       await tester.pumpAndSettle();
-      split.composer.editorFocus.requestFocus();
+      split.composer.draftFocus.requestFocus();
       await tester.pump();
-      final draft = split.composer.controller.editor.value;
+      final draft = split.composer.createDraftEditor().editor.value;
       final writesBefore = backend.writes.length;
 
       await tester.tap(
@@ -266,8 +268,8 @@ void main() {
         container.read(sessionControllerProvider).activeSessionId,
         split.left,
       );
-      expect(split.composer.editorFocus.hasFocus, isTrue);
-      expect(split.composer.controller.editor.value, draft);
+      expect(split.composer.draftFocus.hasFocus, isTrue);
+      expect(split.composer.createDraftEditor().editor.value, draft);
       expect(backend.writes.length, writesBefore);
       expect(backend.submissions, isEmpty);
     },
@@ -314,7 +316,7 @@ void main() {
           _viewportFinder(split.right),
         );
         expect(viewport.controller.frame.modes.mouseMode, 'normal');
-        final draft = split.composer.controller.editor.value;
+        final draft = split.composer.createDraftEditor().editor.value;
         final writesBefore = backend.writesBySession.length;
 
         await tester.tapAt(
@@ -363,9 +365,9 @@ void main() {
             container.read(sessionControllerProvider).activeSessionId,
             split.left,
           );
-          expect(split.composer.editorFocus.hasFocus, isTrue);
+          expect(split.composer.draftFocus.hasFocus, isTrue);
         }
-        expect(split.composer.controller.editor.value, draft);
+        expect(split.composer.createDraftEditor().editor.value, draft);
         expect(backend.submissions, isEmpty);
       },
       variant: TargetPlatformVariant.only(TargetPlatform.macOS),
@@ -395,7 +397,7 @@ void main() {
       });
       runtime.refreshSession(split.right);
       await tester.pumpAndSettle();
-      final draft = split.composer.controller.editor.value;
+      final draft = split.composer.createDraftEditor().editor.value;
       backend.writesBySession.clear();
 
       final mouse = await tester.startGesture(
@@ -420,7 +422,7 @@ void main() {
         utf8.decode(backend.writesBySession.last.value),
         '${press.substring(0, press.length - 1)}m',
       );
-      expect(split.composer.controller.editor.value, draft);
+      expect(split.composer.createDraftEditor().editor.value, draft);
       expect(backend.submissions, isEmpty);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
