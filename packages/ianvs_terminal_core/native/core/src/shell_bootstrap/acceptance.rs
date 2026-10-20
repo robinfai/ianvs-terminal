@@ -608,6 +608,8 @@ fn product_ssh_failure_rollback() {
     )
     .unwrap();
     let mut evidence = Vec::new();
+    let job_notice = regex::Regex::new(r"(?m)\[[0-9]+\] (?:[0-9]+|.*(?:Done|done))").unwrap();
+    let job_entry = regex::Regex::new(r"(?m)\[[0-9]+\]").unwrap();
     for host in ["cloud", "zsh", "fish"] {
         println!("ROLLBACK host={host}");
         let scratch = tempfile::tempdir().unwrap();
@@ -663,9 +665,7 @@ fn product_ssh_failure_rollback() {
                 "failed SSH published a child: {events:?}"
             );
             assert!(
-                !regex::Regex::new(r"(?m)\[[0-9]+\] (?:[0-9]+|.*(?:Done|done))")
-                    .unwrap()
-                    .is_match(&text),
+                !job_notice.is_match(&text),
                 "housekeeping job leaked: {text}"
             );
             let resume = events
@@ -725,9 +725,7 @@ fn product_ssh_failure_rollback() {
         });
         let text = String::from_utf8_lossy(&t.output[leave_start..]);
         assert!(
-            !regex::Regex::new(r"(?m)\[[0-9]+\]")
-                .unwrap()
-                .is_match(&text),
+            !job_entry.is_match(&text),
             "cleanup in user job table: {text}"
         );
         evidence.push(json!({"shell":fixture["nodes"][host]["shell"],"successful_second_hop_and_return":true,"parent_sftp_preserved":true,"user_jobs_empty":true,"empty_failed_socket_dirs_removed":true}));
