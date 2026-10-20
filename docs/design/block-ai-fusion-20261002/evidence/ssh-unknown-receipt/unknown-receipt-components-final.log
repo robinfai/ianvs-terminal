@@ -1,0 +1,54 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart
+00:00 +0: (setUpAll)
+00:00 +0: workspace layout dark Size(960.0, 700.0) scale 1.0
+00:00 +1: workspace layout dark Size(960.0, 700.0) scale 2.0
+00:00 +2: workspace layout dark Size(390.0, 480.0) scale 1.0
+00:00 +3: workspace layout dark Size(320.0, 260.0) scale 1.0
+00:00 +4: workspace layout light Size(960.0, 700.0) scale 1.0
+00:00 +5: workspace layout light Size(960.0, 700.0) scale 2.0
+00:00 +6: workspace layout light Size(390.0, 480.0) scale 1.0
+00:00 +7: workspace layout light Size(320.0, 260.0) scale 1.0
+00:00 +8: short phone keeps draft usable with a proposal and attachment
+00:00 +9: long command keeps its source range visible on a phone
+00:00 +10: IME does not send; sent context stays frozen and draft is separate
+00:01 +11: mobile review has full command and fixed footer; stale target revokes
+00:01 +12: new response preserves reading; latest and return are explicit
+00:01 +13: each consecutive proposal needs its own UI approval (phone false)
+00:01 +14: each consecutive proposal needs its own UI approval (phone true)
+00:01 +15: editing requires a fresh revision and one approval sends once
+00:01 +16: task switch restores the same message after width reflow
+00:01 +17: desktop keyboard review requires focus on the approval button
+00:01 +18: clarification stays in one task and pause preserves a new draft
+00:01 +19: phone long-command review scrolls without approving Size(390.0, 480.0)
+00:02 +20: phone long-command review scrolls without approving Size(844.0, 300.0)
+00:02 +21: mobile background cancels proposal without interrupting terminal
+00:02 +22: TUI overlay consumes Escape and returns after approved keys only once
+00:02 +23: entering full-screen returns the input owner to the terminal
+00:02 +24: workspace configuration failure preserves draft and save never sends it
+00:02 +25: authentication recovery saves without sending or losing task
+00:02 +26: phone disconnect recovery is explicit and revokes old approval
+00:02 +27: unknown submission checks its receipt without retrying the command
+00:02 +28: unknown submission explains possible execution after reconnect en phone=false
+00:02 +29: unknown submission explains possible execution after reconnect en phone=true
+00:02 +30: unknown submission explains possible execution after reconnect zh phone=false
+00:02 +31: unknown submission explains possible execution after reconnect zh phone=true
+00:03 +32: target dialog never transfers approval and rechecks changed target
+00:03 +33: target resume double click opens one dialog and one model turn
+00:03 +34: target choice cannot resume another task
+00:03 +35: inline target choice rejects an unseen hop and preserves draft
+00:03 +36: target long labels desktop dark
+00:03 +37: target long labels desktop light
+00:03 +38: target long labels desktop-zh dark
+00:04 +39: target long labels desktop-zh light
+00:04 +40: target long labels desktop-large dark
+00:04 +41: target long labels desktop-large light
+00:04 +42: target long labels phone dark
+00:04 +43: target long labels phone light
+00:05 +44: target long labels phone-short dark
+00:05 +45: target long labels phone-short light
+00:05 +46: target long labels phone-landscape dark
+00:05 +47: target long labels phone-landscape light
+00:05 +48: canonical block replaces accepted proposal without copied output
+00:05 +49: (tearDownAll)
+00:05 +49: All tests passed!

@@ -1,0 +1,4 @@
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_timeline_test.dart
+00:00 +0: shared AI timeline preserves reading across native updates
+00:00 +1: reader attaches original rows across native page boundaries
+00:00 +2: All tests passed!

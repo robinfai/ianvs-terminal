@@ -1,0 +1,183 @@
+{
+  "schema_version": 1,
+  "prepared_at_utc": "2026-10-10T11:54:06.596913+00:00",
+  "record_type": "Independent read-only metadata/log review, combined with separately attributed independent image and sampled-video review.",
+  "source_commit": "2d18e608c2a1149a093451b5246cb370de0167c3",
+  "source_clean_at_start": true,
+  "source_clean_at_end": true,
+  "run": "native-c10-windows-1",
+  "app_pid": 77686,
+  "window_id": 31265,
+  "full_case_pass_claimed": false,
+  "formal_case_status_changed": false,
+  "formal_baseline": {
+    "candidate": "C8",
+    "passed": 3,
+    "not_run": 61
+  },
+  "completed_partial_observations": [
+    "Independent original pixels and sampled video corroborate inactive A as the only displayed close target while S stays selected, followed by modal dismissal and retention of A exact draft. Cancel is identified by the operator record; Escape remains operator-recorded rather than a video-proven key event.",
+    "Separate screenshots and checkpoint process trees record A/S draft preservation and unchanged A/B/S shell PID/TTY; these are discrete observations, not continuous process guarantees.",
+    "Cmd+T native-menu route creates local tabs; the comparison fourth tab is Raw. No physical keyboard result is claimed."
+  ],
+  "operator_session_map": [
+    {
+      "alias": "A",
+      "session": "1",
+      "shell_pid": 77921,
+      "tty": "ttys008",
+      "mode": "Blocks"
+    },
+    {
+      "alias": "B",
+      "session": "2",
+      "shell_pid": 80398,
+      "tty": "ttys016",
+      "mode": "AI"
+    },
+    {
+      "alias": "S",
+      "session": "3",
+      "shell_pid": 81098,
+      "tty": "ttys017",
+      "mode": "Blocks"
+    },
+    {
+      "alias": "extra",
+      "session": "4",
+      "shell_pid": 87622,
+      "tty": "ttys018",
+      "mode": "Raw"
+    }
+  ],
+  "unresolved": [
+    "Launch log contains 10 Flutter accessibility_bridge AXTree update errors; operator later observed a stale/minimal AX tree. First cause is not established and is not attributed to CUA or window movement.",
+    "Command-number/W/Z and Raw Command-I had no observed effect under CUA input while Command-T worked. Native menu and Flutter modifier paths differ; no physical-key or event trace establishes a product bug.",
+    "typeText lost special characters before the initial identity command; exact paste was subsequently inspected. This is an input-path observation, not proof of cause."
+  ],
+  "recording": {
+    "stream_stopped_at": "2026-10-10T09:47:04.029Z",
+    "stream_error_domain": "com.apple.ScreenCaptureKit.SCStreamErrorDomain",
+    "stream_error_code": -3822,
+    "recording_finalized_at": "2026-10-10T09:47:04.065Z",
+    "duration_seconds": 312,
+    "covers_whole_app_run": false,
+    "note": "Recorder finalized exit0 before root sent Ctrl-C; later UI actions are outside the video. Stop cause not established.",
+    "started_at": "2026-10-10T09:41:51.449Z",
+    "whole_run_recording_gate": false,
+    "duration_seconds_ffprobe": 312.568333
+  },
+  "not_completed": [
+    "Barrier-click cancel; final explicit close; idle AI close; old-task/source-only variants",
+    "Right-click another pane and first mouse/focus protocol regressions",
+    "12 tabs, overflow, reorder, existing pane movement, running-close cancellation, pending badges and menu bounds",
+    "Formal D2-T11/T14",
+    "Physical keyboard/IME acceptance; continuous full-case video coverage"
+  ],
+  "runner_exit_code": 0,
+  "quit_method": "Flutter runner q; Application finished",
+  "model": {
+    "configured": false,
+    "submitted_by_operator": false,
+    "network_capture": false
+  },
+  "counter_scope": {
+    "path": "fixture tmp/c10-unexpected-command.log",
+    "exists_at_end": false,
+    "scope": "Only this deliberately prepared draft side effect, not exact PTY writes/network counts"
+  },
+  "evidence_limitations": [
+    "Operator observations were reconstructed from CUA responses; they are not a raw AX dump or controller trace.",
+    "Survivor and final AX-related screenshots were captured after recording stopped and while the app was inactive. Baseline screenshot precedes recording.",
+    "The prepared draft side-effect file being absent does not prove zero total PTY writes or network requests.",
+    "C10 automated verify12 pass and C4 physical-phone restoration remain separate evidence; neither completes this UI case."
+  ],
+  "visual_review": {
+    "status": "completed_bounded_review",
+    "reviewer": "/root/ai_contract_review",
+    "artifact": "independent-review-summary.json",
+    "sha256": "e923c9eb1a917c7eebe63407810262f12097652de53a9752aae3ea19affe713f",
+    "original_pngs_viewed": 6,
+    "distinct_video_frames_viewed": 157,
+    "source_video_frames": 8749,
+    "continuous_full_video_watched": false,
+    "formal_cases_passed": []
+  },
+  "source_records": [
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-windows-1/manual-run.json",
+      "bytes": 1352,
+      "sha256": "b5c5a364c2e238cac31c97e0453d21b49324c298d27c6563ef70308214cd5d13"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-windows-1/operator-observations.json",
+      "bytes": 3660,
+      "sha256": "f4f2a46273f26f06588657d8337c41c86c86e5da9bb0f51b44b0fee88b427483"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-windows-1/recording.log",
+      "bytes": 439,
+      "sha256": "4190d816ecc39ce2eb9bf5d562a268411c935f2e66e4aabc3ca45d5ad00e1a6a"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-windows-1/launch.log",
+      "bytes": 3900,
+      "sha256": "f2f7add173293b1ba4243e6c1c5e08480a422a977b7fa3a36f0afec8d054daad"
+    }
+  ],
+  "checkpoint_checks": [
+    {
+      "name": "baseline",
+      "captured_at": "2026-10-10T09:41:48.912072+00:00",
+      "window_id": 31265,
+      "app_active_at_capture": true,
+      "within_recording_timestamp_range": false,
+      "sha256": "59095dad2bb2b78277e9aea82d586f070350834498babd89aae920a2c806bb7f"
+    },
+    {
+      "name": "three-tabs-survivor-draft",
+      "captured_at": "2026-10-10T09:43:46.306589+00:00",
+      "window_id": 31265,
+      "app_active_at_capture": true,
+      "within_recording_timestamp_range": true,
+      "sha256": "5645ea8121276c75547eb414a100616cb3d2a040321725534000f9a9927234ca"
+    },
+    {
+      "name": "command-close-confirmation",
+      "captured_at": "2026-10-10T09:44:03.839077+00:00",
+      "window_id": 31265,
+      "app_active_at_capture": true,
+      "within_recording_timestamp_range": true,
+      "sha256": "d0594980d97b85fc289cfba1cf3aef888b70706d5443077f69a6658a23d9c669"
+    },
+    {
+      "name": "command-draft-after-cancel",
+      "captured_at": "2026-10-10T09:44:33.923844+00:00",
+      "window_id": 31265,
+      "app_active_at_capture": true,
+      "within_recording_timestamp_range": true,
+      "sha256": "186da8b62c364b4794386f50eb9f7e298461d7275022d177ddcedfc4a35a879e"
+    },
+    {
+      "name": "survivor-after-command-cancel",
+      "captured_at": "2026-10-10T09:48:02.669749+00:00",
+      "window_id": 31265,
+      "app_active_at_capture": false,
+      "within_recording_timestamp_range": false,
+      "sha256": "7b21dcf3dcde1c797bd597670827a6a03a8f044157c23ce0464fa26ca0a484a3"
+    },
+    {
+      "name": "accessibility-tree-failure-final",
+      "captured_at": "2026-10-10T09:52:01.234194+00:00",
+      "window_id": 31265,
+      "app_active_at_capture": false,
+      "within_recording_timestamp_range": false,
+      "sha256": "f91f7f08963e48e06628a52e5018eb1f91ffbd3f36f2684a6693309d070851af"
+    }
+  ],
+  "packaging_status": "finalized_first_run_partial_support_no_formal_case_pass",
+  "archive_exclusions": [
+    "Original video, extracted frame images/contact sheets and per-frame review aids remain local; source video SHA and actual sampling coverage are preserved in the independent review.",
+    "Raw launch.log remains local because it contains an expired local debug-service authentication URI; raw hash remains in source records."
+  ]
+}

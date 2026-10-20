@@ -1,0 +1,51 @@
+test_01_template_structure_is_not_product_certification (test_validate_evidence.EvidenceTests.test_01_template_structure_is_not_product_certification) ... ok
+test_02_template_cannot_pass_gate (test_validate_evidence.EvidenceTests.test_02_template_cannot_pass_gate) ... ok
+test_03_complete_stage_contract (test_validate_evidence.EvidenceTests.test_03_complete_stage_contract) ... ok
+test_04_complete_final_contract (test_validate_evidence.EvidenceTests.test_04_complete_final_contract) ... ok
+test_05_missing_case (test_validate_evidence.EvidenceTests.test_05_missing_case) ... ok
+test_06_duplicate_case (test_validate_evidence.EvidenceTests.test_06_duplicate_case) ... ok
+test_07_unknown_stage (test_validate_evidence.EvidenceTests.test_07_unknown_stage) ... ok
+test_08_invalid_case_status (test_validate_evidence.EvidenceTests.test_08_invalid_case_status) ... ok
+test_09_requirement_mapping (test_validate_evidence.EvidenceTests.test_09_requirement_mapping) ... ok
+test_10_missing_screenshot_file (test_validate_evidence.EvidenceTests.test_10_missing_screenshot_file) ... ok
+test_11_wrong_hash (test_validate_evidence.EvidenceTests.test_11_wrong_hash) ... ok
+test_12_parent_path (test_validate_evidence.EvidenceTests.test_12_parent_path) ... ok
+test_13_absolute_path (test_validate_evidence.EvidenceTests.test_13_absolute_path) ... ok
+test_14_design_path (test_validate_evidence.EvidenceTests.test_14_design_path) ... ok
+test_15_symlink_outside_evidence (test_validate_evidence.EvidenceTests.test_15_symlink_outside_evidence) ... ok
+test_16_missing_log (test_validate_evidence.EvidenceTests.test_16_missing_log) ... ok
+test_17_missing_video (test_validate_evidence.EvidenceTests.test_17_missing_video) ... ok
+test_18_cut_video (test_validate_evidence.EvidenceTests.test_18_cut_video) ... ok
+test_19_timezone (test_validate_evidence.EvidenceTests.test_19_timezone) ... ok
+test_20_widget_not_native (test_validate_evidence.EvidenceTests.test_20_widget_not_native) ... ok
+test_21_not_native (test_validate_evidence.EvidenceTests.test_21_not_native) ... ok
+test_22_wrong_platform (test_validate_evidence.EvidenceTests.test_22_wrong_platform) ... ok
+test_23_wrong_build (test_validate_evidence.EvidenceTests.test_23_wrong_build) ... ok
+test_24_final_rejects_old_commit (test_validate_evidence.EvidenceTests.test_24_final_rejects_old_commit) ... ok
+test_25_modified_screenshot (test_validate_evidence.EvidenceTests.test_25_modified_screenshot) ... ok
+test_26_missing_shot (test_validate_evidence.EvidenceTests.test_26_missing_shot) ... ok
+test_27_duplicate_shot (test_validate_evidence.EvidenceTests.test_27_duplicate_shot) ... ok
+test_28_unknown_shot (test_validate_evidence.EvidenceTests.test_28_unknown_shot) ... ok
+test_29_multiple_shots_need_reason (test_validate_evidence.EvidenceTests.test_29_multiple_shots_need_reason) ... ok
+test_30_theme_mismatch (test_validate_evidence.EvidenceTests.test_30_theme_mismatch) ... ok
+test_31_full_window_required (test_validate_evidence.EvidenceTests.test_31_full_window_required) ... ok
+test_32_detail_anchor (test_validate_evidence.EvidenceTests.test_32_detail_anchor) ... ok
+test_33_valid_detail_anchor (test_validate_evidence.EvidenceTests.test_33_valid_detail_anchor) ... ok
+test_34_png_size (test_validate_evidence.EvidenceTests.test_34_png_size) ... ok
+test_35_invalid_png (test_validate_evidence.EvidenceTests.test_35_invalid_png) ... ok
+test_36_nan_ratio (test_validate_evidence.EvidenceTests.test_36_nan_ratio) ... ok
+test_37_assertion_proof (test_validate_evidence.EvidenceTests.test_37_assertion_proof) ... ok
+test_38_unpassed_assertion (test_validate_evidence.EvidenceTests.test_38_unpassed_assertion) ... ok
+test_39_no_embedded_image (test_validate_evidence.EvidenceTests.test_39_no_embedded_image) ... ok
+test_40_fenced_image_is_not_embed (test_validate_evidence.EvidenceTests.test_40_fenced_image_is_not_embed) ... ok
+test_41_report_heading (test_validate_evidence.EvidenceTests.test_41_report_heading) ... ok
+test_42_blocked_reason (test_validate_evidence.EvidenceTests.test_42_blocked_reason) ... ok
+test_43_unknown_gate (test_validate_evidence.EvidenceTests.test_43_unknown_gate) ... ok
+test_44_all_actual_template_cases_not_run (test_validate_evidence.EvidenceTests.test_44_all_actual_template_cases_not_run) ... ok
+test_45_safe_path_rejects_url_and_backslash (test_validate_evidence.EvidenceTests.test_45_safe_path_rejects_url_and_backslash) ... ok
+test_46_verified_stage_cannot_hide_failed_case (test_validate_evidence.EvidenceTests.test_46_verified_stage_cannot_hide_failed_case) ... ok
+
+----------------------------------------------------------------------
+Ran 46 tests in 0.091s
+
+OK

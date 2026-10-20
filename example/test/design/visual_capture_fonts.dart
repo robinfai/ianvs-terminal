@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:ianvs_design/ianvs_design.dart' show IanvsTypography;
+import 'package:ianvs_terminal/ianvs_terminal.dart' show ComposerTheme;
 
 import 'visual_golden_comparator.dart';
 
@@ -17,7 +18,7 @@ const _captureTextFallback = <String>[
 ];
 
 /// Load only repository assets and fonts from the pinned Flutter SDK.
-Future<void> loadVisualCaptureFonts() async {
+Future<void> loadVisualCaptureFonts({bool productionIcons = false}) async {
   installVisualGoldenComparator();
   final flutterRoot =
       Platform.environment['FLUTTER_ROOT'] ??
@@ -43,7 +44,12 @@ Future<void> loadVisualCaptureFonts() async {
     visualCaptureMonoFont: [mono],
     // Code/path widgets explicitly request this generic family.
     'monospace': [mono],
-    'MaterialIcons': ['$sdkFonts/MaterialIcons-Regular.otf'],
+    'MaterialIcons': [
+      if (productionIcons)
+        '${repository.path}/example/assets/fonts/TrailLightIcons.ttf'
+      else
+        '$sdkFonts/MaterialIcons-Regular.otf',
+    ],
   }.entries) {
     final loader = FontLoader(entry.key);
     for (final path in entry.value) {
@@ -99,6 +105,21 @@ ThemeData withVisualCaptureFonts(ThemeData theme) {
               fontFamily: visualCaptureMonoFont,
               fontFamilyFallback: visualCaptureFontFallback,
             ),
+          )
+        else if (extension is ComposerTheme)
+          extension.copyWith(
+            commandStyle: extension.commandStyle.copyWith(
+              fontFamily: visualCaptureMonoFont,
+              fontFamilyFallback: visualCaptureFontFallback,
+            ),
+            resultStyle: extension.resultStyle.copyWith(
+              fontFamily: visualCaptureMonoFont,
+              fontFamilyFallback: visualCaptureFontFallback,
+            ),
+            contextStyle: _text(extension.contextStyle),
+            actionStyle: _text(extension.actionStyle),
+            metadataStyle: _text(extension.metadataStyle),
+            statusStyle: _text(extension.statusStyle),
           )
         else
           extension,

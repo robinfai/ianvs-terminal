@@ -108,6 +108,7 @@ void main() {
       final tabs = <TerminalTab>[tab];
       final profiles = <TerminalProfile>[profile];
       final warnings = <TerminalProfileLoadWarning>[warning];
+      final reconnections = <String, String>{'attempt': tab.sessionId};
 
       final state = SessionState(
         tabs: tabs,
@@ -121,10 +122,12 @@ void main() {
         terminalViewportPadding:
             TerminalAppAppearance.defaultTerminalViewportPadding,
         isReady: true,
+        reconnectionTargets: reconnections,
       );
       tabs.clear();
       profiles.clear();
       warnings.clear();
+      reconnections.clear();
 
       expect(state.tabs, <TerminalTab>[tab]);
       expect(state.profiles, <TerminalProfile>[profile]);
@@ -134,6 +137,8 @@ void main() {
       expect(state.tabs.clear, throwsUnsupportedError);
       expect(state.profiles.clear, throwsUnsupportedError);
       expect(state.configurationWarnings.clear, throwsUnsupportedError);
+      expect(state.reconnectionTargets, {'attempt': tab.sessionId});
+      expect(state.reconnectionTargets.clear, throwsUnsupportedError);
     });
 
     test('copyWith defensively copies replacement collections', () {
@@ -144,9 +149,14 @@ void main() {
           profileId: 'default',
         ),
       ];
+      final reconnections = <String, String>{'attempt': 'session-1'};
 
-      final state = SessionState.initial().copyWith(tabs: tabs);
+      final state = SessionState.initial().copyWith(
+        tabs: tabs,
+        reconnectionTargets: reconnections,
+      );
       tabs.clear();
+      reconnections.clear();
 
       expect(state.tabs, hasLength(1));
       expect(() => state.tabs.add(state.tabs.single), throwsUnsupportedError);
@@ -154,7 +164,183 @@ void main() {
         () => SessionState.initial().profiles.add(defaultTerminalProfile()),
         throwsUnsupportedError,
       );
+      expect(state.reconnectionTargets, {'attempt': 'session-1'});
+      expect(state.reconnectionTargets.clear, throwsUnsupportedError);
     });
+  });
+
+  group('Session reconnection chains', () {
+    final first = _reconnectionTab('first', isExited: true);
+    final second = _reconnectionTab('second', isExited: true);
+    final live = _reconnectionTab('live');
+
+    SessionState chain() => SessionState.initial().copyWith(
+      tabs: [first, second, live],
+      activeSessionId: 'first',
+      reconnectionTargets: {'first': 'second', 'second': 'live'},
+    );
+
+    test(
+      'resolves the live descendant rather than another same-profile pane',
+      () {
+        final original = chain();
+        final state = original.copyWith(
+          tabs: [...original.tabs, _reconnectionTab('independent')],
+        );
+
+        expect(state.liveReconnectionFor('first'), 'live');
+        expect(state.liveReconnectionFor('second'), 'live');
+        expect(state.liveReconnectionFor('independent'), isNull);
+        expect(state.liveReconnectionFor('live'), isNull);
+        expect(state.liveReconnectionFor('missing'), isNull);
+        expect(state.latestReconnectionFor('first'), 'live');
+        expect(state.latestReconnectionFor('independent'), 'independent');
+        expect(state.latestReconnectionFor('missing'), 'missing');
+      },
+    );
+
+    test('redirects across a removed intermediate diagnostic pane', () {
+      final original = chain();
+
+      final updated = original.copyWith(tabs: [first, live]);
+
+      expect(updated.reconnectionTargets, {'first': 'live'});
+      expect(updated.liveReconnectionFor('first'), 'live');
+      expect(updated.liveReconnectionFor('second'), isNull);
+      expect(original.reconnectionTargets, {
+        'first': 'second',
+        'second': 'live',
+      });
+      expect(updated.reconnectionTargets.clear, throwsUnsupportedError);
+    });
+
+    test(
+      'closes three generations newest-first after pane layout reordering',
+      () {
+        for (final reordered in [
+          [first.rootPane, second.rootPane, live.rootPane],
+          [second.rootPane, first.rootPane, live.rootPane],
+          [live.rootPane, first.rootPane, second.rootPane],
+        ]) {
+          final tab = first.copyWith(
+            paneLayout: TerminalPaneLayoutNode.fromPanes(
+              reordered,
+              TerminalSplitAxis.horizontal,
+            ),
+          );
+          final state = chain().copyWith(tabs: [tab]);
+
+          expect(
+            state.sessionIdsInCloseOrder(
+              tab.effectivePanes.map((pane) => pane.sessionId),
+            ),
+            ['live', 'second', 'first'],
+          );
+        }
+      },
+    );
+
+    test(
+      'close order traverses unrequested links but returns only candidates',
+      () {
+        final state = chain();
+
+        expect(state.sessionIdsInCloseOrder(['first', 'live']), [
+          'live',
+          'first',
+        ]);
+        expect(state.sessionIdsInCloseOrder(['first']), ['first']);
+        expect(state.sessionIdsInCloseOrder(['second', 'second']), ['second']);
+        expect(state.sessionIdsInCloseOrder([]), isEmpty);
+        expect(state.sessionIdsInCloseOrder(['independent', 'first', 'live']), [
+          'independent',
+          'live',
+          'first',
+        ]);
+      },
+    );
+
+    test('prunes closed live targets while retaining earlier diagnostics', () {
+      final withoutLive = chain().copyWith(tabs: [first, second]);
+
+      expect(withoutLive.reconnectionTargets, {'first': 'second'});
+      expect(withoutLive.liveReconnectionFor('first'), isNull);
+      expect(withoutLive.liveReconnectionFor('second'), isNull);
+      expect(withoutLive.latestReconnectionFor('first'), 'second');
+      final retried = withoutLive.copyWith(
+        tabs: [...withoutLive.tabs, _reconnectionTab('retry')],
+        reconnectionTargets: {
+          ...withoutLive.reconnectionTargets,
+          'second': 'retry',
+        },
+      );
+      expect(retried.liveReconnectionFor('first'), 'retry');
+      expect(retried.copyWith(tabs: []).reconnectionTargets, isEmpty);
+    });
+
+    test(
+      'title and read-only metadata updates preserve reconnection targets',
+      () {
+        const integration = TerminalShellIntegrationSnapshot(
+          currentDirectory: '/remote/work',
+          lastCommand: 'deploy',
+          lastExitCode: 255,
+        );
+        const runtimeError = TerminalPaneRuntimeErrorState(
+          operation: 'ssh',
+          message: 'Transport disconnected',
+        );
+        final original = chain().copyWith(
+          tabs: [
+            first.copyWith(
+              exitCode: 255,
+              shellIntegration: integration,
+              runtimeError: runtimeError,
+            ),
+            second,
+            live,
+          ],
+        );
+
+        final renamed = original.withPaneTitle(
+          'first',
+          'Deployment diagnostics',
+        );
+        final updated = renamed.copyWith(
+          tabs: [
+            renamed.tabs.first.copyWith(oscBadge: 'Disconnected'),
+            ...renamed.tabs.skip(1),
+          ],
+        );
+
+        expect(renamed.reconnectionTargets, same(original.reconnectionTargets));
+        expect(renamed.layoutIdentity, same(original.layoutIdentity));
+        expect(updated.reconnectionTargets, original.reconnectionTargets);
+        expect(updated.liveReconnectionFor('first'), 'live');
+        final diagnostic = updated.tabs.first.activePane;
+        expect(diagnostic.title, 'Deployment diagnostics');
+        expect(diagnostic.isExited, isTrue);
+        expect(diagnostic.exitCode, 255);
+        expect(diagnostic.shellIntegration, same(integration));
+        expect(diagnostic.runtimeError, same(runtimeError));
+        expect(diagnostic.oscBadge, 'Disconnected');
+        expect(original.tabs.first.title, 'first');
+      },
+    );
+
+    test(
+      'broken and cyclic chains do not resolve to an unrelated live pane',
+      () {
+        final state = chain().copyWith(
+          reconnectionTargets: {'first': 'second', 'second': 'first'},
+        );
+        expect(state.liveReconnectionFor('first'), isNull);
+        expect(state.liveReconnectionFor('second'), isNull);
+        final removed = state.copyWith(tabs: [first, live]);
+        expect(removed.reconnectionTargets, isEmpty);
+        expect(removed.liveReconnectionFor('first'), isNull);
+      },
+    );
   });
 
   group('Session state pane layout', () {
@@ -340,4 +526,13 @@ void main() {
 
 TerminalPane _pane(String id) {
   return TerminalPane(sessionId: id, title: id, profileId: 'default');
+}
+
+TerminalTab _reconnectionTab(String id, {bool isExited = false}) {
+  return TerminalTab(
+    sessionId: id,
+    title: id,
+    profileId: 'same-profile',
+    isExited: isExited,
+  );
 }

@@ -1,0 +1,6 @@
+test_paused_output_keeps_input_and_disconnect_discards_pending_output (test_disconnect_relay.DisconnectRelayTest.test_paused_output_keeps_input_and_disconnect_discards_pending_output) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.364s
+
+OK

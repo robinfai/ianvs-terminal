@@ -1710,8 +1710,13 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
           policy: OrderedTraversalPolicy(),
           child: AppPanel(
             key: const Key('profile-editor-section-nav'),
-            tone: AppPanelTone.chrome,
-            padding: EdgeInsets.all(theme.spacing.sm),
+            tone: context.usesMobileNavigation
+                ? AppPanelTone.panel
+                : AppPanelTone.chrome,
+            padding: EdgeInsets.all(
+              context.usesMobileNavigation ? 0 : theme.spacing.sm,
+            ),
+            border: context.usesMobileNavigation ? const Border() : null,
             borderRadius: BorderRadius.circular(theme.radius.lg),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1850,8 +1855,8 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                 );
                 final scrollableSections = Scrollbar(
                   controller: _scrollController,
-                  thumbVisibility: true,
-                  trackVisibility: true,
+                  thumbVisibility: !mobile,
+                  trackVisibility: !mobile,
                   interactive: true,
                   radius: Radius.circular(theme.radius.sm),
                   thickness: theme.spacing.sm,
@@ -1860,9 +1865,9 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                     controller: _scrollController,
                     padding: EdgeInsets.only(
                       left: pageInset,
-                      top: theme.spacing.xxl,
+                      top: mobile ? theme.spacing.xl : theme.spacing.xxl,
                       right: pageInset,
-                      bottom: theme.spacing.xxl,
+                      bottom: mobile ? theme.spacing.xl : theme.spacing.xxl,
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1881,7 +1886,11 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                     context.l10n.generalProfileDescription,
                                 children: [
                                   Divider(height: 1, color: theme.border),
-                                  SizedBox(height: theme.spacing.xxl),
+                                  SizedBox(
+                                    height: context.usesMobileNavigation
+                                        ? theme.spacing.xl
+                                        : theme.spacing.xxl,
+                                  ),
                                   _ProfileLabeledControl(
                                     label: context.l10n.name,
                                     child: TextFormField(
@@ -1895,7 +1904,11 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                       ),
                                     ),
                                   ),
-                                  SizedBox(height: theme.spacing.xxl),
+                                  SizedBox(
+                                    height: context.usesMobileNavigation
+                                        ? theme.spacing.xl
+                                        : theme.spacing.xxl,
+                                  ),
                                   _ProfileLabeledControl(
                                     label: context.l10n.tags,
                                     helperText: context.l10n.tagsCommaHelp,
@@ -1944,7 +1957,11 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                             ),
                                       ),
                                     ),
-                                    SizedBox(height: theme.spacing.xxl),
+                                    SizedBox(
+                                      height: context.usesMobileNavigation
+                                          ? theme.spacing.xl
+                                          : theme.spacing.xxl,
+                                    ),
                                     _ProfileLabeledControl(
                                       label: context.l10n.workingDirectory,
                                       helperText:
@@ -1984,7 +2001,11 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                       onMoveDown: (index) =>
                                           _moveArg(index, index + 1),
                                     ),
-                                    SizedBox(height: theme.spacing.xxl),
+                                    SizedBox(
+                                      height: context.usesMobileNavigation
+                                          ? theme.spacing.xl
+                                          : theme.spacing.xxl,
+                                    ),
                                     _buildEnvEditor(context),
                                   ],
                                 ),
@@ -2625,7 +2646,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                       ),
                       Expanded(
                         child: ColoredBox(
-                          color: theme.canvas,
+                          color: mobile ? theme.panel : theme.canvas,
                           child: scrollableSections,
                         ),
                       ),
@@ -2646,7 +2667,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                     ),
                     Expanded(
                       child: ColoredBox(
-                        color: theme.canvas,
+                        color: mobile ? theme.panel : theme.canvas,
                         child: scrollableSections,
                       ),
                     ),
@@ -3421,9 +3442,17 @@ class _ProfileFormGroup extends StatelessWidget {
                   style: textTheme.bodySmall?.copyWith(color: theme.textSubtle),
                 ),
               ],
-              SizedBox(height: theme.spacing.lg),
+              SizedBox(
+                height: context.usesMobileNavigation
+                    ? theme.spacing.md
+                    : theme.spacing.lg,
+              ),
               Divider(height: 1, color: theme.border),
-              SizedBox(height: theme.spacing.xl),
+              SizedBox(
+                height: context.usesMobileNavigation
+                    ? theme.spacing.lg
+                    : theme.spacing.xl,
+              ),
             ],
             ...children,
           ],
@@ -3632,22 +3661,27 @@ class _ProfileRuleEditor extends StatelessWidget {
             keyboardType: TextInputType.multiline,
             textInputAction: TextInputAction.newline,
             style: textTheme.bodyMedium?.copyWith(fontFamily: 'monospace'),
-            decoration: InputDecoration(
-              filled: true,
-              fillColor: theme.chrome,
-              border: outline,
-              enabledBorder: outline,
-              focusedBorder: outline.copyWith(
-                borderSide: BorderSide(color: theme.focusRing, width: 1.6),
-              ),
-              errorBorder: outline.copyWith(
-                borderSide: BorderSide(color: theme.danger),
-              ),
-              focusedErrorBorder: outline.copyWith(
-                borderSide: BorderSide(color: theme.danger, width: 1.6),
-              ),
-              contentPadding: EdgeInsets.all(theme.spacing.xl),
-            ),
+            decoration: context.usesMobileNavigation
+                ? const InputDecoration(contentPadding: EdgeInsets.all(12))
+                : InputDecoration(
+                    filled: true,
+                    fillColor: theme.chrome,
+                    border: outline,
+                    enabledBorder: outline,
+                    focusedBorder: outline.copyWith(
+                      borderSide: BorderSide(
+                        color: theme.focusRing,
+                        width: 1.6,
+                      ),
+                    ),
+                    errorBorder: outline.copyWith(
+                      borderSide: BorderSide(color: theme.danger),
+                    ),
+                    focusedErrorBorder: outline.copyWith(
+                      borderSide: BorderSide(color: theme.danger, width: 1.6),
+                    ),
+                    contentPadding: EdgeInsets.all(theme.spacing.xl),
+                  ),
             validator: validator,
             onTapOutside: (_) => focusNode.unfocus(),
           ),

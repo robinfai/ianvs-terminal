@@ -44,7 +44,11 @@ impl Terminal {
                         self.delete_graphics_above_cursor(cursor_col, cursor_row);
                     }
                     2 => {
-                        self.active_grid_mut().clear();
+                        if self.alt_screen_active {
+                            self.active_grid_mut().clear();
+                        } else {
+                            self.grid.clear_preserving_completed_output();
+                        }
                         self.clear_graphics();
                         self.clear_iterm_buttons_for_screen(self.alt_screen_active);
                         self.terminal_events

@@ -1,0 +1,256 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart
+lib/features/ai/terminal_ai_message.dart:10:54: Error: Can't find '}' to match '{'.
+class TerminalAiMessageFrame extends StatelessWidget {
+                                                     ^
+lib/features/ai/terminal_ai_message.dart:69:1: Error: Classes can't be declared inside other classes.
+Try moving the class to the top-level.
+class TerminalAiMessage extends StatelessWidget {
+^^^^^
+lib/features/ai/terminal_ai_message.dart:69:25: Error: Expected a class member, but got 'extends'.
+class TerminalAiMessage extends StatelessWidget {
+                        ^^^^^^^
+lib/features/ai/terminal_ai_message.dart:69:33: Error: A method declaration needs an explicit list of parameters.
+Try adding a parameter list to the method declaration.
+class TerminalAiMessage extends StatelessWidget {
+                                ^^^^^^^^^^^^^^^
+lib/features/ai/terminal_ai_workspace.dart:543:13: Error: The method 'TerminalAiMessage' isn't defined for the type '_TerminalAiWorkspaceState'.
+ - '_TerminalAiWorkspaceState' is from 'package:app/features/ai/terminal_ai_workspace.dart' ('lib/features/ai/terminal_ai_workspace.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'TerminalAiMessage'.
+            TerminalAiMessage(
+            ^^^^^^^^^^^^^^^^^
+lib/features/ai/terminal_ai_message.dart:70:37: Error: Expected ',' before this.
+  const TerminalAiMessage({required this.text, this.onOpenLink, super.key});
+                                    ^^^^
+lib/features/ai/terminal_ai_message.dart:70:9: Error: Not a constant expression.
+  const TerminalAiMessage({required this.text, this.onOpenLink, super.key});
+        ^^^^^^^^^^^^^^^^^
+lib/features/ai/terminal_ai_message.dart:82:15: Error: Final variable 'text' must be assigned before it can be used.
+        data: text,
+              ^^^^
+lib/features/ai/terminal_ai_message.dart:118:20: Error: Final variable 'onOpenLink' must be assigned before it can be used.
+        onTapLink: onOpenLink == null
+                   ^^^^^^^^^^
+lib/features/ai/terminal_ai_message.dart:121:35: Error: Final variable 'onOpenLink' must be assigned before it can be used.
+                if (href != null) onOpenLink!(href);
+                                  ^^^^^^^^^^
+00:00 +0 -1: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart [E]
+  Failed to load "/Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart":
+  Compilation failed for testPath=/Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: lib/features/ai/terminal_ai_message.dart:10:54: Error: Can't find '}' to match '{'.
+  class TerminalAiMessageFrame extends StatelessWidget {
+                                                       ^
+  lib/features/ai/terminal_ai_message.dart:69:1: Error: Classes can't be declared inside other classes.
+  Try moving the class to the top-level.
+  class TerminalAiMessage extends StatelessWidget {
+  ^^^^^
+  lib/features/ai/terminal_ai_message.dart:69:25: Error: Expected a class member, but got 'extends'.
+  class TerminalAiMessage extends StatelessWidget {
+                          ^^^^^^^
+  lib/features/ai/terminal_ai_message.dart:69:33: Error: A method declaration needs an explicit list of parameters.
+  Try adding a parameter list to the method declaration.
+  class TerminalAiMessage extends StatelessWidget {
+                                  ^^^^^^^^^^^^^^^
+  lib/features/ai/terminal_ai_workspace.dart:543:13: Error: The method 'TerminalAiMessage' isn't defined for the type '_TerminalAiWorkspaceState'.
+   - '_TerminalAiWorkspaceState' is from 'package:app/features/ai/terminal_ai_workspace.dart' ('lib/features/ai/terminal_ai_workspace.dart').
+  Try correcting the name to the name of an existing method, or defining a method named 'TerminalAiMessage'.
+              TerminalAiMessage(
+              ^^^^^^^^^^^^^^^^^
+  lib/features/ai/terminal_ai_message.dart:70:37: Error: Expected ',' before this.
+    const TerminalAiMessage({required this.text, this.onOpenLink, super.key});
+                                      ^^^^
+  lib/features/ai/terminal_ai_message.dart:70:9: Error: Not a constant expression.
+    const TerminalAiMessage({required this.text, this.onOpenLink, super.key});
+          ^^^^^^^^^^^^^^^^^
+  lib/features/ai/terminal_ai_message.dart:82:15: Error: Final variable 'text' must be assigned before it can be used.
+          data: text,
+                ^^^^
+  lib/features/ai/terminal_ai_message.dart:118:20: Error: Final variable 'onOpenLink' must be assigned before it can be used.
+          onTapLink: onOpenLink == null
+                     ^^^^^^^^^^
+  lib/features/ai/terminal_ai_message.dart:121:35: Error: Final variable 'onOpenLink' must be assigned before it can be used.
+                  if (href != null) onOpenLink!(href);
+                                    ^^^^^^^^^^
+  .
+  Error: The Dart compiler exited unexpectedly.
+  package:flutter_tools/src/base/common.dart 34:3  throwToolExit
+  package:flutter_tools/src/compile.dart 1009:11   DefaultResidentCompiler._compile.<fn>
+  dart:async/zone_root.dart 48:47                  _rootRunUnary
+  dart:async/zone.dart 733:19                      _CustomZone.runUnary
+  dart:async/future_impl.dart 948:45               Future._propagateToListeners.handleValueCallback
+  dart:async/future_impl.dart 977:13               Future._propagateToListeners
+  dart:async/future_impl.dart 862:9                Future._propagateToListeners
+  dart:async/future_impl.dart 720:5                Future._completeWithValue
+  dart:async/future_impl.dart 804:7                Future._asyncCompleteWithValue.<fn>
+  dart:async/zone_root.dart 35:13                  _rootRun
+  dart:async/zone.dart 726:19                      _CustomZone.run
+  dart:async/zone.dart 625:7                       _CustomZone.runGuarded
+  dart:async/zone.dart 666:23                      _CustomZone.bindCallbackGuarded.<fn>
+  dart:async/schedule_microtask.dart 40:35         _microtaskLoop
+  dart:async/schedule_microtask.dart 49:5          _startMicrotaskLoop
+  dart:isolate-patch/isolate_patch.dart 127:13     _runPendingImmediateCallback
+  dart:isolate-patch/isolate_patch.dart 193:5      _RawReceivePort._handleMessage
+  
+lib/features/ai/terminal_ai_message.dart:10:54: Error: Can't find '}' to match '{'.
+class TerminalAiMessageFrame extends StatelessWidget {
+                                                     ^
+lib/features/ai/terminal_ai_message.dart:69:1: Error: Classes can't be declared inside other classes.
+Try moving the class to the top-level.
+class TerminalAiMessage extends StatelessWidget {
+^^^^^
+lib/features/ai/terminal_ai_message.dart:69:25: Error: Expected a class member, but got 'extends'.
+class TerminalAiMessage extends StatelessWidget {
+                        ^^^^^^^
+lib/features/ai/terminal_ai_message.dart:69:33: Error: A method declaration needs an explicit list of parameters.
+Try adding a parameter list to the method declaration.
+class TerminalAiMessage extends StatelessWidget {
+                                ^^^^^^^^^^^^^^^
+test/ai/terminal_ai_message_test.dart:101:30: Error: Method not found: 'TerminalAiMessage'.
+                      child: TerminalAiMessage(
+                             ^^^^^^^^^^^^^^^^^
+lib/features/ai/terminal_ai_message.dart:70:37: Error: Expected ',' before this.
+  const TerminalAiMessage({required this.text, this.onOpenLink, super.key});
+                                    ^^^^
+lib/features/ai/terminal_ai_message.dart:70:9: Error: Not a constant expression.
+  const TerminalAiMessage({required this.text, this.onOpenLink, super.key});
+        ^^^^^^^^^^^^^^^^^
+lib/features/ai/terminal_ai_message.dart:82:15: Error: Final variable 'text' must be assigned before it can be used.
+        data: text,
+              ^^^^
+lib/features/ai/terminal_ai_message.dart:118:20: Error: Final variable 'onOpenLink' must be assigned before it can be used.
+        onTapLink: onOpenLink == null
+                   ^^^^^^^^^^
+lib/features/ai/terminal_ai_message.dart:121:35: Error: Final variable 'onOpenLink' must be assigned before it can be used.
+                if (href != null) onOpenLink!(href);
+                                  ^^^^^^^^^^
+00:00 +0 -2: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart [E]
+  Failed to load "/Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart":
+  Compilation failed for testPath=/Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: lib/features/ai/terminal_ai_message.dart:10:54: Error: Can't find '}' to match '{'.
+  class TerminalAiMessageFrame extends StatelessWidget {
+                                                       ^
+  lib/features/ai/terminal_ai_message.dart:69:1: Error: Classes can't be declared inside other classes.
+  Try moving the class to the top-level.
+  class TerminalAiMessage extends StatelessWidget {
+  ^^^^^
+  lib/features/ai/terminal_ai_message.dart:69:25: Error: Expected a class member, but got 'extends'.
+  class TerminalAiMessage extends StatelessWidget {
+                          ^^^^^^^
+  lib/features/ai/terminal_ai_message.dart:69:33: Error: A method declaration needs an explicit list of parameters.
+  Try adding a parameter list to the method declaration.
+  class TerminalAiMessage extends StatelessWidget {
+                                  ^^^^^^^^^^^^^^^
+  test/ai/terminal_ai_message_test.dart:101:30: Error: Method not found: 'TerminalAiMessage'.
+                        child: TerminalAiMessage(
+                               ^^^^^^^^^^^^^^^^^
+  lib/features/ai/terminal_ai_message.dart:70:37: Error: Expected ',' before this.
+    const TerminalAiMessage({required this.text, this.onOpenLink, super.key});
+                                      ^^^^
+  lib/features/ai/terminal_ai_message.dart:70:9: Error: Not a constant expression.
+    const TerminalAiMessage({required this.text, this.onOpenLink, super.key});
+          ^^^^^^^^^^^^^^^^^
+  lib/features/ai/terminal_ai_message.dart:82:15: Error: Final variable 'text' must be assigned before it can be used.
+          data: text,
+                ^^^^
+  lib/features/ai/terminal_ai_message.dart:118:20: Error: Final variable 'onOpenLink' must be assigned before it can be used.
+          onTapLink: onOpenLink == null
+                     ^^^^^^^^^^
+  lib/features/ai/terminal_ai_message.dart:121:35: Error: Final variable 'onOpenLink' must be assigned before it can be used.
+                  if (href != null) onOpenLink!(href);
+                                    ^^^^^^^^^^
+  .
+00:00 +0 -2: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart [E]
+  Error: The Dart compiler exited unexpectedly.
+  package:flutter_tools/src/base/common.dart 34:3  throwToolExit
+  package:flutter_tools/src/compile.dart 1009:11   DefaultResidentCompiler._compile.<fn>
+  dart:async/zone_root.dart 48:47                  _rootRunUnary
+  dart:async/zone.dart 733:19                      _CustomZone.runUnary
+  dart:async/future_impl.dart 948:45               Future._propagateToListeners.handleValueCallback
+  dart:async/future_impl.dart 977:13               Future._propagateToListeners
+  dart:async/future_impl.dart 862:9                Future._propagateToListeners
+  dart:async/future_impl.dart 720:5                Future._completeWithValue
+  dart:async/future_impl.dart 804:7                Future._asyncCompleteWithValue.<fn>
+  dart:async/zone_root.dart 35:13                  _rootRun
+  dart:async/zone.dart 726:19                      _CustomZone.run
+  dart:async/zone.dart 625:7                       _CustomZone.runGuarded
+  dart:async/zone.dart 666:23                      _CustomZone.bindCallbackGuarded.<fn>
+  dart:async/schedule_microtask.dart 40:35         _microtaskLoop
+  dart:async/schedule_microtask.dart 49:5          _startMicrotaskLoop
+  dart:isolate-patch/isolate_patch.dart 127:13     _runPendingImmediateCallback
+  dart:isolate-patch/isolate_patch.dart 193:5      _RawReceivePort._handleMessage
+  
+lib/features/ai/terminal_ai_message.dart:10:54: Error: Can't find '}' to match '{'.
+class TerminalAiMessageFrame extends StatelessWidget {
+                                                     ^
+lib/features/ai/terminal_ai_message.dart:69:1: Error: Classes can't be declared inside other classes.
+Try moving the class to the top-level.
+class TerminalAiMessage extends StatelessWidget {
+^^^^^
+lib/features/ai/terminal_ai_message.dart:69:25: Error: Expected a class member, but got 'extends'.
+class TerminalAiMessage extends StatelessWidget {
+                        ^^^^^^^
+lib/features/ai/terminal_ai_message.dart:69:33: Error: A method declaration needs an explicit list of parameters.
+Try adding a parameter list to the method declaration.
+class TerminalAiMessage extends StatelessWidget {
+                                ^^^^^^^^^^^^^^^
+lib/features/ai/terminal_ai_workspace.dart:543:13: Error: The method 'TerminalAiMessage' isn't defined for the type '_TerminalAiWorkspaceState'.
+ - '_TerminalAiWorkspaceState' is from 'package:app/features/ai/terminal_ai_workspace.dart' ('lib/features/ai/terminal_ai_workspace.dart').
+Try correcting the name to the name of an existing method, or defining a method named 'TerminalAiMessage'.
+            TerminalAiMessage(
+            ^^^^^^^^^^^^^^^^^
+lib/features/ai/terminal_ai_message.dart:70:37: Error: Expected ',' before this.
+  const TerminalAiMessage({required this.text, this.onOpenLink, super.key});
+                                    ^^^^
+lib/features/ai/terminal_ai_message.dart:70:9: Error: Not a constant expression.
+  const TerminalAiMessage({required this.text, this.onOpenLink, super.key});
+        ^^^^^^^^^^^^^^^^^
+lib/features/ai/terminal_ai_message.dart:82:15: Error: Final variable 'text' must be assigned before it can be used.
+        data: text,
+              ^^^^
+lib/features/ai/terminal_ai_message.dart:118:20: Error: Final variable 'onOpenLink' must be assigned before it can be used.
+        onTapLink: onOpenLink == null
+                   ^^^^^^^^^^
+lib/features/ai/terminal_ai_message.dart:121:35: Error: Final variable 'onOpenLink' must be assigned before it can be used.
+                if (href != null) onOpenLink!(href);
+                                  ^^^^^^^^^^
+00:00 +0 -3: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart [E]
+  Failed to load "/Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart":
+  Compilation failed for testPath=/Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: lib/features/ai/terminal_ai_message.dart:10:54: Error: Can't find '}' to match '{'.
+  class TerminalAiMessageFrame extends StatelessWidget {
+                                                       ^
+  lib/features/ai/terminal_ai_message.dart:69:1: Error: Classes can't be declared inside other classes.
+  Try moving the class to the top-level.
+  class TerminalAiMessage extends StatelessWidget {
+  ^^^^^
+  lib/features/ai/terminal_ai_message.dart:69:25: Error: Expected a class member, but got 'extends'.
+  class TerminalAiMessage extends StatelessWidget {
+                          ^^^^^^^
+  lib/features/ai/terminal_ai_message.dart:69:33: Error: A method declaration needs an explicit list of parameters.
+  Try adding a parameter list to the method declaration.
+  class TerminalAiMessage extends StatelessWidget {
+                                  ^^^^^^^^^^^^^^^
+  lib/features/ai/terminal_ai_workspace.dart:543:13: Error: The method 'TerminalAiMessage' isn't defined for the type '_TerminalAiWorkspaceState'.
+   - '_TerminalAiWorkspaceState' is from 'package:app/features/ai/terminal_ai_workspace.dart' ('lib/features/ai/terminal_ai_workspace.dart').
+  Try correcting the name to the name of an existing method, or defining a method named 'TerminalAiMessage'.
+              TerminalAiMessage(
+              ^^^^^^^^^^^^^^^^^
+  lib/features/ai/terminal_ai_message.dart:70:37: Error: Expected ',' before this.
+    const TerminalAiMessage({required this.text, this.onOpenLink, super.key});
+                                      ^^^^
+  lib/features/ai/terminal_ai_message.dart:70:9: Error: Not a constant expression.
+    const TerminalAiMessage({required this.text, this.onOpenLink, super.key});
+          ^^^^^^^^^^^^^^^^^
+  lib/features/ai/terminal_ai_message.dart:82:15: Error: Final variable 'text' must be assigned before it can be used.
+          data: text,
+                ^^^^
+  lib/features/ai/terminal_ai_message.dart:118:20: Error: Final variable 'onOpenLink' must be assigned before it can be used.
+          onTapLink: onOpenLink == null
+                     ^^^^^^^^^^
+  lib/features/ai/terminal_ai_message.dart:121:35: Error: Final variable 'onOpenLink' must be assigned before it can be used.
+                  if (href != null) onOpenLink!(href);
+                                    ^^^^^^^^^^
+  .
+00:00 +0 -3: Some tests failed.
+
+Failing tests:
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart

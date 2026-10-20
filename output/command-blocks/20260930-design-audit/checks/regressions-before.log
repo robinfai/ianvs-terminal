@@ -1,0 +1,78 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/design/command_blocks_capture_test.dart
+00:00 +0: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/design/command_blocks_capture_test.dart: (setUpAll)
+00:00 +0: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:00 +1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:00 +2: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:00 +3: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +4: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +5: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +5: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/design/command_blocks_capture_test.dart: command blocks short
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: exactly one matching candidate
+  Actual: _HitTestableWidgetFinder:<Found 0 widgets with key [<'block-actions-1'>] (considering only
+hit-testable widgets with a RenderBox): []>
+   Which: means none were found but one was expected
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/design/command_blocks_capture_test.dart:99:9)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/design/command_blocks_capture_test.dart line 99
+The test description was:
+  command blocks short
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:01 +5 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:01 +5 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/design/command_blocks_capture_test.dart: command blocks short [E]
+  Test failed. See exception logs above.
+  The test description was: command blocks short
+
+00:01 +5 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:02 +6 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: android negotiates Blocks and preserves manual Normal
+00:03 +7 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH hop and fullscreen fall back; restore remains manual
+00:03 +8 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: main-screen application modes fall back without an alternate buffer
+00:04 +9 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits phone with the keyboard
+00:04 +10 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits landscape with the keyboard
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: a value less than or equal to <210.0>
+  Actual: <216.0>
+   Which: is not a value less than or equal to <210.0>
+The complete input surface must remain above the keyboard.
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart:557:7)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart line 557
+The test description was:
+  mobile Block input fits landscape with the keyboard
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:05 +10 -2: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits landscape with the keyboard [E]
+  Test failed. See exception logs above.
+  The test description was: mobile Block input fits landscape with the keyboard
+
+00:05 +10 -2: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits large-text-dark with the keyboard
+00:05 +11 -2: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits ipad with the keyboard
+00:06 +12 -2: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile settings save Normal for new sessions only
+00:06 +13 -2: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: explicit Normal preference overrides the mobile default
+00:07 +14 -2: Some tests failed.
+
+Failing tests:
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/test/design/command_blocks_capture_test.dart: command blocks short
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits landscape with the keyboard

@@ -1,10 +1,87 @@
 part of 'shell_screen.dart';
 
 extension _ShellScreenStateEvents on _ShellScreenState {
+  void _handleSessionStateChanged(SessionState? previous, SessionState next) {
+    for (final tab in next.tabs) {
+      for (final pane in tab.effectivePanes) {
+        _composerSessions[pane.sessionId]?.updateEnvironment(
+          pane,
+          readOnly: _isSessionReadOnly(pane.sessionId),
+        );
+      }
+    }
+    _syncPresentationState(next);
+    _publishAcceptanceSnapshot(next);
+    final noticeSource = _runtimeErrorNotice?.sessionId;
+    if (noticeSource != null &&
+        !next.tabs.any((tab) => tab.containsSession(noticeSource))) {
+      _runtimeErrorNoticeTimer?.cancel();
+      _runtimeErrorNoticeTimer = null;
+      _runtimeErrorNotice = null;
+    }
+    final newRuntimeError = _newRuntimeError(previous, next);
+    if (newRuntimeError != null) {
+      _runtimeErrorNoticeTimer?.cancel();
+      _runtimeErrorNotice = newRuntimeError;
+      _runtimeErrorNoticeTimer = Timer(
+        _ShellScreenState._runtimeErrorNoticeDuration,
+        () {
+          if (!mounted || _runtimeErrorNotice != newRuntimeError) {
+            return;
+          }
+          _mutateState(() {
+            _runtimeErrorNotice = null;
+            _runtimeErrorNoticeTimer = null;
+          });
+        },
+      );
+    }
+    if (!next.isReady && next.lastError != null) {
+      unawaited(_loadRemoteFallbackSnapshot());
+    }
+    final activeSessionId = next.activeSessionId;
+    final pendingMessage = activeSessionId == null
+        ? null
+        : _pendingZmodemTerminalMessages.remove(activeSessionId);
+    if (pendingMessage != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted &&
+            ref.read(sessionControllerProvider).activeSessionId ==
+                activeSessionId) {
+          _showShellSnackBar(pendingMessage);
+        }
+      });
+    }
+  }
+
+  ({String sessionId, TerminalPaneRuntimeErrorState error})? _newRuntimeError(
+    SessionState? previous,
+    SessionState next,
+  ) {
+    for (final tab in next.tabs) {
+      for (final pane in tab.effectivePanes) {
+        final error = pane.runtimeError;
+        if (error == null) {
+          continue;
+        }
+        final previousPane = previous?.tabs
+            .where((candidate) => candidate.containsSession(pane.sessionId))
+            .firstOrNull
+            ?.paneFor(pane.sessionId);
+        if (!identical(previousPane?.runtimeError, error)) {
+          return (sessionId: pane.sessionId, error: error);
+        }
+      }
+    }
+    return null;
+  }
+
   bool get _shellModalInputBlocked =>
       _isCommandMenuOpen ||
+      _mobileSessionsOpen ||
       _isShellCapabilitiesOpen ||
       _isDefaultsOpen ||
+      _isMobileLlmSetupOpen ||
       _isProfilesOpen ||
       ModalRoute.of(context)?.isCurrent == false;
 
@@ -116,7 +193,21 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         _scheduleRenderableSessionSwap(sessionId);
       case terminal.TerminalSessionExitEvent():
         unawaited(_osc72DragDropController.resetSession(event.sessionId));
-        _clearPresentationStateForSession(event.sessionId);
+        if (ref
+            .read(terminalRuntimeControllerProvider)
+            .isSessionRetainedAfterExit(event.sessionId)) {
+          _sshAuthPromptPresenter.cancelSession(event.sessionId);
+          _sshHostKeyPromptPresenter.cancelSession(event.sessionId);
+          if (context.usesMobileNavigation) {
+            _terminalFocusNodes[event.sessionId]?.unfocus();
+            _composerSessions[event.sessionId]?.editorFocus.unfocus();
+          }
+          _composerSessions[event.sessionId]?.blocks.refresh();
+          final ai = _aiSessions[event.sessionId];
+          if (ai != null) unawaited(ai.refreshContext());
+        } else {
+          _clearPresentationStateForSession(event.sessionId);
+        }
         _notifySessionExit(
           event.sessionId,
           event.exitCode,
@@ -392,6 +483,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     try {
       approved = await showDialog<bool>(
         context: context,
+        animationStyle: appDialogAnimation(context),
         barrierDismissible: false,
         builder: (dialogContext) {
           final destination = scheme == 'file'
@@ -458,6 +550,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     try {
       decision = await showDialog<LocalTerminalReportVariablePolicy>(
         context: context,
+        animationStyle: appDialogAnimation(context),
         builder: (dialogContext) {
           final appTheme = dialogContext.appTheme;
           return AlertDialog(
@@ -1288,9 +1381,11 @@ extension _ShellScreenStateEvents on _ShellScreenState {
   }
 
   Future<void> _handleNativeOsc72DragEvent(NativeOsc72DragEvent event) {
+    final inputEpoch = _manualInputEpoch(event.sessionId);
     return _osc72DragDropController.handleNativeEvent(
       event,
       resolveLocation: _osc72LocationFor,
+      canSend: () => !_manualInputBlocked(event.sessionId, epoch: inputEpoch),
     );
   }
 
@@ -1345,6 +1440,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
   }
 
   Osc72DropLocation? _osc72LocationFor(NativeOsc72DragEvent event) {
+    if (_manualInputBlocked(event.sessionId)) return null;
     final sessionState = ref.read(sessionControllerProvider);
     final tab = _tabForSession(sessionState, event.sessionId);
     final context = tab == null
@@ -1397,8 +1493,10 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     };
     final result = await showDialog<terminal.TerminalClipboardAuthorization>(
       context: context,
+      animationStyle: appDialogAnimation(context),
       builder: (context) {
         return AlertDialog(
+          scrollable: true,
           title: Text(promptTitle),
           content: _buildOsc52PromptContent(request),
           actions: [
@@ -2012,7 +2110,7 @@ class _Osc52PromptDetail extends StatelessWidget {
       label: '$label: $value',
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: colorScheme.secondaryContainer.withValues(alpha: 0.44),
+          color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.44),
           borderRadius: BorderRadius.circular(6),
           border: Border.all(
             color: colorScheme.outlineVariant.withValues(alpha: 0.72),
@@ -2023,7 +2121,7 @@ class _Osc52PromptDetail extends StatelessWidget {
           child: Text(
             '$label: $value',
             style: textTheme.labelMedium?.copyWith(
-              color: colorScheme.onSecondaryContainer,
+              color: colorScheme.onSurfaceVariant,
             ),
           ),
         ),

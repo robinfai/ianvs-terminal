@@ -18,7 +18,7 @@ function __ianvs_run_shell {
   __iv_cmd=${__iv_cmd//@@CHILD_NONCE@@/$__iv_id}
   command /bin/sh -c "$__iv_cmd" -- "$__iv_target"
   __iv_status=$?
-  printf '\033]6973;@@NONCE@@;%s;resume;done\007' "$__iv_parent"
+  printf '\033]6973;@@NONCE@@;%s;resume;done;%s\007' "$__iv_parent" "$__iv_status"
   return "$__iv_status"
 }
 function bash { __ianvs_run_shell bash "$@"; }

@@ -1,0 +1,26 @@
+{
+  "created_at": "2026-10-10T09:17:31.933245+00:00",
+  "implementation_commit": "a60bc9d78f5f51414c43590ee6f34ae3cce7e7b9",
+  "result": "failed",
+  "full_gate_exit_code": 2,
+  "source_clean_at_start": true,
+  "source_clean_at_end": true,
+  "application_tests": {
+    "passed": 3083,
+    "skipped": 1,
+    "failed": 2
+  },
+  "not_reached": "macOS native integration/build/signing stages after app tests",
+  "files": [
+    {
+      "path": "verify-11-metadata.json",
+      "sha256": "d8ca57533c52cccbbc82ebf0c4a375c0b4d9125004e8ea7eba73f1b73f48824d",
+      "bytes": 411
+    },
+    {
+      "path": "verify-11.log",
+      "sha256": "597fe79e2154629df4f16fbd9d402f2245da24b56b9b893e5756dc0e190b31da",
+      "bytes": 1399855
+    }
+  ]
+}

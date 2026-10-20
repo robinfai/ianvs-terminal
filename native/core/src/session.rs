@@ -50,6 +50,7 @@ use std::sync::{
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+mod command_blocks;
 mod event_queue;
 mod frame;
 mod frame_signal;
@@ -683,6 +684,11 @@ pub struct TerminalSession {
     osc633_expected_nonce: Option<String>,
     state: Mutex<TerminalState>,
     writer: Mutex<Option<Box<dyn Write + Send>>>,
+    composer_bridge: Mutex<Option<Arc<crate::composer_bridge::ComposerBridge>>>,
+    remote_composer: Mutex<Option<Arc<crate::remote_composer::RemoteComposer>>>,
+    composer_input_gate: Mutex<()>,
+    composer_submission_remote: Mutex<Option<bool>>,
+    local_completions: Mutex<crate::completion_host::LocalCompletions>,
     ssh_auth: Option<crate::ssh::SshAuthClient>,
     ssh_sftp: Option<crate::ssh::SshSftpClient>,
     sftp_job_seed: AtomicU64,
@@ -985,6 +991,8 @@ impl TerminalSession {
         let reader_poll_handle = runtime.reader_poll_handle;
         let shell_integration_diagnostics = runtime.shell_integration.to_diagnostic_json();
         let shell_integration_proxy = runtime.shell_integration_proxy;
+        let composer_bridge = runtime.composer_bridge;
+        let remote_composer = runtime.remote_composer;
         let ssh_auth = runtime.ssh_auth;
         let ssh_sftp = runtime.ssh_sftp;
         let session = Self::new_with_ssh_auth(
@@ -1001,6 +1009,8 @@ impl TerminalSession {
             shell_integration_diagnostics,
             false,
         );
+        *session.composer_bridge.lock() = composer_bridge;
+        *session.remote_composer.lock() = remote_composer;
         session
             .zmodem_enabled
             .store(zmodem_enabled, Ordering::Release);
@@ -1202,6 +1212,11 @@ impl TerminalSession {
                 replay_checkpoint_boundary: ReplayCheckpointBoundary::default(),
             }),
             writer: Mutex::new(writer),
+            composer_bridge: Mutex::new(None),
+            remote_composer: Mutex::new(None),
+            composer_input_gate: Mutex::new(()),
+            composer_submission_remote: Mutex::new(None),
+            local_completions: Mutex::new(crate::completion_host::LocalCompletions::default()),
             ssh_auth,
             ssh_sftp,
             sftp_job_seed: AtomicU64::new(0),
@@ -3201,6 +3216,12 @@ impl TerminalSession {
                 if resource_session.resource_sampler_should_stop() {
                     break;
                 }
+                // Keep the local ZLE control channel flowing even when no UI
+                // polls Composer. This only drains nonblocking socket data;
+                // command preparation/commit remains on the request path.
+                if let Some(bridge) = resource_session.composer_bridge.lock().as_ref() {
+                    bridge.poll_io();
+                }
                 resource_session.poll_zmodem_timeout();
                 let now = Instant::now();
                 if sampling_enabled && now >= next_resource_sample {
@@ -3403,6 +3424,7 @@ impl TerminalSession {
         let should_rebuild_main_screen = !state.terminal.is_alt_screen_active();
 
         if should_rebuild_main_screen && !state.transcript_truncated {
+            let previous_zones = state.terminal.get_zones().to_vec();
             let block_view_overrides = state
                 .terminal
                 .iterm_blocks()
@@ -3436,6 +3458,7 @@ impl TerminalSession {
             terminal.set_iterm_replay_geometry_overrides(iterm_graphics_before_resize.clone());
             let replay_started_at = Instant::now();
             terminal.process(&transcript);
+            terminal.restore_zone_metadata(&previous_zones);
             resize_replay_observation = Some((
                 transcript.len() as u64,
                 replay_started_at.elapsed().as_micros() as u64,
@@ -3511,8 +3534,15 @@ impl TerminalSession {
     }
 
     pub fn write(&self, bytes: &[u8]) -> Result<(), SessionError> {
+        let _composer_gate = self.composer_input_gate.lock();
         if self.is_replay {
             return Err(SessionError::ReadOnlyReplaySession(self.session_id));
+        }
+        if let Some(bridge) = self.composer_bridge.lock().as_ref() {
+            bridge.invalidate();
+        }
+        if let Some(bridge) = self.remote_composer.lock().as_ref() {
+            bridge.invalidate();
         }
         self.write_non_zmodem_ordered(bytes, true, false)
     }

@@ -1,0 +1,13 @@
+   Compiling par-term-emu-core-rust v0.41.1 (/Users/robinfai/flutter_projects/ianvs-terminal/native/vendor/par-term-emu-core-rust)
+   Compiling ianvs_core v0.1.0 (/Users/robinfai/flutter_projects/ianvs-terminal/native/core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.79s
+     Running unittests src/lib.rs (native/core/target/debug/deps/ianvs_core-aace0d3be1a44b38)
+
+running 4 tests
+test remote_composer::tests::only_active_authenticated_fresh_prompt_grants_a_lease ... ok
+test remote_composer::tests::aliases_are_bounded_authenticated_and_never_follow_another_node ... ok
+test remote_composer::tests::literal_payload_receipts_timeouts_and_raw_input_fail_closed ... ok
+test remote_composer::tests::remote_composer_real_zsh_memory_bootstrap ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 416 filtered out; finished in 0.16s
+

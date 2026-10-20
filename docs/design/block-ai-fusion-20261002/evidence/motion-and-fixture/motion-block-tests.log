@@ -1,0 +1,6 @@
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_motion_test.dart
+00:00 +0: block overlays respect motion and return focus: TargetPlatform.macOS / false
+00:00 +1: block overlays respect motion and return focus: TargetPlatform.macOS / true
+00:01 +2: block overlays respect motion and return focus: TargetPlatform.iOS / false
+00:01 +3: block overlays respect motion and return focus: TargetPlatform.iOS / true
+00:01 +4: All tests passed!

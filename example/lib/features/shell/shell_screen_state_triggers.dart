@@ -136,7 +136,7 @@ extension _ShellScreenStateTriggers on _ShellScreenState {
         if (value == null || value.isEmpty) {
           return;
         }
-        if (_isSessionReadOnly(sessionId)) {
+        if (_manualInputBlocked(sessionId)) {
           return;
         }
         ref

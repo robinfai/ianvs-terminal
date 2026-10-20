@@ -53,11 +53,13 @@ class TerminalViewport extends StatelessWidget {
     this.font = const terminal.TerminalFontConfig(),
     this.cursor = const terminal.TerminalCursorConfig(),
     this.copyOnSelect = false,
+    this.readOnly = false,
     this.altClickMovesCursor = true,
     this.showLineTimestamps = false,
     this.optionDragMode = terminal.TerminalOptionDragMode.blockSelection,
     this.focusNode,
     this.onHostKeyEvent,
+    this.onPointerDown,
     this.onOpenLink,
     this.onOpenLinkTarget,
     this.onLinkHoverChanged,
@@ -94,11 +96,13 @@ class TerminalViewport extends StatelessWidget {
   final terminal.TerminalFontConfig font;
   final terminal.TerminalCursorConfig cursor;
   final bool copyOnSelect;
+  final bool readOnly;
   final bool altClickMovesCursor;
   final bool showLineTimestamps;
   final terminal.TerminalOptionDragMode optionDragMode;
   final FocusNode? focusNode;
   final KeyEventResult Function(KeyEvent event)? onHostKeyEvent;
+  final ValueChanged<PointerDownEvent>? onPointerDown;
   final ValueChanged<String>? onOpenLink;
   final ValueChanged<terminal.TerminalLinkTarget>? onOpenLinkTarget;
   final ValueChanged<terminal.TerminalLinkTarget?>? onLinkHoverChanged;
@@ -138,11 +142,14 @@ class TerminalViewport extends StatelessWidget {
       font: font,
       cursor: cursor,
       copyOnSelect: copyOnSelect,
+      readOnly: readOnly,
+      autofocus: true,
       altClickMovesCursor: altClickMovesCursor,
       showLineTimestamps: showLineTimestamps,
       optionDragMode: optionDragMode,
       focusNode: focusNode,
       onHostKeyEvent: onHostKeyEvent,
+      onPointerDown: onPointerDown,
       onOpenLink: onOpenLink,
       onOpenLinkTarget: onOpenLinkTarget,
       onLinkHoverChanged: onLinkHoverChanged,

@@ -1,0 +1,161 @@
+{
+  "schema_version": 1,
+  "prepared_at_utc": "2026-10-10T09:27:41.739638+00:00",
+  "candidate": {
+    "label": "C10",
+    "commit": "2d18e608c2a1149a093451b5246cb370de0167c3"
+  },
+  "run_provenance": "Green tests and checks were run on the uncommitted C9-based working tree. All 8 resulting source/test files were later compared byte-for-byte with frozen C10; this is not a clean-commit C10 gate run.",
+  "source_files": [
+    {
+      "path": "example/lib/features/shell/shell_screen_state_terminal_layout.dart",
+      "sha256": "3f8d93e383ec0ce4470c52db8a5016a740f8c4a023b38448ff66469194093f81",
+      "matches_frozen_candidate": true
+    },
+    {
+      "path": "example/lib/features/terminal/terminal_input_controller.dart",
+      "sha256": "d074ac247de25c590cc08852c0e8620172f0b9eaa61169f622fba3f355dfb85a",
+      "matches_frozen_candidate": true
+    },
+    {
+      "path": "example/lib/features/terminal/terminal_viewport.dart",
+      "sha256": "fa3a7fb9559e79dea987b9dc604aa365a54a707642468411ff2b508662ab74f6",
+      "matches_frozen_candidate": true
+    },
+    {
+      "path": "example/test/ai/terminal_ai_observer_test.dart",
+      "sha256": "8b87f5304e974e0534dedf67c7f9a83772fb78996f03cd18d28dbdf13a03d69d",
+      "matches_frozen_candidate": true
+    },
+    {
+      "path": "example/test/shell/shell_pane_input_metrics_test.dart",
+      "sha256": "29de85a8244f8f913eda9cb93c63f11a4a2610e2534950bf53d32b1c3f18460f",
+      "matches_frozen_candidate": true
+    },
+    {
+      "path": "example/test/terminal_focus_loss_permission_test.dart",
+      "sha256": "e4224bfe2ce13742a886c55fca12705ce76e930c540c4ed41cdd6c4b0afb28d5",
+      "matches_frozen_candidate": true
+    },
+    {
+      "path": "packages/ianvs_terminal/lib/src/terminal/terminal_viewport.dart",
+      "sha256": "2dcc02f15d71e9ecc0368bb560659d5696514bc80d2f75e84c2c24d06f6f5438",
+      "matches_frozen_candidate": true
+    },
+    {
+      "path": "packages/ianvs_terminal_core/lib/src/terminal/terminal_viewport.dart",
+      "sha256": "2dcc02f15d71e9ecc0368bb560659d5696514bc80d2f75e84c2c24d06f6f5438",
+      "matches_frozen_candidate": true
+    }
+  ],
+  "original_widget_test_unchanged_from_C9": true,
+  "counting_policy": "The 9-test selection overlaps the final full-file runs. Report 103, 297 and 165 by invocation; do not add historical C9 198/71 or these selections into a claimed unique PRD-case total.",
+  "scope": "Input-regression support only. C9 verify11 failure retained separately; C10 full verify12 is root-owned and pending, not claimed passed here. No GUI/native/physical evidence or formal PRD pass is added.",
+  "entries": [
+    {
+      "path": "analyze-app.log",
+      "bytes": 255,
+      "sha256": "b84b70771613de44c6dc59e1aa9ad0739dd4ad7ec09b1fb3cdae8dadedc879eb",
+      "source": "build/desktop-prd-v1/iteration-1/verify-c10-input/analyze-app.log",
+      "byte_identical": true
+    },
+    {
+      "path": "analyze-canonical.log",
+      "bytes": 53,
+      "sha256": "2676d0a00a56b626419bd8f27bc443bbc57572427c73a0fe18865d54a3abe171",
+      "source": "build/desktop-prd-v1/iteration-1/verify-c10-input/analyze-canonical.log",
+      "byte_identical": true
+    },
+    {
+      "path": "canonical-input-after.log",
+      "bytes": 33569,
+      "sha256": "f684413c7b8561a8cbd4fd3af638c20c73f4b91a2701812ac849bfd9f1e6448f",
+      "source": "build/desktop-prd-v1/iteration-1/verify-c10-input/canonical-input-after.log",
+      "byte_identical": true
+    },
+    {
+      "path": "diff-check.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source": "build/desktop-prd-v1/iteration-1/verify-c10-input/diff-check.log",
+      "byte_identical": true
+    },
+    {
+      "path": "format-1.log",
+      "bytes": 1146,
+      "sha256": "c0f19cde5b2916ef9363dfc82c8f963f65d881d139cbda1a4284b532d9928fee",
+      "source": "build/desktop-prd-v1/iteration-1/verify-c10-input/format-1.log",
+      "byte_identical": true
+    },
+    {
+      "path": "format-2.log",
+      "bytes": 111,
+      "sha256": "d5d1b672ce811fc98dfef204749b1e5d15583381569d4b2dc8a4e18f78ba775c",
+      "source": "build/desktop-prd-v1/iteration-1/verify-c10-input/format-2.log",
+      "byte_identical": true
+    },
+    {
+      "path": "format-check.log",
+      "bytes": 47,
+      "sha256": "04d0d5321696f1dd62a805966aef822fd275a9945cd9d6c1c6f2077d0adc9c4d",
+      "source": "build/desktop-prd-v1/iteration-1/verify-c10-input/format-check.log",
+      "byte_identical": true
+    },
+    {
+      "path": "initial-two-before.log",
+      "bytes": 4355,
+      "sha256": "8541a1942343ab543f83cd68d672d5416ad7dc02f3e8578f237479a4fe0bfae5",
+      "source": "build/desktop-prd-v1/iteration-1/verify-c10-input/initial-two-before.log",
+      "byte_identical": true
+    },
+    {
+      "path": "mirror-check.log",
+      "bytes": 51,
+      "sha256": "79ea62ba85fd4366e859c4e3b3c6cd1cab711eb9ccbd38df713e6530698f52a1",
+      "source": "build/desktop-prd-v1/iteration-1/verify-c10-input/mirror-check.log",
+      "byte_identical": true
+    },
+    {
+      "path": "mirror-sync.log",
+      "bytes": 68,
+      "sha256": "5f0e935fcc83f44f74789ea67457676c67d3e3280ec7f3ed4dcdc44c8b7ca176",
+      "source": "build/desktop-prd-v1/iteration-1/verify-c10-input/mirror-sync.log",
+      "byte_identical": true
+    },
+    {
+      "path": "related-app-after.log",
+      "bytes": 67980,
+      "sha256": "70202ef7945d39fc9fac096216165885cdda35112f434ed5aa3fcb3e000b3184",
+      "source": "build/desktop-prd-v1/iteration-1/verify-c10-input/related-app-after.log",
+      "byte_identical": true
+    },
+    {
+      "path": "review-summary.json",
+      "bytes": 18286,
+      "sha256": "7db8e6a461fc4b0b0aa6f0ed2c1073029fa5935f0260425fc9ebe868d690d163",
+      "source": "build/desktop-prd-v1/iteration-1/verify-c10-input/review-summary.json",
+      "byte_identical": true
+    },
+    {
+      "path": "sdk-cache-sandbox.log",
+      "bytes": 346,
+      "sha256": "b5826ebeab79c644eed63f2dd56222fd6fbd440dd9db3b3f96bb6b07dd6258ed",
+      "source": "build/desktop-prd-v1/iteration-1/verify-c10-input/sdk-cache-sandbox.log",
+      "byte_identical": true
+    },
+    {
+      "path": "targeted-after-1.log",
+      "bytes": 2035,
+      "sha256": "a6550452acd41bff4b962474b7b54c33caae958a82620801149d1bb15f31a704",
+      "source": "build/desktop-prd-v1/iteration-1/verify-c10-input/targeted-after-1.log",
+      "byte_identical": true
+    },
+    {
+      "path": "widget-test-full.log",
+      "bytes": 8997,
+      "sha256": "212e08000e34d2f76ff05eb590d4939e28ca4b424ece2261163414ca7175c898",
+      "source": "build/desktop-prd-v1/iteration-1/verify-c10-input/widget-test-full.log",
+      "byte_identical": true
+    }
+  ]
+}

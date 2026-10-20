@@ -1,0 +1,32 @@
+{
+  "base_commit": "8bd76c0b0135c0e80e2f6b149bad069a6dc142a1",
+  "files": {
+    "example/integration_test/ios_design_review_test.dart": "3dc907a43b6b549ed1b64a8688fcabbcd2183413e837f6e49d84adee66a96649",
+    "example/integration_test/ios_unified_workspace_test.dart": "dccca1b7a50872487dd075ce7821f1033adec187400ad3a77ffa6a54091ae131",
+    "example/lib/features/ai/mobile_terminal_timeline.dart": "4bdc3f8dfc27c462017d579931987e4a916edfb7fd83b4a553667105645b28d8",
+    "example/lib/features/ai/terminal_ai_controller.dart": "3f84c2d77cbfc6311ffe937cfde6b1f0aa52b0afd2419616901d8054892de9c9",
+    "example/lib/features/ai/terminal_ai_retained_timeline.dart": "d4de27005dee6103d5b21109de5b425c10c1c0867adb2ba8bb2309b94953e1dc",
+    "example/lib/features/ai/terminal_ai_workspace.dart": "c49d817cd65aee08fe22a0c85f8f7e648f7c40cc8956d9007c8269a813132789",
+    "example/lib/features/ai/terminal_ai_workspace_mobile.dart": "468da3430208b8e3029ee0a4d0537d3164d4720f3aed772ae95e765b62e2f1a2",
+    "example/lib/features/shell/defaults_appearance_dialog.dart": "f2d3de8cf2c98ef21ca9b6c2cb3c05380a22963062a915e5d25f12c880b140df",
+    "example/lib/features/shell/shell_screen.dart": "30d24f2f82afa5d9e37306f745679e24d291c0b5c2a6d1c98eabfd42d25e3c68",
+    "example/lib/features/shell/shell_screen_ai.dart": "c06d3ec9418b1fc360b2cc6bf1d841b00cc7a279be755134b5e71120874869f7",
+    "example/lib/features/shell/shell_screen_ai_observer.dart": "a3c99d3cebeebd769738f1910116ca0b4efd4dd43982cce994c3135a404987be",
+    "example/lib/features/shell/shell_screen_mobile_navigation.dart": "b0cdf5d344ffa47530fcd831f5a91ff3c26ca6380504f8240daea772102fa8e3",
+    "example/lib/features/shell/shell_screen_state_command_actions.dart": "984430dace5066e1bd3612d469cb65a9f818dc499b0551e75160d3e570542493",
+    "example/lib/features/shell/shell_screen_state_terminal_layout.dart": "a4a0a69c7991e9eaa5ebe71fede963cfab776d7cb3eb24a91ad1a989e783c761",
+    "example/lib/features/terminal_composer/terminal_mode.dart": "f16a492850fd7b25c6271b73c8577fd40a948796fabe302ff27be22ac29e1ccc",
+    "example/lib/l10n/arb/app_en.arb": "fd35252791b76d3982cc0f5df7840e698adcbd54806fdfc2b3065b76bc1bb041",
+    "example/lib/l10n/arb/app_zh.arb": "189951b99a1f6aaf3f421009af51183d24776c437e1ba414e2415c6cac066a63",
+    "example/lib/l10n/generated/app_localizations.dart": "7b9ac87772dd928635a4479a50e5a4e0911cd080843d0fb75b33724720342380",
+    "example/lib/l10n/generated/app_localizations_en.dart": "1df4651e6d2a15eb9e2241df4ccb37fc29f9399d3dbe8a3bbf53dffdbc95db4a",
+    "example/lib/l10n/generated/app_localizations_zh.dart": "fc293c67237315847f60ffab9dd164289173e2c5ef7378138ca875f6946ca9d0",
+    "example/test/ai/input_intent_routing_test.dart": "5dde1bd0f1602b31b416ca94851f6d56ff395986bedf7cd3f93aed0d307767af",
+    "example/test/ai/mobile_prd_shell_submission_test.dart": "26126234a5cf3fd7cb73fb6ecb120821f9d0981eeee200fbad54e3c867ee94b4",
+    "example/test/ai/mobile_terminal_timeline_test.dart": "e0920ff2b7223f3e30b09e00efe4bb5c0f0f5d2120d239b42b13c091b74535f6",
+    "example/test/ai/shell_ai_reconnect_test.dart": "fe8252f34b65aa17a5b3df13a89c5badd30afa24db54e42c5ef5090639c199de",
+    "example/test/ai/terminal_ai_observer_test.dart": "489f5b25b57df4691f7a08f39e2ba9994f661c29e626d46f3179bc2384134657",
+    "example/test/shell/mobile_terminal_modes_test.dart": "12d7cccca5bc2cf8cfa3412ba93d2d273139a5877c099d6def59a5626d1a6875",
+    "example/test/terminal_composer/terminal_mode_test.dart": "12b192d39a36e88770e636ae965520a913b5e79d26c115d56177af60067d0cad"
+  }
+}

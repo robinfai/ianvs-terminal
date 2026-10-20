@@ -1,0 +1,14 @@
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/composer/composer_controller_redesign_test.dart
+00:00 +0: submission feedback external AI submission does not lock the composer after shell recovery
+00:00 +0 -1: submission feedback external AI submission does not lock the composer after shell recovery [E]
+  Expected: <true>
+    Actual: <false>
+  
+  package:matcher                                            expect
+  package:flutter_test/src/widget_tester.dart 473:18         expect
+  test/composer/composer_controller_redesign_test.dart 75:7  main.<fn>.<fn>
+  
+00:00 +0 -1: Some tests failed.
+
+Failing tests:
+  /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/composer/composer_controller_redesign_test.dart: submission feedback external AI submission does not lock the composer after shell recovery

@@ -4,6 +4,40 @@ use crate::color::Color;
 use crate::grid::Grid;
 
 impl Grid {
+    /// Clear a primary display while retaining completed shell output in the
+    /// same bounded native history used by ordinary scrolling. A main-screen
+    /// TUI such as procps top must not erase earlier command blocks merely by
+    /// drawing its first frame. Subsequent redraws have no completed output
+    /// on screen, so they do not append another screen to history.
+    pub(crate) fn clear_preserving_completed_output(&mut self) {
+        if self.max_scrollback == 0 {
+            self.clear();
+            return;
+        }
+        let completed_on_screen = self.zones.iter().any(|zone| {
+            zone.zone_type == crate::zone::ZoneType::Output
+                && zone.is_closed()
+                && zone.abs_row_end >= self.total_lines_scrolled
+        });
+        if completed_on_screen {
+            self.scroll_up(self.rows);
+            self.evict_zones(
+                self.total_lines_scrolled
+                    .saturating_sub(self.scrollback_len()),
+            );
+        }
+        // Closed ranges in scrollback still refer to unchanged native cells.
+        // Keep the active output boundary so its eventual completion marker
+        // can close it, but discard other ranges overwritten by this clear.
+        let (retained, overwritten): (Vec<_>, Vec<_>) = self
+            .zones
+            .drain(..)
+            .partition(|zone| zone.is_open() || zone.abs_row_end < self.total_lines_scrolled);
+        self.evicted_zones.extend(overwritten);
+        self.clear();
+        self.zones = retained;
+    }
+
     fn blank_cell_with_bg_source(&self, bg: Color, bg_is_default: bool) -> crate::cell::Cell {
         let mut blank = self.blank_cell();
         blank.bg = bg;

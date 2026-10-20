@@ -1,0 +1,36 @@
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart
+00:00 +0: reader keyboard copies selection across native pages
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: '126 · 中文\n'
+            'row 127 · 中文row 128 · 中文\n'
+            'row 129 · 中文\n'
+            'row'
+  Actual: '126 · 中文\n'
+            'row 127 · 中文'
+   Which: is different. Both strings start the same, but the actual value is missing the following
+trailing characters: row 128 ·  ...
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart:132:5)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart line 132
+The test description was:
+  reader keyboard copies selection across native pages
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:00 +0 -1: reader keyboard copies selection across native pages [E]
+  Test failed. See exception logs above.
+  The test description was: reader keyboard copies selection across native pages
+  
+00:00 +0 -1: Some tests failed.
+
+Failing tests:
+  /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader keyboard copies selection across native pages

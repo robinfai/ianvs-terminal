@@ -24,6 +24,10 @@ class TerminalInputController {
 
   final String sessionId;
   final TerminalInputSink runtime;
+
+  /// Stable owner of focus reports, even when a write-policy wrapper changes.
+  Object get inputOwner => runtime;
+
   final TerminalFrameDiff Function() readFrame;
   final TerminalEmulation emulation;
   final String Function() readSelection;
@@ -152,7 +156,13 @@ class TerminalInputController {
       return;
     }
     final sequence = focused ? '\x1B[I' : '\x1B[O';
-    runtime.sendInput(sessionId, Uint8List.fromList(ascii.encode(sequence)));
+    final bytes = Uint8List.fromList(ascii.encode(sequence));
+    final sink = runtime;
+    if (sink is TerminalProtocolInputSink) {
+      sink.sendProtocolInput(sessionId, bytes);
+    } else {
+      sink.sendInput(sessionId, bytes);
+    }
   }
 
   void sendMouseReport({

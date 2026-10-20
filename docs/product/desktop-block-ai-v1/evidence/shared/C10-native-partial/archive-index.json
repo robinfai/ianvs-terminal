@@ -1,0 +1,155 @@
+{
+  "schema_version": 1,
+  "prepared_at_utc": "2026-10-10T12:07:34.021362+00:00",
+  "source_commit": "2d18e608c2a1149a093451b5246cb370de0167c3",
+  "scope": "First C10 normal-UI partial support only. Independent original-pixel/sampled-video review and metadata records; no formal case, whole-run recording, or full physical-input claim.",
+  "first_run_status": "reviewed_partial",
+  "entries": [
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-windows-1/review/summary.json",
+      "path": "independent-review-summary.json",
+      "bytes": 17578,
+      "sha256": "e923c9eb1a917c7eebe63407810262f12097652de53a9752aae3ea19affe713f",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-windows-1/review/ffprobe.json",
+      "path": "ffprobe.json",
+      "bytes": 2895,
+      "sha256": "d1a64e34f330191905a510117c4fdd2580055b2800a2fcf8319d3994660111b6",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-windows-1/review/original-artifacts-sha256.json",
+      "path": "original-artifacts-sha256.json",
+      "bytes": 3117,
+      "sha256": "9dd5ec23b6940118943db340589e87ca03309e1765951c84a6a3d335f9b28a30",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-windows-1/manual-run.json",
+      "path": "manual-run.json",
+      "bytes": 1352,
+      "sha256": "b5c5a364c2e238cac31c97e0453d21b49324c298d27c6563ef70308214cd5d13",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-windows-1/operator-observations.json",
+      "path": "operator-observations.json",
+      "bytes": 3660,
+      "sha256": "f4f2a46273f26f06588657d8337c41c86c86e5da9bb0f51b44b0fee88b427483",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-windows-1/recording.log",
+      "path": "recording.log",
+      "bytes": 439,
+      "sha256": "4190d816ecc39ce2eb9bf5d562a268411c935f2e66e4aabc3ca45d5ad00e1a6a",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-windows-1/source-identity.json",
+      "path": "source-identity.json",
+      "bytes": 1739,
+      "sha256": "0975afc8331215cb817a465b719d8a96caac2e4ff8d96a06b8baefb21fc90247",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-windows-1/app-identity.json",
+      "path": "app-identity.json",
+      "bytes": 1367,
+      "sha256": "f68c7ffdb29371531a60f6db6175305500ed7baab75cbac888a166b91de3a7b1",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-windows-1/baseline.png",
+      "path": "baseline.png",
+      "bytes": 188309,
+      "sha256": "59095dad2bb2b78277e9aea82d586f070350834498babd89aae920a2c806bb7f",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-windows-1/three-tabs-survivor-draft.png",
+      "path": "three-tabs-survivor-draft.png",
+      "bytes": 314489,
+      "sha256": "5645ea8121276c75547eb414a100616cb3d2a040321725534000f9a9927234ca",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-windows-1/command-close-confirmation.png",
+      "path": "command-close-confirmation.png",
+      "bytes": 422079,
+      "sha256": "d0594980d97b85fc289cfba1cf3aef888b70706d5443077f69a6658a23d9c669",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-windows-1/command-draft-after-cancel.png",
+      "path": "command-draft-after-cancel.png",
+      "bytes": 337665,
+      "sha256": "186da8b62c364b4794386f50eb9f7e298461d7275022d177ddcedfc4a35a879e",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-windows-1/survivor-after-command-cancel.png",
+      "path": "survivor-after-command-cancel.png",
+      "bytes": 318163,
+      "sha256": "7b21dcf3dcde1c797bd597670827a6a03a8f044157c23ce0464fa26ca0a484a3",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-windows-1/accessibility-tree-failure-final.png",
+      "path": "accessibility-tree-failure-final.png",
+      "bytes": 340403,
+      "sha256": "f91f7f08963e48e06628a52e5018eb1f91ffbd3f36f2684a6693309d070851af",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-windows-1/baseline.json",
+      "path": "baseline.json",
+      "bytes": 1167,
+      "sha256": "262e7bfa8e4f74f90e1ec065a5308ad511d00921324f93a85f1a6e441a7922fa",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-windows-1/three-tabs-survivor-draft.json",
+      "path": "three-tabs-survivor-draft.json",
+      "bytes": 1390,
+      "sha256": "190251a35ab2e94aa5a5d43db26ebad6ed2b1500739c7deb8c8f28718de1bb3c",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-windows-1/command-close-confirmation.json",
+      "path": "command-close-confirmation.json",
+      "bytes": 1391,
+      "sha256": "524c9543eb2fbc6e15f5fb04256c89a3db91628e7c04d2a2c8e3420eefcf63d2",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-windows-1/command-draft-after-cancel.json",
+      "path": "command-draft-after-cancel.json",
+      "bytes": 1391,
+      "sha256": "7b74ca108c8fcb068484df57abfe85c59fd2a9e8617a727d0cd63ecedf1d09d7",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-windows-1/survivor-after-command-cancel.json",
+      "path": "survivor-after-command-cancel.json",
+      "bytes": 1480,
+      "sha256": "828f6e41b79737de2f27a90ce120c0b5b89893af4735fc4d8d5626ad4379182a",
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-windows-1/accessibility-tree-failure-final.json",
+      "path": "accessibility-tree-failure-final.json",
+      "bytes": 1483,
+      "sha256": "678c62a653b96009e80912bbbd3c5656f5a27e5a69ba5df7d4b3c1b34c0dc802",
+      "copy_mode": "original bytes"
+    },
+    {
+      "path": "review-summary.json",
+      "bytes": 7937,
+      "sha256": "32026680c6f9f49c49c310f5deaa0a75f51461f0d9b59a1bfb44e15fe9c0046e",
+      "copy_mode": "derived independent metadata summary"
+    }
+  ]
+}

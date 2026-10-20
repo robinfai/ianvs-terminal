@@ -33,7 +33,28 @@ private final class DragTrackingMainFlutterWindow: MainFlutterWindow {
   }
 }
 
+private final class ChromeMouseTrackingController: NSViewController {
+  var received: [NSEvent] = []
+  override func mouseDown(with event: NSEvent) { received.append(event) }
+  override func mouseDragged(with event: NSEvent) { received.append(event) }
+  override func mouseUp(with event: NSEvent) { received.append(event) }
+}
+
 class RunnerTests: XCTestCase {
+
+  // This is a test-host scheduling budget, not the application's shutdown
+  // timeout. Quit tests inject and manually fire the native timeout themselves.
+  // Stop a test after a missed callback so subsequent phases cannot consume
+  // stale callbacks or over-fulfill another phase's expectation.
+  private func waitForCallbacks(
+    _ expectations: [XCTestExpectation],
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) -> Bool {
+    let result = XCTWaiter.wait(for: expectations, timeout: 5)
+    XCTAssertEqual(result, .completed, file: file, line: line)
+    return result == .completed
+  }
 
   override func tearDown() {
     AppDelegate.suppressNextLastWindowTerminate = false
@@ -81,7 +102,7 @@ class RunnerTests: XCTestCase {
       }
     ))
     XCTAssertFalse(resumed, "Quit confirmation must not run inside Sparkle's button action")
-    wait(for: [didResume], timeout: 1)
+    guard waitForCallbacks([didResume]) else { return }
     XCTAssertTrue(resumed)
   }
 
@@ -155,12 +176,12 @@ class RunnerTests: XCTestCase {
 
     AppDelegate.suppressNextTerminateConfirmation = true
     XCTAssertEqual(delegate.applicationShouldTerminate(app), .terminateLater)
-    wait(for: [firstRequest], timeout: 1)
+    guard waitForCallbacks([firstRequest]) else { return }
 
     // A pending recording keeps the Dart result unsafe. The native timeout
     // must cancel this quit instead of destroying the Flutter engine.
     scheduledTimeouts.first?()
-    wait(for: [firstReply], timeout: 1)
+    guard waitForCallbacks([firstReply]) else { return }
     XCTAssertEqual(replies, [false])
     XCTAssertFalse(AppDelegate.suppressNextTerminateConfirmation)
     XCTAssertFalse(AppDelegate.suppressNextLastWindowTerminate)
@@ -177,7 +198,7 @@ class RunnerTests: XCTestCase {
     }
     AppDelegate.suppressNextTerminateConfirmation = true
     XCTAssertEqual(delegate.applicationShouldTerminate(app), .terminateLater)
-    wait(for: [secondRequest], timeout: 1)
+    guard waitForCallbacks([secondRequest]) else { return }
 
     let staleAttemptDrained = expectation(
       description: "stale termination attempt callbacks drained"
@@ -187,11 +208,11 @@ class RunnerTests: XCTestCase {
     DispatchQueue.main.async {
       staleAttemptDrained.fulfill()
     }
-    wait(for: [staleAttemptDrained], timeout: 1)
+    guard waitForCallbacks([staleAttemptDrained]) else { return }
     XCTAssertEqual(replies, [false])
 
     shutdownRequests.last?(.safeToTerminate)
-    wait(for: [secondReply], timeout: 1)
+    guard waitForCallbacks([secondReply]) else { return }
 
     XCTAssertEqual(shutdownRequests.count, 2)
     XCTAssertEqual(replies, [false, true])
@@ -220,7 +241,7 @@ class RunnerTests: XCTestCase {
 
     AppDelegate.suppressNextTerminateConfirmation = true
     XCTAssertEqual(delegate.applicationShouldTerminate(app), .terminateLater)
-    wait(for: [request, didReply], timeout: 1)
+    guard waitForCallbacks([request, didReply]) else { return }
 
     XCTAssertEqual(reply, false)
     XCTAssertFalse(AppDelegate.suppressNextTerminateConfirmation)
@@ -249,7 +270,7 @@ class RunnerTests: XCTestCase {
 
     AppDelegate.suppressNextTerminateConfirmation = true
     XCTAssertEqual(delegate.applicationShouldTerminate(app), .terminateLater)
-    wait(for: [request, didReply], timeout: 1)
+    guard waitForCallbacks([request, didReply]) else { return }
     XCTAssertEqual(reply, true)
   }
 
@@ -543,6 +564,119 @@ class RunnerTests: XCTestCase {
     )
   }
 
+  func testMeasuredUnifiedChromeGapsExcludeTabsControlsAndTrafficLights() {
+    let size = NSSize(width: 900, height: 600)
+    let screen = NSRect(x: -1200, y: 200, width: 900, height: 600)
+    let gaps = [NSRect(x: 0, y: 0, width: 90, height: 54),
+                NSRect(x: 430, y: 4, width: 200, height: 46)]
+    for (x, expected) in [(80.0, true), (104.0, false), (200.0, false),
+                          (440.0, true), (640.0, false), (874.0, false)] {
+      XCTAssertEqual(MainFlutterWindow.shouldStartNativeWindowDrag(
+        at: NSPoint(x: x, y: 578), contentSize: size,
+        chromeHeight: 54, draggableRegions: gaps), expected)
+      XCTAssertEqual(MainFlutterWindow.shouldStartNativeWindowDrag(
+        atMouseLocation: NSPoint(x: screen.minX + x, y: 778), windowFrame: screen,
+        chromeHeight: 54, draggableRegions: gaps), expected)
+    }
+    XCTAssertFalse(MainFlutterWindow.shouldStartNativeWindowDrag(
+      at: NSPoint(x: 22, y: 577), contentSize: size,
+      standardButtonFrames: [NSRect(x: 16, y: 570, width: 14, height: 14)],
+      chromeHeight: 54, draggableRegions: gaps))
+    XCTAssertFalse(MainFlutterWindow.shouldStartNativeWindowDrag(
+      at: NSPoint(x: 440, y: 540), contentSize: size,
+      chromeHeight: 54, draggableRegions: gaps))
+    XCTAssertFalse(MainFlutterWindow.shouldStartNativeWindowDrag(
+      at: NSPoint(x: 440, y: 578), contentSize: size,
+      chromeHeight: 54, draggableRegions: []),
+      "An unmeasured or resized layout must not hijack controls")
+  }
+
+  func testMeasuredUnifiedChromeUsesNativeMouseDownAndRevokesOldResizeRegions() throws {
+    let window = DragTrackingMainFlutterWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+      styleMask: [.titled, .closable, .miniaturizable, .resizable],
+      backing: .buffered, defer: false)
+    window.styleMask.insert(.fullSizeContentView)
+    window.setFrame(NSRect(x: 100, y: 200, width: 800, height: 600), display: false)
+    window.updateTitleBarLayout(sidebarWidth: nil, height: 54,
+      draggableRegions: [NSRect(x: 400, y: 4, width: 100, height: 46)])
+    func mouseDown(_ x: CGFloat) throws -> NSEvent {
+      try XCTUnwrap(NSEvent.mouseEvent(
+        with: .leftMouseDown, location: NSPoint(x: x, y: 578),
+        modifierFlags: [], timestamp: 1, windowNumber: window.windowNumber,
+        context: nil, eventNumber: 1, clickCount: 1, pressure: 1))
+    }
+    XCTAssertFalse(window.performNativeWindowDragIfNeeded(for: try mouseDown(200)))
+    let original = try mouseDown(450)
+    XCTAssertTrue(window.performNativeWindowDragIfNeeded(for: original))
+    XCTAssertTrue(window.performedDragEvent === original)
+    window.setFrame(NSRect(x: 100, y: 200, width: 900, height: 600), display: false)
+    XCTAssertFalse(window.performNativeWindowDragIfNeeded(for: try mouseDown(450)))
+    window.updateTitleBarLayout(sidebarWidth: nil, height: 54,
+      draggableRegions: [NSRect(x: 500, y: 4, width: 100, height: 46)])
+    XCTAssertTrue(window.performNativeWindowDragIfNeeded(for: try mouseDown(550)))
+  }
+
+  func testChromeControlsReceiveNativeClickAndDragSequence() throws {
+    let window = DragTrackingMainFlutterWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+      styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
+      backing: .buffered, defer: false)
+    let controller = ChromeMouseTrackingController()
+    controller.view = NSView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
+    window.contentViewController = controller
+    window.setFrame(NSRect(x: 100, y: 200, width: 800, height: 600), display: false)
+    window.updateTitleBarLayout(sidebarWidth: nil, height: 44,
+      draggableRegions: [NSRect(x: 400, y: 0, width: 200, height: 44)])
+    func event(_ type: NSEvent.EventType, _ x: CGFloat, _ y: CGFloat) throws -> NSEvent {
+      try XCTUnwrap(NSEvent.mouseEvent(with: type, location: NSPoint(x: x, y: y),
+        modifierFlags: [], timestamp: 1, windowNumber: window.windowNumber,
+        context: nil, eventNumber: 1, clickCount: 1, pressure: 1))
+    }
+    // A tab and the right AI action both receive an actual window event pair.
+    for x: CGFloat in [200, 740] {
+      let down = try event(.leftMouseDown, x, 578)
+      let up = try event(.leftMouseUp, x, 578)
+      window.sendEvent(down)
+      window.sendEvent(up)
+      XCTAssertTrue(controller.received.suffix(2).first === down)
+      XCTAssertTrue(controller.received.last === up)
+    }
+    let down = try event(.leftMouseDown, 200, 578)
+    let drag = try event(.leftMouseDragged, 300, 400)
+    let up = try event(.leftMouseUp, 300, 400)
+    window.sendEvent(down)
+    window.sendEvent(drag)
+    window.sendEvent(up)
+    XCTAssertTrue(controller.received.suffix(3).first === down)
+    XCTAssertTrue(controller.received.suffix(2).first === drag)
+    XCTAssertTrue(controller.received.last === up)
+    XCTAssertFalse(window.forwardChromeMouseEvent(up), "Release clears the captured responder")
+    XCTAssertFalse(window.forwardChromeMouseEvent(try event(.leftMouseDown, 200, 300)))
+    XCTAssertFalse(window.forwardChromeMouseEvent(try event(.rightMouseDown, 200, 578)))
+    let gap = try event(.leftMouseDown, 450, 578)
+    XCTAssertFalse(window.forwardChromeMouseEvent(gap))
+    window.sendEvent(gap)
+    XCTAssertTrue(window.performedDragEvent === gap)
+    if let close = window.standardWindowButton(.closeButton) {
+      let point = close.convert(NSPoint(x: close.bounds.midX, y: close.bounds.midY), to: nil)
+      XCTAssertFalse(window.forwardChromeMouseEvent(try event(.leftMouseDown, point.x, point.y)))
+    }
+  }
+
+  func testTerminationWarningIncludesRetainedUnknownAndUnreviewedWork() {
+    let warning = AppDelegate.terminationConsequences
+    if Locale.preferredLanguages.first?.hasPrefix("zh") == true {
+      for fact in ["草稿", "未审", "未知", "远端命令", "取消"] {
+        XCTAssertTrue(warning.contains(fact))
+      }
+    } else {
+      for fact in ["drafts", "unreviewed", "unknown", "Remote commands", "Cancel"] {
+        XCTAssertTrue(warning.contains(fact))
+      }
+    }
+  }
+
   func testSidebarControlReceivesMouseClicksInBothCoordinateSpaces() {
     for x in [90.0, 104.0, 117.0] {
       XCTAssertFalse(
@@ -560,11 +694,11 @@ class RunnerTests: XCTestCase {
     }
   }
 
-  func testWindowSettingsStayAtTrailingEdgeWhenSidebarResizes() {
+  func testSidebarHeaderControlsFollowResizedWidth() {
     let size = NSSize(width: 1200, height: 700)
     let frame = NSRect(x: 100, y: 200, width: size.width, height: size.height)
     for width in [240.0, 280.0, 480.0] {
-      for x in [104.0, 1174.0, width - 4] {
+      for x in [104.0, width - 26, width - 4] {
         XCTAssertFalse(MainFlutterWindow.shouldStartNativeWindowDrag(
           at: NSPoint(x: x, y: 678), contentSize: size, sidebarWidth: width
         ))
@@ -573,7 +707,7 @@ class RunnerTests: XCTestCase {
           sidebarWidth: width
         ))
       }
-      for x in [170.0, width + 40, width - 26] {
+      for x in [170.0, width + 40, 1174.0] {
         XCTAssertTrue(MainFlutterWindow.shouldStartNativeWindowDrag(
           at: NSPoint(x: x, y: 678), contentSize: size, sidebarWidth: width
         ))
@@ -665,6 +799,8 @@ class RunnerTests: XCTestCase {
       NSRect(x: 100, y: 200, width: 800, height: 600),
       display: false
     )
+    window.updateTitleBarLayout(sidebarWidth: nil, height: 44,
+      draggableRegions: [NSRect(x: 300, y: 0, width: 200, height: 44)])
     let mouseDown = try XCTUnwrap(
       NSEvent.mouseEvent(
         with: .leftMouseDown,

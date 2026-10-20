@@ -20,6 +20,7 @@ fn decode_launcher(command: &str) -> String {
 
 #[test]
 fn wrapped_ssh_and_profile_connections_use_the_same_initialization() {
+    let adapter_secret = regex::Regex::new("[0-9a-f]{32}").unwrap();
     for shell in ["/bin/bash", "/bin/zsh", "/opt/homebrew/bin/fish"] {
         if !std::path::Path::new(shell).exists() {
             continue;
@@ -67,15 +68,18 @@ printf %s "$last" > "$IANVS_TEST_COMMAND"
                 .output()
                 .unwrap();
             assert!(output.status.success(), "{shell}: {:?}", output.stderr);
+            let enter_end = output.stdout.iter().position(|&b| b == 7).unwrap() + 1;
+            let frame = std::str::from_utf8(&output.stdout[..enter_end]).unwrap();
+            let id = frame.split(';').nth(2).unwrap();
             let mut wrapped = Bootstrap::new("local".into(), true);
             let result = wrapped.feed(&output.stdout);
-            let entered = tests::events(&result.output)
-                .into_iter()
-                .find(|event| event["hook"] == "bootstrap.checking")
-                .unwrap_or_else(|| panic!("{shell}, socket={socket}: no SSH initialization"));
-            let id = entered["context_id"].as_str().unwrap();
+            assert_eq!(wrapped.active, "root");
+            assert!(
+                !tests::events(&result.output)
+                    .iter()
+                    .any(|e| e["hook"] == "bootstrap.checking")
+            );
             let has_route = socket == "/tmp/ianvs-existing-master";
-            assert_eq!(entered["sftp_route"], has_route, "{shell}: {socket}");
             assert_eq!(
                 decode_launcher(&std::fs::read_to_string(scratch.path().join("command")).unwrap()),
                 decode_launcher(&launcher(id, id)),
@@ -99,16 +103,23 @@ printf %s "$last" > "$IANVS_TEST_COMMAND"
                 let expected =
                     profile.feed(format!("\x1b]6973;root;root;init;{target}\x07").as_bytes());
                 assert_eq!(reply.replies.len(), 1, "{shell}: {socket}");
+                assert_eq!(tests::events(&reply.output)[0]["sftp_route"], has_route);
                 // Context lengths shift Zsh's 256-character wire chunks; join
                 // those chunks before comparing the actual payload contents.
                 assert_eq!(
-                    String::from_utf8(reply.replies[0].clone())
-                        .unwrap()
-                        .replace("'\\\n'", "")
-                        .replace(id, "root"),
-                    String::from_utf8(expected.replies[0].clone())
-                        .unwrap()
-                        .replace("'\\\n'", ""),
+                    adapter_secret.replace_all(
+                        &String::from_utf8(reply.replies[0].clone())
+                            .unwrap()
+                            .replace("'\\\n'", "")
+                            .replace(id, "root"),
+                        "ADAPTER_SECRET"
+                    ),
+                    adapter_secret.replace_all(
+                        &String::from_utf8(expected.replies[0].clone())
+                            .unwrap()
+                            .replace("'\\\n'", ""),
+                        "ADAPTER_SECRET"
+                    ),
                     "{shell} -> {target}: {socket}"
                 );
             }
@@ -172,7 +183,11 @@ done
                 &root.join("rmdir"),
                 r#"#!/bin/sh
 /bin/rmdir "$@"
-printf '%s\n' "$?" > "$HOME/cleaned"
+result=$?
+if [ "$result" = 0 ] || [ -f "$HOME/release" ]; then
+  printf '%s\n' "$result" > "$HOME/cleaned"
+fi
+exit "$result"
 "#,
             );
             let kind = shell.rsplit('/').next().unwrap();
@@ -186,7 +201,12 @@ __test_status=$?
 set -o > "$HOME/options-after"
 printf '__SSH_STATUS_%s__\n' "$__test_status"
 jobs -p > "$HOME/jobs"
-[ ! -f "$HOME/cleaned" ] || exit 91
+if [ "$IANVS_TEST_BUSY" = 1 ]; then
+  [ ! -f "$HOME/cleaned" ] || exit 91
+else
+  [ -f "$HOME/cleaned" ] || exit 92
+  [ ! -d "$HOME/socket" ] || exit 93
+fi
 : > "$HOME/release"
 while [ ! -f "$HOME/cleaned" ]; do /bin/sleep 0.02; done
 jobs
@@ -238,7 +258,14 @@ printf '__CLEANUP_FINISHED__\n'
                 output.contains(&format!("__SSH_STATUS_{ssh_status}__")),
                 "{case}: {output}"
             );
-            assert_eq!(std::fs::read_to_string(root.join("delay")).unwrap(), "65\n");
+            if busy {
+                assert_eq!(std::fs::read_to_string(root.join("delay")).unwrap(), "65\n");
+            } else {
+                assert!(
+                    !root.join("delay").exists(),
+                    "{case}: empty directory cleanup must be immediate"
+                );
+            }
             assert_eq!(
                 std::fs::read(root.join("options-before")).unwrap(),
                 std::fs::read(root.join("options-after")).unwrap(),

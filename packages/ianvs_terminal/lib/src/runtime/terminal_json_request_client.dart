@@ -34,6 +34,33 @@ final class TerminalJsonRequestClient {
   final TerminalSessionRequestTransport _transport;
   final TerminalBackendRequestErrorHandler? _onRequestError;
 
+  Map<String, Object?>? commandBlocks(
+    String sessionId,
+    Map<String, Object?> payload,
+  ) => _requestJsonObject(sessionId, 'terminal.command_blocks', payload);
+
+  Map<String, Object?>? liveScreen(String sessionId) =>
+      _requestJsonObject(sessionId, 'terminal.live_screen', const {});
+
+  Map<String, Object?>? composerRequest(
+    String sessionId,
+    String operation,
+    Map<String, Object?> payload,
+  ) {
+    if (!const {
+      'completion.query',
+      'completion.local_start',
+      'completion.local_poll',
+      'completion.local_cancel',
+      'composer.state',
+      'composer.submit',
+      'composer.receipt',
+    }.contains(operation)) {
+      throw ArgumentError.value(operation, 'operation');
+    }
+    return _requestJsonObject(sessionId, operation, payload);
+  }
+
   bool respondSshAuthentication(
     String sessionId, {
     required int challengeId,

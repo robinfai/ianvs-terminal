@@ -42,6 +42,8 @@ AppStartupCoordinator createProductionAppStartupCoordinator({
   PortableMasterKeyRepository? masterKeyRepository,
 }) {
   final targetPlatform = platform ?? defaultTargetPlatform;
+  Future<Directory> resolveSupportDirectory() async =>
+      environment.supportDirectory(await appSupportDirectoryResolver());
   final effectiveMasterKeyRepository =
       masterKeyRepository ??
       PortableMasterKeyRepository(
@@ -50,7 +52,9 @@ AppStartupCoordinator createProductionAppStartupCoordinator({
         allowCreation: targetPlatform != TargetPlatform.iOS,
         allowLegacyMigration: environment == AppEnvironment.production,
         storage: environment == AppEnvironment.development
-            ? const FlutterSecurePortableMasterKeyStorage.development()
+            ? DevelopmentPortableMasterKeyStorage(
+                directoryResolver: resolveSupportDirectory,
+              )
             : null,
       );
   final loadNativePty =
@@ -62,9 +66,7 @@ AppStartupCoordinator createProductionAppStartupCoordinator({
     pipeline: AppStartupPipeline(
       resolvePaths: () async {
         return AppStartupPaths(
-          appSupportDirectory: environment.supportDirectory(
-            await appSupportDirectoryResolver(),
-          ),
+          appSupportDirectory: await resolveSupportDirectory(),
         );
       },
       createConfigurationAccess:

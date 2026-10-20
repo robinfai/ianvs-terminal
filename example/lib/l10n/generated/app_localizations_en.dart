@@ -4590,7 +4590,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get developmentMasterKeyStorageDescription =>
-      'The development master key stays in this Mac’s local Keychain. It does not sync to iCloud or share storage with the release app.';
+      'The development master key is stored in a local file accessible only to your user account. It does not access Keychain, sync to iCloud, or share storage with the release app.';
+
+  @override
+  String get acceptanceDeviceOnlyMasterKeyStorageDescription =>
+      'This acceptance build keeps its master key in this device\'s Keychain. It does not sync to iCloud or share the release app\'s key. Encrypted data cannot be restored on another device.';
 
   @override
   String get syncLocalOnly => 'Saved on this device. API sync is optional.';
@@ -4928,11 +4932,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'Reports explicit output boundaries. Current output copying uses adjacent prompt positions.';
 
   @override
-  String get shellCapabilityVariables => 'Custom shell variables';
+  String get shellCapabilityVariables => 'Custom shell variables (optional)';
 
   @override
   String get shellCapabilityVariablesHelp =>
-      'Accepts allowed IANVS_ variables for session metadata and configured queries.';
+      'Lets scripts store session information such as a project name and read it through permitted variable queries. IANVS_ is the name prefix; terminal and AI features work without these variables.';
 
   @override
   String get shellCapabilityPending => 'Pending confirmation';
@@ -5334,4 +5338,205 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get mobileExternalKeyboardHelp =>
       'Use these shortcuts with an external keyboard. Tap a binding to edit it and choose its scope while recording.';
+
+  @override
+  String get terminalModeNormal => 'Normal terminal';
+
+  @override
+  String get terminalModeBlocks => 'Block + AI';
+
+  @override
+  String get terminalModeRecheck => 'Recheck Command Block support';
+
+  @override
+  String get terminalModeSupportAvailable =>
+      'The current node supports Command Blocks.';
+
+  @override
+  String get preferredTerminalMode => 'Preferred terminal mode';
+
+  @override
+  String get terminalModePlatformDefault => 'Follow platform default';
+
+  @override
+  String get aiConfigurationLoading => 'Loading saved configuration…';
+
+  @override
+  String get aiConfigurationUnreadable =>
+      'Saved configuration could not be read. Terminal features remain available.';
+
+  @override
+  String get aiConfigurationMissing =>
+      'Not configured. Terminal features work independently.';
+
+  @override
+  String get aiConfigurationSaved =>
+      'Configuration saved. Open to edit or test the connection.';
+
+  @override
+  String get preferredTerminalModeHelp =>
+      'Applies to new sessions. On mobile, a configured LLM enables the unified Block + AI workspace by default, with one input for commands and AI; choose Normal to turn this default off. Without an LLM, only Normal is available. Desktop defaults to Normal. Blocks also requires shell support; switch back manually after capability is restored.';
+
+  @override
+  String get blockUnavailableChecking => 'Checking shell support…';
+
+  @override
+  String get blockUnavailableShell =>
+      'The current shell does not support Command Blocks.';
+
+  @override
+  String get blockUnavailableRemote =>
+      'Command Block negotiation is not ready for the current SSH node.';
+
+  @override
+  String get blockUnavailableNested =>
+      'The current nested shell does not support Command Blocks.';
+
+  @override
+  String get blockUnavailableInput => 'The terminal is handling shell input.';
+
+  @override
+  String get blockUnavailableFullScreen =>
+      'The current application needs the normal terminal.';
+
+  @override
+  String get blockUnavailableRichOutput =>
+      'This session contains output that needs the normal terminal.';
+
+  @override
+  String get blockUnavailableUnattributed =>
+      'This session contains output outside command blocks.';
+
+  @override
+  String get blockUnavailableExited => 'This session has ended.';
+
+  @override
+  String get blockUnavailableReadOnly => 'This session is read-only.';
+
+  @override
+  String get blockModeAvailableNotice =>
+      'Command Blocks is available. Right-click this tab to switch.';
+
+  @override
+  String get blockModeRestoredNotice =>
+      'Command Blocks is available again. Right-click this tab to switch back.';
+
+  @override
+  String get normalModeFallbackNotice =>
+      'Switched to Normal terminal. Right-click this tab for modes.';
+
+  @override
+  String get mobileBlocksAvailable =>
+      'Command Blocks is available. Switch in Session actions.';
+
+  @override
+  String get mobileBlocksRestored =>
+      'Command Blocks is available again. Switch back in Session actions.';
+
+  @override
+  String get mobileNormalFallback => 'Switched to Normal terminal.';
+
+  @override
+  String get mobileSessionsTitle => 'Sessions';
+
+  @override
+  String get mobileSessionsActive => 'Active';
+
+  @override
+  String get mobileSessionsDisconnected => 'Disconnected';
+
+  @override
+  String get mobileSessionActive => 'Running';
+
+  @override
+  String get mobileSessionDisconnected => 'Disconnected';
+
+  @override
+  String get mobileSessionViewOutput => 'View output';
+
+  @override
+  String get mobileSessionReconnect => 'Reconnect';
+
+  @override
+  String get mobileSessionDisconnect => 'Disconnect';
+
+  @override
+  String get mobileSessionRemove => 'Remove record';
+
+  @override
+  String get mobileSessionsClearDisconnected => 'Clear disconnected';
+
+  @override
+  String get mobileSessionLocalHost => 'This device';
+
+  @override
+  String get mobileSessionReconnected => 'Reconnected · Previous output';
+
+  @override
+  String get mobileSessionOpenCurrent => 'Open current connection';
+
+  @override
+  String get mobileSessionReferencedByAi =>
+      'This record is in use by an AI conversation. End its current session before removing it.';
+
+  @override
+  String mobileSessionExitCode(int code) {
+    return 'Exit code $code';
+  }
+
+  @override
+  String get mobileSessionDisconnectedTitle => 'Connection ended';
+
+  @override
+  String get mobileSessionDisconnectedDetail =>
+      'Output is read-only and stays available until you remove this record or quit the app.';
+
+  @override
+  String get mobileSessionReconnectedDetail =>
+      'You are viewing output from a previous connection. Open the current connection to continue.';
+
+  @override
+  String get mobileSessionsClearPartial =>
+      'Some records are still in use by AI conversations or have unsaved recordings.';
+
+  @override
+  String get mobileSessionReconnectFailed =>
+      'Could not reconnect. The original output is still available.';
+
+  @override
+  String get mobileSessionsNoActive => 'No active connections';
+
+  @override
+  String get blockUnavailableLlm =>
+      'Configure an LLM in settings to use Block + AI on mobile.';
+
+  @override
+  String get mobileLlmWelcomeDetail =>
+      'Use Trail as a regular terminal, or configure an LLM to use commands and AI in one Block + AI workspace. With an LLM, new mobile sessions default to this workspace; you can choose Normal in settings. Connection details stay on this device.';
+
+  @override
+  String get mobileConfigureLlm => 'Configure LLM';
+
+  @override
+  String get mobileLlmConfigured => 'LLM configured · Edit';
+
+  @override
+  String get mobileSkipLlm => 'Skip · Use regular terminal';
+
+  @override
+  String get shellCapabilityAwaitingEvent => 'Waiting for an event';
+
+  @override
+  String get shellCapabilityAwaitingEventHelp =>
+      'The current Shell provides this capability. It will be confirmed when valid data arrives.';
+
+  @override
+  String get shellCapabilityNotProvided => 'Not provided';
+
+  @override
+  String get shellCapabilityNotProvidedHelp =>
+      'The current Shell integration does not provide this capability. Waiting will not enable it; a compatible integration can still supply it.';
+
+  @override
+  String get shellCapabilityProviderReady => 'Implementation provided';
 }

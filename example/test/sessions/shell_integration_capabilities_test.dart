@@ -9,6 +9,79 @@ void main() {
   group(ShellIntegrationCapabilities, () {
     const pending = ShellIntegrationCapabilities.pending();
 
+    test('provider status waits for data and absence is explicit', () {
+      final provided = pending.applyRegistration({
+        'hostname': 'provided',
+        'username': 'not_provided',
+        'integration_version': 'provided',
+        'prompt_navigation': 'provided',
+        'command_output_ranges': 'provided',
+        'user_variables': 'provided',
+      });
+      expect(_active(provided), isEmpty);
+      expect(
+        provided[ShellIntegrationCapability.hostname].reason,
+        ShellCapabilityReason.awaitingEvent,
+      );
+      expect(
+        provided[ShellIntegrationCapability.username].status,
+        ShellCapabilityStatus.notProvided,
+      );
+      final observed = provided.observe(
+        terminal.TerminalSessionShellHookEvent(
+          'local',
+          rawPayload: {
+            'hook': 'precmd.pwd',
+            'hostname': 'local-host',
+            'username': 'local-user',
+            'integration_version': '2',
+          },
+        ),
+      );
+      expect(_active(observed), {
+        ShellIntegrationCapability.hostname,
+        ShellIntegrationCapability.username,
+        ShellIntegrationCapability.integrationVersion,
+      });
+      expect(
+        observed.applyRegistration({
+          'hostname': 'not_provided',
+        })[ShellIntegrationCapability.hostname].isActive,
+        isTrue,
+      );
+      expect(
+        provided[ShellIntegrationCapability.userVariables].isActive,
+        isFalse,
+      );
+    });
+
+    test(
+      'native prompt zones prove navigation only with valid coordinates',
+      () {
+        for (final valid in [false, true]) {
+          final observed = pending.observe(
+            terminal.TerminalSessionShellCommandEvent(
+              'local',
+              rawPayload: {
+                'eventType': 'zone_opened',
+                'zoneType': 'prompt',
+                'zoneId': 1,
+                'absRowStart': valid ? 20 : -1,
+              },
+            ),
+          );
+          expect(
+            observed[ShellIntegrationCapability.promptNavigation].isActive,
+            valid,
+          );
+          expect(
+            observed[ShellIntegrationCapability.commandOutputRanges].isActive,
+            isFalse,
+          );
+        }
+      },
+    );
+
     test('startup checks establish readiness before any command events', () {
       final ready = pending.applyRegistration({
         for (final capability in ShellIntegrationCapability.values)

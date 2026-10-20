@@ -1,0 +1,49 @@
+{
+  "recorded_at": "2026-10-03T02:19:58.536414+00:00",
+  "scope": "D11 direct real cloud and D12 main-screen TUI completed native output retention; D10 loopback recovery regression",
+  "environment": {
+    "macOS": "27.0.1",
+    "build": "26A434",
+    "remote": "user-selected cloud, Linux Bash"
+  },
+  "limits": "Actual cloud covers direct native SSH only; nested hops, authentication faults and disconnects use isolated loopback. No physical iPhone or external model. Private cloud fixture and credentials are not archived. Native reset/explicit history clear still releases output; ordinary scrollback budgets still apply.",
+  "artifacts": {
+    "cloud/cloud-result.json": "d4dcbce6cbbaf8dc9df896be3eccd3689fa507443de0f0bc2e68d62fce38d580",
+    "cloud/ssh-cloud-restored-blocks.png": "faa38e7a785cb3794578737d8a0cfd8aadb00ccba64c5521cf754e1128432459",
+    "cloud/ssh-fullscreen-vim.png": "ae90df702427fbaa4da99c85e541879fd55602da981fad6e331557c76d75d853",
+    "cloud/ssh-mode-menu.png": "f62ff13776a2728d7d1b0beabcb7cea2494dec11bc7ca234c20b1c67d6cbb01a",
+    "cloud-clear-analyze-verified.log": "2c00462770e534ba34232c45c6dcfac4de9083ed35f2349ba88f771d13251cfa",
+    "cloud-clear-diff-final.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "cloud-clear-mirror-check.log": "79ea62ba85fd4366e859c4e3b3c6cd1cab711eb9ccbd38df713e6530698f52a1",
+    "cloud-clear-native-regression.log": "bc9ad8bef6464ae97e8f999ba3c5affa20723d4eacb2a676b8aa9250472d82fb",
+    "cloud-clear-native-tests.log": "cfdcd5cce3525b8c839af809dfe849983b102706c663ec30b5ad7acc569d7739",
+    "cloud-clear-reproduction.log": "be9ffb9aef8d409b6fe19baa8923fe821bf9940a512bb1f42d665af1090b2ecc",
+    "cloud-clear-ssh-lab-final.log": "5534da637ae18ca9afb7953d7ff746cf4772852be77a2384c36bd9dca84f7e2b",
+    "cloud-clear-ssh-lab.log": "6c33c41b784c3d396579e5b591e7fdecc1b3580d2ddd1b4d01eba848e5265e11",
+    "cloud-clear-vendor-tests-direct.log": "fc2c675e12b3a5e3f22eb72a642dd9d20377280460d9d7039760408998d9f35e",
+    "cloud-clear-workspace-native.log": "ffcd212202649065c2acb9a88bae155d54b8345a962257af427a6b8a12f914cf",
+    "cloud-read-only-native-final-verified.log": "5a590aa30cceccdb29ae7ec281439ff676228d341477fadbbc02e6e2ec060532",
+    "cloud-read-only-native-final.log": "2668af267e0d938acaad97912d5b4f875bf19e98acf721d62965d292cd961f40",
+    "cloud-read-only-native-verified.log": "e51262e6e6dfdc9d1178cca4d8d2f78c5617670cfa90623ae01698089aff606c",
+    "loopback/app.test.log": "f1c6063b01398b52d101fafab833a87d98e3f9a0d4171bbf6073ce6e68f075c5",
+    "loopback/bash-emacs-local-ssh.test.log": "d80d05ca71bc2e28b5c4823a46d79d2c4ad58e67dc2a49f62551e9e79afaa576",
+    "loopback/bash-emacs.test.log": "cc97e32b8e36ef929325375e08b1a31d68f5ab7cfaeca6e3ebbc97b6b75c7f70",
+    "loopback/bash-vi.test.log": "1d0564aaca0d5acaec7ab29ceffe2dd6cab4121dac21e38d92e91cdf5879b42c",
+    "loopback/disconnect-result.json": "424ba71c2420e5532d26e0c1ac161ab281d777f411632068ddf54f5497e8cd7c",
+    "loopback/ssh-hop-ready.png": "7b44a1ef237eb516a77d170f3ccb57edb17bddc0fcb5d8a50fcbd152be862856",
+    "loopback/zsh-emacs-local-ssh.test.log": "559df0f1d82aab4d3860dcda702afbb8a684cbe70b91995b136cd00d5ee62b7c",
+    "loopback/zsh-emacs.test.log": "d0ee88ffd69c4b0833ac5ec8d8203b7d78997b3850f83b6014886eedcf5d3e8d",
+    "loopback/zsh-vi.test.log": "ea34eb2e0d1dcfb2524c7b6b7880d3b5244dee50c4ad05f342bcdf4aca5debba",
+    "workspace-result.json": "5cdcee19cea228efb5107ba4d0e659f2739558e011a305af4bdc7458eca3a841"
+  },
+  "sources": {
+    "native/vendor/par-term-emu-core-rust/src/grid/erase.rs": "91c3d2395b21d7f82cde47fbec50e2f2adccccf18441d15ea2af2a4ee7642de6",
+    "native/vendor/par-term-emu-core-rust/src/terminal/sequences/csi/erase.rs": "aaf60463ced8199155f574d7451df47886abb0b7601ae4b320ae162892dfac90",
+    "native/core/src/session/command_blocks.rs": "8c847147907382247a506e65fcc783c6233acf2946376319f267e53083f4b6fd",
+    "packages/ianvs_terminal_core/native/vendor/par-term-emu-core-rust/src/grid/erase.rs": "91c3d2395b21d7f82cde47fbec50e2f2adccccf18441d15ea2af2a4ee7642de6",
+    "packages/ianvs_terminal_core/native/vendor/par-term-emu-core-rust/src/terminal/sequences/csi/erase.rs": "aaf60463ced8199155f574d7451df47886abb0b7601ae4b320ae162892dfac90",
+    "packages/ianvs_terminal_core/native/core/src/session/command_blocks.rs": "8c847147907382247a506e65fcc783c6233acf2946376319f267e53083f4b6fd",
+    "example/integration_test/ssh_composer_acceptance_test.dart": "470625765912c3d305f0ecc621ca67352c8cdb3db8be576f5d62f2a1302c8c9e",
+    "example/integration_test/terminal_ai_workspace_acceptance_test.dart": "7fa33263a255a3fb8099f6bd84fb71980d4168239f104d3619f9d2416cc65249"
+  }
+}

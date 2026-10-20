@@ -1,0 +1,41 @@
+{
+  "source_commit": "2d18e608c2a1149a093451b5246cb370de0167c3",
+  "source_clean_at_preparation": true,
+  "prepared_at": "2026-10-10T09:27:36.132700+00:00",
+  "scope": "Source preparation only; App not yet launched; do not treat as execution evidence",
+  "changed_files": [
+    {
+      "path": "example/lib/features/shell/shell_screen_state_terminal_layout.dart",
+      "sha256": "3f8d93e383ec0ce4470c52db8a5016a740f8c4a023b38448ff66469194093f81"
+    },
+    {
+      "path": "example/lib/features/terminal/terminal_input_controller.dart",
+      "sha256": "d074ac247de25c590cc08852c0e8620172f0b9eaa61169f622fba3f355dfb85a"
+    },
+    {
+      "path": "example/lib/features/terminal/terminal_viewport.dart",
+      "sha256": "fa3a7fb9559e79dea987b9dc604aa365a54a707642468411ff2b508662ab74f6"
+    },
+    {
+      "path": "example/test/ai/terminal_ai_observer_test.dart",
+      "sha256": "8b87f5304e974e0534dedf67c7f9a83772fb78996f03cd18d28dbdf13a03d69d"
+    },
+    {
+      "path": "example/test/shell/shell_pane_input_metrics_test.dart",
+      "sha256": "29de85a8244f8f913eda9cb93c63f11a4a2610e2534950bf53d32b1c3f18460f"
+    },
+    {
+      "path": "example/test/terminal_focus_loss_permission_test.dart",
+      "sha256": "e4224bfe2ce13742a886c55fca12705ce76e930c540c4ed41cdd6c4b0afb28d5"
+    },
+    {
+      "path": "packages/ianvs_terminal/lib/src/terminal/terminal_viewport.dart",
+      "sha256": "2dcc02f15d71e9ecc0368bb560659d5696514bc80d2f75e84c2c24d06f6f5438"
+    },
+    {
+      "path": "packages/ianvs_terminal_core/lib/src/terminal/terminal_viewport.dart",
+      "sha256": "2dcc02f15d71e9ecc0368bb560659d5696514bc80d2f75e84c2c24d06f6f5438"
+    }
+  ],
+  "host": "ProductName:\t\tmacOS\nProductVersion:\t\t27.0.1\nBuildVersion:\t\t26A434"
+}

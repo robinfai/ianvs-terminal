@@ -1,0 +1,666 @@
+{
+  "schema_version": 1,
+  "purpose": "Pre-commit layout/menu/input regression evidence subsequently included in C9; not a clean-commit test run or formal native PRD-case registration.",
+  "prepared_at_utc": "2026-10-10T09:07:27.011163+00:00",
+  "prepared_by": "/root/desktop_input_review",
+  "repository": "/Users/robinfai/flutter_projects/ianvs-terminal",
+  "source_identity": {
+    "head_during_test_execution": "d13e0c02c5f5921927c3f7855fd3aadce6559b64",
+    "tests_executed_before_c9_commit": true,
+    "test_worktree_had_uncommitted_changes": true,
+    "clean_commit_test_execution_claimed": false,
+    "final_implementation_committed_as": "a60bc9d78f5f51414c43590ee6f34ae3cce7e7b9",
+    "head_at_summary_preparation": "a60bc9d78f5f51414c43590ee6f34ae3cce7e7b9",
+    "tracked_worktree_clean_at_summary_preparation": true,
+    "hash_verification_method": "SHA-256 of current file bytes compared byte-for-byte with git show C9:path; git blob OID also recorded.",
+    "hash_capture_timing": "These hashes were recorded after C9 commit, not at the start/end of each historical run. The author froze the final files before the commit; logs must not be relabeled as originally executed on clean C9.",
+    "files": [
+      {
+        "path": "example/lib/features/shell/shell_screen_state_terminal_layout.dart",
+        "role": "layout_fix",
+        "bytes": 95908,
+        "sha256": "5e4b9c93f30ddf5da7cc14d7607218d7e25617428120c76c16701eafeae2b915",
+        "commit_blob_sha256": "5e4b9c93f30ddf5da7cc14d7607218d7e25617428120c76c16701eafeae2b915",
+        "git_blob_oid": "cd041fb36bcbad8168c56c80d0af575778d4d8c8",
+        "matches_c9_blob": true
+      },
+      {
+        "path": "example/lib/features/shell/shell_screen_state_sessions.dart",
+        "role": "layout_fix",
+        "bytes": 46441,
+        "sha256": "b774377e9e80c885f29ac22fcfdd0865061f57fc918eab3b538a929ac519f306",
+        "commit_blob_sha256": "b774377e9e80c885f29ac22fcfdd0865061f57fc918eab3b538a929ac519f306",
+        "git_blob_oid": "bedabd5c4264ce89c49e9a1cb7dc4fecbb6ecd2d",
+        "matches_c9_blob": true
+      },
+      {
+        "path": "example/lib/features/shell/shell_screen_state_command_actions.dart",
+        "role": "layout_fix",
+        "bytes": 45742,
+        "sha256": "7df12216220ddb199ffc66c548cd87e76d07647d4233ef93a91580fbdea410f2",
+        "commit_blob_sha256": "7df12216220ddb199ffc66c548cd87e76d07647d4233ef93a91580fbdea410f2",
+        "git_blob_oid": "bd69fe6a33c1c88cc440d039c56fa3b98da9ff50",
+        "matches_c9_blob": true
+      },
+      {
+        "path": "example/test/shell/shell_pane_input_metrics_test.dart",
+        "role": "layout_regression_test",
+        "bytes": 26296,
+        "sha256": "aa0d7c616c6804f5bcd1cfa1b44d1a8d016e130d3544a29dafb53322a1833c51",
+        "commit_blob_sha256": "aa0d7c616c6804f5bcd1cfa1b44d1a8d016e130d3544a29dafb53322a1833c51",
+        "git_blob_oid": "0fe3760f3da765147e1723cf4d8be587796329cd",
+        "matches_c9_blob": true
+      },
+      {
+        "path": "example/lib/features/shell/shell_screen_close_protection.dart",
+        "role": "peer_close_protection_change",
+        "bytes": 10301,
+        "sha256": "4f7e772d591a15ebc73df40b90abba5c50a4b2bddf46671920030f09804afc2d",
+        "commit_blob_sha256": "4f7e772d591a15ebc73df40b90abba5c50a4b2bddf46671920030f09804afc2d",
+        "git_blob_oid": "d6197fb6e7b4dbcf888285d8fe30215ba99c8441",
+        "matches_c9_blob": true
+      },
+      {
+        "path": "example/test/shell/shell_close_protection_test.dart",
+        "role": "peer_close_protection_regression_test",
+        "bytes": 46268,
+        "sha256": "e5ce5c9504ccb0297c9ec6e78e2cddd6a099a125b148e4a5ba90a24c75ae8f05",
+        "commit_blob_sha256": "e5ce5c9504ccb0297c9ec6e78e2cddd6a099a125b148e4a5ba90a24c75ae8f05",
+        "git_blob_oid": "d106076df2d6af19fb261e6c2cf38ef9b5310ceb",
+        "matches_c9_blob": true
+      }
+    ]
+  },
+  "command_catalog": {
+    "new_widget_tests": {
+      "cwd": "/Users/robinfai/flutter_projects/ianvs-terminal/example",
+      "argv": [
+        "/Users/robinfai/development/flutter/bin/flutter",
+        "test",
+        "--no-pub",
+        "test/shell/shell_pane_input_metrics_test.dart",
+        "--reporter",
+        "expanded"
+      ]
+    },
+    "extra_widget_tests": {
+      "cwd": "/Users/robinfai/flutter_projects/ianvs-terminal/example",
+      "argv": [
+        "/Users/robinfai/development/flutter/bin/flutter",
+        "test",
+        "--no-pub",
+        "test/shell/shell_pane_input_metrics_test.dart",
+        "--name",
+        "TUI secondary|detached root",
+        "--reporter",
+        "expanded"
+      ]
+    },
+    "related_8_files": {
+      "cwd": "/Users/robinfai/flutter_projects/ianvs-terminal/example",
+      "argv": [
+        "/Users/robinfai/development/flutter/bin/flutter",
+        "test",
+        "--no-pub",
+        "test/shell/shell_pane_input_metrics_test.dart",
+        "test/shell/shell_screen_phase4_test.dart",
+        "test/shell/shell_screen_architecture_test.dart",
+        "test/terminal_composer/composer_pane_focus_test.dart",
+        "test/terminal_composer/composer_pane_submission_test.dart",
+        "test/terminal/selection_resize_guard_test.dart",
+        "test/recording/replay_viewport_layout_test.dart",
+        "test/ui/pane_divider_keyboard_test.dart",
+        "--reporter",
+        "expanded"
+      ]
+    },
+    "related_10_files_final": {
+      "cwd": "/Users/robinfai/flutter_projects/ianvs-terminal/example",
+      "argv": [
+        "/Users/robinfai/development/flutter/bin/flutter",
+        "test",
+        "--no-pub",
+        "test/shell/shell_pane_input_metrics_test.dart",
+        "test/shell/shell_screen_phase4_test.dart",
+        "test/shell/shell_screen_architecture_test.dart",
+        "test/terminal_composer/composer_pane_focus_test.dart",
+        "test/terminal_composer/composer_pane_submission_test.dart",
+        "test/terminal/selection_resize_guard_test.dart",
+        "test/recording/replay_viewport_layout_test.dart",
+        "test/ui/pane_divider_keyboard_test.dart",
+        "test/shell/shell_close_protection_test.dart",
+        "test/ai/shell_ai_reconnect_test.dart",
+        "--reporter",
+        "expanded"
+      ]
+    },
+    "mobile_input_final": {
+      "cwd": "/Users/robinfai/flutter_projects/ianvs-terminal/example",
+      "argv": [
+        "/Users/robinfai/development/flutter/bin/flutter",
+        "test",
+        "--no-pub",
+        "test/shell/mobile_terminal_modes_test.dart",
+        "test/terminal_input_controller_test.dart",
+        "--reporter",
+        "expanded"
+      ]
+    },
+    "analyze_final_scope": {
+      "cwd": "/Users/robinfai/flutter_projects/ianvs-terminal/example",
+      "argv": [
+        "/Users/robinfai/development/flutter/bin/dart",
+        "analyze",
+        "--fatal-infos",
+        "lib/features/shell/shell_screen.dart",
+        "lib/features/shell/shell_screen_state_terminal_layout.dart",
+        "lib/features/shell/shell_screen_state_sessions.dart",
+        "lib/features/shell/shell_screen_state_command_actions.dart",
+        "test/shell/shell_pane_input_metrics_test.dart"
+      ]
+    },
+    "format_final_scope": {
+      "cwd": "/Users/robinfai/flutter_projects/ianvs-terminal/example",
+      "argv": [
+        "/Users/robinfai/development/flutter/bin/dart",
+        "format",
+        "--output=none",
+        "--set-exit-if-changed",
+        "lib/features/shell/shell_screen_state_terminal_layout.dart",
+        "lib/features/shell/shell_screen_state_sessions.dart",
+        "lib/features/shell/shell_screen_state_command_actions.dart",
+        "test/shell/shell_pane_input_metrics_test.dart"
+      ]
+    },
+    "diff_check_final": {
+      "cwd": "/Users/robinfai/flutter_projects/ianvs-terminal",
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ]
+    }
+  },
+  "runs": [
+    {
+      "log": "red-2.log",
+      "command_id": "new_widget_tests",
+      "exit_code": 1,
+      "classification": "product_regression_reproduction",
+      "bytes": 9696,
+      "sha256": "6f8561796db3dab845600161fe6a3e87719ea516fe8466042e4f049e013aa168",
+      "stdout_and_stderr_combined": true,
+      "reported_test_counts": {
+        "passed": 4,
+        "failed": 4,
+        "scope": "this runner invocation only; not distinct PRD cases"
+      },
+      "note": "Unmodified production: secondary click changed active pane 1 to 2; DPR-only and selection-release scenarios produced no native resize; old Close pane action closed the survivor after original pane exit."
+    },
+    {
+      "log": "green-1.log",
+      "command_id": "new_widget_tests",
+      "exit_code": 1,
+      "classification": "additional_product_cause_exposed",
+      "bytes": 3382,
+      "sha256": "b09d3499c8c251cbc22be0b565727b4fc2b94f4d109c3e4861cec81963a86819",
+      "stdout_and_stderr_combined": true,
+      "reported_test_counts": {
+        "passed": 7,
+        "failed": 1,
+        "scope": "this runner invocation only; not distinct PRD cases"
+      },
+      "note": "Initial activation fix preserved active pane but Flutter EditableTextTapOutsideIntent still unfocused the desktop Composer."
+    },
+    {
+      "log": "green-2.log",
+      "command_id": "new_widget_tests",
+      "exit_code": 0,
+      "classification": "intermediate_green",
+      "bytes": 1356,
+      "sha256": "c4623999293b77fc0fbe5445fc240618928db8d245a85b0add17b0c51b02e813",
+      "stdout_and_stderr_combined": true,
+      "reported_test_counts": {
+        "passed": 8,
+        "failed": 0,
+        "scope": "this runner invocation only; not distinct PRD cases"
+      },
+      "note": "Desktop Composer host now preserves secondary-outside focus while delegating other pointer events to Flutter."
+    },
+    {
+      "log": "green-3.log",
+      "command_id": "new_widget_tests",
+      "exit_code": 1,
+      "classification": "test_fixture_assumption_error",
+      "bytes": 3405,
+      "sha256": "0b0767a7e108809d20bfae4169b6b63440d23c1cabbfd533ae2875635636c412",
+      "stdout_and_stderr_combined": true,
+      "reported_test_counts": {
+        "passed": 9,
+        "failed": 1,
+        "scope": "this runner invocation only; not distinct PRD cases"
+      },
+      "note": "The new cross-tab move test assumed the old root tab ID survived moving its root. Production correctly gives the surviving source pane a different tab ID; the fixture lookup was corrected to membership without weakening menu outcome checks."
+    },
+    {
+      "log": "green-4.log",
+      "command_id": "new_widget_tests",
+      "exit_code": 0,
+      "classification": "intermediate_green",
+      "bytes": 1578,
+      "sha256": "dfff340094f06ce8248ad19d470e6a437cbc6e1261aceb99dd1d7ca8e799e295",
+      "stdout_and_stderr_combined": true,
+      "reported_test_counts": {
+        "passed": 10,
+        "failed": 0,
+        "scope": "this runner invocation only; not distinct PRD cases"
+      }
+    },
+    {
+      "log": "related-1.log",
+      "command_id": "related_8_files",
+      "exit_code": 1,
+      "classification": "test_fixture_assumption_error",
+      "bytes": 35053,
+      "sha256": "c7c7d0d99442d8fa35d80f02e6e8280000511356dd64f1fc337ed9ab8ff916c0",
+      "stdout_and_stderr_combined": true,
+      "reported_test_counts": {
+        "passed": 158,
+        "failed": 1,
+        "scope": "this runner invocation only; not distinct PRD cases"
+      },
+      "note": "Added ordinary-frame assertion used frame.rows.single, but production normalizes a full viewport. It now finds source row 0 and retains exact output and no-resize assertions."
+    },
+    {
+      "log": "green-5.log",
+      "command_id": "new_widget_tests",
+      "exit_code": 0,
+      "classification": "intermediate_green",
+      "bytes": 1578,
+      "sha256": "9607e7216fa3f5532b942e4caba1d4cb62cb3a52078b9af9f7ab786dcd2d5a42",
+      "stdout_and_stderr_combined": true,
+      "reported_test_counts": {
+        "passed": 10,
+        "failed": 0,
+        "scope": "this runner invocation only; not distinct PRD cases"
+      }
+    },
+    {
+      "log": "related-2.log",
+      "command_id": "related_8_files",
+      "exit_code": 0,
+      "classification": "intermediate_green",
+      "bytes": 32526,
+      "sha256": "db3286d91907757b799cff8bf43e053e5e85b1093350cdc4fd79f4c6db4c9289",
+      "stdout_and_stderr_combined": true,
+      "reported_test_counts": {
+        "passed": 159,
+        "failed": 0,
+        "scope": "this runner invocation only; not distinct PRD cases"
+      },
+      "note": "Predates the final TUI ownership and detached-root menu fixes; not final coverage of those additions."
+    },
+    {
+      "log": "red-extra-1.log",
+      "command_id": "extra_widget_tests",
+      "exit_code": 1,
+      "classification": "additional_product_regression_reproduction",
+      "bytes": 9046,
+      "sha256": "ff7c59e92f65dd686b27ae318f6d5f5a582059b1d575fdf0a9d77b83d0d5f6ec",
+      "stdout_and_stderr_combined": true,
+      "reported_test_counts": {
+        "passed": 0,
+        "failed": 4,
+        "scope": "this runner invocation only; not distinct PRD cases"
+      },
+      "note": "Inactive TUI emitted two SGR secondary reports; active TUI protocol checks passed but its old sink wrote one extra report after same-frame owner switch; detached root reused tab ID and old mode/close-tab actions modified/closed the new tab."
+    },
+    {
+      "log": "green-extra-1.log",
+      "command_id": "new_widget_tests",
+      "exit_code": 0,
+      "classification": "final_new_regressions",
+      "bytes": 2013,
+      "sha256": "7d74e96e10f909214b3a1c4f4a1be2cfbee5c5fa544c472164cde5915dd2f1e2",
+      "stdout_and_stderr_combined": true,
+      "reported_test_counts": {
+        "passed": 14,
+        "failed": 0,
+        "scope": "this runner invocation only; not distinct PRD cases"
+      }
+    },
+    {
+      "log": "related-final-1.log",
+      "command_id": "related_10_files_final",
+      "exit_code": 0,
+      "classification": "final_affected_regressions",
+      "bytes": 41380,
+      "sha256": "01ce91474c1846c70a199190b007c924741beb1f397d308e113847dc3bdb6fbe",
+      "stdout_and_stderr_combined": true,
+      "reported_test_counts": {
+        "passed": 198,
+        "failed": 0,
+        "scope": "this runner invocation only; not distinct PRD cases"
+      },
+      "note": "Includes the 14 new tests and repeated coverage of earlier runs; do not add it to the new-test count or call it 198 independent product cases."
+    },
+    {
+      "log": "mobile-input-final.log",
+      "command_id": "mobile_input_final",
+      "exit_code": 0,
+      "classification": "final_mobile_and_input_regressions",
+      "bytes": 18643,
+      "sha256": "77946422cc2342c282ddd17b5d9b843844223c4b07cb790b1ef9db0486a1a292",
+      "stdout_and_stderr_combined": true,
+      "reported_test_counts": {
+        "passed": 71,
+        "failed": 0,
+        "scope": "this runner invocation only; not distinct PRD cases"
+      },
+      "note": "Reported separately from the 198-test invocation; no deduplicated cross-run or PRD-case total is claimed."
+    },
+    {
+      "log": "analyze-final.log",
+      "command_id": "analyze_final_scope",
+      "exit_code": 0,
+      "classification": "final_static_analysis",
+      "bytes": 200,
+      "sha256": "cbfc432b451ecb760c06897e5881bb5b3d9b129802807c193d30867ef8cbadef",
+      "stdout_and_stderr_combined": true,
+      "note": "No issues found."
+    },
+    {
+      "log": "format-final.log",
+      "command_id": "format_final_scope",
+      "exit_code": 0,
+      "classification": "final_format_check",
+      "bytes": 47,
+      "sha256": "46c069c184457754f6db9a1454ddd46e0f33a2aef0253baf6e1b3c85610863ab",
+      "stdout_and_stderr_combined": true,
+      "note": "Formatted 4 files (0 changed)."
+    },
+    {
+      "log": "diff-check-final.log",
+      "command_id": "diff_check_final",
+      "exit_code": 0,
+      "classification": "final_diff_check",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_and_stderr_combined": true,
+      "note": "No whitespace errors. git diff does not include the then-untracked new test; that file was covered by Dart format and analysis."
+    }
+  ],
+  "environment_and_fixture_failures_preserved": [
+    {
+      "log": "format-test-1.log",
+      "cwd": "/Users/robinfai/flutter_projects/ianvs-terminal",
+      "argv": [
+        "/Users/robinfai/development/flutter/bin/dart",
+        "format",
+        "example/test/shell/shell_pane_input_metrics_test.dart"
+      ],
+      "exit_code": 1,
+      "sha256": "b9b852097ed3476f0c7fce8e5de86c72d028980e04c63de33994e191e68ce407",
+      "note": "SDK cache write denied before formatting; exit 1."
+    },
+    {
+      "log": "red-1.log",
+      "cwd": "/Users/robinfai/flutter_projects/ianvs-terminal/example",
+      "argv": [
+        "/Users/robinfai/development/flutter/bin/flutter",
+        "test",
+        "--no-pub",
+        "test/shell/shell_pane_input_metrics_test.dart",
+        "--reporter",
+        "expanded"
+      ],
+      "exit_code": 1,
+      "sha256": "826f42600b248514b6689bb7ded2845691a5209c690f471464264f62b9375c0e",
+      "note": "SDK cache write denied before any test ran; exit 1, not a product-test failure."
+    },
+    {
+      "log": "format-test-2.log",
+      "cwd": "/Users/robinfai/flutter_projects/ianvs-terminal",
+      "argv": [
+        "/Users/robinfai/development/flutter/bin/cache/dart-sdk/bin/dart",
+        "format",
+        "example/test/shell/shell_pane_input_metrics_test.dart"
+      ],
+      "exit_code": 1,
+      "sha256": "e74881b30e0788ee79b40409f2700a10bdb7a9a2d60e4c7c2da1b103293988bc",
+      "note": "Source formatting completed, then telemetry timestamp write was denied; command exit 1. Final format check later passed."
+    },
+    {
+      "log": "format-check-1.log",
+      "cwd": "/Users/robinfai/flutter_projects/ianvs-terminal/example",
+      "argv": [
+        "/Users/robinfai/development/flutter/bin/dart",
+        "format",
+        "--output=none",
+        "--set-exit-if-changed",
+        "lib/features/shell/shell_screen_state_terminal_layout.dart",
+        "lib/features/shell/shell_screen_state_sessions.dart",
+        "lib/features/shell/shell_screen_state_command_actions.dart",
+        "test/shell/shell_pane_input_metrics_test.dart"
+      ],
+      "exit_code": 1,
+      "sha256": "712959ff8ac13c4f53321dd2393e4ab4892f4d8a14353b12b2b84f5a93075c34",
+      "note": "Check-only invocation found one formatting change required in the test; exit 1. A subsequent format invocation applied it and final check passed."
+    }
+  ],
+  "counting_policy": {
+    "new_regression_invocation": {
+      "passed": 14,
+      "log": "green-extra-1.log"
+    },
+    "affected_files_invocation": {
+      "passed": 198,
+      "log": "related-final-1.log"
+    },
+    "mobile_input_invocation": {
+      "passed": 71,
+      "log": "mobile-input-final.log"
+    },
+    "aggregate_distinct_case_count": null,
+    "note": "198 and 71 are separate runner counts. No sum is presented as independent use cases. The 14 new tests are already included in the 198 invocation, and earlier green runs repeat tests. Flutter tests are not the 64 formal native desktop PRD cases."
+  },
+  "final_coverage": [
+    "Inactive raw-pane secondary click preserves active Composer target, keyboard focus, exact draft/selection value, and zero backend writes/submissions; primary mouse and touch still activate the clicked pane.",
+    "Cancelling an inactive-tab context menu returns to the original Composer focus and preserves its draft without writes.",
+    "Inactive TUI secondary input sends zero actual backend bytes. Active TUI secondary click still sends the original SGR press/release pair. A retained sink loses permission synchronously after active-pane change before a rebuilding frame.",
+    "At fixed 1200x800 logical size, DPR 1 to 2 keeps rows/columns stable while native pixel/cell metrics and runtime resize-event DPR/viewport agree. Ordinary output repaint does not fabricate resize events.",
+    "Rapid DPR 1 to 2 to 1 does not commit obsolete native metrics; releasing selection while a newer DPR is pending cannot commit the queued older DPR.",
+    "A tab menu captures its pane target before await; after that pane exits, Close pane cannot close the survivor, while explicit Close tab still closes the original surviving tab and preserves another tab.",
+    "A pane moved into another tab or a detached root reusing the old tab ID cannot be changed/closed through the stale menu. Original-member migration invalidates mode/recheck/action callbacks; natural exits remain distinct.",
+    "Existing Shell phase4, architecture budgets, Composer focus/submission, selection resize guard, replay viewport, divider keyboard, close protection, AI reconnect/Reader ownership, mobile modes and terminal input tests passed in the listed final invocations."
+  ],
+  "independent_static_review": {
+    "reviewer": "/root/ai_contract_review",
+    "conclusion": "No new blocking issue found in final diff.",
+    "reviewed": "Final three production files plus the new regression test; reviewer read green-extra-1.log and related-final-1.log. Root independently read the production diff too.",
+    "checks": [
+      "Captured ProviderContainer avoids ancestor lookup during element deactivate; dynamic activeSessionId is not a build-time ownership snapshot. mounted short-circuit and existing epoch/readOnly/Reader/AI guards remain.",
+      "Original-member migration guard applies before mode/recheck/TerminalAction dispatch and distinguishes detach/move from natural exit; whole-tab close positive behavior remains.",
+      "Actual SGR byte assertions and same-frame old-sink negative assertion were not weakened."
+    ],
+    "reviewer_ran_sdk_or_gui": false,
+    "evidence_source": "Collaboration messages in this task; no separate signed reviewer artifact was created."
+  },
+  "evidence_boundaries": [
+    "All listed executions are automated Flutter/Dart checks using fake PTY/backend fixtures and real application widget/runtime wiring. They do not prove native AppKit focus, first-click behavior, actual IME, OS context-menu geometry, VoiceOver, or real display scaling.",
+    "No GUI, physical-device, real SSH/model request, native build, or external-display action was performed by this subagent for these tests.",
+    "Runtime resize events verify the recording/replay metric handoff together with the existing replay viewport regression, not a newly captured native replay recording.",
+    "Physical iPad and external display were unavailable according to the user and remain unverified; no new request for these devices was made.",
+    "No formal desktop case was marked passed and no tracked docs/evidence were modified by this summary.",
+    "The root-owned C9 make verify run is separate evidence. This summary neither runs it nor states its outcome."
+  ],
+  "suggested_minimal_native_recheck": [
+    {
+      "action": "Use only the isolated C9 test App; record its exact executable path, PID, window ID/bounds, key-window state and source/binary identity before capturing.",
+      "evidence": "Original window screenshots plus continuous input/focus/active-target observations; do not capture unrelated windows."
+    },
+    {
+      "action": "With pane A Blocks Composer focused and an unsent uniquely identifiable draft/selection, right-click inactive raw pane B. Then cancel any context menu and repeat primary mouse or trackpad-click activation on this Mac.",
+      "expected": "Secondary interaction keeps A and its draft/focus; cancellation restores the trigger. Primary activation selects B while the A draft remains intact. Capture before/after target and input-owner states."
+    },
+    {
+      "action": "In an isolated local TUI fixture that logs mouse-report bytes, compare inactive B secondary click with explicitly active B secondary click.",
+      "expected": "Inactive B receives zero manual bytes; active B retains its original press/release protocol. Keep server/fixture byte evidence separate from UI snapshots."
+    },
+    {
+      "action": "In a disposable local two-pane tab, open A context menu, let A naturally exit, then choose the old Close pane action; separately repeat with explicit Close tab while another tab remains.",
+      "expected": "Old pane action cannot close survivor B. Explicit tab close acts only on the originally named surviving tab. Record PTY/session identities before and after."
+    },
+    {
+      "action": "If standard UI can preserve a pending menu while its root pane is detached, verify that its old action is cancelled; otherwise retain this as an automated stale-callback check rather than injecting controller state or claiming a native case passed.",
+      "expected": "A reused tab ID must not receive a stale operation."
+    },
+    {
+      "action": "Keep real cross-display DPR changes unverified without the required hardware; do not substitute widget DPR changes or system-setting changes for external-display evidence.",
+      "expected": "No expansion of formal case status from these tests."
+    }
+  ],
+  "log_inventory": [
+    {
+      "path": "analyze-1.log",
+      "bytes": 200,
+      "sha256": "cbfc432b451ecb760c06897e5881bb5b3d9b129802807c193d30867ef8cbadef"
+    },
+    {
+      "path": "analyze-final.log",
+      "bytes": 200,
+      "sha256": "cbfc432b451ecb760c06897e5881bb5b3d9b129802807c193d30867ef8cbadef"
+    },
+    {
+      "path": "diff-check-final.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "format-1.log",
+      "bytes": 116,
+      "sha256": "843c7e23817f9f5bffc97a7a845e3f03741e7aea8cd5bb8810fc0c08e8dd0977"
+    },
+    {
+      "path": "format-2.log",
+      "bytes": 115,
+      "sha256": "2934437b7d45d81d05c1692134123ffe99821711cac1bc8f09abc642a75fb701"
+    },
+    {
+      "path": "format-3.log",
+      "bytes": 103,
+      "sha256": "bd976d465e97532d3f6530bf54c34bc4e99c95d48a3316d89a102d201dc733a4"
+    },
+    {
+      "path": "format-4.log",
+      "bytes": 103,
+      "sha256": "4445494ca8c0659b72040a1fa9c4c8069f0a9e8dc659f01ae6a0f78368e55633"
+    },
+    {
+      "path": "format-5.log",
+      "bytes": 103,
+      "sha256": "cb1189d6fdf5f564f87a2e30295d7f3e5d444e8a17f02a5334c802b05c8d4697"
+    },
+    {
+      "path": "format-check-1.log",
+      "bytes": 101,
+      "sha256": "712959ff8ac13c4f53321dd2393e4ab4892f4d8a14353b12b2b84f5a93075c34"
+    },
+    {
+      "path": "format-check-2.log",
+      "bytes": 47,
+      "sha256": "82f9b6d44abe9019c4ef72d3e300c473ba76393f81efdf7076ee7f7a648a23fd"
+    },
+    {
+      "path": "format-extra-1.log",
+      "bytes": 185,
+      "sha256": "9f2eaea5cc3c875a936854d6181d09c7f3f82f170b193704c3e8ab24d45b4473"
+    },
+    {
+      "path": "format-final.log",
+      "bytes": 47,
+      "sha256": "46c069c184457754f6db9a1454ddd46e0f33a2aef0253baf6e1b3c85610863ab"
+    },
+    {
+      "path": "format-test-1.log",
+      "bytes": 346,
+      "sha256": "b9b852097ed3476f0c7fce8e5de86c72d028980e04c63de33994e191e68ce407"
+    },
+    {
+      "path": "format-test-2.log",
+      "bytes": 1145,
+      "sha256": "e74881b30e0788ee79b40409f2700a10bdb7a9a2d60e4c7c2da1b103293988bc"
+    },
+    {
+      "path": "format-test-extra-1.log",
+      "bytes": 102,
+      "sha256": "b0e9d509ccb5225641262989e3df9573f9c9df9eb3de344e3821548a5a23d644"
+    },
+    {
+      "path": "green-1.log",
+      "bytes": 3382,
+      "sha256": "b09d3499c8c251cbc22be0b565727b4fc2b94f4d109c3e4861cec81963a86819"
+    },
+    {
+      "path": "green-2.log",
+      "bytes": 1356,
+      "sha256": "c4623999293b77fc0fbe5445fc240618928db8d245a85b0add17b0c51b02e813"
+    },
+    {
+      "path": "green-3.log",
+      "bytes": 3405,
+      "sha256": "0b0767a7e108809d20bfae4169b6b63440d23c1cabbfd533ae2875635636c412"
+    },
+    {
+      "path": "green-4.log",
+      "bytes": 1578,
+      "sha256": "dfff340094f06ce8248ad19d470e6a437cbc6e1261aceb99dd1d7ca8e799e295"
+    },
+    {
+      "path": "green-5.log",
+      "bytes": 1578,
+      "sha256": "9607e7216fa3f5532b942e4caba1d4cb62cb3a52078b9af9f7ab786dcd2d5a42"
+    },
+    {
+      "path": "green-extra-1.log",
+      "bytes": 2013,
+      "sha256": "7d74e96e10f909214b3a1c4f4a1be2cfbee5c5fa544c472164cde5915dd2f1e2"
+    },
+    {
+      "path": "mobile-input-final.log",
+      "bytes": 18643,
+      "sha256": "77946422cc2342c282ddd17b5d9b843844223c4b07cb790b1ef9db0486a1a292"
+    },
+    {
+      "path": "red-1.log",
+      "bytes": 346,
+      "sha256": "826f42600b248514b6689bb7ded2845691a5209c690f471464264f62b9375c0e"
+    },
+    {
+      "path": "red-2.log",
+      "bytes": 9696,
+      "sha256": "6f8561796db3dab845600161fe6a3e87719ea516fe8466042e4f049e013aa168"
+    },
+    {
+      "path": "red-extra-1.log",
+      "bytes": 9046,
+      "sha256": "ff7c59e92f65dd686b27ae318f6d5f5a582059b1d575fdf0a9d77b83d0d5f6ec"
+    },
+    {
+      "path": "related-1.log",
+      "bytes": 35053,
+      "sha256": "c7c7d0d99442d8fa35d80f02e6e8280000511356dd64f1fc337ed9ab8ff916c0"
+    },
+    {
+      "path": "related-2.log",
+      "bytes": 32526,
+      "sha256": "db3286d91907757b799cff8bf43e053e5e85b1093350cdc4fd79f4c6db4c9289"
+    },
+    {
+      "path": "related-final-1.log",
+      "bytes": 41380,
+      "sha256": "01ce91474c1846c70a199190b007c924741beb1f397d308e113847dc3bdb6fbe"
+    }
+  ],
+  "exit_code_provenance": "Exit codes were observed from exec_command/write_stdin completion during the original runs in this conversation; log files preserve stdout/stderr and are not assumed to contain process exit metadata."
+}

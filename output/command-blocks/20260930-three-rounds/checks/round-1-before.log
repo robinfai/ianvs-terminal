@@ -1,0 +1,84 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/design/command_blocks_review_test.dart
+00:00 +0: (setUpAll)
+00:00 +0: round 1 distinguishes waiting from completed empty output
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: true
+  Actual: <false>
+Running silence is not completed output.
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/design/command_blocks_review_test.dart:161:5)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/design/command_blocks_review_test.dart line 161
+The test description was:
+  round 1 distinguishes waiting from completed empty output
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:00 +0 -1: round 1 distinguishes waiting from completed empty output [E]
+  Test failed. See exception logs above.
+  The test description was: round 1 distinguishes waiting from completed empty output
+
+00:00 +0 -1: round 1 distinguishes no matches from an empty command
+
+Warning: A call to tap() with finder "Found 1 widget with text "过滤输出": [
+  Text("过滤输出", dependencies: [DefaultSelectionStyle, DefaultTextStyle, MediaQuery]),
+]" derived an Offset (Offset(290.0, 181.0)) that would not hit test on the specified widget.
+Maybe the widget is actually off-screen, or another widget is obscuring it, or the widget cannot receive pointer events.
+The finder corresponds to this RenderBox: RenderParagraph#2f18e relayoutBoundary=up38
+The hit test result at that offset is: HitTestResult(RenderPointerListener#db79d@Offset(128.0, 24.0), RenderSemanticsAnnotations#e5fd7@Offset(128.0, 24.0), RenderMouseRegion#916f9@Offset(128.0, 24.0), RenderSemanticsAnnotations#44c20@Offset(128.0, 24.0), RenderSemanticsAnnotations#8f922@Offset(128.0, 24.0), RenderMergeSemantics#1d6de@Offset(128.0, 24.0), RenderAnimatedOpacity#001ba@Offset(128.0, 24.0), _RenderMenuItem#e9730@Offset(128.0, 24.0), RenderListBody#f0d72@Offset(128.0, 168.0), RenderPadding#f8bd2@Offset(132.0, 172.0), _RenderSingleChildViewport#c4914@Offset(132.0, 172.0), RenderIgnorePointer#0e474@Offset(132.0, 172.0), RenderSemanticsAnnotations#f0e34@Offset(132.0, 172.0), RenderPointerListener#038ea@Offset(132.0, 172.0), RenderSemanticsGestureHandler#58d95@Offset(132.0, 172.0), RenderPointerListener#9b64e@Offset(132.0, 172.0), _RenderScrollSemantics#bba2a@Offset(132.0, 172.0), RenderSemanticsAnnotations#7dda9@Offset(132.0, 172.0), RenderIntrinsicWidth#f5c7e@Offset(132.0, 172.0), RenderConstrainedBox#640be@Offset(132.0, 172.0), RenderPositionedBox#d2d23@Offset(132.0, 172.0), _RenderInkFeatures#b7375@Offset(132.0, 172.0), RenderCustomPaint#a26dd@Offset(132.0, 172.0), RenderPhysicalShape#d50d8@Offset(132.0, 172.0), RenderAnimatedOpacity#2a0ef@Offset(132.0, 172.0), RenderCustomSingleChildLayoutBox#cbd8b@Offset(290.0, 181.0), _RenderLayoutBuilder#2dee6@Offset(290.0, 181.0), RenderRepaintBoundary#be08c@Offset(290.0, 181.0), RenderIgnorePointer#606da@Offset(290.0, 181.0), RenderRepaintBoundary#461f4@Offset(290.0, 181.0), RenderSemanticsAnnotations#0cb54@Offset(290.0, 181.0), RenderOffstage#e98a5@Offset(290.0, 181.0), RenderSemanticsAnnotations#6d181@Offset(290.0, 181.0), _RenderTheater#a6f74@Offset(290.0, 181.0), RenderAbsorbPointer#1d879@Offset(290.0, 181.0), RenderPointerListener#56248@Offset(290.0, 181.0), RenderSemanticsAnnotations#66b7b@Offset(290.0, 181.0), RenderSemanticsAnnotations#ab16d@Offset(290.0, 181.0), RenderSemanticsAnnotations#5d60b@Offset(290.0, 181.0), RenderSemanticsAnnotations#6c0f5@Offset(290.0, 181.0), RenderTapRegionSurface#36a3b@Offset(290.0, 181.0), RenderSemanticsAnnotations#b5b50@Offset(290.0, 181.0), RenderSemanticsAnnotations#3d26a@Offset(290.0, 181.0), RenderRepaintBoundary#16745@Offset(290.0, 181.0), HitTestEntry<HitTestTarget>#34da5(_ReusableRenderView#18e15), HitTestEntry<HitTestTarget>#511b5(<ConfigurationCaptureBinding>))
+#0      WidgetController._getElementPoint (package:flutter_test/src/controller.dart:2165:25)
+#1      WidgetController.getCenter (package:flutter_test/src/controller.dart:1947:12)
+#2      WidgetController.tap (package:flutter_test/src/controller.dart:1080:7)
+#3      _openFilter (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/design/command_blocks_review_test.dart:136:16)
+<asynchronous suspension>
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/design/command_blocks_review_test.dart:176:5)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+#7      StackZoneSpecification._registerCallback.<anonymous closure> (package:stack_trace/src/stack_zone_specification.dart:114:42)
+<asynchronous suspension>
+To silence this warning, pass "warnIfMissed: false" to "tap()".
+To make this warning fatal, set WidgetController.hitTestWarningShouldBeFatal to true.
+
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: exactly one matching candidate
+  Actual: _TextWidgetFinder:<Found 0 widgets with text "无匹配结果": []>
+   Which: means none were found but one was expected
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/design/command_blocks_review_test.dart:181:5)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/design/command_blocks_review_test.dart line 181
+The test description was:
+  round 1 distinguishes no matches from an empty command
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:01 +0 -2: round 1 distinguishes no matches from an empty command [E]
+  Test failed. See exception logs above.
+  The test description was: round 1 distinguishes no matches from an empty command
+
+00:01 +0 -2: (tearDownAll)
+00:01 +0 -2: Some tests failed.
+
+Failing tests:
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/test/design/command_blocks_review_test.dart: round 1 distinguishes no matches from an empty command
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/test/design/command_blocks_review_test.dart: round 1 distinguishes waiting from completed empty output

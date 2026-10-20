@@ -1,0 +1,4 @@
+2026-10-03 — read-only cua.getState during reader edge-selection validation.
+Native apps returned an empty inventory with this error:
+Native apps: Error: The Mac is locked and automatic unlock could not unlock it. Ask the user to unlock the Mac manually before continuing.
+No new native integration process was started. Widget regressions proceeded independently.

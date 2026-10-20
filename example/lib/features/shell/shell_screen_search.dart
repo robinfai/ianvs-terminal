@@ -894,6 +894,7 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
                 ),
               ),
               PopupMenuButton<terminal.TerminalSearchMode>(
+                popUpAnimationStyle: appDialogAnimation(context),
                 key: const Key('mobile-terminal-search-options'),
                 tooltip: context.l10n.mobileAdvanced,
                 icon: const Icon(Icons.tune_rounded),

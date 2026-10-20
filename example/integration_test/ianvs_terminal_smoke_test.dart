@@ -110,7 +110,12 @@ Future<void> _waitForTab(
 void _expectSelectedTab(WidgetTester tester, String sessionId) {
   expect(
     tester.getSemantics(find.bySemanticsIdentifier('shell-tab-$sessionId')),
-    matchesSemantics(hasSelectedState: true, isSelected: true, isButton: true),
+    matchesSemantics(
+      hasSelectedState: true,
+      isSelected: true,
+      isButton: true,
+      hasTapAction: true,
+    ),
   );
 }
 

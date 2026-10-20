@@ -1,0 +1,56 @@
+{
+  "stage": "passed",
+  "lastStage": "fullscreen-verified",
+  "consecutiveLsBlocks": 2,
+  "screen": {
+    "width": 402.0,
+    "height": 874.0,
+    "os": "Version 27.0 (Build 24A437)"
+  },
+  "previewHeight": 237.0,
+  "keyboardInset": 329.0,
+  "forwardOffsets": [
+    0.0,
+    547.5573141096546,
+    1108.6226746793618,
+    1670.7933320366806,
+    2233.0631480731727,
+    2796.8368944975555,
+    3359.0764859513642,
+    3921.3522720893716,
+    4483.631627222963
+  ],
+  "restoredReaderOffset": 4573.0,
+  "livePausedOffset": 877.98159961413,
+  "normalTerminalSize": [
+    402.0,
+    664.0
+  ],
+  "normalGrid": [
+    45,
+    29
+  ],
+  "topTerminalSize": [
+    402.0,
+    664.0
+  ],
+  "topGrid": [
+    45,
+    29
+  ],
+  "vimTerminalSize": [
+    402.0,
+    664.0
+  ],
+  "vimGrid": [
+    45,
+    29
+  ],
+  "fullscreenPrograms": [
+    "top",
+    "vim"
+  ],
+  "results": {
+    "physical iPhone SSH command block reading": "success"
+  }
+}

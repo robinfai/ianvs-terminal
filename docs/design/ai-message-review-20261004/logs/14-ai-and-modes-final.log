@@ -1,0 +1,358 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_recovery_test.dart
+00:00 +0: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_recovery_test.dart: disconnect revokes approval; recovery keeps task, draft and attachments
+00:00 +1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_recovery_test.dart: disconnect cancels inference and ignores its late proposal
+00:00 +2: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_recovery_test.dart: terminal recovery cannot erase an independent authentication error
+00:00 +3: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_recovery_test.dart: unknown receipt blocks continuation until the original submission is checked
+00:00 +4: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_recovery_test.dart: disconnected native receipts can resolve acceptance without resuming
+00:00 +5: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_recovery_test.dart: simultaneous terminal checks share one read and do not send input
+00:00 +6: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_recovery_test.dart: terminal failure during explicit interrupt can be checked without retry
+00:00 +7: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_recovery_test.dart: late failed check cannot change the newly selected task
+00:00 +8: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_recovery_test.dart: takeover closes tool history and continues only after checking receipt
+00:00 +9: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/bridge_permissions_test.dart: Scoped bridge access allows only one access to an observed Trail tool in the current session
+00:00 +10: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/bridge_permissions_test.dart: Scoped bridge access denies host tools, unknown tools, stale calls and inactive sessions
+00:00 +11: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/bridge_permissions_test.dart: Scoped bridge access cancellation clears all bridge access
+00:00 +12: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_acp_test.dart: ACP terminal ownership finished ACP prompt preserves approval and resumes once
+00:00 +13: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_acp_test.dart: ACP terminal ownership finished ACP prompt preserves execution and resumes once
+00:00 +14: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_acp_test.dart: ACP terminal ownership finished ACP prompt preserves review and resumes once
+00:00 +15: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_acp_test.dart: ACP terminal ownership unchanged settings preserve the agent conversation
+00:00 +16: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_acp_test.dart: ACP terminal ownership a changed agent starts a new task and keeps old tasks as evidence
+00:00 +17: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_acp_test.dart: ACP terminal ownership step limit stops repeated observations without terminal writes
+00:00 +18: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_acp_test.dart: ACP terminal ownership fresh state observations authorize only the supplied block citation
+00:00 +19: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_acp_test.dart: ACP terminal ownership waits for exact revision approval and keeps the real receipt
+00:00 +20: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_acp_test.dart: ACP terminal ownership rejects a stale observation before creating a proposal
+00:00 +21: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_acp_test.dart: ACP terminal ownership adopts delayed approved cd through get_terminal_state
+00:00 +22: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_acp_test.dart: ACP terminal ownership adopts delayed approved cd through read_screen
+00:00 +23: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_acp_test.dart: ACP terminal ownership approved block cannot authorize a unowned-block change
+00:00 +24: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_acp_test.dart: ACP terminal ownership approved block cannot authorize a ssh-node change
+00:00 +25: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_acp_test.dart: ACP terminal ownership approved block cannot authorize a manual-input change
+00:00 +26: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_acp_test.dart: ACP terminal ownership revokes approval after an SSH node change
+00:00 +27: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_acp_test.dart: ACP terminal ownership manual input cancels queued agent input without sending Ctrl+C
+00:00 +28: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_acp_test.dart: ACP terminal ownership deduplicates an operation even when its previous context is stale
+00:00 +29: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_acp_test.dart: ACP terminal ownership rejects changed arguments under an existing operation ID
+00:00 +30: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_acp_test.dart: ACP terminal ownership does not replace a pending approval with a parallel tool request
+00:00 +31: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_acp_test.dart: ACP terminal ownership pause during submission retains unknown receipt and permits inspection only
+00:00 +32: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_acp_test.dart: ACP terminal ownership switching tasks never routes late tools to the new task
+00:00 +33: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_acp_test.dart: ACP terminal ownership streamed reply chunks form one message
+test/ai/terminal_ai_workspace_test.dart:135:46: Error: Too few positional arguments: 1 required, 0 given.
+      api.respond = (_) async => commandReply();
+                                             ^
+test/ai/terminal_ai_test.dart:74:9: Context: Found this candidate, but the arguments don't match.
+AiReply commandReply(String command, {String id = 'call-1'}) => AiReply(
+        ^^^^^^^^^^^^
+00:00 +34: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_widgets_test.dart: historical approval notice does not request another submission
+00:01 +34 -1: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart [E]
+  Failed to load "/Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart":
+  Compilation failed for testPath=/Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: test/ai/terminal_ai_workspace_test.dart:135:46: Error: Too few positional arguments: 1 required, 0 given.
+        api.respond = (_) async => commandReply();
+                                               ^
+  test/ai/terminal_ai_test.dart:74:9: Context: Found this candidate, but the arguments don't match.
+  AiReply commandReply(String command, {String id = 'call-1'}) => AiReply(
+          ^^^^^^^^^^^^
+  .
+00:01 +35 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:01 +36 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:01 +37 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:01 +38 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:02 +39 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:02 +40 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:02 +41 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: approved desktop result restores input for a same-task follow-up
+00:02 +42 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/ai_settings_discovery_test.dart: approval preference is explicit, saved, and survives backend changes
+00:02 +43 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_widgets_test.dart: connection types keep separate model choices
+00:02 +44 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_widgets_test.dart: connection types keep separate model choices
+00:02 +45 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result preserves historical reading and keyboard owner
+00:02 +46 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result preserves historical reading and keyboard owner
+00:02 +47 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_widgets_test.dart: ACP settings round trip without an API key or starting an agent
+00:02 +48 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_widgets_test.dart: ACP settings round trip without an API key or starting an agent
+00:02 +49 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_widgets_test.dart: ACP settings round trip without an API key or starting an agent
+00:02 +50 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_widgets_test.dart: ACP settings round trip without an API key or starting an agent
+00:02 +51 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_widgets_test.dart: ACP settings round trip without an API key or starting an agent
+00:02 +52 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/ai_settings_discovery_test.dart: saved custom settings stay unchanged until explicit detection
+00:02 +53 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/ai_settings_discovery_test.dart: saved custom settings stay unchanged until explicit detection
+00:02 +54 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/ai_settings_discovery_test.dart: saved custom settings stay unchanged until explicit detection
+00:02 +55 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result preserves selected assistant text
+00:02 +56 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result preserves selected assistant text
+00:02 +57 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result preserves selected assistant text
+00:02 +58 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result preserves selected assistant text
+00:02 +59 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result preserves selected assistant text
+00:02 +60 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result preserves selected assistant text
+00:02 +61 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result preserves selected assistant text
+00:02 +62 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result preserves selected assistant text
+00:02 +63 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result preserves selected assistant text
+00:02 +64 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result preserves selected assistant text
+00:02 +65 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result preserves selected assistant text
+00:02 +66 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result preserves selected assistant text
+00:02 +67 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_widgets_test.dart: task status and resume remain reachable while reading history
+00:02 +68 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_widgets_test.dart: task status and resume remain reachable while reading history
+00:02 +69 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_widgets_test.dart: task status and resume remain reachable while reading history
+00:02 +70 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_widgets_test.dart: task status and resume remain reachable while reading history
+00:02 +71 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/ai_settings_discovery_test.dart: manual edit during detection is not overwritten
+00:02 +72 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result never moves focus out of connection settings
+00:02 +73 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result never moves focus out of connection settings
+00:02 +74 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result never moves focus out of connection settings
+00:02 +75 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result never moves focus out of connection settings
+00:02 +76 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result never moves focus out of connection settings
+00:02 +77 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result never moves focus out of connection settings
+00:02 +78 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result never moves focus out of connection settings
+00:02 +79 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result never moves focus out of connection settings
+00:02 +80 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result never moves focus out of connection settings
+00:02 +81 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result never moves focus out of connection settings
+00:02 +82 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result never moves focus out of connection settings
+00:02 +83 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result never moves focus out of connection settings
+00:02 +84 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result never moves focus out of connection settings
+00:02 +85 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result never moves focus out of connection settings
+00:02 +86 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result never moves focus out of connection settings
+00:02 +87 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result never moves focus out of connection settings
+00:02 +88 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result never moves focus out of connection settings
+00:02 +89 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result never moves focus out of connection settings
+00:02 +90 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: finished result never moves focus out of connection settings
+00:03 +91 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/ai_settings_discovery_test.dart: switching connection type discards a pending result
+00:03 +92 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/ai_settings_discovery_test.dart: switching connection type discards a pending result
+00:03 +93 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: phone result does not reopen the keyboard after command review
+00:03 +94 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: phone result does not reopen the keyboard after command review
+00:03 +95 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: phone result does not reopen the keyboard after command review
+00:03 +96 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: phone result does not reopen the keyboard after command review
+00:03 +97 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_widgets_test.dart: AI panel iOS light at narrow width and large text
+00:03 +98 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_test.dart: bounded observation wakes on command completion without input
+00:03 +99 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/ai_settings_discovery_test.dart: closing while detection is pending is safe
+00:03 +100 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: desktop background completion does not take keyboard focus
+00:03 +101 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: desktop background completion does not take keyboard focus
+00:03 +102 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: desktop background completion does not take keyboard focus
+00:03 +103 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: desktop background completion does not take keyboard focus
+00:03 +104 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: desktop background completion does not take keyboard focus
+00:03 +105 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: desktop background completion does not take keyboard focus
+00:03 +106 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: desktop background completion does not take keyboard focus
+00:03 +107 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/ai_settings_discovery_test.dart: timeout returns to manual configuration
+00:03 +108 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/ai_settings_discovery_test.dart: timeout returns to manual configuration
+00:03 +109 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/ai_settings_discovery_test.dart: timeout returns to manual configuration
+00:03 +110 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/ai_settings_discovery_test.dart: timeout returns to manual configuration
+00:03 +111 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/ai_settings_discovery_test.dart: timeout returns to manual configuration
+00:03 +112 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/ai_settings_discovery_test.dart: timeout returns to manual configuration
+00:03 +113 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/ai_settings_discovery_test.dart: timeout returns to manual configuration
+00:03 +114 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/ai_settings_discovery_test.dart: timeout returns to manual configuration
+00:03 +115 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/ai_settings_discovery_test.dart: timeout returns to manual configuration
+00:03 +116 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/ai_settings_discovery_test.dart: timeout returns to manual configuration
+00:03 +117 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/ai_settings_discovery_test.dart: timeout returns to manual configuration
+00:03 +118 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/ai_settings_discovery_test.dart: timeout returns to manual configuration
+00:03 +119 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/ai_settings_discovery_test.dart: timeout returns to manual configuration
+00:03 +120 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/ai_settings_discovery_test.dart: timeout returns to manual configuration
+00:03 +121 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/ai_settings_discovery_test.dart: timeout returns to manual configuration
+00:03 +122 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/ai_settings_discovery_test.dart: timeout returns to manual configuration
+00:03 +123 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/ai_settings_discovery_test.dart: timeout returns to manual configuration
+00:03 +124 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/ai_settings_discovery_test.dart: timeout returns to manual configuration
+00:03 +125 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: role text contrast in Brightness.dark
+00:03 +126 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: role text contrast in Brightness.dark
+00:03 +127 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: role text contrast in Brightness.dark
+00:03 +128 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: role text contrast in Brightness.dark
+00:03 +129 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: role text contrast in Brightness.dark
+00:03 +130 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: role text contrast in Brightness.dark
+00:03 +131 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/ai_settings_discovery_test.dart: compact Brightness.light discovery error scrolls without overflow
+00:03 +132 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/ai_settings_discovery_test.dart: compact Brightness.light discovery error scrolls without overflow
+00:03 +133 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_test.dart: a follow-up retains the goal after a long turn hits its limit
+00:03 +134 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_test.dart: a follow-up retains the goal after a long turn hits its limit
+00:03 +135 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_test.dart: a follow-up retains the goal after a long turn hits its limit
+00:04 +136 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_test.dart: a follow-up retains the goal after a long turn hits its limit
+00:04 +137 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: reply preserves keyboard traversal to another task control
+00:04 +138 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: reply preserves keyboard traversal to another task control
+00:04 +139 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +140 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +141 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +142 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +143 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +144 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +145 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +146 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +147 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +148 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +149 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +150 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +151 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +152 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +153 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +154 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +155 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +156 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +157 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +158 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +159 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +160 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +161 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +162 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +163 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +164 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +165 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +166 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +167 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +168 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +169 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +170 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +171 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +172 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +173 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +174 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +175 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +176 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +177 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +178 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +179 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +180 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +181 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +182 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +183 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +184 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +185 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +186 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone true, dark false)
+00:04 +187 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: late reply does not focus a different task
+00:04 +188 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: late reply does not focus a different task
+00:04 +189 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: late reply does not focus a different task
+00:04 +190 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: late reply does not focus a different task
+00:04 +191 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: late reply does not focus a different task
+00:04 +192 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: late reply does not focus a different task
+00:04 +193 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: late reply does not focus a different task
+00:04 +194 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: late reply does not focus a different task
+00:04 +195 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: late reply does not focus a different task
+00:04 +196 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: late reply does not focus a different task
+00:04 +197 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: late reply does not focus a different task
+00:04 +198 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: late reply does not focus a different task
+00:04 +199 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_focus_test.dart: late reply does not focus a different task
+00:04 +200 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: model markdown is readable and selectable (phone false, dark false)
+00:04 +201 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: evidence returns to its task outside window chrome (dark false, phone false)
+00:04 +202 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: evidence returns to its task outside window chrome (dark false, phone false)
+00:05 +203 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: reduced motion session menus preserve input and grid on TargetPlatform.macOS
+00:05 +204 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: reduced motion session menus preserve input and grid on TargetPlatform.macOS
+00:05 +205 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: reduced motion session menus preserve input and grid on TargetPlatform.macOS
+00:05 +206 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: reduced motion session menus preserve input and grid on TargetPlatform.macOS
+00:05 +207 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: reduced motion session menus preserve input and grid on TargetPlatform.macOS
+00:06 +208 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: reduced motion session menus preserve input and grid on TargetPlatform.macOS
+00:06 +209 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: reduced motion session menus preserve input and grid on TargetPlatform.macOS
+00:06 +210 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: reduced motion session menus preserve input and grid on TargetPlatform.macOS
+00:06 +211 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: reduced motion session menus preserve input and grid on TargetPlatform.macOS
+00:06 +212 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: reduced motion session menus preserve input and grid on TargetPlatform.macOS
+00:06 +213 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: reduced motion session menus preserve input and grid on TargetPlatform.macOS
+00:06 +214 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: overlapping citations from different retained versions remain ambiguous
+00:06 +215 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: reduced motion session menus preserve input and grid on TargetPlatform.iOS
+00:06 +216 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: reduced motion session menus preserve input and grid on TargetPlatform.iOS
+00:06 +217 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: reduced motion session menus preserve input and grid on TargetPlatform.iOS
+00:07 +218 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+
+Warning: A call to tap() with finder "Found 1 widget with key [<'ai-terminal-settings'>]: [
+  TextButton-[<'ai-terminal-settings'>](dirty, dependencies: [IconTheme, InheritedCupertinoTheme, MediaQuery, _InheritedTheme, _LocalizationsScope-[GlobalKey#7cc2e], _ScrollableScope], state: _ButtonStyleState#bc24a),
+]" derived an Offset (Offset(512.1, 337.0)) that would not hit test on the specified widget.
+Maybe the widget is actually off-screen, or another widget is obscuring it, or the widget cannot receive pointer events.
+The finder corresponds to this RenderBox: RenderSemanticsAnnotations#72b67 relayoutBoundary=up8 NEEDS-PAINT
+The hit test result at that offset is: HitTestResult(RenderPointerListener#30c8b@Offset(512.1, 337.0), RenderSemanticsAnnotations#5b666@Offset(512.1, 337.0), RenderSemanticsAnnotations#fc695@Offset(512.1, 337.0), RenderSemanticsAnnotations#6bfb3@Offset(512.1, 337.0), RenderSemanticsAnnotations#1a7df@Offset(512.1, 337.0), RenderTapRegionSurface#25608@Offset(512.1, 337.0), RenderSemanticsAnnotations#56aa5@Offset(512.1, 337.0), RenderSemanticsAnnotations#4b335@Offset(512.1, 337.0), RenderSemanticsAnnotations#b5a84@Offset(512.1, 337.0), RenderRepaintBoundary#e1825@Offset(512.1, 337.0), HitTestEntry<HitTestTarget>#dda8c(_ReusableRenderView#81327), HitTestEntry<HitTestTarget>#ab7c9(<ConfigurationCaptureBinding>))
+#0      WidgetController._getElementPoint (package:flutter_test/src/controller.dart:2165:25)
+#1      WidgetController.getCenter (package:flutter_test/src/controller.dart:1947:12)
+#2      WidgetController.tap (package:flutter_test/src/controller.dart:1080:7)
+#3      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart:433:20)
+<asynchronous suspension>
+#4      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#5      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+#6      StackZoneSpecification._registerCallback.<anonymous closure> (package:stack_trace/src/stack_zone_specification.dart:114:42)
+<asynchronous suspension>
+To silence this warning, pass "warnIfMissed: false" to "tap()".
+To make this warning fatal, set WidgetController.hitTestWarningShouldBeFatal to true.
+
+00:08 +219 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on iOS
+
+Warning: A call to tap() with finder "Found 1 widget with key [<'ai-terminal-settings'>]: [
+  TextButton-[<'ai-terminal-settings'>](dirty, dependencies: [IconTheme, InheritedCupertinoTheme, MediaQuery, _InheritedTheme, _LocalizationsScope-[GlobalKey#c87e1], _ScrollableScope], state: _ButtonStyleState#23a2e),
+]" derived an Offset (Offset(238.3, 518.0)) that would not hit test on the specified widget.
+Maybe the widget is actually off-screen, or another widget is obscuring it, or the widget cannot receive pointer events.
+The finder corresponds to this RenderBox: RenderSemanticsAnnotations#1f47b relayoutBoundary=up8 NEEDS-PAINT
+The hit test result at that offset is: HitTestResult(RenderPointerListener#3f43d@Offset(238.3, 518.0), RenderSemanticsAnnotations#84ed2@Offset(238.3, 518.0), RenderSemanticsAnnotations#23e60@Offset(238.3, 518.0), RenderSemanticsAnnotations#541ad@Offset(238.3, 518.0), RenderSemanticsAnnotations#5ee4a@Offset(238.3, 518.0), RenderTapRegionSurface#c4af5@Offset(238.3, 518.0), RenderSemanticsAnnotations#87ecb@Offset(238.3, 518.0), RenderSemanticsAnnotations#43692@Offset(238.3, 518.0), RenderSemanticsAnnotations#e956f@Offset(238.3, 518.0), RenderRepaintBoundary#b7335@Offset(238.3, 518.0), HitTestEntry<HitTestTarget>#849e3(_ReusableRenderView#81327), HitTestEntry<HitTestTarget>#e6ea1(<ConfigurationCaptureBinding>))
+#0      WidgetController._getElementPoint (package:flutter_test/src/controller.dart:2165:25)
+#1      WidgetController.getCenter (package:flutter_test/src/controller.dart:1947:12)
+#2      WidgetController.tap (package:flutter_test/src/controller.dart:1080:7)
+#3      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart:433:20)
+<asynchronous suspension>
+#4      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#5      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+#6      StackZoneSpecification._registerCallback.<anonymous closure> (package:stack_trace/src/stack_zone_specification.dart:114:42)
+<asynchronous suspension>
+To silence this warning, pass "warnIfMissed: false" to "tap()".
+To make this warning fatal, set WidgetController.hitTestWarningShouldBeFatal to true.
+
+00:09 +220 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone can recheck current support without changing mode or task
+00:10 +221 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:11 +222 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:12 +223 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership landscape
+00:13 +224 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership short-dark
+00:13 +225 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone session menu preserves the AI task through capability changes
+00:14 +226 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: ['echo 移动端']
+  Actual: []
+   Which: at location [0] is [] which shorter than expected
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart:1028:9)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart line 1028
+The test description was:
+  iOS negotiates Blocks and preserves manual Normal
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:15 +226 -2: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal [E]
+  Test failed. See exception logs above.
+  The test description was: iOS negotiates Blocks and preserves manual Normal
+  
+Warning: At least one test in this suite creates an HttpClient. When running a test suite that uses
+TestWidgetsFlutterBinding, all HTTP requests will return status code 400, and no network request
+will actually be made. Any test expecting a real network connection and status code will fail.
+To test code that needs an HttpClient, provide your own HttpClient implementation to the code under
+test, so that your test can consistently provide a testable response to the code under test.
+00:15 +226 -2: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: android negotiates Blocks and preserves manual Normal
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: ['echo 移动端']
+  Actual: []
+   Which: at location [0] is [] which shorter than expected
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart:1028:9)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart line 1028
+The test description was:
+  android negotiates Blocks and preserves manual Normal
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:16 +226 -3: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: android negotiates Blocks and preserves manual Normal [E]
+  Test failed. See exception logs above.
+  The test description was: android negotiates Blocks and preserves manual Normal
+  
+00:16 +226 -3: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH hop and fullscreen fall back; restore remains manual
+00:16 +227 -3: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: main-screen application modes fall back without an alternate buffer
+00:17 +228 -3: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits phone with the keyboard
+00:17 +229 -3: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits landscape with the keyboard
+00:17 +230 -3: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits fixed-text-dark with the keyboard
+00:18 +231 -3: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits landscape-dark with the keyboard
+00:18 +232 -3: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits ipad with the keyboard
+00:18 +233 -3: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile settings save Normal for new sessions only
+00:19 +234 -3: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: explicit Normal preference overrides the mobile default
+00:19 +235 -3: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: (tearDownAll)
+00:19 +235 -3: Some tests failed.
+
+Failing tests:
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: android negotiates Blocks and preserves manual Normal
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal

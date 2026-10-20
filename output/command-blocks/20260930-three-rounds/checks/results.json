@@ -1,0 +1,20 @@
+{
+  "baseCommit": "dc152e649699204da22c8893f179cf687797614f",
+  "rounds": 3,
+  "captureKind": "production Flutter widgets with deterministic backend fixtures and repository fonts",
+  "physicalDeviceValidation": false,
+  "validation": {
+    "hostTests": 25,
+    "canonicalBlockTests": 21,
+    "publishedBlockTests": 21,
+    "staticAnalysis": "passed",
+    "mirrorSync": "passed"
+  },
+  "sourceSha256": {
+    "packages/ianvs_terminal/lib/src/terminal/command_block_reader.dart": "233b1f0c90450c1215ebbcd4182804b46801c3ab36028839e3fe55398d1f3561",
+    "packages/ianvs_terminal/lib/src/terminal/command_blocks_controls.dart": "68fe25c6f79b6521affe7b908045fae0d9bb82c5e20c017a5d4dfa78cad3e924",
+    "packages/ianvs_terminal_core/lib/src/terminal/command_block_reader.dart": "233b1f0c90450c1215ebbcd4182804b46801c3ab36028839e3fe55398d1f3561",
+    "packages/ianvs_terminal_core/lib/src/terminal/command_blocks_controls.dart": "68fe25c6f79b6521affe7b908045fae0d9bb82c5e20c017a5d4dfa78cad3e924",
+    "example/test/design/command_blocks_review_test.dart": "ea0696c860c4f1433c7dffc2571398d2125246ebc1315caa020953872ba481bd"
+  }
+}

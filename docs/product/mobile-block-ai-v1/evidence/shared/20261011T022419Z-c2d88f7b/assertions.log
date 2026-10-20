@@ -1,0 +1,9 @@
+Empty editor compact and task menu visible
+ASCII draft entered; expanded editor Return adds second line; Done retains both lines
+Appending CANCELLED in expanded editor then Cancel retains original draft
+Task menu and details sheet reachable
+Closing pane warns of draft loss; cancelled
+Read-only terminal shows idle prompt; explicit takeover opens manual Composer
+Executed exit via manual Composer; content becomes persistently blank
+AI toggle changes top label but body remains blank; menu works; connection list incorrectly remains ongoing; reenter remains blank
+RESULT: failed; auxiliary mirroring evidence only.

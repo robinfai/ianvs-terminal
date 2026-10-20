@@ -1,0 +1,25 @@
+{
+  "source_commit": "2d18e608c2a1149a093451b5246cb370de0167c3",
+  "started_at": "2026-10-10T09:40:47.985766+00:00",
+  "source_clean_at_launch": true,
+  "fixture_directory": "/private/tmp/trail-desktop-prd-c10-windows-1",
+  "keyboard_mode": "CUA OS keyboard/mouse events; no text-entry emulation",
+  "scope": "C9/C10 regressions and D2-T11/T14 native interactions; exact coverage pending execution and review",
+  "full_case_pass_claimed": false,
+  "ended_at": "2026-10-10T09:52:36.420829+00:00",
+  "source_commit_at_end": "2d18e608c2a1149a093451b5246cb370de0167c3",
+  "source_clean_at_end": true,
+  "runner_exit_code": 0,
+  "quit_method": "Flutter runner q; Application finished",
+  "recording_exit_code": 0,
+  "stop_reason": "Flutter accessibility bridge AXTree update errors and stale/minimal AX tree prevented reliable further normal UI automation; root stopped own fixture after preserving evidence.",
+  "recording_status": {
+    "stream_stopped_at": "2026-10-10T09:47:04.029Z",
+    "stream_error_domain": "com.apple.ScreenCaptureKit.SCStreamErrorDomain",
+    "stream_error_code": -3822,
+    "recording_finalized_at": "2026-10-10T09:47:04.065Z",
+    "duration_seconds": 312,
+    "covers_whole_app_run": false,
+    "note": "Recorder finalized exit0 before root sent Ctrl-C; later UI actions are outside the video. Stop cause not established."
+  }
+}

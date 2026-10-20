@@ -1,0 +1,155 @@
+{
+  "candidate": "19001573d9974c510e1e4cbcfeb01c94368ea157",
+  "recorded_at": "2026-10-10T07:41:57.095064+00:00",
+  "sdk_framework_revision": "058e0af2c2b57e369d905a03ac9748b0ebf543c6",
+  "scope": "Explicit preview/adapter/test/theme/font inputs; not a full dependency closure or native system font measurement.",
+  "files": [
+    {
+      "path": "pubspec.lock",
+      "role": "tracked widget-capture source/font",
+      "bytes": 26130,
+      "sha256": "5aefc9958c3f342578d95d1b64f4cf378329f23534e41331752d2d9eb2ba4529",
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/pubspec.yaml",
+      "role": "tracked widget-capture source/font",
+      "bytes": 4353,
+      "sha256": "e1ebe320c3e25860bbfc22e98d3977d100740b5897b54d657e40eccf06681302",
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/ui/previews/desktop_component_states_preview.dart",
+      "role": "tracked widget-capture source/font",
+      "bytes": 18880,
+      "sha256": "06756a853af28f465ffa6cd9f62c6a16602142217d93ea77445f8c829f86ebb6",
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/features/shell/shell_screen_preview_adapter.dart",
+      "role": "tracked widget-capture source/font",
+      "bytes": 2289,
+      "sha256": "555bab4fdc49ba5f6646313c2f3edcdf599674f0db790f0e81db12ce59b0340b",
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/test/ui/desktop_component_states_preview_test.dart",
+      "role": "tracked widget-capture source/font",
+      "bytes": 28333,
+      "sha256": "97eb14dd8a31fe008e1e4f8b1c6ca45784e1460e7c80c818a8f6145bfe87e61a",
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/test/design/visual_capture_fonts.dart",
+      "role": "tracked widget-capture source/font",
+      "bytes": 8002,
+      "sha256": "772564fac6d12d956108782b8c797818b45b1c990ec6ef57f468b6df441c2992",
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/ui/foundation/app_theme.dart",
+      "role": "tracked widget-capture source/font",
+      "bytes": 4971,
+      "sha256": "dbc7c85db85d02a44be0635961b47d24d6dd213df2dadda56f90852cdfd1e3f7",
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/ui/foundation/app_theme_tokens.dart",
+      "role": "tracked widget-capture source/font",
+      "bytes": 16571,
+      "sha256": "67274851bc1ecbdde9d709592bac8fea1c99f7b25cb8c77638e56936f1929abc",
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/ui/foundation/app_high_contrast.dart",
+      "role": "tracked widget-capture source/font",
+      "bytes": 3457,
+      "sha256": "c5cc143faded37e3896a8fc7cb297070ffd4319b6a993036ef1902c172c6366b",
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/ui/foundation/app_terminal_colors.dart",
+      "role": "tracked widget-capture source/font",
+      "bytes": 1466,
+      "sha256": "bdae4302b47d4268f080eccd51ef4fd1cf287ad46f5621990bc28747dd88c9bf",
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/lib/ui/foundation/app_motion.dart",
+      "role": "tracked widget-capture source/font",
+      "bytes": 1461,
+      "sha256": "b826ba4c54ddadbfd72502eb2c0e8ed95bc3ed569e908d7d1ff913971bce0f26",
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "packages/ianvs_terminal/lib/src/composer/composer_theme.dart",
+      "role": "tracked widget-capture source/font",
+      "bytes": 14128,
+      "sha256": "5eec72b1c9bc17b6f2f7b83f6e5e7e3e16544cab1acb6600093dbec59d3b97cb",
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "packages/ianvs_terminal_core/lib/src/composer/composer_theme.dart",
+      "role": "tracked widget-capture source/font",
+      "bytes": 14128,
+      "sha256": "5eec72b1c9bc17b6f2f7b83f6e5e7e3e16544cab1acb6600093dbec59d3b97cb",
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "native/vendor/par-term-emu-core-rust/src/screenshot/JetBrainsMono-Regular.ttf",
+      "role": "tracked widget-capture source/font",
+      "bytes": 273900,
+      "sha256": "a0bf60ef0f83c5ed4d7a75d45838548b1f6873372dfac88f71804491898d138f",
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "example/test/design/fonts/NotoSansSC-Regular.otf",
+      "role": "tracked widget-capture source/font",
+      "bytes": 8331336,
+      "sha256": "faa6c9df652116dde789d351359f3d7e5d2285a2b2a1f04a2d7244df706d5ea9",
+      "matches_candidate_blob": true
+    },
+    {
+      "path": "/Users/robinfai/development/flutter/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf",
+      "role": "pinned SDK font used by widget capture",
+      "bytes": 171676,
+      "sha256": "79e851404657dac2106b3d22ad256d47824a9a5765458edb72c9102a45816d95"
+    },
+    {
+      "path": "/Users/robinfai/development/flutter/bin/cache/artifacts/material_fonts/Roboto-Medium.ttf",
+      "role": "pinned SDK font used by widget capture",
+      "bytes": 172064,
+      "sha256": "f205cc511821ea56078a105557fcea6253129404d411c997e1866fbd006abb68"
+    },
+    {
+      "path": "/Users/robinfai/development/flutter/bin/cache/artifacts/material_fonts/Roboto-Bold.ttf",
+      "role": "pinned SDK font used by widget capture",
+      "bytes": 170760,
+      "sha256": "7d0b991ee3e0be7af01ad7ea8cd2beea6c00a25e679a0226b6737f079aafff86"
+    },
+    {
+      "path": "/Users/robinfai/development/flutter/bin/cache/artifacts/material_fonts/Roboto-Italic.ttf",
+      "role": "pinned SDK font used by widget capture",
+      "bytes": 173932,
+      "sha256": "5fce8b6f8ba9f4d19f0d535e241d56a2b8e72bb07e7df711d968d092ef7f9fca"
+    },
+    {
+      "path": "/Users/robinfai/development/flutter/bin/cache/artifacts/material_fonts/Roboto-BoldItalic.ttf",
+      "role": "pinned SDK font used by widget capture",
+      "bytes": 174952,
+      "sha256": "a4bcac14f419a97de0917198a4bc51c3ed4fc4a3db9f68a5102f23664ee01354"
+    },
+    {
+      "path": "/Users/robinfai/development/flutter/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf",
+      "role": "pinned SDK font used by widget capture",
+      "bytes": 1645184,
+      "sha256": "d9865b671a09d683d13a863089d8825e0f61a37696ce5d7d448bc8023aa62453"
+    },
+    {
+      "path": "tmp/desktop-prd-v1/iteration-1/run_component_catalogue_evidence.py",
+      "role": "untracked run helper",
+      "bytes": 4135,
+      "sha256": "2052ffc18980894e4a22646902bd6e3638007447daaba44e6b9c39999a1048b6"
+    }
+  ]
+}

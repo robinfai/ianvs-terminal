@@ -1,0 +1,337 @@
+{
+  "implementation_commit": "19001573d9974c510e1e4cbcfeb01c94368ea157",
+  "recorded_at": "2026-10-10T08:09:59.137218+00:00",
+  "scope": "D1-T01 new archive bytes only; this index excludes itself to avoid self-reference. evidence/manifest.json hashes the index.",
+  "files": [
+    {
+      "path": "evidence/D1/D1-T01/supporting/a-before.png",
+      "sha256": "1e89d8f9e06452d0e0898fa8b87e2279781714ece78eae994572806fb6273b3f",
+      "bytes": 297003,
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-tabs-1/a-before.png",
+      "copy": "original bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/shared/C8-native-tabs-1/a-before.json",
+      "sha256": "8eff3ce6b39f8e54dbcbdf3ce0196dcf270390874bac24df4ab57890cd6f5e98",
+      "bytes": 1136,
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-tabs-1/a-before.json",
+      "copy": "original bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/D1/D1-T01/supporting/b-before.png",
+      "sha256": "62ddc02405ab8662453e5648a82c7e185393ddcaccd8e4aed1ac67c3fafa4aeb",
+      "bytes": 300532,
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-tabs-1/b-before.png",
+      "copy": "original bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/shared/C8-native-tabs-1/b-before.json",
+      "sha256": "9331d92992217d3088a04287a46443971cd6b0e4ca7469db593e96cb712745a1",
+      "bytes": 1239,
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-tabs-1/b-before.json",
+      "copy": "original bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/D1/D1-T01/after/after-01.png",
+      "sha256": "486cca82c80bf682033e94d8a641af8138886e2318c57f7719a217e5af6695d9",
+      "bytes": 304935,
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-tabs-1/D1-T01-F01.png",
+      "copy": "original bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/shared/C8-native-tabs-1/D1-T01-F01.json",
+      "sha256": "3facf5e06378582a9dcf1186dbcec8b1567c04c035a98fe5d6309845d5186266",
+      "bytes": 1241,
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-tabs-1/D1-T01-F01.json",
+      "copy": "original bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/D1/D1-T01/after/after-02.png",
+      "sha256": "7d810ec01076656c376df268d78c6df5c29d801ea9fe56e5ff22205cd66ea38a",
+      "bytes": 255813,
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-tabs-1/D1-T01-F02.png",
+      "copy": "original bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/shared/C8-native-tabs-1/D1-T01-F02.json",
+      "sha256": "7aacd487b4e6c662c219d162738dc112583de8915e7268c9cc683d55a51a1fc5",
+      "bytes": 1224,
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-tabs-1/D1-T01-F02.json",
+      "copy": "original bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/D1/D1-T01/supporting/a-observer-probe.png",
+      "sha256": "63a90afe7ee871b14dae278fbc988ee96553453ea626937034421b0fbf75c375",
+      "bytes": 236736,
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-tabs-1/a-observer-probe.png",
+      "copy": "original bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/shared/C8-native-tabs-1/a-observer-probe.json",
+      "sha256": "65cedaf776977d97834a839fb4ae54908116b9fb985b96696aaf355b99b46831",
+      "bytes": 1230,
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-tabs-1/a-observer-probe.json",
+      "copy": "original bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/D1/D1-T01/supporting/a-ai-restored.png",
+      "sha256": "7d810ec01076656c376df268d78c6df5c29d801ea9fe56e5ff22205cd66ea38a",
+      "bytes": 255813,
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-tabs-1/a-ai-restored.png",
+      "copy": "original bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/shared/C8-native-tabs-1/a-ai-restored.json",
+      "sha256": "c09b4412cb17fa09001bfb7bcc1be8122d4b194b1643635d6307f93a1b996cbf",
+      "bytes": 1227,
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-tabs-1/a-ai-restored.json",
+      "copy": "original bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/D1/D1-T01/supporting/b-command-restored.png",
+      "sha256": "6d129f67a5ca261969c47787cc47de5f4824d00de9501b2016ba1e0020335ee0",
+      "bytes": 305984,
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-tabs-1/b-command-restored.png",
+      "copy": "original bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/shared/C8-native-tabs-1/b-command-restored.json",
+      "sha256": "5155bc30e2bd71f91ade131f7befa5d4216f0722a469ab650f32549dbc4f3084",
+      "bytes": 1232,
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-tabs-1/b-command-restored.json",
+      "copy": "original bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/D1/D1-T01/supporting/a-ai-after-b.png",
+      "sha256": "bac9b25294b2557f74e6f159d40618e7a4ce156d8fe01efe3abb268319845a3a",
+      "bytes": 255725,
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-tabs-1/a-ai-after-b.png",
+      "copy": "original bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/shared/C8-native-tabs-1/a-ai-after-b.json",
+      "sha256": "5f1a8c5e3679f2d4fad87da3810e95bfd1c34fe34e6975d91f2f4daa08d0c0ac",
+      "bytes": 1226,
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-tabs-1/a-ai-after-b.json",
+      "copy": "original bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/D1/D1-T01/supporting/a-takeover-draft.png",
+      "sha256": "651c763daef6249ce16f18ea59944914f8d356b29f489d503cbb678304afbbf2",
+      "bytes": 304630,
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-tabs-1/a-takeover-draft.png",
+      "copy": "original bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/shared/C8-native-tabs-1/a-takeover-draft.json",
+      "sha256": "7c5d336df8c6d23d3185a1f3a0df195db8c27de86586f147062c94c2e15ec1bd",
+      "bytes": 1230,
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-tabs-1/a-takeover-draft.json",
+      "copy": "original bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/D1/D1-T01/supporting/a-after.png",
+      "sha256": "bb5b771a41e267d4436865a744dcc74f25fb7c782ecf2489fb7611cdcc84da16",
+      "bytes": 362300,
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-tabs-1/a-after.png",
+      "copy": "original bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/shared/C8-native-tabs-1/a-after.json",
+      "sha256": "7770f28a2fe2d3e4a90442439044954eb1b18db026ec87554cac4ffddc505997",
+      "bytes": 1221,
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-tabs-1/a-after.json",
+      "copy": "original bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/D1/D1-T01/supporting/b-ai-restored.png",
+      "sha256": "38058ee73345911c7611ebe917b8064ff0055ae2a13533f471ad6edb613264e8",
+      "bytes": 255296,
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-tabs-1/b-ai-restored.png",
+      "copy": "original bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/shared/C8-native-tabs-1/b-ai-restored.json",
+      "sha256": "727e98c815e90213e38f63892bab9c6fa277c6d5e9a0c87f96c6b6583fec748f",
+      "bytes": 1227,
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-tabs-1/b-ai-restored.json",
+      "copy": "original bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/D1/D1-T01/supporting/b-takeover-draft.png",
+      "sha256": "6d129f67a5ca261969c47787cc47de5f4824d00de9501b2016ba1e0020335ee0",
+      "bytes": 305984,
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-tabs-1/b-takeover-draft.png",
+      "copy": "original bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/shared/C8-native-tabs-1/b-takeover-draft.json",
+      "sha256": "5570302d83a7c2b03bfe5626b65b1cfa134f82520a6601f0666e8905fbe1dc23",
+      "bytes": 1230,
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-tabs-1/b-takeover-draft.json",
+      "copy": "original bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/D1/D1-T01/supporting/b-after.png",
+      "sha256": "905f905de744284070c6a80670eecf23c291545c4596f6940ed05b9fd0c5182c",
+      "bytes": 365019,
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-tabs-1/b-after.png",
+      "copy": "original bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/shared/C8-native-tabs-1/b-after.json",
+      "sha256": "cab5b295ae2b33bc18bfa50e2e4aef2a42ace7b29de6ad152e6aab6b0b17b463",
+      "bytes": 1221,
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-tabs-1/b-after.json",
+      "copy": "original bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/D1/D1-T01/supporting/a-final.png",
+      "sha256": "bb5b771a41e267d4436865a744dcc74f25fb7c782ecf2489fb7611cdcc84da16",
+      "bytes": 362300,
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-tabs-1/a-final.png",
+      "copy": "original bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/shared/C8-native-tabs-1/a-final.json",
+      "sha256": "623da44d27d9232fb1ecbf83031854c97a3b90462e3eb6cfb3cf14cd816bc4e1",
+      "bytes": 1221,
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-tabs-1/a-final.json",
+      "copy": "original bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/shared/C8-native-tabs-1/manual-run.json",
+      "sha256": "d4f16dbb394fe7bf610760d41a3fac0f7f84645294dc31fe50744171b53f5242",
+      "bytes": 3591,
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-tabs-1/manual-run.json",
+      "copy": "original bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/shared/C8-native-tabs-1/operator-observations.log",
+      "sha256": "b6542305a8e6ff68803dddd27e93472eac201bbb8b623ff3e9abba3171c192e2",
+      "bytes": 3759,
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-tabs-1/operator-observations.log",
+      "copy": "original bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/shared/C8-native-tabs-1/launch.log",
+      "sha256": "bc68af1b2d7237441979415f43ccc938381721dec9ca4a52f2177d604e9a2f6f",
+      "bytes": 8705,
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-tabs-1/launch.log",
+      "copy": "original bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/shared/C8-native-tabs-1/independent-visual-review.log",
+      "sha256": "d75d37e8b996b7283a563c38d4d0943d0ef44965f911226a4458cbda7f48a8f2",
+      "bytes": 10147,
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-tabs-1/independent-visual-review.log",
+      "copy": "original bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/shared/C8-native-tabs-1/helper-capture_tabs_checkpoint.py.txt",
+      "sha256": "3dbd7c817927532a104bbaf14e69a8ed25b581b2ec1f51ec6f4af038b1c81298",
+      "bytes": 1594,
+      "source": "tmp/desktop_prd_capture/capture_tabs_checkpoint.py",
+      "copy": "original bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/shared/C8-native-tabs-1/helper-window_inventory.swift.txt",
+      "sha256": "f3177aac1dfc6ae137f360aeb4ce3e604a01079f8971797d1898560dceeccdfe",
+      "bytes": 1613,
+      "source": "tmp/desktop_prd_capture/window_inventory.swift",
+      "copy": "original bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/shared/C8-native-tabs-1/helper-snapshot-index.json",
+      "sha256": "7432fe66260c5c9851986af2c6aceb40e650cbf5932d3cf9c1e31a37adf9fa8e",
+      "bytes": 1158,
+      "source": "derived archive metadata",
+      "copy": "new derived record; original run data untouched"
+    },
+    {
+      "path": "evidence/shared/C8-native-tabs-1/source-input-hashes.json",
+      "sha256": "9b3024e0eb0b2f6a3657c5502320420e17d2497f3c15b2aed7e9eeae62e9d8a6",
+      "bytes": 27206,
+      "source": "derived archive metadata",
+      "copy": "new derived record; original run data untouched"
+    },
+    {
+      "path": "evidence/shared/C8-native-tabs-1/binary-input-hashes.json",
+      "sha256": "8e03cbf73d147864c2d71becadd1bb944bcbc1b1525c6e65fda4983ed59ffd25",
+      "bytes": 2233,
+      "source": "derived archive metadata",
+      "copy": "new derived record; original run data untouched"
+    },
+    {
+      "path": "evidence/shared/C8-native-tabs-1/sdk-FlutterEngine.mm.txt",
+      "sha256": "dab7e1748a404d3562e27287b0d2e62e3334c5f15ab0db4ee0819d64a8da6b4b",
+      "bytes": 72138,
+      "source": "Flutter SDK 058e0af2c2b57e369d905a03ac9748b0ebf543c6:engine/src/flutter/shell/platform/darwin/macos/framework/Source/FlutterEngine.mm",
+      "copy": "original SDK source bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/shared/C8-native-tabs-1/sdk-media-query.dart.txt",
+      "sha256": "48d128afaa61e47a52f54d8af7313ccb8b3a827bc56a3c0500e42689c010f081",
+      "bytes": 105785,
+      "source": "Flutter SDK 058e0af2c2b57e369d905a03ac9748b0ebf543c6:packages/flutter/lib/src/widgets/media_query.dart",
+      "copy": "original SDK source bytes",
+      "modified": false
+    },
+    {
+      "path": "evidence/shared/C8-native-tabs-1/font-scale-source-basis.json",
+      "sha256": "4d6ea81aa0795dbe954f302886c57428155b495143ef91fccb6f89a74a6b3ee7",
+      "bytes": 1717,
+      "source": "derived archive metadata",
+      "copy": "new derived record; original run data untouched"
+    },
+    {
+      "path": "evidence/shared/C8-native-tabs-1/environment.json",
+      "sha256": "ba7a8533bdcba4dd3cf763a8e46f83808a870be7e3dd8cbc7b5a0c91d6df94c8",
+      "bytes": 2019,
+      "source": "derived archive metadata",
+      "copy": "new derived record; original run data untouched"
+    },
+    {
+      "path": "evidence/shared/C8-native-tabs-1/case-assessment.json",
+      "sha256": "280e180cda71d7f3865233801348d7b1293b38cefd6aa51c575a812cf3b4808a",
+      "bytes": 9335,
+      "source": "derived archive metadata",
+      "copy": "new derived record; original run data untouched"
+    }
+  ]
+}

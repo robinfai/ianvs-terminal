@@ -7061,8 +7061,14 @@ abstract class AppLocalizations {
   /// No description provided for @developmentMasterKeyStorageDescription.
   ///
   /// In en, this message translates to:
-  /// **'The development master key stays in this Mac’s local Keychain. It does not sync to iCloud or share storage with the release app.'**
+  /// **'The development master key is stored in a local file accessible only to your user account. It does not access Keychain, sync to iCloud, or share storage with the release app.'**
   String get developmentMasterKeyStorageDescription;
+
+  /// No description provided for @acceptanceDeviceOnlyMasterKeyStorageDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'This acceptance build keeps its master key in this device\'\'s Keychain. It does not sync to iCloud or share the release app\'\'s key. Encrypted data cannot be restored on another device.'**
+  String get acceptanceDeviceOnlyMasterKeyStorageDescription;
 
   /// No description provided for @syncLocalOnly.
   ///
@@ -7673,13 +7679,13 @@ abstract class AppLocalizations {
   /// No description provided for @shellCapabilityVariables.
   ///
   /// In en, this message translates to:
-  /// **'Custom shell variables'**
+  /// **'Custom shell variables (optional)'**
   String get shellCapabilityVariables;
 
   /// No description provided for @shellCapabilityVariablesHelp.
   ///
   /// In en, this message translates to:
-  /// **'Accepts allowed IANVS_ variables for session metadata and configured queries.'**
+  /// **'Lets scripts store session information such as a project name and read it through permitted variable queries. IANVS_ is the name prefix; terminal and AI features work without these variables.'**
   String get shellCapabilityVariablesHelp;
 
   /// No description provided for @shellCapabilityPending.
@@ -8383,6 +8389,354 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Use these shortcuts with an external keyboard. Tap a binding to edit it and choose its scope while recording.'**
   String get mobileExternalKeyboardHelp;
+
+  /// No description provided for @terminalModeNormal.
+  ///
+  /// In en, this message translates to:
+  /// **'Normal terminal'**
+  String get terminalModeNormal;
+
+  /// No description provided for @terminalModeBlocks.
+  ///
+  /// In en, this message translates to:
+  /// **'Block + AI'**
+  String get terminalModeBlocks;
+
+  /// Read the current session capability without reconnecting or changing display mode.
+  ///
+  /// In en, this message translates to:
+  /// **'Recheck Command Block support'**
+  String get terminalModeRecheck;
+
+  /// Result of a user-requested capability check; this does not switch terminal mode.
+  ///
+  /// In en, this message translates to:
+  /// **'The current node supports Command Blocks.'**
+  String get terminalModeSupportAvailable;
+
+  /// No description provided for @preferredTerminalMode.
+  ///
+  /// In en, this message translates to:
+  /// **'Preferred terminal mode'**
+  String get preferredTerminalMode;
+
+  /// No description provided for @terminalModePlatformDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Follow platform default'**
+  String get terminalModePlatformDefault;
+
+  /// No description provided for @aiConfigurationLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading saved configuration…'**
+  String get aiConfigurationLoading;
+
+  /// No description provided for @aiConfigurationUnreadable.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved configuration could not be read. Terminal features remain available.'**
+  String get aiConfigurationUnreadable;
+
+  /// No description provided for @aiConfigurationMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'Not configured. Terminal features work independently.'**
+  String get aiConfigurationMissing;
+
+  /// No description provided for @aiConfigurationSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Configuration saved. Open to edit or test the connection.'**
+  String get aiConfigurationSaved;
+
+  /// No description provided for @preferredTerminalModeHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Applies to new sessions. On mobile, a configured LLM enables the unified Block + AI workspace by default, with one input for commands and AI; choose Normal to turn this default off. Without an LLM, only Normal is available. Desktop defaults to Normal. Blocks also requires shell support; switch back manually after capability is restored.'**
+  String get preferredTerminalModeHelp;
+
+  /// No description provided for @blockUnavailableChecking.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking shell support…'**
+  String get blockUnavailableChecking;
+
+  /// No description provided for @blockUnavailableShell.
+  ///
+  /// In en, this message translates to:
+  /// **'The current shell does not support Command Blocks.'**
+  String get blockUnavailableShell;
+
+  /// No description provided for @blockUnavailableRemote.
+  ///
+  /// In en, this message translates to:
+  /// **'Command Block negotiation is not ready for the current SSH node.'**
+  String get blockUnavailableRemote;
+
+  /// No description provided for @blockUnavailableNested.
+  ///
+  /// In en, this message translates to:
+  /// **'The current nested shell does not support Command Blocks.'**
+  String get blockUnavailableNested;
+
+  /// No description provided for @blockUnavailableInput.
+  ///
+  /// In en, this message translates to:
+  /// **'The terminal is handling shell input.'**
+  String get blockUnavailableInput;
+
+  /// No description provided for @blockUnavailableFullScreen.
+  ///
+  /// In en, this message translates to:
+  /// **'The current application needs the normal terminal.'**
+  String get blockUnavailableFullScreen;
+
+  /// No description provided for @blockUnavailableRichOutput.
+  ///
+  /// In en, this message translates to:
+  /// **'This session contains output that needs the normal terminal.'**
+  String get blockUnavailableRichOutput;
+
+  /// No description provided for @blockUnavailableUnattributed.
+  ///
+  /// In en, this message translates to:
+  /// **'This session contains output outside command blocks.'**
+  String get blockUnavailableUnattributed;
+
+  /// No description provided for @blockUnavailableExited.
+  ///
+  /// In en, this message translates to:
+  /// **'This session has ended.'**
+  String get blockUnavailableExited;
+
+  /// No description provided for @blockUnavailableReadOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'This session is read-only.'**
+  String get blockUnavailableReadOnly;
+
+  /// No description provided for @blockModeAvailableNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'Command Blocks is available. Right-click this tab to switch.'**
+  String get blockModeAvailableNotice;
+
+  /// No description provided for @blockModeRestoredNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'Command Blocks is available again. Right-click this tab to switch back.'**
+  String get blockModeRestoredNotice;
+
+  /// No description provided for @normalModeFallbackNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'Switched to Normal terminal. Right-click this tab for modes.'**
+  String get normalModeFallbackNotice;
+
+  /// No description provided for @mobileBlocksAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Command Blocks is available. Switch in Session actions.'**
+  String get mobileBlocksAvailable;
+
+  /// No description provided for @mobileBlocksRestored.
+  ///
+  /// In en, this message translates to:
+  /// **'Command Blocks is available again. Switch back in Session actions.'**
+  String get mobileBlocksRestored;
+
+  /// No description provided for @mobileNormalFallback.
+  ///
+  /// In en, this message translates to:
+  /// **'Switched to Normal terminal.'**
+  String get mobileNormalFallback;
+
+  /// No description provided for @mobileSessionsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Sessions'**
+  String get mobileSessionsTitle;
+
+  /// No description provided for @mobileSessionsActive.
+  ///
+  /// In en, this message translates to:
+  /// **'Active'**
+  String get mobileSessionsActive;
+
+  /// No description provided for @mobileSessionsDisconnected.
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnected'**
+  String get mobileSessionsDisconnected;
+
+  /// No description provided for @mobileSessionActive.
+  ///
+  /// In en, this message translates to:
+  /// **'Running'**
+  String get mobileSessionActive;
+
+  /// No description provided for @mobileSessionDisconnected.
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnected'**
+  String get mobileSessionDisconnected;
+
+  /// No description provided for @mobileSessionViewOutput.
+  ///
+  /// In en, this message translates to:
+  /// **'View output'**
+  String get mobileSessionViewOutput;
+
+  /// No description provided for @mobileSessionReconnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnect'**
+  String get mobileSessionReconnect;
+
+  /// No description provided for @mobileSessionDisconnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnect'**
+  String get mobileSessionDisconnect;
+
+  /// No description provided for @mobileSessionRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove record'**
+  String get mobileSessionRemove;
+
+  /// No description provided for @mobileSessionsClearDisconnected.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear disconnected'**
+  String get mobileSessionsClearDisconnected;
+
+  /// No description provided for @mobileSessionLocalHost.
+  ///
+  /// In en, this message translates to:
+  /// **'This device'**
+  String get mobileSessionLocalHost;
+
+  /// No description provided for @mobileSessionReconnected.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnected · Previous output'**
+  String get mobileSessionReconnected;
+
+  /// No description provided for @mobileSessionOpenCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'Open current connection'**
+  String get mobileSessionOpenCurrent;
+
+  /// No description provided for @mobileSessionReferencedByAi.
+  ///
+  /// In en, this message translates to:
+  /// **'This record is in use by an AI conversation. End its current session before removing it.'**
+  String get mobileSessionReferencedByAi;
+
+  /// No description provided for @mobileSessionExitCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Exit code {code}'**
+  String mobileSessionExitCode(int code);
+
+  /// No description provided for @mobileSessionDisconnectedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection ended'**
+  String get mobileSessionDisconnectedTitle;
+
+  /// No description provided for @mobileSessionDisconnectedDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Output is read-only and stays available until you remove this record or quit the app.'**
+  String get mobileSessionDisconnectedDetail;
+
+  /// No description provided for @mobileSessionReconnectedDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'You are viewing output from a previous connection. Open the current connection to continue.'**
+  String get mobileSessionReconnectedDetail;
+
+  /// No description provided for @mobileSessionsClearPartial.
+  ///
+  /// In en, this message translates to:
+  /// **'Some records are still in use by AI conversations or have unsaved recordings.'**
+  String get mobileSessionsClearPartial;
+
+  /// No description provided for @mobileSessionReconnectFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not reconnect. The original output is still available.'**
+  String get mobileSessionReconnectFailed;
+
+  /// No description provided for @mobileSessionsNoActive.
+  ///
+  /// In en, this message translates to:
+  /// **'No active connections'**
+  String get mobileSessionsNoActive;
+
+  /// No description provided for @blockUnavailableLlm.
+  ///
+  /// In en, this message translates to:
+  /// **'Configure an LLM in settings to use Block + AI on mobile.'**
+  String get blockUnavailableLlm;
+
+  /// No description provided for @mobileLlmWelcomeDetail.
+  ///
+  /// In en, this message translates to:
+  /// **'Use Trail as a regular terminal, or configure an LLM to use commands and AI in one Block + AI workspace. With an LLM, new mobile sessions default to this workspace; you can choose Normal in settings. Connection details stay on this device.'**
+  String get mobileLlmWelcomeDetail;
+
+  /// No description provided for @mobileConfigureLlm.
+  ///
+  /// In en, this message translates to:
+  /// **'Configure LLM'**
+  String get mobileConfigureLlm;
+
+  /// No description provided for @mobileLlmConfigured.
+  ///
+  /// In en, this message translates to:
+  /// **'LLM configured · Edit'**
+  String get mobileLlmConfigured;
+
+  /// No description provided for @mobileSkipLlm.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip · Use regular terminal'**
+  String get mobileSkipLlm;
+
+  /// No description provided for @shellCapabilityAwaitingEvent.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for an event'**
+  String get shellCapabilityAwaitingEvent;
+
+  /// No description provided for @shellCapabilityAwaitingEventHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'The current Shell provides this capability. It will be confirmed when valid data arrives.'**
+  String get shellCapabilityAwaitingEventHelp;
+
+  /// No description provided for @shellCapabilityNotProvided.
+  ///
+  /// In en, this message translates to:
+  /// **'Not provided'**
+  String get shellCapabilityNotProvided;
+
+  /// No description provided for @shellCapabilityNotProvidedHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'The current Shell integration does not provide this capability. Waiting will not enable it; a compatible integration can still supply it.'**
+  String get shellCapabilityNotProvidedHelp;
+
+  /// No description provided for @shellCapabilityProviderReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Implementation provided'**
+  String get shellCapabilityProviderReady;
 }
 
 class _AppLocalizationsDelegate

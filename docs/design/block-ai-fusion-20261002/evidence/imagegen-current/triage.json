@@ -1,0 +1,134 @@
+{
+  "scope": "Current real ACP proposal/result/evidence UI, smart approval, desktop recovery/TUI, fixed-font phone review and reader; runtime and visual evidence remain separate.",
+  "built_in_imagegen": true,
+  "pass1": [
+    {
+      "id": 1,
+      "finding": "Proposal purpose, target and command hierarchy",
+      "decision": "implemented explicit field labels"
+    },
+    {
+      "id": 2,
+      "finding": "Run once is not visually primary",
+      "decision": "not substantiated: FilledButton is already the sole filled blue action; Edit/Decline are text buttons. No added pressure to execute."
+    },
+    {
+      "id": 3,
+      "finding": "Reader toolbar icon meaning",
+      "decision": "implemented Find/More labels at widths >=720; narrow layouts retain labeled tooltips and icons"
+    }
+  ],
+  "pass2": [
+    {
+      "id": 1,
+      "finding": "Long target path readability",
+      "decision": "split target and full directory onto separate lines; do not abbreviate approval target"
+    },
+    {
+      "id": 2,
+      "finding": "Evidence click target too small",
+      "decision": "Not substantiated: measured citation hit region 132.088 x 32 logical pixels in real ACP native test."
+    },
+    {
+      "id": 3,
+      "finding": "Search needs a filled button or permanent field",
+      "decision": "not adopted: inline Find action is now labeled, opens existing search field; no evidence that a second filled action improves this restrained toolbar"
+    },
+    {
+      "id": 4,
+      "finding": "Reader footer contrast low",
+      "decision": "Not substantiated: measured theme foreground/background contrast 5.9788:1 in real ACP native test."
+    }
+  ],
+  "generatedArtifactLimits": [
+    "Pass 1 invented a date and issue count; neither is product data.",
+    "Generated boards may rescale/reconstruct text. Only source captures, code and runtime assertions establish a product defect."
+  ],
+  "remaining": [],
+  "pass3": [
+    {
+      "finding": "Header and block controls need tooltips",
+      "decision": "Already implemented. Header mouse hover validated; desktop-tooltip-*.png. Block fold/more tooltips confirmed in source. No permanent labels added to every icon."
+    },
+    {
+      "finding": "Reader panel",
+      "decision": "No confirmed visual issues annotated."
+    }
+  ],
+  "pass4": [
+    {
+      "finding": "Generic approval reason",
+      "decision": "Synthetic reviewer fixture, not product-generated fallback; real model prompt already requests concrete justification. No fabricated explanation added."
+    },
+    {
+      "finding": "Review full command wording and Back icon",
+      "decision": "No confirmed ambiguity: Review full command opens explicit review; standard Back has tooltip and accessibility label."
+    },
+    {
+      "finding": "Decline English in Chinese UI",
+      "decision": "False positive: input screenshot is wholly English UI."
+    },
+    {
+      "finding": "Snapshot metadata hierarchy",
+      "decision": "Implemented command emphasis, Directory/Source labels, spacing and emphasized nonzero exit; raw output unchanged."
+    }
+  ],
+  "pass5": [
+    {
+      "finding": "Translate original terminal errors",
+      "decision": "Not adopted: raw terminal output is evidence; user has an explicit AI explanation draft."
+    },
+    {
+      "finding": "Save failure reason too general",
+      "decision": "No concrete underlying failure details available from this synthetic storage failure. Do not invent network/key-format failures for local persistence. Edits and retry/cancel already retained."
+    },
+    {
+      "finding": "Landscape review, unknown submission, target handoff",
+      "decision": "No confirmed visual issues annotated."
+    }
+  ],
+  "pass6": [
+    {
+      "finding": "Top icons need tooltips",
+      "decision": "Already implemented and hover-tested."
+    },
+    {
+      "finding": "Search clear action",
+      "decision": "Implemented explicit query-clear control; phone 44pt target; clearing preserves reader, position and selection."
+    },
+    {
+      "finding": "Authentication failure needs settings shortcut",
+      "decision": "Already visible AI connection shortcut opens settings; native test covers recovery."
+    },
+    {
+      "finding": "Rename Send to AI to Continue processing",
+      "decision": "Not adopted: the action sends the retained new draft, not an automatic continuation; current wording states actual operation."
+    },
+    {
+      "finding": "Vim key review",
+      "decision": "No confirmed visual issues annotated."
+    }
+  ],
+  "pass7": {
+    "result": "No confirmed visual issues in all four shown phone review/snapshot/handoff panels."
+  },
+  "pass8": {
+    "result": "Real ACP proposal/result had no new callouts; three tooltip claims on close/clear/close-find repeated already implemented functionality. Resolved with actual hover/long-press evidence in pass 9."
+  },
+  "pass9": {
+    "result": "No confirmed visual issues after viewing all three actual tooltip states."
+  },
+  "additional_source_review": [
+    "Short header status now ellipsizes with complete tooltip instead of clipping a sentence mid-word.",
+    "Native regression initially failed because a deterministic fixture proposed before shell readiness; stale proposal was correctly revoked. Fixture now waits for completion/readiness before proposing.",
+    "Native settings fixture expected old manual default after configuration removal; updated to current smart default. No production approval guard was weakened."
+  ],
+  "limitations": [
+    "Imagegen boards may reconstruct or rescale text and cannot certify runtime correctness.",
+    "Pass 4 and 5 source screenshot directories were refreshed after refinements; their generated boards preserve review history, not original pixel evidence.",
+    "Physical iPhone and VoiceOver excluded by user instruction.",
+    "Native runtime tested on macOS 27.0.1 only.",
+    "Real ACP outcome proves the documented synthetic-file conversation, not arbitrary model correctness.",
+    "Existing D11/M05 SSH-mode evidence is historical; no new real SSH run in this visual iteration."
+  ]
+}

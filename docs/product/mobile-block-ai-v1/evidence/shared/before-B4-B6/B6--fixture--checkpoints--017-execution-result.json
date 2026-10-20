@@ -1,0 +1,21 @@
+{
+  "name": "execution-result",
+  "captured_at": "2026-10-08T12:11:18.688053+00:00",
+  "method": "simctl_raw_png",
+  "physical": false,
+  "file": "checkpoints/017-execution-result.png",
+  "sha256": "54c2dca1b8de1337b1a9e9317711b233ffe5945eed40b3cf2b228af7625b9195",
+  "width": 1206,
+  "height": 2622,
+  "metadata": {
+    "run_id": "20261008T120708Z-3f24d8c0",
+    "capture_method": "native_screenshot",
+    "input_method": "Flutter EditableText client; not native IME",
+    "viewport_width": 402.0,
+    "viewport_height": 874.0,
+    "dpr": 3.0,
+    "locale": "zh",
+    "theme": "light",
+    "keyboard_inset": 0.0
+  }
+}

@@ -1,0 +1,10 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/integration_test/input_intent_acceptance_test.dart
+Building macOS application...                                   
+✓ Built build/macos/Build/Products/Debug/Trail Development.app
+Failed to foreground app; open returned 1
+00:00 +0: Automatic intent routes both input surfaces through the existing PTY
+00:03 +1: Smart review approves once and escalates sensitive commands
+EVIDENCE_READY_FOR_NATIVE_BACK_CLICK
+00:40 +2: (tearDownAll)
+00:40 +2: All tests passed!

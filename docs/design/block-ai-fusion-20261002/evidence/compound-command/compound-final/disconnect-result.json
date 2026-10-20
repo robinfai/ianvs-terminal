@@ -1,0 +1,15 @@
+{
+  "passed": true,
+  "scope": "Actual loopback SSH transport loss; native buffers and receipts retained. Reconnect and task transfer are not covered.",
+  "session_id": "1",
+  "task_id": "task-1",
+  "submission_id": "ai-1790967148552497-0",
+  "block_id": "1790967148561-23",
+  "native_command_executed_once": true,
+  "pending_approval_revoked": true,
+  "draft_and_attachment_retained": true,
+  "native_timeline_and_receipt_readable": true,
+  "terminal_read_only": true,
+  "no_model_request_or_resubmission_after_disconnect": true,
+  "completed_at": "2026-10-02T18:52:30.744118Z"
+}

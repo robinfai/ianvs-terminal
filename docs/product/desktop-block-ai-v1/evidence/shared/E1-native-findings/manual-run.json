@@ -1,0 +1,44 @@
+{
+  "source_commit": "d13e0c02c5f5921927c3f7855fd3aadce6559b64",
+  "code_equivalent_candidate": "19001573d9974c510e1e4cbcfeb01c94368ea157",
+  "equivalence_basis": "git diff C8..HEAD lists only docs/product/desktop-block-ai-v1 paths",
+  "started_at": "2026-10-10T08:20:28.984248+00:00",
+  "source_clean_at_launch": true,
+  "fixture_directory": "/private/tmp/trail-desktop-prd-e1-windows-1",
+  "keyboard_mode": "native CUA OS events; no text-entry emulation",
+  "scope": "D2 native window/tab/pane interactions; exact coverage pending original evidence review",
+  "implementation_modified": false,
+  "ended_at": "2026-10-10T08:34:48.538045+00:00",
+  "source_commit_at_end": "d13e0c02c5f5921927c3f7855fd3aadce6559b64",
+  "source_clean_at_end": true,
+  "runner_exit_code": 0,
+  "quit_method": "Flutter runner q; Application finished",
+  "full_case_pass_claimed": false,
+  "findings": [
+    "Idle AI draft tab closes without confirmation and destroys draft",
+    "Idle Composer draft tab closes without confirmation and destroys draft",
+    "Secondary click on inactive raw pane changes active session from 3 to 4"
+  ],
+  "binaries_at_end": [
+    {
+      "path": "Contents/MacOS/Trail Development",
+      "sha256": "d6220ce3069cddc72ea585c74e7aa2f4981847dda3327a4240ed3a25f6ffd8ef",
+      "bytes": 40800
+    },
+    {
+      "path": "Contents/Frameworks/App.framework/Versions/A/App",
+      "sha256": "7cb20ce3ca43874d4f1cd6181e426bb25df2d9abefd70a8efb289641054bcdd9",
+      "bytes": 16800
+    },
+    {
+      "path": "Contents/Frameworks/App.framework/Versions/A/Resources/flutter_assets/kernel_blob.bin",
+      "sha256": "947bc0b54f2708d0fb88c0e9c8874d0cdee79ea60dd008ee479357496d6771a4",
+      "bytes": 95894568
+    },
+    {
+      "path": "Contents/Resources/ianvs-api",
+      "sha256": "bf5dadbc016651969850384b1a13f21283d52ab54584b9efd78bc4741835d3e7",
+      "bytes": 16426192
+    }
+  ]
+}

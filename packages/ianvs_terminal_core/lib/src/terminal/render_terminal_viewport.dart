@@ -260,7 +260,7 @@ class RenderTerminalViewport extends RenderBox {
     }
     _devicePixelRatio = value;
     _invalidateVisualCaches();
-    markNeedsPaint();
+    markNeedsLayout();
   }
 
   set font(TerminalFontConfig value) {
@@ -273,7 +273,7 @@ class RenderTerminalViewport extends RenderBox {
     _cachedCellMetrics = null;
     _cachedMeasuredRowTextMetrics = null;
     _textMetricsSignature = null;
-    markNeedsPaint();
+    markNeedsLayout();
   }
 
   TerminalFontConfig get debugFont => _font;
@@ -351,6 +351,11 @@ class RenderTerminalViewport extends RenderBox {
         ? constraints.biggest
         : const Size(640, 480);
     _localPaintBounds = Offset.zero & size;
+    // Lazy scroll children can be laid out without being painted. Report real
+    // font metrics before a parent uses them for row heights or PTY resizing;
+    // reporting the fallback here makes neighbouring blocks fight over size.
+    _syncTextMetrics();
+    _controller.updateMeasuredCellSize(_cellSize);
   }
 
   @override

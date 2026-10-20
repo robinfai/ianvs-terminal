@@ -1,0 +1,16 @@
+{
+  "passed": true,
+  "appPassed": false,
+  "disconnectPassed": false,
+  "bashPreexec": false,
+  "historyOff": true,
+  "shells": [
+    "zsh",
+    "bash"
+  ],
+  "keymaps": [
+    "emacs",
+    "vi"
+  ],
+  "scope": "real loopback SSH, native session API, exact compound and long command titles, cancellation provenance, consecutive command blocks, multi-hop and parent restoration; optional real transport loss retains AI task and native history"
+}

@@ -1,0 +1,1320 @@
+{
+  "schema_version": "1.0",
+  "version": "1.1",
+  "product": "ianvs-terminal-desktop",
+  "date": "2026-10-08",
+  "baseline_commit": "763dc166bb1e56d6d50ed3379b57f366c9ca06b7",
+  "requirements": [
+    {
+      "id": "D1-R01",
+      "title": "桌面壳与任务入口",
+      "priority": "P1"
+    },
+    {
+      "id": "D1-R02",
+      "title": "Block 情境操作与失败诊断",
+      "priority": "P1"
+    },
+    {
+      "id": "D1-R03",
+      "title": "选择上下文及来源冻结",
+      "priority": "P0"
+    },
+    {
+      "id": "D1-R04",
+      "title": "单一可写入口与明确路由",
+      "priority": "P0"
+    },
+    {
+      "id": "D1-R05",
+      "title": "任务时间线与真实执行证据",
+      "priority": "P1"
+    },
+    {
+      "id": "D1-R06",
+      "title": "桌面完整命令审阅",
+      "priority": "P0"
+    },
+    {
+      "id": "D1-R07",
+      "title": "编辑提案与审批版本",
+      "priority": "P0"
+    },
+    {
+      "id": "D1-R08",
+      "title": "提交、连点与执行回执",
+      "priority": "P0"
+    },
+    {
+      "id": "D1-R09",
+      "title": "只读观察终端",
+      "priority": "P0"
+    },
+    {
+      "id": "D1-R10",
+      "title": "暂停、接管与中断分离",
+      "priority": "P0"
+    },
+    {
+      "id": "D1-R11",
+      "title": "未知回执与故障恢复",
+      "priority": "P0"
+    },
+    {
+      "id": "D1-R12",
+      "title": "执行目标变化与目录推进",
+      "priority": "P0"
+    },
+    {
+      "id": "D1-R13",
+      "title": "任务、草稿与关闭生命周期",
+      "priority": "P0"
+    },
+    {
+      "id": "D1-R14",
+      "title": "模型 API 的连接与错误状态",
+      "priority": "P1"
+    },
+    {
+      "id": "D1-R15",
+      "title": "桌面 ACP 设置、恢复与权限",
+      "priority": "P0"
+    },
+    {
+      "id": "D1-R16",
+      "title": "AI 与 Raw/TUI 的同会话闭环",
+      "priority": "P0"
+    },
+    {
+      "id": "D2-R01",
+      "title": "键盘分发与主操作决策",
+      "priority": "P0"
+    },
+    {
+      "id": "D2-R02",
+      "title": "多行编辑、粘贴与撤销",
+      "priority": "P0"
+    },
+    {
+      "id": "D2-R03",
+      "title": "真实中文输入法优先",
+      "priority": "P0"
+    },
+    {
+      "id": "D2-R04",
+      "title": "补全、详情与本地 I/O 授权",
+      "priority": "P1"
+    },
+    {
+      "id": "D2-R05",
+      "title": "历史与独立灰字",
+      "priority": "P1"
+    },
+    {
+      "id": "D2-R06",
+      "title": "Block 选择、键盘导航和复制",
+      "priority": "P0"
+    },
+    {
+      "id": "D2-R07",
+      "title": "桌面 Block 高度和手动展开",
+      "priority": "P1"
+    },
+    {
+      "id": "D2-R08",
+      "title": "滚轮、触摸板与双层滚动",
+      "priority": "P1"
+    },
+    {
+      "id": "D2-R09",
+      "title": "查找、过滤与原生阅读器",
+      "priority": "P1"
+    },
+    {
+      "id": "D2-R10",
+      "title": "多 pane 焦点与执行隔离",
+      "priority": "P0"
+    },
+    {
+      "id": "D2-R11",
+      "title": "Tabs、拖放与关闭保护",
+      "priority": "P0"
+    },
+    {
+      "id": "D2-R12",
+      "title": "窗口前后台与异步焦点",
+      "priority": "P0"
+    },
+    {
+      "id": "D2-R13",
+      "title": "窗口尺寸、缩放与多显示器",
+      "priority": "P1"
+    },
+    {
+      "id": "D2-R14",
+      "title": "鼠标情境菜单与可发现性",
+      "priority": "P1"
+    },
+    {
+      "id": "D2-R15",
+      "title": "证据检查器与只读并排",
+      "priority": "P1"
+    },
+    {
+      "id": "D2-R16",
+      "title": "Raw/TUI/密码输入边界",
+      "priority": "P0"
+    },
+    {
+      "id": "D3-R01",
+      "title": "主题 tokens 盘点与映射",
+      "priority": "P1"
+    },
+    {
+      "id": "D3-R02",
+      "title": "浅深色、ANSI与选区",
+      "priority": "P1"
+    },
+    {
+      "id": "D3-R03",
+      "title": "Command Block 桌面密度",
+      "priority": "P1"
+    },
+    {
+      "id": "D3-R04",
+      "title": "三层 Composer Dock 视觉合同",
+      "priority": "P1"
+    },
+    {
+      "id": "D3-R05",
+      "title": "AI 内容与执行事实分层",
+      "priority": "P1"
+    },
+    {
+      "id": "D3-R06",
+      "title": "状态优先级与准确文案",
+      "priority": "P0"
+    },
+    {
+      "id": "D3-R07",
+      "title": "字体、等宽与字形来源",
+      "priority": "P1"
+    },
+    {
+      "id": "D3-R08",
+      "title": "桌面响应式与文字缩放",
+      "priority": "P1"
+    },
+    {
+      "id": "D3-R09",
+      "title": "Hover、focus、pressed与disabled",
+      "priority": "P1"
+    },
+    {
+      "id": "D3-R10",
+      "title": "中英本地化与长路径",
+      "priority": "P1"
+    },
+    {
+      "id": "D3-R11",
+      "title": "桌面可访问性与读序",
+      "priority": "P1"
+    },
+    {
+      "id": "D3-R12",
+      "title": "动效、减少动画与稳定布局",
+      "priority": "P1"
+    },
+    {
+      "id": "D3-R13",
+      "title": "来源与证据检查器规范",
+      "priority": "P0"
+    },
+    {
+      "id": "D3-R14",
+      "title": "底部状态栏与活动目标",
+      "priority": "P0"
+    },
+    {
+      "id": "D3-R15",
+      "title": "命令菜单与快捷键可发现性",
+      "priority": "P1"
+    },
+    {
+      "id": "D3-R16",
+      "title": "视觉回归与组件状态册",
+      "priority": "P1"
+    },
+    {
+      "id": "D4-R01",
+      "title": "真实本地 Shell 端到端",
+      "priority": "P0"
+    },
+    {
+      "id": "D4-R02",
+      "title": "SSH、Bash/Zsh与多跳",
+      "priority": "P0"
+    },
+    {
+      "id": "D4-R03",
+      "title": "真实模型 API 与错误注入",
+      "priority": "P0"
+    },
+    {
+      "id": "D4-R04",
+      "title": "本地 ACP 的原生闭环",
+      "priority": "P0"
+    },
+    {
+      "id": "D4-R05",
+      "title": "Manual 与 Smart 审阅回归",
+      "priority": "P0"
+    },
+    {
+      "id": "D4-R06",
+      "title": "重复、陈旧与竞争故障矩阵",
+      "priority": "P0"
+    },
+    {
+      "id": "D4-R07",
+      "title": "真实键盘、输入法和触摸板",
+      "priority": "P0"
+    },
+    {
+      "id": "D4-R08",
+      "title": "多会话、分屏与长任务",
+      "priority": "P0"
+    },
+    {
+      "id": "D4-R09",
+      "title": "真实 TUI、密码与特殊输出",
+      "priority": "P0"
+    },
+    {
+      "id": "D4-R10",
+      "title": "断连、休眠与恢复",
+      "priority": "P0"
+    },
+    {
+      "id": "D4-R11",
+      "title": "原生无障碍验收",
+      "priority": "P1"
+    },
+    {
+      "id": "D4-R12",
+      "title": "原生 DPI、字体与多显示器",
+      "priority": "P1"
+    },
+    {
+      "id": "D4-R13",
+      "title": "性能、内存与长输出",
+      "priority": "P1"
+    },
+    {
+      "id": "D4-R14",
+      "title": "构建、数据与回滚",
+      "priority": "P0"
+    },
+    {
+      "id": "D4-R15",
+      "title": "Linux／Windows 桌面验证边界",
+      "priority": "P1"
+    },
+    {
+      "id": "D4-R16",
+      "title": "最终 GitHub 可审查交付",
+      "priority": "P0"
+    }
+  ],
+  "stages": [
+    {
+      "id": "D1",
+      "title": "桌面 Block × AI 工作流",
+      "case_count": 16,
+      "cases": [
+        {
+          "id": "D1-T01",
+          "title": "桌面壳与任务入口",
+          "requirement_ids": [
+            "D1-R01"
+          ],
+          "priority": "P1",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": false,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "用隔离 Profile 打开两个 tab；在活动 tab 进入和返回 AI；核对 session id、PID/PTY identity、顶部层数与底部状态栏。",
+          "expected": "进入/返回不重建 Shell；目标始终可见；任务区域关闭后原草稿和终端仍在。",
+          "notes": ""
+        },
+        {
+          "id": "D1-T02",
+          "title": "Block 情境操作与失败诊断",
+          "requirement_ids": [
+            "D1-R02"
+          ],
+          "priority": "P1",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": false,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "运行受控失败命令；鼠标与键盘各打开一次诊断；随后对成功块打开菜单；对比网络请求计数和 operation receipt。",
+          "expected": "诊断一步可达且未执行；运行中块不能被“纠正”自动重跑；正常块没有一排永久高噪音按钮。",
+          "notes": ""
+        },
+        {
+          "id": "D1-T03",
+          "title": "选择上下文及来源冻结",
+          "requirement_ids": [
+            "D1-R03"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "选两个已完成块，其中一块输出超过上下文预算；附加一个行范围；切换 tab 再返回；发送前移除一项并检查实际请求的来源元数据。",
+          "expected": "剩余来源、范围与顺序准确；截断明确；旧回复不因新命令产生而改绑证据。",
+          "notes": ""
+        },
+        {
+          "id": "D1-T04",
+          "title": "单一可写入口与明确路由",
+          "requirement_ids": [
+            "D1-R04"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "同一 pane 输入可信命令、自然语言和模糊文本；切换显式模式；带来源时尝试命令模式；让异步分类晚到。",
+          "expected": "点击时看到的去向即执行去向；普通手工命令零推理；未提交的模式切换零写入。",
+          "notes": "追加 RV-02：thinking/reviewing/awaitingApproval/submitted/executing 各阶段补充要求；未提交旧提案失效，已提交原回执保留，不重复提交。"
+        },
+        {
+          "id": "D1-T05",
+          "title": "任务时间线与真实执行证据",
+          "requirement_ids": [
+            "D1-R05"
+          ],
+          "priority": "P1",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "执行三步 fixture 任务，中间一条返回非零；折叠再展开步骤；打开总结引用；比较原生 block id 与提案回执。",
+          "expected": "准确显示真实 2 成功/1 失败，而非全绿；不重复终端日志；引用可回到原数据。",
+          "notes": ""
+        },
+        {
+          "id": "D1-T06",
+          "title": "桌面完整命令审阅",
+          "requirement_ids": [
+            "D1-R06"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "准备短命令、30 行命令和超长单行命令；在宽、窄 pane 查看并复制；打开审阅后切换活动 pane。",
+          "expected": "完整内容可读可复制；副作用字节不被视觉折行改变；切走目标后旧批准不可执行。",
+          "notes": ""
+        },
+        {
+          "id": "D1-T07",
+          "title": "编辑提案与审批版本",
+          "requirement_ids": [
+            "D1-R07"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "打开 A 的审阅，编辑为 B，保留旧层的回调后触发；检查只有 B 经新审阅后可以提交。",
+          "expected": "A 零提交；B 使用新 revision/guard；保存操作不会执行。",
+          "notes": "追加 RV-04：Smart 三档的人工编辑保存只创建新 revision；即使可低风险放行也不自动提交，必须显式执行一次。"
+        },
+        {
+          "id": "D1-T08",
+          "title": "提交、连点与执行回执",
+          "requirement_ids": [
+            "D1-R08"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "快速双击批准与 Enter 连按；延迟 receipt，同时输入下一稿；比对服务端副作用文件与原生 operation 计数。",
+          "expected": "只有一次有效操作；新稿保留；submitted、running、finished 的显示依据可追溯。",
+          "notes": ""
+        },
+        {
+          "id": "D1-T09",
+          "title": "只读观察终端",
+          "requirement_ids": [
+            "D1-R09"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "AI 获批长命令运行时打开只读终端；键入、粘贴、滚轮及点击开启鼠标报告的 TUI；检查 observer_source 计数。",
+          "expected": "observer_input_write_count=0；任务不因查看而暂停；复制有效，核心协议兼容不受破坏。",
+          "notes": ""
+        },
+        {
+          "id": "D1-T10",
+          "title": "暂停、接管与中断分离",
+          "requirement_ids": [
+            "D1-R10"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "对受控慢命令分别暂停、接管、显式中断；在接管瞬间注入迟到 Agent 回调。",
+          "expected": "暂停/接管本身不发 Ctrl+C；接管后迟到写无效；中断结果来自原生观察。",
+          "notes": "追加 RV-03：Esc/收起/顶部 AI 切换一致进入只读观察且不暂停，暂停和接管分别显式操作；中断命令独立。"
+        },
+        {
+          "id": "D1-T11",
+          "title": "未知回执与故障恢复",
+          "requirement_ids": [
+            "D1-R11"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "在服务端已执行但确认包未到时丢弃回执；重开任务、切换 tab、重连并请求继续。",
+          "expected": "副作用最多一次；只检查旧 id；新提示/补全不覆盖未知警示。",
+          "notes": "追加 RV-05：旧 Session 已死且永久查不到回执，可结束跟进并保留未知记录；新任务不继承旧授权或重放原操作。"
+        },
+        {
+          "id": "D1-T12",
+          "title": "执行目标变化与目录推进",
+          "requirement_ids": [
+            "D1-R12"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "待审批时切 pane、手动 cd、切 SSH 节点；另测已获批 cd 的合法 cwd 通知晚到。",
+          "expected": "前者阻止旧提交；后者仅在既有可信关联下继续；A 的任务不会写 B。",
+          "notes": ""
+        },
+        {
+          "id": "D1-T13",
+          "title": "任务、草稿与关闭生命周期",
+          "requirement_ids": [
+            "D1-R13"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "在两个 task、两个 pane 留不同草稿；切换并关闭取消；再确认关闭一个受控 Session。",
+          "expected": "草稿不串；取消关闭无损；已关闭 Session 的异步回调不再获得焦点或写入。",
+          "notes": "追加 RV-03：长时间等待不使提案过期，切 pane/窗口仅暂时禁用批准并在返回时重新核验；切 task、手工输入、配置/目标变化另按失效规则处理。"
+        },
+        {
+          "id": "D1-T14",
+          "title": "模型 API 的连接与错误状态",
+          "requirement_ids": [
+            "D1-R14"
+          ],
+          "priority": "P1",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": false,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "在隔离配置下依次无配置、保存、测试认证失败、网络失败及正常请求；核对请求数、草稿、Block。",
+          "expected": "错误可恢复且不删执行证据；保存零任务请求；普通手工命令不依赖模型配置。",
+          "notes": ""
+        },
+        {
+          "id": "D1-T15",
+          "title": "桌面 ACP 设置、恢复与权限",
+          "requirement_ids": [
+            "D1-R15"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "读取当前配置；分别从终端和 Finder 风格环境启动；测试连接后保存；暂停再恢复同一内存任务，并更换一次后端。",
+          "expected": "后端与实际模型可核对；无隐式安装/任务执行；恢复不重放操作；旧任务仍可读但不向替换后端偷发。",
+          "notes": ""
+        },
+        {
+          "id": "D1-T16",
+          "title": "AI 与 Raw/TUI 的同会话闭环",
+          "requirement_ids": [
+            "D1-R16"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "在同一任务中进入真实 vim/等价 TUI，执行获批键序列，人工接管后退出并手动回 Blocks。",
+          "expected": "程序可操作且显示完整；退出不抢回模式；Block/AI/PTY 身份连续且无重发。",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "id": "D2",
+      "title": "键鼠、Composer 与多窗格交互",
+      "case_count": 16,
+      "cases": [
+        {
+          "id": "D2-T01",
+          "title": "键盘分发与主操作决策",
+          "requirement_ids": [
+            "D2-R01"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "逐一把焦点放在候选、编辑器、Block、审批层与 TUI，发送相同 Enter/Tab/Esc；记录 resolved action 和 target。",
+          "expected": "一次按键只命中当前作用域；不会同时采用并执行或向后台 pane 写入。",
+          "notes": ""
+        },
+        {
+          "id": "D2-T02",
+          "title": "多行编辑、粘贴与撤销",
+          "requirement_ids": [
+            "D2-R02"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "粘贴含中文、emoji、引号、制表与多行 SQL 的 8 KiB 和 64 KiB 草稿，选中间段替换并撤销，复制与原始字节比较。",
+          "expected": "编辑不写 PTY；undo/redo和选区准确；超过提交能力时不截断、不发送残片。",
+          "notes": ""
+        },
+        {
+          "id": "D2-T03",
+          "title": "真实中文输入法优先",
+          "requirement_ids": [
+            "D2-R03"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "真实系统拼音输入“检查这个命令失败的原因”，用 Enter 选字，再用显式主动作提交；在两个 pane 间切换 composition。",
+          "expected": "确认候选零 PTY/AI起始调用；最后显式提交仅一次；不乱码、不串 pane。",
+          "notes": ""
+        },
+        {
+          "id": "D2-T04",
+          "title": "补全、详情与本地 I/O 授权",
+          "requirement_ids": [
+            "D2-R04"
+          ],
+          "priority": "P1",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "关闭自动建议，用 ls ./ 连续 Tab 到中文/空格目录；选中命令中间 token 补全；resize至窄 pane。",
+          "expected": "权限边界未变；候选采用不执行；说明可完整阅读且不丢焦点。",
+          "notes": ""
+        },
+        {
+          "id": "D2-T05",
+          "title": "历史与独立灰字",
+          "requirement_ids": [
+            "D2-R05"
+          ],
+          "priority": "P1",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "写两行草稿，测试↑两种位置；打开历史筛选/取消/采用；比较灰字接受前后复制内容。",
+          "expected": "取消原样恢复；采用不执行；当前会话来源明确。",
+          "notes": ""
+        },
+        {
+          "id": "D2-T06",
+          "title": "Block 选择、键盘导航和复制",
+          "requirement_ids": [
+            "D2-R06"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "跨三个块 Shift选择；在第二块输出拖选后复制；切 pane 再执行复制；比较原始保留输出与软/硬换行。",
+          "expected": "文本与块复制不混淆；选择不会执行/上传；跨 pane 不串内容。",
+          "notes": ""
+        },
+        {
+          "id": "D2-T07",
+          "title": "桌面 Block 高度和手动展开",
+          "requirement_ids": [
+            "D2-R07"
+          ],
+          "priority": "P1",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "分别单 pane、2×2分屏、窄短窗与2×文字缩放计算H；检查默认块边界，再手动展开和还原。",
+          "expected": "默认上限按pane而非窗口；整数行无裁切；例外不压缩字号/触发执行。",
+          "notes": ""
+        },
+        {
+          "id": "D2-T08",
+          "title": "滚轮、触摸板与双层滚动",
+          "requirement_ids": [
+            "D2-R08"
+          ],
+          "priority": "P1",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "在长输出中进行触摸板惯性滚动、到边界后新手势、鼠标滚轮与横向滚动；持续注入新输出。",
+          "expected": "不会同时滚两层/跳到尾；有“回到最新”；不把滚轮转发给已完成块PTY。",
+          "notes": ""
+        },
+        {
+          "id": "D2-T09",
+          "title": "查找、过滤与原生阅读器",
+          "requirement_ids": [
+            "D2-R09"
+          ],
+          "priority": "P1",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "生成跨页日志，设置正则过滤，复制全部，定位中间行，读取期间改变宽度/淘汰旧行。",
+          "expected": "正确区分显示过滤与数据；不拼错页；降级说明可见且回到原阅读锚点。",
+          "notes": ""
+        },
+        {
+          "id": "D2-T10",
+          "title": "多 pane 焦点与执行隔离",
+          "requirement_ids": [
+            "D2-R10"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "建立2×2 pane并行输出；在A审批、B写稿、C TUI、D只读；快速点击并注入迟到回调。",
+          "expected": "零错目标写入；所有草稿/模式独立；A通知不抢B焦点。",
+          "notes": ""
+        },
+        {
+          "id": "D2-T11",
+          "title": "Tabs、拖放与关闭保护",
+          "requirement_ids": [
+            "D2-R11"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "用12个tab验证溢出、键盘切换和拖排序；移动已有pane；关闭有未提交草稿/运行命令的tab并取消。",
+          "expected": "无误关、无新PTY替代；取消不丢草稿；菜单作用于正确对象。",
+          "notes": ""
+        },
+        {
+          "id": "D2-T12",
+          "title": "窗口前后台与异步焦点",
+          "requirement_ids": [
+            "D2-R12"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "AI请求中Cmd+Tab离开；另一窗口输入；让请求完成；返回前后的focus和键位归属记录。",
+          "expected": "无后台抢焦点；键位不落到终端；返回不自动批准/执行。",
+          "notes": ""
+        },
+        {
+          "id": "D2-T13",
+          "title": "窗口尺寸、缩放与多显示器",
+          "requirement_ids": [
+            "D2-R13"
+          ],
+          "priority": "P1",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "连续resize、双屏拖移、系统缩放与应用文字缩放组合；打开补全/审批/Reader重复。",
+          "expected": "无overflow、模糊位置漂移/裁字；fallback恢复同语义行；未发生错误提交。",
+          "notes": ""
+        },
+        {
+          "id": "D2-T14",
+          "title": "鼠标情境菜单与可发现性",
+          "requirement_ids": [
+            "D2-R14"
+          ],
+          "priority": "P1",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "在窗口四角、窄pane打开菜单；键盘聚焦无hover使用同能力；从其他应用直接点击待批准区域。",
+          "expected": "菜单不越界；首次激活不误批准；关闭恢复触发点且不触发下层。",
+          "notes": ""
+        },
+        {
+          "id": "D2-T15",
+          "title": "证据检查器与只读并排",
+          "requirement_ids": [
+            "D2-R15"
+          ],
+          "priority": "P1",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "宽窗开证据检查器后收窄；在TUI时重复；切任务和来源再返回；核对session与resize日志。",
+          "expected": "来源正确、可退出、位置保存；TUI几何未因只读覆盖而改；无observer写。",
+          "notes": ""
+        },
+        {
+          "id": "D2-T16",
+          "title": "Raw/TUI/密码输入边界",
+          "requirement_ids": [
+            "D2-R16"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "依次执行受控read、密码输入、vim、top、未支持shell；切另一pane等待ready。",
+          "expected": "不会把密码/REPL输入路由给AI；ready不抢其他pane；手动恢复Blocks清楚。",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "id": "D3",
+      "title": "桌面视觉系统与无障碍",
+      "case_count": 16,
+      "cases": [
+        {
+          "id": "D3-T01",
+          "title": "主题 tokens 盘点与映射",
+          "requirement_ids": [
+            "D3-R01"
+          ],
+          "priority": "P1",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": false,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "导出实际token映射，检查受影响组件引用；切换主题和既有个性化主色。",
+          "expected": "同一语义一套来源；主题变化完整生效；无局部固定品牌色。",
+          "notes": ""
+        },
+        {
+          "id": "D3-T02",
+          "title": "浅深色、ANSI与选区",
+          "requirement_ids": [
+            "D3-R02"
+          ],
+          "priority": "P1",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": false,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "同fixture切浅/深/高对比，选中输出和失败块，测量关键token组合。",
+          "expected": "错误与选区可分；代码可读；浅深不是截图滤镜互转。",
+          "notes": ""
+        },
+        {
+          "id": "D3-T03",
+          "title": "Command Block 桌面密度",
+          "requirement_ids": [
+            "D3-R03"
+          ],
+          "priority": "P1",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": false,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "同画面放成功、失败、运行、空输出、未知状态；分别hover、选中、键盘聚焦。",
+          "expected": "状态区别无需猜颜色；未选块安静；动作不造成块高度反复抖动。",
+          "notes": ""
+        },
+        {
+          "id": "D3-T04",
+          "title": "三层 Composer Dock 视觉合同",
+          "requirement_ids": [
+            "D3-R04"
+          ],
+          "priority": "P1",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": false,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "录入中英emoji、多行，开启候选，再提交运行；在split pane对照焦点边框。",
+          "expected": "Dock层级稳定；run/accept/AI动作清晰；无双层重框。",
+          "notes": ""
+        },
+        {
+          "id": "D3-T05",
+          "title": "AI 内容与执行事实分层",
+          "requirement_ids": [
+            "D3-R05"
+          ],
+          "priority": "P1",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": false,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "固定任务包含一段说明、一项待审、多项真实结果和总结；检查内容角色与来源。",
+          "expected": "一眼可分建议与事实；没有重复输出副本；真实退出状态可验证。",
+          "notes": ""
+        },
+        {
+          "id": "D3-T06",
+          "title": "状态优先级与准确文案",
+          "requirement_ids": [
+            "D3-R06"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": false,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "组合unknown+connection failure、approval+completion loading、paused+running三种状态。",
+          "expected": "高优先信息不被toast覆盖；每状态只出现合法动作。",
+          "notes": ""
+        },
+        {
+          "id": "D3-T07",
+          "title": "字体、等宽与字形来源",
+          "requirement_ids": [
+            "D3-R07"
+          ],
+          "priority": "P1",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": false,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "在实际macOS构建测量等长ASCII，输入中英emoji并选择复制；对比有无测试字体注册。",
+          "expected": "真正原生等宽；无裁字、乱码；复制内容准确。",
+          "notes": ""
+        },
+        {
+          "id": "D3-T08",
+          "title": "桌面响应式与文字缩放",
+          "requirement_ids": [
+            "D3-R08"
+          ],
+          "priority": "P1",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": false,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "相同fixture运行标准、短窗、窄pane和2×文字；打开菜单审批并检查所有动作。",
+          "expected": "没有overflow；关键动作可达；跨端差异不污染手机固定字号规则。",
+          "notes": ""
+        },
+        {
+          "id": "D3-T09",
+          "title": "Hover、focus、pressed与disabled",
+          "requirement_ids": [
+            "D3-R09"
+          ],
+          "priority": "P1",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": false,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "用真实指针和键盘逐个到达状态，切换高对比与降低动画。",
+          "expected": "每状态有语义且可分辨；鼠标移出不会丢关键操作。",
+          "notes": ""
+        },
+        {
+          "id": "D3-T10",
+          "title": "中英本地化与长路径",
+          "requirement_ids": [
+            "D3-R10"
+          ],
+          "priority": "P1",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": false,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "切中英文，以120字符路径、长别名和30行命令检查各视图及tooltip。",
+          "expected": "不出现混合语言漏翻译；省略有详情；关键目标不被完全截断。",
+          "notes": ""
+        },
+        {
+          "id": "D3-T11",
+          "title": "桌面可访问性与读序",
+          "requirement_ids": [
+            "D3-R11"
+          ],
+          "priority": "P1",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "仅键盘完成诊断/审阅/执行，再用实际VoiceOver导航同一链路。",
+          "expected": "所有核心动作不靠鼠标；状态播报适量且含正确目标。",
+          "notes": ""
+        },
+        {
+          "id": "D3-T12",
+          "title": "动效、减少动画与稳定布局",
+          "requirement_ids": [
+            "D3-R12"
+          ],
+          "priority": "P1",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "开启减少动画，快速开关审批和Reader，持续输出中切主题/选块。",
+          "expected": "无闪屏、跳动、重复请求；动画取消不导致失效controller异常。",
+          "notes": ""
+        },
+        {
+          "id": "D3-T13",
+          "title": "来源与证据检查器规范",
+          "requirement_ids": [
+            "D3-R13"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": false,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "附加多项来源、删除其中一项、打开已淘汰引用，在窄pane显示。",
+          "expected": "来源信息完整；删除命中不误跳转；无retarget/自动发送。",
+          "notes": ""
+        },
+        {
+          "id": "D3-T14",
+          "title": "底部状态栏与活动目标",
+          "requirement_ids": [
+            "D3-R14"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": false,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "快速切本地/SSH/断开三个pane并刷新运行状态，检查状态栏数据来源。",
+          "expected": "不会显示错主机/错误就绪；底部栏没有重复的全局大工具栏。",
+          "notes": ""
+        },
+        {
+          "id": "D3-T15",
+          "title": "命令菜单与快捷键可发现性",
+          "requirement_ids": [
+            "D3-R15"
+          ],
+          "priority": "P1",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": false,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "打开菜单和palette核对同一action的title、shortcut、disabled；切不同focus作用域和自定义键位。",
+          "expected": "标签、行为和帮助一致；无退役Toolbelt/Workspace入口复活。",
+          "notes": ""
+        },
+        {
+          "id": "D3-T16",
+          "title": "视觉回归与组件状态册",
+          "requirement_ids": [
+            "D3-R16"
+          ],
+          "priority": "P1",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": false,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "生成各组件状态、浅深色、2×、窄pane；原生App重跑核心链路，对比差异和既有goldens。",
+          "expected": "差异有原因；所有新外观由真实控件实现；跨OS不伪造基线。",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "id": "D4",
+      "title": "原生验收、性能与 GitHub 交付",
+      "case_count": 16,
+      "cases": [
+        {
+          "id": "D4-T01",
+          "title": "真实本地 Shell 端到端",
+          "requirement_ids": [
+            "D4-R01"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "在实际macOS App完整执行上述链路，核对operation/Block/source id与fixture文件；运行既有make test-composer-ui。",
+          "expected": "零错目标/重复提交；视频、原图、原生回执一致。",
+          "notes": ""
+        },
+        {
+          "id": "D4-T02",
+          "title": "SSH、Bash/Zsh与多跳",
+          "requirement_ids": [
+            "D4-R02"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "用真实OpenSSH两节点与本地入口重复D1核心流程，故障一层连接，再用未支持shell。",
+          "expected": "任务绑定正确节点；不可用时不盲打Enter；恢复需重新核对。",
+          "notes": ""
+        },
+        {
+          "id": "D4-T03",
+          "title": "真实模型 API 与错误注入",
+          "requirement_ids": [
+            "D4-R03"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "用真实模型完成受控失败诊断；再执行同一入口的三类故障，核对恢复与草稿。",
+          "expected": "真实路径可复核；故障不隐式重试命令；分类清晰。",
+          "notes": ""
+        },
+        {
+          "id": "D4-T04",
+          "title": "本地 ACP 的原生闭环",
+          "requirement_ids": [
+            "D4-R04"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "从Finder/最小PATH启动开发App；真实ACP发起一个任务与批准；暂停恢复，再修改配置验证新任务边界。",
+          "expected": "恢复无重放、权限无扩大、返回模型可核对；配置替换不接续旧授权。",
+          "notes": ""
+        },
+        {
+          "id": "D4-T05",
+          "title": "Manual 与 Smart 审阅回归",
+          "requirement_ids": [
+            "D4-R05"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "以受控只读命令、模拟危险提案和编辑后提案测试两模式；注入审阅超时。",
+          "expected": "无规则绕过；原因可见；Smart未知结果不能变自动批准。",
+          "notes": "追加 RV-01/RV-04：Manual 加谨慎/标准/宽松三档；旧配置兼容，切档撤销旧审核；人工编辑保存零提交；API/ACP 分开记录。"
+        },
+        {
+          "id": "D4-T06",
+          "title": "重复、陈旧与竞争故障矩阵",
+          "requirement_ids": [
+            "D4-R06"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "逐项执行故障注入并按case附件子表列每个子场景、断言、日志/源码行。",
+          "expected": "零未授权有效提交；错target/旧revision被拒绝；partial progress诚实可恢复。",
+          "notes": ""
+        },
+        {
+          "id": "D4-T07",
+          "title": "真实键盘、输入法和触摸板",
+          "requirement_ids": [
+            "D4-R07"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "手工执行D2-T01/T03/T08重点路径并连续录屏，关键事件加受控dispatch日志。",
+          "expected": "物理输入与自动断言一致；不抢焦点、不双层跳滚、不意外执行。",
+          "notes": ""
+        },
+        {
+          "id": "D4-T08",
+          "title": "多会话、分屏与长任务",
+          "requirement_ids": [
+            "D4-R08"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "受控运行10分钟，周期切换焦点、排列tab与pane，核对每Session独立副作用输出。",
+          "expected": "无错写、错状态、草稿丢失或任务串联；通知指向原pane。",
+          "notes": ""
+        },
+        {
+          "id": "D4-T09",
+          "title": "真实 TUI、密码与特殊输出",
+          "requirement_ids": [
+            "D4-R09"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "真实TUI进入/退出、交互read和一次性密码测试；请求AI只读观察并检查上下文脱敏边界。",
+          "expected": "无错键、泄密或半截画面；只读控制明确；恢复Blocks由用户触发。",
+          "notes": ""
+        },
+        {
+          "id": "D4-T10",
+          "title": "断连、休眠与恢复",
+          "requirement_ids": [
+            "D4-R10"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "在测试连接注入断网、关闭server与sleep/wake，记录真实持续时长；重启开发App检查新旧Session标签。",
+          "expected": "未知不被误判未执行；不重放；新PTY不伪装旧运行；用户可以看清限制。",
+          "notes": "追加 RV-03/RV-05：提交未知和永久不可恢复分支；sleep/wake 后先校验，无自动授权、提交或重放。"
+        },
+        {
+          "id": "D4-T11",
+          "title": "原生无障碍验收",
+          "requirement_ids": [
+            "D4-R11"
+          ],
+          "priority": "P1",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "连续录屏/音轨或逐步人工记录完整核心链路，检查焦点和提示。",
+          "expected": "核心流程无需鼠标；审批目标清楚；无陷入循环/无读序。",
+          "notes": ""
+        },
+        {
+          "id": "D4-T12",
+          "title": "原生 DPI、字体与多显示器",
+          "requirement_ids": [
+            "D4-R12"
+          ],
+          "priority": "P1",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "真实外接屏或明确记录支持的设备组合，重复补全/审阅/拖选/resize并保存环境元数据。",
+          "expected": "不模糊错位、丢字、overlay漂移；关键动作可达。",
+          "notes": ""
+        },
+        {
+          "id": "D4-T13",
+          "title": "性能、内存与长输出",
+          "requirement_ids": [
+            "D4-R13"
+          ],
+          "priority": "P1",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": false,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "预热后滚动60s×3，30次局部反馈样本，约100行/s持续10分钟，20次页面循环×3；存trace和指标JSON，录屏另跑。",
+          "expected": "无崩溃/OOM/无界缓冲；未达阈值明确failed；数据可复算而非目测“流畅”。",
+          "notes": ""
+        },
+        {
+          "id": "D4-T14",
+          "title": "构建、数据与回滚",
+          "requirement_ids": [
+            "D4-R14"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": true,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "使用隔离配置升级/回滚，打开已有受控录制并复制输出；退出重启核对Layout relaunch；执行完整gate。",
+          "expected": "无数据丢失/伪恢复；签名与运行产物可对照；完整gate原始结果保留。",
+          "notes": ""
+        },
+        {
+          "id": "D4-T15",
+          "title": "Linux／Windows 桌面验证边界",
+          "requirement_ids": [
+            "D4-R15"
+          ],
+          "priority": "P1",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": false,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "检查平台目录/构建入口/文档；有host时在真实OS/VM启动实际native app并执行PTY；没有host时记录具体缺口与阻断证据。",
+          "expected": "可以单独判macOS桌面完成；Linux/Windows不得被UI-only/build-only结果标已验证；平台claim有独立证据。",
+          "notes": "平台矩阵可满足此case基础交付；它不代表Linux/Windows原生验证通过。原生平台声明按13文件的独立扩展矩阵验收。"
+        },
+        {
+          "id": "D4-T16",
+          "title": "最终 GitHub 可审查交付",
+          "requirement_ids": [
+            "D4-R16"
+          ],
+          "priority": "P0",
+          "platform": "macos",
+          "minimum_capture_class": "app_desktop",
+          "video_required": false,
+          "given": "隔离开发App、明确会话与已准备的对应fixture；从基线状态开始。",
+          "steps": "冻结最终候选，运行manifest/shotlist校验与完整gate，检查git diff C..E只有文档证据；逐张打开关键原图并核对视频与日志。",
+          "expected": "零开放P0/核心P1；未验证项如实列出；不能用全绿表格代替实际附件。",
+          "notes": ""
+        }
+      ]
+    }
+  ],
+  "revision_contract": "16_REVISION_1_1.md"
+}

@@ -1,0 +1,429 @@
+{
+  "schema_version": 1,
+  "prepared_at_utc": "2026-10-10T09:27:15.515716+00:00",
+  "purpose": "C10 follow-up patch for the two real C9 verify11 input regressions; candidate commit and full gate are owned by root.",
+  "tested_source_identity": {
+    "base_commit": "a60bc9d78f5f51414c43590ee6f34ae3cce7e7b9",
+    "execution_state": "green tests and final checks executed on the uncommitted C9-based working-tree patch; not represented as a clean C10 commit run",
+    "head_at_summary": "2d18e608c2a1149a093451b5246cb370de0167c3",
+    "original_widget_test_unchanged_from_base": true,
+    "files": [
+      {
+        "path": "example/lib/features/shell/shell_screen_state_terminal_layout.dart",
+        "sha256": "3f8d93e383ec0ce4470c52db8a5016a740f8c4a023b38448ff66469194093f81",
+        "matches_frozen_candidate": true
+      },
+      {
+        "path": "example/lib/features/terminal/terminal_input_controller.dart",
+        "sha256": "d074ac247de25c590cc08852c0e8620172f0b9eaa61169f622fba3f355dfb85a",
+        "matches_frozen_candidate": true
+      },
+      {
+        "path": "example/lib/features/terminal/terminal_viewport.dart",
+        "sha256": "fa3a7fb9559e79dea987b9dc604aa365a54a707642468411ff2b508662ab74f6",
+        "matches_frozen_candidate": true
+      },
+      {
+        "path": "example/test/ai/terminal_ai_observer_test.dart",
+        "sha256": "8b87f5304e974e0534dedf67c7f9a83772fb78996f03cd18d28dbdf13a03d69d",
+        "matches_frozen_candidate": true
+      },
+      {
+        "path": "example/test/shell/shell_pane_input_metrics_test.dart",
+        "sha256": "29de85a8244f8f913eda9cb93c63f11a4a2610e2534950bf53d32b1c3f18460f",
+        "matches_frozen_candidate": true
+      },
+      {
+        "path": "example/test/terminal_focus_loss_permission_test.dart",
+        "sha256": "e4224bfe2ce13742a886c55fca12705ce76e930c540c4ed41cdd6c4b0afb28d5",
+        "matches_frozen_candidate": true
+      },
+      {
+        "path": "packages/ianvs_terminal/lib/src/terminal/terminal_viewport.dart",
+        "sha256": "2dcc02f15d71e9ecc0368bb560659d5696514bc80d2f75e84c2c24d06f6f5438",
+        "matches_frozen_candidate": true
+      },
+      {
+        "path": "packages/ianvs_terminal_core/lib/src/terminal/terminal_viewport.dart",
+        "sha256": "2dcc02f15d71e9ecc0368bb560659d5696514bc80d2f75e84c2c24d06f6f5438",
+        "matches_frozen_candidate": true
+      }
+    ],
+    "subsequently_frozen_candidate": {
+      "label": "C10",
+      "commit": "2d18e608c2a1149a093451b5246cb370de0167c3",
+      "all_8_files_match": true,
+      "comparison_at_utc": "2026-10-10T09:27:41.734275+00:00",
+      "limitation": "Matching committed bytes do not rewrite the prior uncommitted working-tree test runs as clean C10 executions."
+    },
+    "original_widget_test_unchanged_in_frozen_candidate": true
+  },
+  "failed_gate_history": {
+    "candidate": "C9",
+    "commit": "a60bc9d78f5f51414c43590ee6f34ae3cce7e7b9",
+    "log": "../verify-11.log",
+    "exit_code": 2,
+    "source_clean_reported_by_root": true,
+    "application_tests": {
+      "passed": 3083,
+      "skipped": 1,
+      "failed": 2
+    },
+    "rewritten_as_success": false
+  },
+  "fixes": [
+    "The native viewport invokes its real pointer-down host callback before emitting the first mouse byte. Shell synchronously activates the actual clicked pane, dynamically deduplicates the outer Listener, and never activates on secondary click.",
+    "Human input remains dynamically restricted to the active session. A separate, equally revocable focus-loss policy permits only the exact 3-byte ESC[O system protocol report from the previous pane. Focus-in, arbitrary protocol, sendText(ESC[O), mouse, and retained human sink input retain the strict active-owner gate.",
+    "Focus-loss permission defaults to the existing readOnly policy, preserves stable inputOwner, and retains mounted/session epoch/Reader/AI/read-only revocation without deactivated ancestor lookup."
+  ],
+  "runs": [
+    {
+      "log": "sdk-cache-sandbox.log",
+      "cwd": "/Users/robinfai/flutter_projects/ianvs-terminal/example",
+      "argv": [
+        "/Users/robinfai/development/flutter/bin/flutter",
+        "test",
+        "--no-pub",
+        "test/widget_test.dart",
+        "--name",
+        "clicking an inactive split pane with mouse reporting|switching split panes routes focus reports",
+        "--reporter",
+        "expanded"
+      ],
+      "exit_code": 1,
+      "classification": "environment_block_before_test_start",
+      "note": "SDK engine cache writes denied by sandbox; retained separately, no product test result.",
+      "bytes": 346,
+      "sha256": "b5826ebeab79c644eed63f2dd56222fd6fbd440dd9db3b3f96bb6b07dd6258ed"
+    },
+    {
+      "log": "initial-two-before.log",
+      "cwd": "/Users/robinfai/flutter_projects/ianvs-terminal/example",
+      "argv": [
+        "/Users/robinfai/development/flutter/bin/flutter",
+        "test",
+        "--no-pub",
+        "test/widget_test.dart",
+        "--name",
+        "clicking an inactive split pane with mouse reporting|switching split panes routes focus reports",
+        "--reporter",
+        "expanded"
+      ],
+      "exit_code": 1,
+      "classification": "product_regression_reproduction_before_fix",
+      "counts": {
+        "passed": 0,
+        "failed": 2
+      },
+      "note": "Original assertions unchanged: first mouse press missing, and old-pane ESC[O missing. Reproduced on C9 code before this patch; no separate clean-run metadata was captured.",
+      "bytes": 4355,
+      "sha256": "8541a1942343ab543f83cd68d672d5416ad7dc02f3e8578f237479a4fe0bfae5"
+    },
+    {
+      "log": "targeted-after-1.log",
+      "cwd": "/Users/robinfai/flutter_projects/ianvs-terminal/example",
+      "argv": [
+        "/Users/robinfai/development/flutter/bin/flutter",
+        "test",
+        "--no-pub",
+        "test/widget_test.dart",
+        "test/terminal_focus_loss_permission_test.dart",
+        "test/ai/terminal_ai_observer_test.dart",
+        "test/mobile_prd_input_revocation_test.dart",
+        "--name",
+        "clicking an inactive split pane with mouse reporting|switching split panes routes focus reports|focus.loss|desktop TUI evidence|retained text|focus fallback",
+        "--reporter",
+        "expanded"
+      ],
+      "exit_code": 0,
+      "classification": "initial_targeted_green",
+      "counts": {
+        "passed": 9,
+        "failed": 0
+      },
+      "note": "Before the final additional macOS held-pointer and explicit sendText(ESC[O) checks; final coverage is in the complete related-file run.",
+      "bytes": 2035,
+      "sha256": "a6550452acd41bff4b962474b7b54c33caae958a82620801149d1bb15f31a704"
+    },
+    {
+      "log": "widget-test-full.log",
+      "cwd": "/Users/robinfai/flutter_projects/ianvs-terminal/example",
+      "argv": [
+        "/Users/robinfai/development/flutter/bin/flutter",
+        "test",
+        "--no-pub",
+        "test/widget_test.dart",
+        "--reporter",
+        "expanded"
+      ],
+      "exit_code": 0,
+      "classification": "final_original_shell_widget_file",
+      "counts": {
+        "passed": 103,
+        "failed": 0
+      },
+      "bytes": 8997,
+      "sha256": "212e08000e34d2f76ff05eb590d4939e28ca4b424ece2261163414ca7175c898"
+    },
+    {
+      "log": "related-app-after.log",
+      "cwd": "/Users/robinfai/flutter_projects/ianvs-terminal/example",
+      "argv": [
+        "/Users/robinfai/development/flutter/bin/flutter",
+        "test",
+        "--no-pub",
+        "test/shell/shell_pane_input_metrics_test.dart",
+        "test/shell/shell_screen_phase4_test.dart",
+        "test/shell/shell_screen_architecture_test.dart",
+        "test/terminal_composer/composer_pane_focus_test.dart",
+        "test/terminal_composer/composer_pane_submission_test.dart",
+        "test/terminal/selection_resize_guard_test.dart",
+        "test/recording/replay_viewport_layout_test.dart",
+        "test/ui/pane_divider_keyboard_test.dart",
+        "test/shell/shell_close_protection_test.dart",
+        "test/ai/shell_ai_reconnect_test.dart",
+        "test/shell/mobile_terminal_modes_test.dart",
+        "test/terminal_input_controller_test.dart",
+        "test/terminal_focus_loss_permission_test.dart",
+        "test/ai/terminal_ai_observer_test.dart",
+        "test/mobile_prd_input_revocation_test.dart",
+        "--reporter",
+        "expanded"
+      ],
+      "exit_code": 0,
+      "classification": "final_affected_app_regressions",
+      "counts": {
+        "passed": 297,
+        "failed": 0
+      },
+      "file_count": 15,
+      "bytes": 67980,
+      "sha256": "70202ef7945d39fc9fac096216165885cdda35112f434ed5aa3fcb3e000b3184"
+    },
+    {
+      "log": "canonical-input-after.log",
+      "cwd": "/Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal",
+      "argv": [
+        "/Users/robinfai/development/flutter/bin/flutter",
+        "test",
+        "--no-pub",
+        "test/terminal_viewport_keyboard_test.dart",
+        "test/terminal_viewport_alt_click_test.dart",
+        "test/terminal_viewport_mobile_gesture_test.dart",
+        "test/terminal_input_controller_test.dart",
+        "test/terminal_focus_reporter_test.dart",
+        "test/terminal_viewport_render_test.dart",
+        "--reporter",
+        "expanded"
+      ],
+      "exit_code": 0,
+      "classification": "final_canonical_input_regressions",
+      "counts": {
+        "passed": 165,
+        "failed": 0
+      },
+      "file_count": 6,
+      "bytes": 33569,
+      "sha256": "f684413c7b8561a8cbd4fd3af638c20c73f4b91a2701812ac849bfd9f1e6448f"
+    },
+    {
+      "log": "analyze-app.log",
+      "cwd": "/Users/robinfai/flutter_projects/ianvs-terminal/example",
+      "argv": [
+        "/Users/robinfai/development/flutter/bin/dart",
+        "analyze",
+        "--fatal-infos",
+        "lib/features/shell/shell_screen.dart",
+        "lib/features/shell/shell_screen_state_terminal_layout.dart",
+        "lib/features/terminal/terminal_input_controller.dart",
+        "lib/features/terminal/terminal_viewport.dart",
+        "test/terminal_focus_loss_permission_test.dart",
+        "test/ai/terminal_ai_observer_test.dart",
+        "test/shell/shell_pane_input_metrics_test.dart"
+      ],
+      "exit_code": 0,
+      "classification": "final_static_analysis",
+      "note": "No issues found; includes Shell owned library/parts.",
+      "bytes": 255,
+      "sha256": "b84b70771613de44c6dc59e1aa9ad0739dd4ad7ec09b1fb3cdae8dadedc879eb"
+    },
+    {
+      "log": "analyze-canonical.log",
+      "cwd": "/Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal",
+      "argv": [
+        "/Users/robinfai/development/flutter/bin/dart",
+        "analyze",
+        "--fatal-infos",
+        "lib/src/terminal/terminal_viewport.dart"
+      ],
+      "exit_code": 0,
+      "classification": "final_static_analysis",
+      "note": "No issues found.",
+      "bytes": 53,
+      "sha256": "2676d0a00a56b626419bd8f27bc443bbc57572427c73a0fe18865d54a3abe171"
+    },
+    {
+      "log": "format-check.log",
+      "cwd": "/Users/robinfai/flutter_projects/ianvs-terminal",
+      "argv": [
+        "/Users/robinfai/development/flutter/bin/dart",
+        "format",
+        "--output=none",
+        "--set-exit-if-changed",
+        "packages/ianvs_terminal/lib/src/terminal/terminal_viewport.dart",
+        "packages/ianvs_terminal_core/lib/src/terminal/terminal_viewport.dart",
+        "example/lib/features/terminal/terminal_viewport.dart",
+        "example/lib/features/terminal/terminal_input_controller.dart",
+        "example/lib/features/shell/shell_screen_state_terminal_layout.dart",
+        "example/test/terminal_focus_loss_permission_test.dart",
+        "example/test/ai/terminal_ai_observer_test.dart",
+        "example/test/shell/shell_pane_input_metrics_test.dart"
+      ],
+      "exit_code": 0,
+      "classification": "final_format_check",
+      "note": "8 files, 0 changed.",
+      "bytes": 47,
+      "sha256": "04d0d5321696f1dd62a805966aef822fd275a9945cd9d6c1c6f2077d0adc9c4d"
+    },
+    {
+      "log": "mirror-check.log",
+      "cwd": "/Users/robinfai/flutter_projects/ianvs-terminal",
+      "argv": [
+        "/Users/robinfai/development/flutter/bin/dart",
+        "run",
+        "tools/sync_terminal_core.dart",
+        "--check"
+      ],
+      "exit_code": 0,
+      "classification": "final_generated_mirror_check",
+      "note": "Generated sources current; mirror updated only through generator.",
+      "bytes": 51,
+      "sha256": "79ea62ba85fd4366e859c4e3b3c6cd1cab711eb9ccbd38df713e6530698f52a1"
+    },
+    {
+      "log": "diff-check.log",
+      "cwd": "/Users/robinfai/flutter_projects/ianvs-terminal",
+      "argv": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "classification": "final_whitespace_check",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "additional_environment_and_generator_logs": [
+    {
+      "log": "format-1.log",
+      "exit_code": 1,
+      "note": "The files were formatted, then Dart telemetry timestamp write was denied by sandbox. Final escalated format/check passed; this environment failure is preserved."
+    },
+    {
+      "log": "format-2.log",
+      "note": "Formatting and generator sync ran sequentially in the same shell command. Tool returned aggregate exit0; this log says 7 files/1 changed. Final independent 8-file check exit0 is recorded above."
+    },
+    {
+      "log": "mirror-sync.log",
+      "note": "Generator sync ran after format in the same shell command; aggregate exit0. Final independent --check exit0 is recorded above."
+    }
+  ],
+  "counting_policy": "The 9-test selection overlaps the final full-file runs. Report 103, 297 and 165 by invocation; do not add historical C9 198/71 or these selections into a claimed unique PRD-case total.",
+  "final_coverage": [
+    "Original inactive-pane click sends both SGR down and up; original switch emits old-pane focus-out followed by new-pane focus-in.",
+    "Actual macOS mouse down in an inactive TUI emits its first byte before any pump or deferred replay; no Composer draft/submission changes.",
+    "Inactive secondary remains zero-write/zero-activation; active TUI secondary remains functional. A retained old sink using buttons 0/1/2 cannot write or activate its old pane.",
+    "Plain and protocol delegates preserve only exact system focus-loss exemption, and recheck revocation at the final retained sink boundary.",
+    "Actual Shell AI opening revokes old and current focus reports on macOS and iOS; explicit takeover only restores the newly current controller. Reader and later old epochs remain revoked.",
+    "DPR and stale-menu tests, split limits, divider keyboard, close protection, mobile modes, Composer focus/submission, replay geometry, input revocation and Shell architecture budget all remain green."
+  ],
+  "independent_static_review": {
+    "reviewer": "/root/ai_contract_review",
+    "status": "no_new_blocker_reported",
+    "scope": "production diff, exact ESC[O guard/default compatibility, current owner callback order and tests/logs; read-only, no SDK/GUI run"
+  },
+  "evidence_boundaries": [
+    "No native App/GUI or physical input was run by this subagent for this patch.",
+    "Widget tests use fake PTY and synthetic pointer/focus events; no new formal D1-D4 case is marked passed.",
+    "C9 verify11 failure is historical and retained; no C10 complete gate success is claimed."
+  ],
+  "suggested_native_recheck": [
+    "Keep a draft focused in left Blocks pane and a mouse-reporting TUI in the right pane: right-click right pane must preserve the left execution target/draft; explicitly activate right then its right-click must still reach that TUI.",
+    "Primary-click the inactive reporting TUI and observe paired down/up in that target, then switch between reporting panes and confirm loss/gain reports stay with the original/new pane.",
+    "Open AI/Reader, cancel or take over through normal UI, and confirm stale input cannot write; preserve close/draft protection checks from C9."
+  ],
+  "sdk_state": "all owned SDK tool sessions completed; resource returned to root; no further SDK/GUI activity planned",
+  "log_inventory": [
+    {
+      "path": "analyze-app.log",
+      "bytes": 255,
+      "sha256": "b84b70771613de44c6dc59e1aa9ad0739dd4ad7ec09b1fb3cdae8dadedc879eb"
+    },
+    {
+      "path": "analyze-canonical.log",
+      "bytes": 53,
+      "sha256": "2676d0a00a56b626419bd8f27bc443bbc57572427c73a0fe18865d54a3abe171"
+    },
+    {
+      "path": "canonical-input-after.log",
+      "bytes": 33569,
+      "sha256": "f684413c7b8561a8cbd4fd3af638c20c73f4b91a2701812ac849bfd9f1e6448f"
+    },
+    {
+      "path": "diff-check.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "format-1.log",
+      "bytes": 1146,
+      "sha256": "c0f19cde5b2916ef9363dfc82c8f963f65d881d139cbda1a4284b532d9928fee"
+    },
+    {
+      "path": "format-2.log",
+      "bytes": 111,
+      "sha256": "d5d1b672ce811fc98dfef204749b1e5d15583381569d4b2dc8a4e18f78ba775c"
+    },
+    {
+      "path": "format-check.log",
+      "bytes": 47,
+      "sha256": "04d0d5321696f1dd62a805966aef822fd275a9945cd9d6c1c6f2077d0adc9c4d"
+    },
+    {
+      "path": "initial-two-before.log",
+      "bytes": 4355,
+      "sha256": "8541a1942343ab543f83cd68d672d5416ad7dc02f3e8578f237479a4fe0bfae5"
+    },
+    {
+      "path": "mirror-check.log",
+      "bytes": 51,
+      "sha256": "79ea62ba85fd4366e859c4e3b3c6cd1cab711eb9ccbd38df713e6530698f52a1"
+    },
+    {
+      "path": "mirror-sync.log",
+      "bytes": 68,
+      "sha256": "5f0e935fcc83f44f74789ea67457676c67d3e3280ec7f3ed4dcdc44c8b7ca176"
+    },
+    {
+      "path": "related-app-after.log",
+      "bytes": 67980,
+      "sha256": "70202ef7945d39fc9fac096216165885cdda35112f434ed5aa3fcb3e000b3184"
+    },
+    {
+      "path": "sdk-cache-sandbox.log",
+      "bytes": 346,
+      "sha256": "b5826ebeab79c644eed63f2dd56222fd6fbd440dd9db3b3f96bb6b07dd6258ed"
+    },
+    {
+      "path": "targeted-after-1.log",
+      "bytes": 2035,
+      "sha256": "a6550452acd41bff4b962474b7b54c33caae958a82620801149d1bb15f31a704"
+    },
+    {
+      "path": "widget-test-full.log",
+      "bytes": 8997,
+      "sha256": "212e08000e34d2f76ff05eb590d4939e28ca4b424ece2261163414ca7175c898"
+    }
+  ]
+}

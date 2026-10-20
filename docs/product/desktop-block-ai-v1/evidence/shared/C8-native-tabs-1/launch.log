@@ -1,0 +1,113 @@
+{
+  "fixture_directory": "/private/tmp/trail-desktop-prd-c8-tabs-1",
+  "working_directory": "/Users/robinfai/flutter_projects/ianvs-terminal/example",
+  "command": [
+    "/Users/robinfai/development/flutter/bin/flutter",
+    "run",
+    "--debug",
+    "--no-pub",
+    "-d",
+    "macos",
+    "-t",
+    "tool/desktop_prd_acceptance.dart",
+    "--dart-define=TRAIL_DESKTOP_PRD_DIRECTORY=/private/tmp/trail-desktop-prd-c8-tabs-1",
+    "--dart-define=TRAIL_UI_NATIVE_KEYBOARD=true"
+  ],
+  "environment_keys": [
+    "HOME",
+    "LANG",
+    "LC_ALL",
+    "LC_CTYPE",
+    "LOGNAME",
+    "PATH",
+    "TERM",
+    "TMPDIR",
+    "USER"
+  ],
+  "fixture_only": [
+    "AI configuration",
+    "master key",
+    "profiles/layout",
+    "local shell home"
+  ],
+  "native_keyboard": true
+}
+Launching tool/desktop_prd_acceptance.dart on macOS in debug mode...
+Building macOS application...                                   
+warning: Stale file '/Users/robinfai/Library/Developer/Xcode/DerivedData/Runner-gsecmflwxfdcfffcvlhwlwbtkwxr/Build/Products/Debug/App.framework/Versions/A/App' is located outside of the allowed root paths.
+
+warning: Stale file '/Users/robinfai/Library/Developer/Xcode/DerivedData/Runner-gsecmflwxfdcfffcvlhwlwbtkwxr/Build/Products/Debug/App.framework/Versions/A/Resources/Info.plist' is located outside of the allowed root paths.
+
+warning: Stale file '/Users/robinfai/Library/Developer/Xcode/DerivedData/Runner-gsecmflwxfdcfffcvlhwlwbtkwxr/Build/Products/Debug/App.framework/Versions/A/Resources/flutter_assets/AssetManifest.bin' is located outside of the allowed root paths.
+
+warning: Stale file '/Users/robinfai/Library/Developer/Xcode/DerivedData/Runner-gsecmflwxfdcfffcvlhwlwbtkwxr/Build/Products/Debug/App.framework/Versions/A/Resources/flutter_assets/FontManifest.json' is located outside of the allowed root paths.
+
+warning: Stale file '/Users/robinfai/Library/Developer/Xcode/DerivedData/Runner-gsecmflwxfdcfffcvlhwlwbtkwxr/Build/Products/Debug/App.framework/Versions/A/Resources/flutter_assets/NOTICES.Z' is located outside of the allowed root paths.
+
+warning: Stale file '/Users/robinfai/Library/Developer/Xcode/DerivedData/Runner-gsecmflwxfdcfffcvlhwlwbtkwxr/Build/Products/Debug/App.framework/Versions/A/Resources/flutter_assets/NativeAssetsManifest.json' is located outside of the allowed root paths.
+
+warning: Stale file '/Users/robinfai/Library/Developer/Xcode/DerivedData/Runner-gsecmflwxfdcfffcvlhwlwbtkwxr/Build/Products/Debug/App.framework/Versions/A/Resources/flutter_assets/assets/fonts/TrailLightIcons.ttf' is located outside of the allowed root paths.
+
+warning: Stale file '/Users/robinfai/Library/Developer/Xcode/DerivedData/Runner-gsecmflwxfdcfffcvlhwlwbtkwxr/Build/Products/Debug/App.framework/Versions/A/Resources/flutter_assets/isolate_snapshot_data' is located outside of the allowed root paths.
+
+warning: Stale file '/Users/robinfai/Library/Developer/Xcode/DerivedData/Runner-gsecmflwxfdcfffcvlhwlwbtkwxr/Build/Products/Debug/App.framework/Versions/A/Resources/flutter_assets/kernel_blob.bin' is located outside of the allowed root paths.
+
+warning: Stale file '/Users/robinfai/Library/Developer/Xcode/DerivedData/Runner-gsecmflwxfdcfffcvlhwlwbtkwxr/Build/Products/Debug/App.framework/Versions/A/Resources/flutter_assets/packages/cupertino_icons/assets/CupertinoIcons.ttf' is located outside of the allowed root paths.
+
+warning: Stale file '/Users/robinfai/Library/Developer/Xcode/DerivedData/Runner-gsecmflwxfdcfffcvlhwlwbtkwxr/Build/Products/Debug/App.framework/Versions/A/Resources/flutter_assets/shaders/ink_sparkle.frag' is located outside of the allowed root paths.
+
+warning: Stale file '/Users/robinfai/Library/Developer/Xcode/DerivedData/Runner-gsecmflwxfdcfffcvlhwlwbtkwxr/Build/Products/Debug/App.framework/Versions/A/Resources/flutter_assets/shaders/stretch_effect.frag' is located outside of the allowed root paths.
+
+warning: Stale file '/Users/robinfai/Library/Developer/Xcode/DerivedData/Runner-gsecmflwxfdcfffcvlhwlwbtkwxr/Build/Products/Debug/App.framework/Versions/A/Resources/flutter_assets/vm_snapshot_data' is located outside of the allowed root paths.
+
+warning: Stale file '/Users/robinfai/Library/Developer/Xcode/DerivedData/Runner-gsecmflwxfdcfffcvlhwlwbtkwxr/Build/Products/Debug/FlutterMacOS.framework/Versions/A/FlutterMacOS' is located outside of the allowed root paths.
+
+warning: Stale file '/Users/robinfai/Library/Developer/Xcode/DerivedData/Runner-gsecmflwxfdcfffcvlhwlwbtkwxr/Build/Products/Debug/native_assets/ianvs_core.framework/Resources/Info.plist' is located outside of the allowed root paths.
+
+warning: Stale file '/Users/robinfai/Library/Developer/Xcode/DerivedData/Runner-gsecmflwxfdcfffcvlhwlwbtkwxr/Build/Products/Debug/native_assets/ianvs_core.framework/Versions/A/Resources/Info.plist' is located outside of the allowed root paths.
+
+warning: Stale file '/Users/robinfai/Library/Developer/Xcode/DerivedData/Runner-gsecmflwxfdcfffcvlhwlwbtkwxr/Build/Products/Debug/native_assets/ianvs_core.framework/Versions/A/ianvs_core' is located outside of the allowed root paths.
+
+warning: Stale file '/Users/robinfai/Library/Developer/Xcode/DerivedData/Runner-gsecmflwxfdcfffcvlhwlwbtkwxr/Build/Products/Debug/native_assets/ianvs_core.framework/Versions/Current/Resources/Info.plist' is located outside of the allowed root paths.
+
+warning: Stale file '/Users/robinfai/Library/Developer/Xcode/DerivedData/Runner-gsecmflwxfdcfffcvlhwlwbtkwxr/Build/Products/Debug/native_assets/ianvs_core.framework/Versions/Current/ianvs_core' is located outside of the allowed root paths.
+
+warning: Stale file '/Users/robinfai/Library/Developer/Xcode/DerivedData/Runner-gsecmflwxfdcfffcvlhwlwbtkwxr/Build/Products/Debug/native_assets/ianvs_core.framework/ianvs_core' is located outside of the allowed root paths.
+
+warning: Stale file '/Users/robinfai/Library/Developer/Xcode/DerivedData/Runner-gsecmflwxfdcfffcvlhwlwbtkwxr/Build/Products/Debug/native_assets/objective_c.framework/Resources/Info.plist' is located outside of the allowed root paths.
+
+warning: Stale file '/Users/robinfai/Library/Developer/Xcode/DerivedData/Runner-gsecmflwxfdcfffcvlhwlwbtkwxr/Build/Products/Debug/native_assets/objective_c.framework/Versions/A/Resources/Info.plist' is located outside of the allowed root paths.
+
+warning: Stale file '/Users/robinfai/Library/Developer/Xcode/DerivedData/Runner-gsecmflwxfdcfffcvlhwlwbtkwxr/Build/Products/Debug/native_assets/objective_c.framework/Versions/A/objective_c' is located outside of the allowed root paths.
+
+warning: Stale file '/Users/robinfai/Library/Developer/Xcode/DerivedData/Runner-gsecmflwxfdcfffcvlhwlwbtkwxr/Build/Products/Debug/native_assets/objective_c.framework/Versions/Current/Resources/Info.plist' is located outside of the allowed root paths.
+
+warning: Stale file '/Users/robinfai/Library/Developer/Xcode/DerivedData/Runner-gsecmflwxfdcfffcvlhwlwbtkwxr/Build/Products/Debug/native_assets/objective_c.framework/Versions/Current/objective_c' is located outside of the allowed root paths.
+
+warning: Stale file '/Users/robinfai/Library/Developer/Xcode/DerivedData/Runner-gsecmflwxfdcfffcvlhwlwbtkwxr/Build/Products/Debug/native_assets/objective_c.framework/objective_c' is located outside of the allowed root paths.
+
+✓ Built build/macos/Build/Products/Debug/Trail Development.app
+2026-10-10 15:49:27.662 Trail Development[29146:33631615] Running with merged UI and platform thread. Experimental.
+Failed to foreground app; open returned 1
+package:ianvs_design has `uses-material-design: true` set but the primary
+pubspec contains `uses-material-design: false`. If the application needs
+material icons, then `uses-material-design`  must be set to true.
+Syncing files to device macOS...                                   132ms
+
+Flutter run key commands.
+r Hot reload. 🔥🔥🔥
+R Hot restart.
+h List all available interactive commands.
+d Detach (terminate "flutter run" but leave application running).
+c Clear the screen
+q Quit (terminate the application on the device).
+
+A Dart VM Service on macOS is available at: http://127.0.0.1:61241/x8c9blKRVQk=/
+The Flutter DevTools debugger and profiler on macOS is available at:
+http://127.0.0.1:61241/x8c9blKRVQk=/devtools/?uri=ws://127.0.0.1:61241/x8c9blKRV
+Qk=/ws
+2026-10-10 15:49:51.507 Trail Development[29146:33631615] error messaging the mach port for IMKCFRunLoopWakeUpReliable
+2026-10-10 15:50:03.619 Trail Development[29146:33631615] TSM AdjustCapsLockLEDForKeyTransitionHandling - _ISSetPhysicalKeyboardCapsLockLED Inhibit
+2026-10-10 15:52:59.617 Trail Development[29146:33631615] Warning: Window move completed without beginning
+
+Application finished.

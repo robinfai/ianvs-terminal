@@ -1,0 +1,16 @@
+{
+  "command": [
+    "/Users/robinfai/flutter_projects/ianvs-terminal/tmp/desktop_prd_capture/record_window",
+    "/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Debug/Trail Development.app",
+    "29753",
+    "68899",
+    "/Users/robinfai/flutter_projects/ianvs-terminal/build/desktop-prd-v1/iteration-1/native-e1-windows-1/draft-close-before.mp4"
+  ],
+  "recorder_pid": 76321,
+  "started_at": "2026-10-10T08:26:51.021222+00:00",
+  "source_sha256": "2a6a5699ff899826b5961f328675f828fc2f36521b23e82dd00d8886bf08f72a",
+  "scope": "exact isolated App main window; no audio or other apps",
+  "exit_code": 0,
+  "ended_at": "2026-10-10T08:29:00.783720+00:00",
+  "video_sha256": "e5d6d58e94e77828c2fd78b770a99e1639e998b2dfaecd52b294fb2f192debf6"
+}

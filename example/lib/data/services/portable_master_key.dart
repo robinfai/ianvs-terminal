@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import '../../platform/development_secret_file.dart';
 import 'data_api_auth_contract.dart';
 
 bool get usesAutomaticallySynchronizedAppleKeychain =>
@@ -102,6 +104,13 @@ abstract interface class PortableMasterKeyStorage {
   Future<void> write(String portableValue);
 }
 
+enum PortableMasterKeyStoragePolicy {
+  /// Synchronized Apple Keychain, or the platform vault on other platforms.
+  platformVault,
+  developmentFile,
+  acceptanceDeviceOnly,
+}
+
 /// The synchronized production master-key item owned by Ianvs Terminal.
 final class FlutterSecurePortableMasterKeyStorage
     implements PortableMasterKeyStorage {
@@ -110,34 +119,45 @@ final class FlutterSecurePortableMasterKeyStorage
       iOptions: IOSOptions(synchronizable: true),
       mOptions: MacOsOptions(synchronizable: true),
     ),
-  }) : _key = storageKey;
-
-  const FlutterSecurePortableMasterKeyStorage.development()
-    : _storage = const FlutterSecureStorage(
-        mOptions: MacOsOptions(
-          accountName: developmentAccountName,
-          synchronizable: false,
-          usesDataProtectionKeychain: false,
-        ),
-      ),
-      _key = developmentStorageKey;
-
-  static const developmentAccountName = 'dev.ianvs.terminal.development';
-  static const developmentStorageKey = 'ianvs.development.master-key.v1';
+  }) : _key = storageKey,
+       policy = PortableMasterKeyStoragePolicy.platformVault;
 
   const FlutterSecurePortableMasterKeyStorage.legacyMacOs()
     : _storage = const FlutterSecureStorage(
         mOptions: MacOsOptions(usesDataProtectionKeychain: false),
       ),
-      _key = storageKey;
+      _key = storageKey,
+      policy = PortableMasterKeyStoragePolicy.platformVault;
+
+  /// Used only after the native iOS bundle identity and opt-in are verified.
+  const FlutterSecurePortableMasterKeyStorage.iosPrdDeviceOnly()
+    : _storage = const FlutterSecureStorage(
+        iOptions: IOSOptions(
+          synchronizable: false,
+          accessibility: KeychainAccessibility.unlocked_this_device,
+        ),
+      ),
+      _key = iosPrdStorageKey,
+      policy = PortableMasterKeyStoragePolicy.acceptanceDeviceOnly;
 
   static const storageKey = 'ianvs.master-key.v1';
+  static const iosPrdStorageKey = 'ianvs.mobileprd.master-key.device.v1';
 
   final FlutterSecureStorage _storage;
   final String _key;
+  final PortableMasterKeyStoragePolicy policy;
 
   @override
-  Future<String?> read() => _storage.read(key: _key);
+  Future<String?> read() async {
+    final encoded = await _storage.read(key: _key);
+    if (policy == PortableMasterKeyStoragePolicy.acceptanceDeviceOnly &&
+        encoded != null) {
+      // An existing corrupt or empty item is not permission to replace the
+      // key protecting this installation's already encrypted data.
+      PortableMasterKey.parsePortable(encoded);
+    }
+    return encoded;
+  }
 
   @override
   Future<void> write(String portableValue) {
@@ -145,6 +165,32 @@ final class FlutterSecurePortableMasterKeyStorage
   }
 
   Future<void> delete() => _storage.delete(key: _key);
+}
+
+final class DevelopmentPortableMasterKeyStorage
+    implements PortableMasterKeyStorage {
+  DevelopmentPortableMasterKeyStorage({
+    required Future<Directory> Function() directoryResolver,
+  }) : _file = DevelopmentSecretFile(
+         directoryResolver: directoryResolver,
+         name: 'master-key.v1',
+       );
+
+  final DevelopmentSecretFile _file;
+
+  @override
+  Future<String?> read() async {
+    final encoded = await _file.read();
+    // A damaged/empty existing file is not permission to replace its key.
+    if (encoded != null) PortableMasterKey.parsePortable(encoded);
+    return encoded;
+  }
+
+  @override
+  Future<void> write(String portableValue) {
+    PortableMasterKey.parsePortable(portableValue);
+    return _file.write(portableValue);
+  }
 }
 
 final class PortableMasterKeyConflictException implements Exception {
@@ -182,8 +228,16 @@ final class PortableMasterKeyRepository {
   final PortableMasterKeyStorage _storage;
   final bool _allowCreation;
 
-  /// Development never imports secrets from the production namespace.
+  /// Isolated development and acceptance builds do not import legacy secrets.
   final bool allowLegacyMigration;
+
+  PortableMasterKeyStoragePolicy get storagePolicy => switch (_storage) {
+    FlutterSecurePortableMasterKeyStorage(:final policy) => policy,
+    DevelopmentPortableMasterKeyStorage() =>
+      PortableMasterKeyStoragePolicy.developmentFile,
+    _ => PortableMasterKeyStoragePolicy.platformVault,
+  };
+
   Future<void> _operationTail = Future<void>.value();
   PortableMasterKey? _cached;
 

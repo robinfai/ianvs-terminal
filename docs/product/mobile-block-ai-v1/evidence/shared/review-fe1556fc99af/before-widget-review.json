@@ -1,0 +1,1351 @@
+{
+  "kind": "visual_review_metadata_not_capture",
+  "source_review_sha256": "0b182ac2a136063c68cf55ffd0a60645646265c641f910689077119baea352ab",
+  "inspection_completed_at_utc": "2026-10-08T14:44:23.041079+00:00",
+  "inspection_time_is_not_capture_time": true,
+  "inspection_type": "read_only_original_png_and_sidecar_review",
+  "summary": {
+    "png_count": 42,
+    "sidecar_count": 42,
+    "individually_viewed_originals": 42,
+    "png_sidecar_size_matches": 42,
+    "captured_at_present": 0,
+    "visible_real_account_or_credential_findings": 0,
+    "ai_workspace_pngs": 24,
+    "canonical_composer_pngs": 18,
+    "brightness_counts": {
+      "dark": 21,
+      "light": 21
+    },
+    "locale_counts": {
+      "en": 30,
+      "zh": 12
+    },
+    "logical_size_counts": {
+      "320x600": 12,
+      "390x844": 18,
+      "1024x768": 6,
+      "1280x900": 6
+    }
+  },
+  "scope_limitations": [
+    "未运行 App、测试、Dart、Flutter 或 Xcode。",
+    "没有真实 IME、系统 chrome、设备字体、VoiceOver、硬件键盘、网络/PTY 或真实 iPad 布局证据。",
+    "静态图不能证明 44pt 触控区域、语义标签、焦点、键盘行为、点击动作、滚动可达性或命令执行结果。",
+    "18 张 Composer 是英文 UI 加中文内容，不能视为中文本地化 UI 覆盖。",
+    "原 sidecar 缺 captured_at，本报告时间只记录检查结束时间。",
+    "原图和 sidecar 均未修改，本报告不标记任何 PRD 用例通过。"
+  ],
+  "records": [
+    {
+      "filename": "before-320x600-en-dark-multilineDraft.png",
+      "view_order": 1,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "6a4d1468b41a84fc86d7b6ab5c2d2ffb5d51f5a17bc8f4d1e3183cf7f298b8d7",
+      "sidecar_sha256": "e6f79e947f9b4652125884a67018edc0cc42bc29a260d619e4a9701916d1d6cc",
+      "png_dimensions": {
+        "width": 640,
+        "height": 1200
+      },
+      "logical_size": {
+        "width": 320.0,
+        "height": 600.0
+      },
+      "locale": "en",
+      "brightness": "dark",
+      "visual_notes": [
+        "正文及图标可辨读；语言、亮暗主题、状态与 sidecar 对应。",
+        "附着来源及输入草稿可见；三行草稿在当前输入视口仅显示第一行。",
+        "空闲新任务状态可见，主体空白是空 transcript fixture。"
+      ],
+      "observation_ids": [
+        "AI-ONE-LINE",
+        "AI-ICON-ACTION"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-en-dark-multilineDraft.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-en-dark-multilineDraft.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-320x600-en-dark-proposal.png",
+      "view_order": 2,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "ea05f36aec9389cf41cb5984d17e41119a2d79763a7d857fd553b50b10386b03",
+      "sidecar_sha256": "a34a4000f7a0bc3d98a61aee3adb0f0697d81ee5e4d62a9297e879b5b629f39f",
+      "png_dimensions": {
+        "width": 640,
+        "height": 1200
+      },
+      "logical_size": {
+        "width": 320.0,
+        "height": 600.0
+      },
+      "locale": "en",
+      "brightness": "dark",
+      "visual_notes": [
+        "正文及图标可辨读；语言、亮暗主题、状态与 sidecar 对应。",
+        "附着来源及输入草稿可见；三行草稿在当前输入视口仅显示第一行。",
+        "待确认状态、命令以及拒绝/审阅完整命令动作可见。",
+        "顶部内容位于滚动视口裁剪区，当前图没有完整卡片开头。"
+      ],
+      "observation_ids": [
+        "AI-ONE-LINE",
+        "AI-ICON-ACTION",
+        "AI-320-CROP"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-en-dark-proposal.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-en-dark-proposal.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-320x600-en-dark-unknownSubmission.png",
+      "view_order": 3,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "e4640c89e2d3bba946983dc23c419e5235467ae02571c7cbcec6ea87947c043c",
+      "sidecar_sha256": "cd4911a130a0dd222a887e5a362aaa3cb8d4089afc7f9d6a19e43dea35a25f95",
+      "png_dimensions": {
+        "width": 640,
+        "height": 1200
+      },
+      "logical_size": {
+        "width": 320.0,
+        "height": 600.0
+      },
+      "locale": "en",
+      "brightness": "dark",
+      "visual_notes": [
+        "正文及图标可辨读；语言、亮暗主题、状态与 sidecar 对应。",
+        "附着来源及输入草稿可见；三行草稿在当前输入视口仅显示第一行。",
+        "未知状态、不重发说明及检查原提交/返回终端检查动作可见；不能从静态图验证动作结果。",
+        "顶部内容位于滚动视口裁剪区，当前图没有完整卡片开头。"
+      ],
+      "observation_ids": [
+        "AI-ONE-LINE",
+        "AI-ICON-ACTION",
+        "AI-320-CROP"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-en-dark-unknownSubmission.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-en-dark-unknownSubmission.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-320x600-en-light-multilineDraft.png",
+      "view_order": 4,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "d2ae5ffc41d8ff4a9b3dd236cf9394bbdd31a4baa1b8898248aa316095dc0dd4",
+      "sidecar_sha256": "c306f429e77a0c9cff5c37b0ca022e230f80400aeaa2068027a4361aa33e9ea3",
+      "png_dimensions": {
+        "width": 640,
+        "height": 1200
+      },
+      "logical_size": {
+        "width": 320.0,
+        "height": 600.0
+      },
+      "locale": "en",
+      "brightness": "light",
+      "visual_notes": [
+        "正文及图标可辨读；语言、亮暗主题、状态与 sidecar 对应。",
+        "附着来源及输入草稿可见；三行草稿在当前输入视口仅显示第一行。",
+        "空闲新任务状态可见，主体空白是空 transcript fixture。"
+      ],
+      "observation_ids": [
+        "AI-ONE-LINE",
+        "AI-ICON-ACTION"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-en-light-multilineDraft.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-en-light-multilineDraft.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-320x600-en-light-proposal.png",
+      "view_order": 5,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "04edffc0612c9cab775d08e0ee4974c1024f7ceda7563c90b465f03ffb6214e1",
+      "sidecar_sha256": "6b26c4f2b6f2b7fbe46412af7707623f57a20c6c54731c7decde64ddefd0f8cb",
+      "png_dimensions": {
+        "width": 640,
+        "height": 1200
+      },
+      "logical_size": {
+        "width": 320.0,
+        "height": 600.0
+      },
+      "locale": "en",
+      "brightness": "light",
+      "visual_notes": [
+        "正文及图标可辨读；语言、亮暗主题、状态与 sidecar 对应。",
+        "附着来源及输入草稿可见；三行草稿在当前输入视口仅显示第一行。",
+        "待确认状态、命令以及拒绝/审阅完整命令动作可见。",
+        "顶部内容位于滚动视口裁剪区，当前图没有完整卡片开头。"
+      ],
+      "observation_ids": [
+        "AI-ONE-LINE",
+        "AI-ICON-ACTION",
+        "AI-320-CROP"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-en-light-proposal.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-en-light-proposal.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-320x600-en-light-unknownSubmission.png",
+      "view_order": 6,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "da416375a47db1a808da6ccce36441328f5c482834d79366a613ff7075862531",
+      "sidecar_sha256": "09989b6a8c2dbd6beadbe1e12cc99c31495363e4b7caaeaef1a670a12ffeb025",
+      "png_dimensions": {
+        "width": 640,
+        "height": 1200
+      },
+      "logical_size": {
+        "width": 320.0,
+        "height": 600.0
+      },
+      "locale": "en",
+      "brightness": "light",
+      "visual_notes": [
+        "正文及图标可辨读；语言、亮暗主题、状态与 sidecar 对应。",
+        "附着来源及输入草稿可见；三行草稿在当前输入视口仅显示第一行。",
+        "未知状态、不重发说明及检查原提交/返回终端检查动作可见；不能从静态图验证动作结果。",
+        "顶部内容位于滚动视口裁剪区，当前图没有完整卡片开头。"
+      ],
+      "observation_ids": [
+        "AI-ONE-LINE",
+        "AI-ICON-ACTION",
+        "AI-320-CROP"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-en-light-unknownSubmission.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-en-light-unknownSubmission.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-320x600-zh-dark-multilineDraft.png",
+      "view_order": 7,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "89a80675a81edcfa483e62ee020c65f49af6c3a92cef84a7d5074d88a32d0498",
+      "sidecar_sha256": "e9dcacbdc4438603d63f47849750815c0c006cd82fd2760e90d238aebda04a6f",
+      "png_dimensions": {
+        "width": 640,
+        "height": 1200
+      },
+      "logical_size": {
+        "width": 320.0,
+        "height": 600.0
+      },
+      "locale": "zh",
+      "brightness": "dark",
+      "visual_notes": [
+        "正文及图标可辨读；语言、亮暗主题、状态与 sidecar 对应。",
+        "附着来源及输入草稿可见；三行草稿在当前输入视口仅显示第一行。",
+        "空闲新任务状态可见，主体空白是空 transcript fixture。"
+      ],
+      "observation_ids": [
+        "AI-ONE-LINE",
+        "AI-ICON-ACTION"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-zh-dark-multilineDraft.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-zh-dark-multilineDraft.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-320x600-zh-dark-proposal.png",
+      "view_order": 8,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "d7499a413698bb3fb80bd774fac2040d065390ae20e27096bd5428f73082388b",
+      "sidecar_sha256": "602f0e6afb496161a0a53c2d6cc913bcbb1c633dd02d8f279c259d9b8d6b0d7a",
+      "png_dimensions": {
+        "width": 640,
+        "height": 1200
+      },
+      "logical_size": {
+        "width": 320.0,
+        "height": 600.0
+      },
+      "locale": "zh",
+      "brightness": "dark",
+      "visual_notes": [
+        "正文及图标可辨读；语言、亮暗主题、状态与 sidecar 对应。",
+        "附着来源及输入草稿可见；三行草稿在当前输入视口仅显示第一行。",
+        "待确认状态、命令以及拒绝/审阅完整命令动作可见。",
+        "顶部内容位于滚动视口裁剪区，当前图没有完整卡片开头。"
+      ],
+      "observation_ids": [
+        "AI-ONE-LINE",
+        "AI-ICON-ACTION",
+        "AI-320-CROP"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-zh-dark-proposal.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-zh-dark-proposal.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-320x600-zh-dark-unknownSubmission.png",
+      "view_order": 9,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "10170f6c9bccba9d7b51064249eef9717f50313e433f48ca6c861d311093bd4f",
+      "sidecar_sha256": "32e5dbc696cd262984ff977942ccf91ff68a1b5c353983a3399c5bb17ad83b67",
+      "png_dimensions": {
+        "width": 640,
+        "height": 1200
+      },
+      "logical_size": {
+        "width": 320.0,
+        "height": 600.0
+      },
+      "locale": "zh",
+      "brightness": "dark",
+      "visual_notes": [
+        "正文及图标可辨读；语言、亮暗主题、状态与 sidecar 对应。",
+        "附着来源及输入草稿可见；三行草稿在当前输入视口仅显示第一行。",
+        "未知状态、不重发说明及检查原提交/返回终端检查动作可见；不能从静态图验证动作结果。",
+        "顶部内容位于滚动视口裁剪区，当前图没有完整卡片开头。"
+      ],
+      "observation_ids": [
+        "AI-ONE-LINE",
+        "AI-ICON-ACTION",
+        "AI-320-CROP"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-zh-dark-unknownSubmission.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-zh-dark-unknownSubmission.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-320x600-zh-light-multilineDraft.png",
+      "view_order": 10,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "7d01ced27553e5cfcd9c99aac1c85556e26d922065a6b41790def2b95a7a9974",
+      "sidecar_sha256": "84d7ef364ca2732d1469c715c538d32198ca026a34ec2931f92df1f737ace819",
+      "png_dimensions": {
+        "width": 640,
+        "height": 1200
+      },
+      "logical_size": {
+        "width": 320.0,
+        "height": 600.0
+      },
+      "locale": "zh",
+      "brightness": "light",
+      "visual_notes": [
+        "正文及图标可辨读；语言、亮暗主题、状态与 sidecar 对应。",
+        "附着来源及输入草稿可见；三行草稿在当前输入视口仅显示第一行。",
+        "空闲新任务状态可见，主体空白是空 transcript fixture。"
+      ],
+      "observation_ids": [
+        "AI-ONE-LINE",
+        "AI-ICON-ACTION"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-zh-light-multilineDraft.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-zh-light-multilineDraft.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-320x600-zh-light-proposal.png",
+      "view_order": 11,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "9e152cc8ac2cfe711de3971d70d508f55bc47a0e9fa9e3b76c55756c5f0999fb",
+      "sidecar_sha256": "d025afda8cdca53ecaec148ea79ae1c5487b35e02b5fefb62e6ddd99733c4b81",
+      "png_dimensions": {
+        "width": 640,
+        "height": 1200
+      },
+      "logical_size": {
+        "width": 320.0,
+        "height": 600.0
+      },
+      "locale": "zh",
+      "brightness": "light",
+      "visual_notes": [
+        "正文及图标可辨读；语言、亮暗主题、状态与 sidecar 对应。",
+        "附着来源及输入草稿可见；三行草稿在当前输入视口仅显示第一行。",
+        "待确认状态、命令以及拒绝/审阅完整命令动作可见。",
+        "顶部内容位于滚动视口裁剪区，当前图没有完整卡片开头。"
+      ],
+      "observation_ids": [
+        "AI-ONE-LINE",
+        "AI-ICON-ACTION",
+        "AI-320-CROP"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-zh-light-proposal.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-zh-light-proposal.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-320x600-zh-light-unknownSubmission.png",
+      "view_order": 12,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "1bb405b2d62ddb4d12c6e0d6ee3318a75745df93af12ef3af2d753e5d6688067",
+      "sidecar_sha256": "9b7cfb4848c771c2d3f362c535173b3f4d4b107c4ba85611b8cbc9a731859d50",
+      "png_dimensions": {
+        "width": 640,
+        "height": 1200
+      },
+      "logical_size": {
+        "width": 320.0,
+        "height": 600.0
+      },
+      "locale": "zh",
+      "brightness": "light",
+      "visual_notes": [
+        "正文及图标可辨读；语言、亮暗主题、状态与 sidecar 对应。",
+        "附着来源及输入草稿可见；三行草稿在当前输入视口仅显示第一行。",
+        "未知状态、不重发说明及检查原提交/返回终端检查动作可见；不能从静态图验证动作结果。",
+        "顶部内容位于滚动视口裁剪区，当前图没有完整卡片开头。"
+      ],
+      "observation_ids": [
+        "AI-ONE-LINE",
+        "AI-ICON-ACTION",
+        "AI-320-CROP"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-zh-light-unknownSubmission.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-320x600-zh-light-unknownSubmission.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-390x844-en-dark-multilineDraft.png",
+      "view_order": 13,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "a2aec05ea36154ce91d7598447c3c8a0b98f8127ec323af103623d998b5b4cb5",
+      "sidecar_sha256": "9a1018136501d6dc0cd79850373e2be73955d32bab3d3c5d071844005b994bca",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "en",
+      "brightness": "dark",
+      "visual_notes": [
+        "正文及图标可辨读；语言、亮暗主题、状态与 sidecar 对应。",
+        "附着来源及输入草稿可见；三行草稿在当前输入视口仅显示第一行。",
+        "空闲新任务状态可见，主体空白是空 transcript fixture。"
+      ],
+      "observation_ids": [
+        "AI-ONE-LINE",
+        "AI-ICON-ACTION"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-en-dark-multilineDraft.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-en-dark-multilineDraft.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-390x844-en-dark-proposal.png",
+      "view_order": 14,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "2e5ed93c1e7930363e0e242fd874c154de8e5bc6dd78eaee842a0400323e4caa",
+      "sidecar_sha256": "d20efe010afa0495271f686fca640a1babf8fa0908c7fca401ad42ae3c6fba9a",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "en",
+      "brightness": "dark",
+      "visual_notes": [
+        "正文及图标可辨读；语言、亮暗主题、状态与 sidecar 对应。",
+        "附着来源及输入草稿可见；三行草稿在当前输入视口仅显示第一行。",
+        "待确认状态、命令以及拒绝/审阅完整命令动作可见。"
+      ],
+      "observation_ids": [
+        "AI-ONE-LINE",
+        "AI-ICON-ACTION"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-en-dark-proposal.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-en-dark-proposal.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-390x844-en-dark-unknownSubmission.png",
+      "view_order": 15,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "b77600e325155221e4fcfca929d9a31f61a19a19978daca4127d0cbbdafcc7b8",
+      "sidecar_sha256": "bc8b24364d9334d30ec4f04efd4545f173a43ab3fb6430ad0145e1f775ba6599",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "en",
+      "brightness": "dark",
+      "visual_notes": [
+        "正文及图标可辨读；语言、亮暗主题、状态与 sidecar 对应。",
+        "附着来源及输入草稿可见；三行草稿在当前输入视口仅显示第一行。",
+        "未知状态、不重发说明及检查原提交/返回终端检查动作可见；不能从静态图验证动作结果。"
+      ],
+      "observation_ids": [
+        "AI-ONE-LINE",
+        "AI-ICON-ACTION"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-en-dark-unknownSubmission.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-en-dark-unknownSubmission.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-390x844-en-light-multilineDraft.png",
+      "view_order": 16,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "ea888ee4b61bec9a1506e0f4e517ff2ebc4f10aadde1f430198aba9c0fc8a682",
+      "sidecar_sha256": "bc7c9ddc21aad168508bf0d32f669944508fe250487e4ab5b913935e9121dd06",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "en",
+      "brightness": "light",
+      "visual_notes": [
+        "正文及图标可辨读；语言、亮暗主题、状态与 sidecar 对应。",
+        "附着来源及输入草稿可见；三行草稿在当前输入视口仅显示第一行。",
+        "空闲新任务状态可见，主体空白是空 transcript fixture。"
+      ],
+      "observation_ids": [
+        "AI-ONE-LINE",
+        "AI-ICON-ACTION"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-en-light-multilineDraft.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-en-light-multilineDraft.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-390x844-en-light-proposal.png",
+      "view_order": 17,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "e9fbc70427c3ff4b38fb674c61418c5c85f118cb8fca9b78b535e81b1441df69",
+      "sidecar_sha256": "0b3fbc3b36fe8a6d495c9fef33f668cc9f772f9c5fbcce85f73ad75e7ad036c6",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "en",
+      "brightness": "light",
+      "visual_notes": [
+        "正文及图标可辨读；语言、亮暗主题、状态与 sidecar 对应。",
+        "附着来源及输入草稿可见；三行草稿在当前输入视口仅显示第一行。",
+        "待确认状态、命令以及拒绝/审阅完整命令动作可见。"
+      ],
+      "observation_ids": [
+        "AI-ONE-LINE",
+        "AI-ICON-ACTION"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-en-light-proposal.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-en-light-proposal.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-390x844-en-light-unknownSubmission.png",
+      "view_order": 18,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "10112c8e5a8f64a392215673e8a63e194efc5feda431933229775c124a6e76b3",
+      "sidecar_sha256": "897d56b2ffb7507e0218c121d7761c1caf2bb28f17ec392f14be4dabfed92287",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "en",
+      "brightness": "light",
+      "visual_notes": [
+        "正文及图标可辨读；语言、亮暗主题、状态与 sidecar 对应。",
+        "附着来源及输入草稿可见；三行草稿在当前输入视口仅显示第一行。",
+        "未知状态、不重发说明及检查原提交/返回终端检查动作可见；不能从静态图验证动作结果。"
+      ],
+      "observation_ids": [
+        "AI-ONE-LINE",
+        "AI-ICON-ACTION"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-en-light-unknownSubmission.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-en-light-unknownSubmission.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-390x844-zh-dark-multilineDraft.png",
+      "view_order": 19,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "49a6574b0b5f554cc484d031efcbd858e197449f608e36e728b8ed8afd5cce70",
+      "sidecar_sha256": "91c58aa55aab7de9738eabb4ac6ad9db085cd9062582d0e61b9bf81361ef0e19",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "zh",
+      "brightness": "dark",
+      "visual_notes": [
+        "正文及图标可辨读；语言、亮暗主题、状态与 sidecar 对应。",
+        "附着来源及输入草稿可见；三行草稿在当前输入视口仅显示第一行。",
+        "空闲新任务状态可见，主体空白是空 transcript fixture。"
+      ],
+      "observation_ids": [
+        "AI-ONE-LINE",
+        "AI-ICON-ACTION"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-zh-dark-multilineDraft.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-zh-dark-multilineDraft.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-390x844-zh-dark-proposal.png",
+      "view_order": 20,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "f7aa6814450fdd11b027b697ea468e9c00cae8ddbf6fc15f6017ecd8c492d8e3",
+      "sidecar_sha256": "e760e195b256c642d183a1c25f4a0d620a1337a8d735627598b06abdbda1fb5b",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "zh",
+      "brightness": "dark",
+      "visual_notes": [
+        "正文及图标可辨读；语言、亮暗主题、状态与 sidecar 对应。",
+        "附着来源及输入草稿可见；三行草稿在当前输入视口仅显示第一行。",
+        "待确认状态、命令以及拒绝/审阅完整命令动作可见。"
+      ],
+      "observation_ids": [
+        "AI-ONE-LINE",
+        "AI-ICON-ACTION"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-zh-dark-proposal.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-zh-dark-proposal.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-390x844-zh-dark-unknownSubmission.png",
+      "view_order": 21,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "7826803740e906025597965e3cfa048ec931031fea2baba90642a76779d26470",
+      "sidecar_sha256": "6368108642f9e4e0ed358b4a5b46ba5131f1bc3db35524ae7fbe0ce39d1bc8fe",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "zh",
+      "brightness": "dark",
+      "visual_notes": [
+        "正文及图标可辨读；语言、亮暗主题、状态与 sidecar 对应。",
+        "附着来源及输入草稿可见；三行草稿在当前输入视口仅显示第一行。",
+        "未知状态、不重发说明及检查原提交/返回终端检查动作可见；不能从静态图验证动作结果。"
+      ],
+      "observation_ids": [
+        "AI-ONE-LINE",
+        "AI-ICON-ACTION"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-zh-dark-unknownSubmission.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-zh-dark-unknownSubmission.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-390x844-zh-light-multilineDraft.png",
+      "view_order": 22,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "ce2e0f653a33ee2396e571f82a549ded0e4d07faa5908d1ab8a8321a796026a7",
+      "sidecar_sha256": "94c6766132d40c27b683da248c42eb532b0e675d5aa40ebe1c53a45932c5d0ad",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "zh",
+      "brightness": "light",
+      "visual_notes": [
+        "正文及图标可辨读；语言、亮暗主题、状态与 sidecar 对应。",
+        "附着来源及输入草稿可见；三行草稿在当前输入视口仅显示第一行。",
+        "空闲新任务状态可见，主体空白是空 transcript fixture。"
+      ],
+      "observation_ids": [
+        "AI-ONE-LINE",
+        "AI-ICON-ACTION"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-zh-light-multilineDraft.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-zh-light-multilineDraft.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-390x844-zh-light-proposal.png",
+      "view_order": 23,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "1062f8f99b0773ac139d2c184e01478be8ee52b8d87e1a442f3845db7c9be5dd",
+      "sidecar_sha256": "2ac7fbb08e84248e6f0a3fffa09fa8b8fddeb6aec503149d8b1f694c6629c20e",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "zh",
+      "brightness": "light",
+      "visual_notes": [
+        "正文及图标可辨读；语言、亮暗主题、状态与 sidecar 对应。",
+        "附着来源及输入草稿可见；三行草稿在当前输入视口仅显示第一行。",
+        "待确认状态、命令以及拒绝/审阅完整命令动作可见。"
+      ],
+      "observation_ids": [
+        "AI-ONE-LINE",
+        "AI-ICON-ACTION"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-zh-light-proposal.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-zh-light-proposal.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-390x844-zh-light-unknownSubmission.png",
+      "view_order": 24,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "2f7754e5acf8b57fbeaf43359e03c020afa218789cf4ef2e4015d6fc3a33f785",
+      "sidecar_sha256": "3cb7e158e63f0bef907c494df3873fd9bfeef5ff331909642da40d6e46cb83a4",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "zh",
+      "brightness": "light",
+      "visual_notes": [
+        "正文及图标可辨读；语言、亮暗主题、状态与 sidecar 对应。",
+        "附着来源及输入草稿可见；三行草稿在当前输入视口仅显示第一行。",
+        "未知状态、不重发说明及检查原提交/返回终端检查动作可见；不能从静态图验证动作结果。"
+      ],
+      "observation_ids": [
+        "AI-ONE-LINE",
+        "AI-ICON-ACTION"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-zh-light-unknownSubmission.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-390x844-zh-light-unknownSubmission.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-composer-ipad-1024x768-dark-ai.png",
+      "view_order": 25,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "db5601d063e56fc6b8d4bc38a68d49676abb79663306aed8b88fcbdf3cca9f81",
+      "sidecar_sha256": "f2a99c52189eec7a150db53a2bce5a0231835ebccf8530f991942be77863ae86",
+      "png_dimensions": {
+        "width": 2048,
+        "height": 1536
+      },
+      "logical_size": {
+        "width": 1024.0,
+        "height": 768.0
+      },
+      "locale": "en",
+      "brightness": "dark",
+      "visual_notes": [
+        "英文 UI、中文路径/输出/三行草稿均可辨读；亮暗主题与 sidecar 对应。",
+        "成功、失败和未知 fixture 三个 Block 均在画面内；主动作有文字。",
+        "未知 Block 使用问号及 Status unknown；该已有可见区别需保留。",
+        "当前意图文字与 Run/Ask AI 主动作可见。",
+        "失败输出小视口当前仅显示末尾中文行，有滚动条。"
+      ],
+      "observation_ids": [
+        "COMPOSER-NO-EXPAND",
+        "IPAD-ERROR-VIEWPORT"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-composer-ipad-1024x768-dark-ai.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-ipad-1024x768-dark-ai.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-composer-ipad-1024x768-dark-automatic.png",
+      "view_order": 26,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "5253ba72ce5b0df6657517ac6341c3a9a3c73f105b5b44db98d9eaa1c8a07d11",
+      "sidecar_sha256": "345e094e368d3c7ad6a034f11cfb59be2965d8847d9379d5ea67acbf789cfb74",
+      "png_dimensions": {
+        "width": 2048,
+        "height": 1536
+      },
+      "logical_size": {
+        "width": 1024.0,
+        "height": 768.0
+      },
+      "locale": "en",
+      "brightness": "dark",
+      "visual_notes": [
+        "英文 UI、中文路径/输出/三行草稿均可辨读；亮暗主题与 sidecar 对应。",
+        "成功、失败和未知 fixture 三个 Block 均在画面内；主动作有文字。",
+        "未知 Block 使用问号及 Status unknown；该已有可见区别需保留。",
+        "当前意图文字与 Run/Ask AI 主动作可见。",
+        "失败输出小视口当前仅显示末尾中文行，有滚动条。"
+      ],
+      "observation_ids": [
+        "COMPOSER-NO-EXPAND",
+        "IPAD-ERROR-VIEWPORT"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-composer-ipad-1024x768-dark-automatic.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-ipad-1024x768-dark-automatic.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-composer-ipad-1024x768-dark-command.png",
+      "view_order": 27,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "40342d7fe99034d1e849f04eced75a256c629254e2760e325c71177b9378be42",
+      "sidecar_sha256": "e237ae003023be9fbd2238c3eb7e8c7d31fb2dd4031fe295add956abf38c2cb7",
+      "png_dimensions": {
+        "width": 2048,
+        "height": 1536
+      },
+      "logical_size": {
+        "width": 1024.0,
+        "height": 768.0
+      },
+      "locale": "en",
+      "brightness": "dark",
+      "visual_notes": [
+        "英文 UI、中文路径/输出/三行草稿均可辨读；亮暗主题与 sidecar 对应。",
+        "成功、失败和未知 fixture 三个 Block 均在画面内；主动作有文字。",
+        "未知 Block 使用问号及 Status unknown；该已有可见区别需保留。",
+        "当前意图文字与 Run/Ask AI 主动作可见。",
+        "失败输出小视口当前仅显示末尾中文行，有滚动条。"
+      ],
+      "observation_ids": [
+        "COMPOSER-NO-EXPAND",
+        "IPAD-ERROR-VIEWPORT"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-composer-ipad-1024x768-dark-command.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-ipad-1024x768-dark-command.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-composer-ipad-1024x768-light-ai.png",
+      "view_order": 28,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "c0f2b5fdb51a22546ee45f3dc8c8c878a98c54014ba612c0743c6791663dd1e4",
+      "sidecar_sha256": "6c2bd0d5d008d473b048ba37e44a5517ef5ecf85a6eddbd2fcbd6f4ecc3e5e1c",
+      "png_dimensions": {
+        "width": 2048,
+        "height": 1536
+      },
+      "logical_size": {
+        "width": 1024.0,
+        "height": 768.0
+      },
+      "locale": "en",
+      "brightness": "light",
+      "visual_notes": [
+        "英文 UI、中文路径/输出/三行草稿均可辨读；亮暗主题与 sidecar 对应。",
+        "成功、失败和未知 fixture 三个 Block 均在画面内；主动作有文字。",
+        "未知 Block 使用问号及 Status unknown；该已有可见区别需保留。",
+        "当前意图文字与 Run/Ask AI 主动作可见。",
+        "失败输出小视口当前仅显示末尾中文行，有滚动条。"
+      ],
+      "observation_ids": [
+        "COMPOSER-NO-EXPAND",
+        "IPAD-ERROR-VIEWPORT"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-composer-ipad-1024x768-light-ai.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-ipad-1024x768-light-ai.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-composer-ipad-1024x768-light-automatic.png",
+      "view_order": 29,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "4a865b7a2b9b169fe8e2d59a4a828269b9c3c64389ffce5593642b87063c1242",
+      "sidecar_sha256": "0ee8a51ee525e15b9679c1dc86bb2f93ed7cba336776de7ba40ac514fd836fb4",
+      "png_dimensions": {
+        "width": 2048,
+        "height": 1536
+      },
+      "logical_size": {
+        "width": 1024.0,
+        "height": 768.0
+      },
+      "locale": "en",
+      "brightness": "light",
+      "visual_notes": [
+        "英文 UI、中文路径/输出/三行草稿均可辨读；亮暗主题与 sidecar 对应。",
+        "成功、失败和未知 fixture 三个 Block 均在画面内；主动作有文字。",
+        "未知 Block 使用问号及 Status unknown；该已有可见区别需保留。",
+        "当前意图文字与 Run/Ask AI 主动作可见。",
+        "失败输出小视口当前仅显示末尾中文行，有滚动条。"
+      ],
+      "observation_ids": [
+        "COMPOSER-NO-EXPAND",
+        "IPAD-ERROR-VIEWPORT"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-composer-ipad-1024x768-light-automatic.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-ipad-1024x768-light-automatic.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-composer-ipad-1024x768-light-command.png",
+      "view_order": 30,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "07b41a4f781818dd5b296f3a96bf412ee6b450bcf328fa5fdca88b51b4f38ce4",
+      "sidecar_sha256": "17dafece46f1ddfd5ad34bdb530a1676a6034462d471bc3eda9a8631a096ef3d",
+      "png_dimensions": {
+        "width": 2048,
+        "height": 1536
+      },
+      "logical_size": {
+        "width": 1024.0,
+        "height": 768.0
+      },
+      "locale": "en",
+      "brightness": "light",
+      "visual_notes": [
+        "英文 UI、中文路径/输出/三行草稿均可辨读；亮暗主题与 sidecar 对应。",
+        "成功、失败和未知 fixture 三个 Block 均在画面内；主动作有文字。",
+        "未知 Block 使用问号及 Status unknown；该已有可见区别需保留。",
+        "当前意图文字与 Run/Ask AI 主动作可见。",
+        "失败输出小视口当前仅显示末尾中文行，有滚动条。"
+      ],
+      "observation_ids": [
+        "COMPOSER-NO-EXPAND",
+        "IPAD-ERROR-VIEWPORT"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-composer-ipad-1024x768-light-command.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-ipad-1024x768-light-command.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-composer-mac-1280x900-dark-ai.png",
+      "view_order": 31,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "2c93aded0cc1686560502b255d4df4b1e975964c75d2bf75ec490c3b9b121e0c",
+      "sidecar_sha256": "a52a29b03c1a7e9e5e16ca6fdecff27c93f6fed744e9b1225bb1f2e691e6eac0",
+      "png_dimensions": {
+        "width": 2560,
+        "height": 1800
+      },
+      "logical_size": {
+        "width": 1280.0,
+        "height": 900.0
+      },
+      "locale": "en",
+      "brightness": "dark",
+      "visual_notes": [
+        "英文 UI、中文路径/输出/三行草稿均可辨读；亮暗主题与 sidecar 对应。",
+        "成功、失败和未知 fixture 三个 Block 均在画面内；主动作有文字。",
+        "未知 Block 使用问号及 Status unknown；该已有可见区别需保留。",
+        "当前意图文字与 Run/Ask AI 主动作可见。",
+        "失败输出的 Permission denied 与中文提示两行均可见。"
+      ],
+      "observation_ids": [
+        "COMPOSER-NO-EXPAND"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-composer-mac-1280x900-dark-ai.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-mac-1280x900-dark-ai.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-composer-mac-1280x900-dark-automatic.png",
+      "view_order": 32,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "0bec1178fe0c181ab5ceb423324e5150b2b677d8267bd1e2e6cb998be8424045",
+      "sidecar_sha256": "d5cd0ff85e60e16596831c4761163184e27fa84dc583512e5cd490a73b679508",
+      "png_dimensions": {
+        "width": 2560,
+        "height": 1800
+      },
+      "logical_size": {
+        "width": 1280.0,
+        "height": 900.0
+      },
+      "locale": "en",
+      "brightness": "dark",
+      "visual_notes": [
+        "英文 UI、中文路径/输出/三行草稿均可辨读；亮暗主题与 sidecar 对应。",
+        "成功、失败和未知 fixture 三个 Block 均在画面内；主动作有文字。",
+        "未知 Block 使用问号及 Status unknown；该已有可见区别需保留。",
+        "当前意图文字与 Run/Ask AI 主动作可见。",
+        "失败输出的 Permission denied 与中文提示两行均可见。"
+      ],
+      "observation_ids": [
+        "COMPOSER-NO-EXPAND"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-composer-mac-1280x900-dark-automatic.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-mac-1280x900-dark-automatic.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-composer-mac-1280x900-dark-command.png",
+      "view_order": 33,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "934f70fef6bfdab69585d299dd22575a2d8ce20371e2a8d0c7e2279086e401d6",
+      "sidecar_sha256": "8c3180e40dd1cefa05eaf8e4b8bcc55f354ce390bef56eb8274b3a69c20cad50",
+      "png_dimensions": {
+        "width": 2560,
+        "height": 1800
+      },
+      "logical_size": {
+        "width": 1280.0,
+        "height": 900.0
+      },
+      "locale": "en",
+      "brightness": "dark",
+      "visual_notes": [
+        "英文 UI、中文路径/输出/三行草稿均可辨读；亮暗主题与 sidecar 对应。",
+        "成功、失败和未知 fixture 三个 Block 均在画面内；主动作有文字。",
+        "未知 Block 使用问号及 Status unknown；该已有可见区别需保留。",
+        "当前意图文字与 Run/Ask AI 主动作可见。",
+        "失败输出的 Permission denied 与中文提示两行均可见。"
+      ],
+      "observation_ids": [
+        "COMPOSER-NO-EXPAND"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-composer-mac-1280x900-dark-command.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-mac-1280x900-dark-command.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-composer-mac-1280x900-light-ai.png",
+      "view_order": 34,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "0b504f081c7e84f4f7d645ab1012c23e9875f2c205ce1591357291ad31d7ebd6",
+      "sidecar_sha256": "78728ca7745b88bfc70242d1304cfd351e174dfb2adcefdb2e80ba9e214f0378",
+      "png_dimensions": {
+        "width": 2560,
+        "height": 1800
+      },
+      "logical_size": {
+        "width": 1280.0,
+        "height": 900.0
+      },
+      "locale": "en",
+      "brightness": "light",
+      "visual_notes": [
+        "英文 UI、中文路径/输出/三行草稿均可辨读；亮暗主题与 sidecar 对应。",
+        "成功、失败和未知 fixture 三个 Block 均在画面内；主动作有文字。",
+        "未知 Block 使用问号及 Status unknown；该已有可见区别需保留。",
+        "当前意图文字与 Run/Ask AI 主动作可见。",
+        "失败输出的 Permission denied 与中文提示两行均可见。"
+      ],
+      "observation_ids": [
+        "COMPOSER-NO-EXPAND"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-composer-mac-1280x900-light-ai.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-mac-1280x900-light-ai.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-composer-mac-1280x900-light-automatic.png",
+      "view_order": 35,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "0c3241bb8080e734cbea2eec3adabd25ac5186bcaf24329e8e2fce4db009058d",
+      "sidecar_sha256": "828b549bdd5cac9c4a3c4be07804a733e436f01c20e026725ba3f2cc49630961",
+      "png_dimensions": {
+        "width": 2560,
+        "height": 1800
+      },
+      "logical_size": {
+        "width": 1280.0,
+        "height": 900.0
+      },
+      "locale": "en",
+      "brightness": "light",
+      "visual_notes": [
+        "英文 UI、中文路径/输出/三行草稿均可辨读；亮暗主题与 sidecar 对应。",
+        "成功、失败和未知 fixture 三个 Block 均在画面内；主动作有文字。",
+        "未知 Block 使用问号及 Status unknown；该已有可见区别需保留。",
+        "当前意图文字与 Run/Ask AI 主动作可见。",
+        "失败输出的 Permission denied 与中文提示两行均可见。"
+      ],
+      "observation_ids": [
+        "COMPOSER-NO-EXPAND"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-composer-mac-1280x900-light-automatic.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-mac-1280x900-light-automatic.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-composer-mac-1280x900-light-command.png",
+      "view_order": 36,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "190b90423074b835ff989b2ca8108d902a9f9d1962cee2d9cb5a9b06b54502dc",
+      "sidecar_sha256": "841507f5fff97543cf2172be2ade1242209ede3ffcfd87a79dbfe1b8be61c23a",
+      "png_dimensions": {
+        "width": 2560,
+        "height": 1800
+      },
+      "logical_size": {
+        "width": 1280.0,
+        "height": 900.0
+      },
+      "locale": "en",
+      "brightness": "light",
+      "visual_notes": [
+        "英文 UI、中文路径/输出/三行草稿均可辨读；亮暗主题与 sidecar 对应。",
+        "成功、失败和未知 fixture 三个 Block 均在画面内；主动作有文字。",
+        "未知 Block 使用问号及 Status unknown；该已有可见区别需保留。",
+        "当前意图文字与 Run/Ask AI 主动作可见。",
+        "失败输出的 Permission denied 与中文提示两行均可见。"
+      ],
+      "observation_ids": [
+        "COMPOSER-NO-EXPAND"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-composer-mac-1280x900-light-command.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-mac-1280x900-light-command.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-composer-phone-390x844-dark-ai.png",
+      "view_order": 37,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "b02de62995849d520cfaffa3de9a2e334d35e09156fa26f6fe78cdf8f5936c34",
+      "sidecar_sha256": "2b2ddd8241122ab4069c1cdce64d0667316e53c43e50a96c682d5f7bdecd4e74",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "en",
+      "brightness": "dark",
+      "visual_notes": [
+        "英文 UI、中文路径/输出/三行草稿均可辨读；亮暗主题与 sidecar 对应。",
+        "成功、失败和未知 fixture 三个 Block 均在画面内；主动作有文字。",
+        "未知 Block 显示成功式勾选图标；应作为 After 对照问题。",
+        "AI 星形图标与 Ask AI 主按钮可见。",
+        "失败输出的 Permission denied 与中文提示两行均可见。"
+      ],
+      "observation_ids": [
+        "COMPOSER-NO-EXPAND",
+        "PHONE-UNKNOWN-CHECK"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-composer-phone-390x844-dark-ai.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-phone-390x844-dark-ai.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-composer-phone-390x844-dark-automatic.png",
+      "view_order": 38,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "899018c9c464b7c29839e22b9e7eb7dfa0610ec4636aa2fbabcbb9efe906d875",
+      "sidecar_sha256": "4d783ae0762f26eab6411de5b9c6470189a02d244b322b5336e7706996424656",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "en",
+      "brightness": "dark",
+      "visual_notes": [
+        "英文 UI、中文路径/输出/三行草稿均可辨读；亮暗主题与 sidecar 对应。",
+        "成功、失败和未知 fixture 三个 Block 均在画面内；主动作有文字。",
+        "未知 Block 显示成功式勾选图标；应作为 After 对照问题。",
+        "意图入口仅终端图标，无法仅从画面区分 Auto 与显式 Command。",
+        "失败输出的 Permission denied 与中文提示两行均可见。"
+      ],
+      "observation_ids": [
+        "COMPOSER-NO-EXPAND",
+        "PHONE-UNKNOWN-CHECK",
+        "PHONE-INTENT-HIDDEN"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-composer-phone-390x844-dark-automatic.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-phone-390x844-dark-automatic.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-composer-phone-390x844-dark-command.png",
+      "view_order": 39,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "899018c9c464b7c29839e22b9e7eb7dfa0610ec4636aa2fbabcbb9efe906d875",
+      "sidecar_sha256": "548bbcb1bb5bd77a06166d3c0ade4cb4bdd29568dd702acc7f1eb28283e1d9c0",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "en",
+      "brightness": "dark",
+      "visual_notes": [
+        "英文 UI、中文路径/输出/三行草稿均可辨读；亮暗主题与 sidecar 对应。",
+        "成功、失败和未知 fixture 三个 Block 均在画面内；主动作有文字。",
+        "未知 Block 显示成功式勾选图标；应作为 After 对照问题。",
+        "意图入口仅终端图标，无法仅从画面区分 Auto 与显式 Command。",
+        "失败输出的 Permission denied 与中文提示两行均可见。"
+      ],
+      "observation_ids": [
+        "COMPOSER-NO-EXPAND",
+        "PHONE-UNKNOWN-CHECK",
+        "PHONE-INTENT-HIDDEN"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-composer-phone-390x844-dark-command.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-phone-390x844-dark-command.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-composer-phone-390x844-light-ai.png",
+      "view_order": 40,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "839895fbff79d03d82bc0a83b908a7a190e91b2dc94b4c903e1e9e57ce91ad68",
+      "sidecar_sha256": "d00e74c56b106983819e382a1976bc4deec8ae9029bb4a7fbb59bdb06d792a4f",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "en",
+      "brightness": "light",
+      "visual_notes": [
+        "英文 UI、中文路径/输出/三行草稿均可辨读；亮暗主题与 sidecar 对应。",
+        "成功、失败和未知 fixture 三个 Block 均在画面内；主动作有文字。",
+        "未知 Block 显示成功式勾选图标；应作为 After 对照问题。",
+        "AI 星形图标与 Ask AI 主按钮可见。",
+        "失败输出的 Permission denied 与中文提示两行均可见。"
+      ],
+      "observation_ids": [
+        "COMPOSER-NO-EXPAND",
+        "PHONE-UNKNOWN-CHECK"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-composer-phone-390x844-light-ai.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-phone-390x844-light-ai.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-composer-phone-390x844-light-automatic.png",
+      "view_order": 41,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "7dfe333eb4a7f08248c3c74da64b0c0c8a808fa0ecdf74eca1f3cb7b4be78d57",
+      "sidecar_sha256": "82caee0fbe0a4706fb3df3fee0262b302eaf3e068bc4610293cc5643085bdc00",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "en",
+      "brightness": "light",
+      "visual_notes": [
+        "英文 UI、中文路径/输出/三行草稿均可辨读；亮暗主题与 sidecar 对应。",
+        "成功、失败和未知 fixture 三个 Block 均在画面内；主动作有文字。",
+        "未知 Block 显示成功式勾选图标；应作为 After 对照问题。",
+        "意图入口仅终端图标，无法仅从画面区分 Auto 与显式 Command。",
+        "失败输出的 Permission denied 与中文提示两行均可见。"
+      ],
+      "observation_ids": [
+        "COMPOSER-NO-EXPAND",
+        "PHONE-UNKNOWN-CHECK",
+        "PHONE-INTENT-HIDDEN"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-composer-phone-390x844-light-automatic.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-phone-390x844-light-automatic.json",
+      "captured_at": null
+    },
+    {
+      "filename": "before-composer-phone-390x844-light-command.png",
+      "view_order": 42,
+      "view_tool": "tools.view_image",
+      "detail": "original",
+      "png_sha256": "7dfe333eb4a7f08248c3c74da64b0c0c8a808fa0ecdf74eca1f3cb7b4be78d57",
+      "sidecar_sha256": "11b06f9ed04e82a42de6f3d710fa58383af01b9d94c949df34d749431d3ea782",
+      "png_dimensions": {
+        "width": 780,
+        "height": 1688
+      },
+      "logical_size": {
+        "width": 390.0,
+        "height": 844.0
+      },
+      "locale": "en",
+      "brightness": "light",
+      "visual_notes": [
+        "英文 UI、中文路径/输出/三行草稿均可辨读；亮暗主题与 sidecar 对应。",
+        "成功、失败和未知 fixture 三个 Block 均在画面内；主动作有文字。",
+        "未知 Block 显示成功式勾选图标；应作为 After 对照问题。",
+        "意图入口仅终端图标，无法仅从画面区分 Auto 与显式 Command。",
+        "失败输出的 Permission denied 与中文提示两行均可见。"
+      ],
+      "observation_ids": [
+        "COMPOSER-NO-EXPAND",
+        "PHONE-UNKNOWN-CHECK",
+        "PHONE-INTENT-HIDDEN"
+      ],
+      "path": "evidence/shared/before-B4-B6/widget-readable--before-composer-phone-390x844-light-command.png",
+      "sidecar_path": "evidence/shared/before-B4-B6/widget-readable--before-composer-phone-390x844-light-command.json",
+      "captured_at": null
+    }
+  ]
+}

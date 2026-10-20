@@ -8,6 +8,8 @@ import '../../data/services/data_api_auth_contract.dart';
 import '../../data/services/portable_master_key.dart';
 import '../../data/sync/api_sync_panel.dart';
 import '../../ui/app_ui.dart';
+import '../ai/ai_settings.dart';
+import '../ai/ai_settings_dialog.dart';
 import '../config/local_terminal_config_models.dart';
 import '../config/local_terminal_keybinding_resolver.dart';
 import '../config/shortcut_editor.dart';
@@ -20,6 +22,7 @@ class DefaultsAndAppearanceSelection {
   const DefaultsAndAppearanceSelection({
     required this.configuredDefaultProfileId,
     required this.themeMode,
+    this.preferredTerminalMode,
     required this.languageMode,
     required this.terminalViewportPadding,
     required this.restoreLayout,
@@ -40,6 +43,7 @@ class DefaultsAndAppearanceSelection {
 
   final String? configuredDefaultProfileId;
   final TerminalThemeMode themeMode;
+  final TerminalViewMode? preferredTerminalMode;
   final TerminalLanguageMode languageMode;
   final double terminalViewportPadding;
   final bool restoreLayout;
@@ -59,6 +63,15 @@ class DefaultsAndAppearanceSelection {
 }
 
 enum _DefaultsSection { general, appearance, shortcuts, security, data }
+
+enum _TerminalModePreference {
+  platform(null),
+  normal(TerminalViewMode.normal),
+  blocks(TerminalViewMode.blocks);
+
+  const _TerminalModePreference(this.mode);
+  final TerminalViewMode? mode;
+}
 
 enum _TerminalPermissionKind { osc52, openUrl, requestAttention }
 
@@ -126,6 +139,7 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
     required this.configuredDefaultProfileId,
     required this.effectiveDefaultProfileId,
     required this.themeMode,
+    this.preferredTerminalMode,
     this.languageMode = TerminalLanguageMode.system,
     required this.terminalViewportPadding,
     required this.restoreLayout,
@@ -143,12 +157,14 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
     this.localSessionsEnabled = true,
     this.masterKeyRepository,
     this.openDataServiceInitially = false,
+    this.aiSettings,
   });
 
   final List<TerminalProfile> profiles;
   final String? configuredDefaultProfileId;
   final String? effectiveDefaultProfileId;
   final TerminalThemeMode themeMode;
+  final TerminalViewMode? preferredTerminalMode;
   final TerminalLanguageMode languageMode;
   final double terminalViewportPadding;
   final bool restoreLayout;
@@ -166,6 +182,7 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
   final bool localSessionsEnabled;
   final PortableMasterKeyRepository? masterKeyRepository;
   final bool openDataServiceInitially;
+  final AiSettingsController? aiSettings;
 
   @override
   State<DefaultsAndAppearanceDialog> createState() =>
@@ -181,6 +198,7 @@ class _DefaultsAndAppearanceDialogState
   late String? _selectedProfileId;
   late String? _selectedTerminalPresetId;
   late TerminalThemeMode _selectedThemeMode;
+  late TerminalViewMode? _selectedTerminalMode;
   late TerminalLanguageMode _selectedLanguageMode;
   late double _selectedTerminalViewportPadding;
   late bool _selectedRestoreLayout;
@@ -208,6 +226,7 @@ class _DefaultsAndAppearanceDialogState
   @override
   void initState() {
     super.initState();
+    widget.aiSettings?.addListener(_handleRemoteDataApiFieldChanged);
     final configuredProfileId = widget.configuredDefaultProfileId;
     _selectedProfileId =
         configuredProfileId != null &&
@@ -219,6 +238,7 @@ class _DefaultsAndAppearanceDialogState
         ? _DefaultsSection.data
         : _DefaultsSection.general;
     _selectedThemeMode = widget.themeMode;
+    _selectedTerminalMode = widget.preferredTerminalMode;
     _selectedLanguageMode = widget.languageMode;
     _selectedTerminalViewportPadding = widget.terminalViewportPadding;
     _selectedRestoreLayout = widget.restoreLayout;
@@ -256,6 +276,7 @@ class _DefaultsAndAppearanceDialogState
 
   @override
   void dispose() {
+    widget.aiSettings?.removeListener(_handleRemoteDataApiFieldChanged);
     for (final controller in <TextEditingController>[
       _remoteDataApiUrlController,
       _remoteDataApiUsernameController,
@@ -482,6 +503,7 @@ class _DefaultsAndAppearanceDialogState
     return widget.dataApiConfigurationRecoveryRequired ||
         _selectedProfileId != widget.configuredDefaultProfileId ||
         _selectedThemeMode != widget.themeMode ||
+        _selectedTerminalMode != widget.preferredTerminalMode ||
         _selectedLanguageMode != widget.languageMode ||
         _selectedTerminalViewportPadding != widget.terminalViewportPadding ||
         _selectedRestoreLayout != widget.restoreLayout ||
@@ -619,6 +641,7 @@ class _DefaultsAndAppearanceDialogState
                             DefaultsAndAppearanceSelection(
                               configuredDefaultProfileId: _selectedProfileId,
                               themeMode: _selectedThemeMode,
+                              preferredTerminalMode: _selectedTerminalMode,
                               languageMode: _selectedLanguageMode,
                               terminalViewportPadding:
                                   _selectedTerminalViewportPadding,
@@ -672,6 +695,55 @@ class _DefaultsAndAppearanceDialogState
               onChanged: (value) {
                 if (value != null) {
                   setState(() => _selectedLanguageMode = value);
+                }
+              },
+            ),
+          ),
+        ),
+        SizedBox(height: theme.spacing.lg),
+        _DefaultsSettingsGroup(
+          groupKey: const Key('defaults-terminal-mode-group'),
+          decorated: desktopPresentation,
+          title: context.l10n.preferredTerminalMode,
+          child: AppConfigurationField(
+            labelWidth: 112,
+            breakpoint: desktopPresentation ? 420 : 520,
+            label: context.l10n.preferredTerminalMode,
+            helper: context.l10n.preferredTerminalModeHelp,
+            child: AppDropdownFormField<_TerminalModePreference>(
+              key: const Key('defaults-terminal-mode-options'),
+              initialValue: _TerminalModePreference.values.firstWhere(
+                (value) => value.mode == _selectedTerminalMode,
+              ),
+              isExpanded: true,
+              items: [
+                for (final mode in _TerminalModePreference.values)
+                  DropdownMenuItem(
+                    key: Key('default-terminal-mode-${mode.name}'),
+                    enabled:
+                        mode != _TerminalModePreference.blocks ||
+                        (Theme.of(context).platform != TargetPlatform.iOS &&
+                            Theme.of(context).platform !=
+                                TargetPlatform.android) ||
+                        widget.aiSettings?.hasLlmConfiguration == true,
+                    value: mode,
+                    child: Text(switch (mode) {
+                      _TerminalModePreference.platform =>
+                        context.l10n.terminalModePlatformDefault,
+                      _TerminalModePreference.normal =>
+                        context.l10n.terminalModeNormal,
+                      _TerminalModePreference.blocks =>
+                        (Theme.of(context).platform == TargetPlatform.iOS ||
+                                Theme.of(context).platform ==
+                                    TargetPlatform.android)
+                            ? 'Block + AI'
+                            : context.l10n.terminalModeBlocks,
+                    }),
+                  ),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() => _selectedTerminalMode = value.mode);
                 }
               },
             ),
@@ -821,6 +893,7 @@ class _DefaultsAndAppearanceDialogState
         actions: showStandaloneShortcutEditor && compactLayout
             ? [
                 PopupMenuButton<bool>(
+                  popUpAnimationStyle: appDialogAnimation(context),
                   key: const Key('shortcut-editor-mobile-menu'),
                   tooltip: context.l10n.moreShortcutActions,
                   icon: const Icon(Icons.more_vert_rounded),
@@ -948,6 +1021,30 @@ class _DefaultsAndAppearanceDialogState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const _DefaultsSectionMarker(_DefaultsSection.general),
+                      if (widget.aiSettings != null)
+                        ListenableBuilder(
+                          listenable: widget.aiSettings!,
+                          builder: (context, _) => Material(
+                            type: MaterialType.transparency,
+                            child: ListTile(
+                              key: const Key('defaults-ai-settings'),
+                              title: const Text('AI'),
+                              subtitle: Text(
+                                widget.aiSettings!.loading
+                                    ? context.l10n.aiConfigurationLoading
+                                    : widget.aiSettings!.error != null
+                                    ? context.l10n.aiConfigurationUnreadable
+                                    : widget.aiSettings!.configuration == null
+                                    ? context.l10n.aiConfigurationMissing
+                                    : context.l10n.aiConfigurationSaved,
+                                key: const Key('defaults-ai-connection-status'),
+                              ),
+                              trailing: const Icon(Icons.chevron_right),
+                              onTap: () =>
+                                  showAiSettings(context, widget.aiSettings!),
+                            ),
+                          ),
+                        ),
                       _buildGeneralSettings(
                         context,
                         desktopPresentation: showSectionNavigation,
@@ -960,6 +1057,7 @@ class _DefaultsAndAppearanceDialogState
                           children: [
                             if (widget.localSessionsEnabled)
                               SwitchListTile.adaptive(
+                                activeTrackColor: theme.accent,
                                 key: const Key('defaults-ssh-wrapper'),
                                 title: Text(context.l10n.sshWrapper),
                                 subtitle: Text(
@@ -970,6 +1068,7 @@ class _DefaultsAndAppearanceDialogState
                                     setState(() => _selectedSshWrapper = value),
                               ),
                             SwitchListTile.adaptive(
+                              activeTrackColor: theme.accent,
                               key: const Key('defaults-ssh-auto-inject'),
                               title: Text(context.l10n.sshAutoInject),
                               subtitle: Text(
@@ -1828,22 +1927,28 @@ class _DefaultsAndAppearanceDialogState
                                 ),
                               ),
                               SizedBox(height: theme.spacing.sm),
-                              Text(
-                                widget
-                                            .masterKeyRepository
-                                            ?.allowLegacyMigration ==
-                                        false
-                                    ? context
-                                          .l10n
-                                          .developmentMasterKeyStorageDescription
-                                    : usesAutomaticallySynchronizedAppleKeychain
-                                    ? context
-                                          .l10n
-                                          .appleMasterKeyEncryptionDescription
-                                    : context
-                                          .l10n
-                                          .deviceMasterKeyEncryptionDescription,
-                              ),
+                              Text(switch (widget
+                                  .masterKeyRepository
+                                  ?.storagePolicy) {
+                                PortableMasterKeyStoragePolicy
+                                    .developmentFile =>
+                                  context
+                                      .l10n
+                                      .developmentMasterKeyStorageDescription,
+                                PortableMasterKeyStoragePolicy
+                                    .acceptanceDeviceOnly =>
+                                  context
+                                      .l10n
+                                      .acceptanceDeviceOnlyMasterKeyStorageDescription,
+                                _ =>
+                                  usesAutomaticallySynchronizedAppleKeychain
+                                      ? context
+                                            .l10n
+                                            .appleMasterKeyEncryptionDescription
+                                      : context
+                                            .l10n
+                                            .deviceMasterKeyEncryptionDescription,
+                              }),
                             ],
                             SizedBox(height: theme.spacing.sm),
                             Text(
@@ -2090,6 +2195,8 @@ class _DefaultsAndAppearanceDialogState
                                     configuredDefaultProfileId:
                                         _selectedProfileId,
                                     themeMode: _selectedThemeMode,
+                                    preferredTerminalMode:
+                                        _selectedTerminalMode,
                                     languageMode: _selectedLanguageMode,
                                     terminalViewportPadding:
                                         _selectedTerminalViewportPadding,
@@ -2120,6 +2227,7 @@ class _DefaultsAndAppearanceDialogState
                       .cast<AppActionButton>()
                       .toList();
                   final resetMenu = PopupMenuButton<int>(
+                    popUpAnimationStyle: appDialogAnimation(context),
                     key: Key(
                       mobileNavigation
                           ? 'defaults-mobile-reset-menu'

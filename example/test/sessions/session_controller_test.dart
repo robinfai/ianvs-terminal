@@ -426,6 +426,8 @@ class _SshEventfulPtyBackend extends _EventfulPtyBackend
     implements PtySessionConfigV1Backend, PtyRuntimeCapabilityBackend {
   _SshEventfulPtyBackend(super.delegate);
 
+  final createdSessionIds = <String>[];
+
   @override
   final PtyRuntimeCapabilities runtimeCapabilities =
       PtyRuntimeCapabilities.fromJson(<String, Object?>{
@@ -438,8 +440,45 @@ class _SshEventfulPtyBackend extends _EventfulPtyBackend
 
   @override
   String createSessionV1(String sessionConfigV1Json) {
-    return _delegate.createSession(sessionConfigV1Json);
+    final sessionId = _delegate.createSession(sessionConfigV1Json);
+    createdSessionIds.add(sessionId);
+    return sessionId;
   }
+}
+
+ProviderContainer _sshReconnectionContainer(
+  _SshEventfulPtyBackend bindings,
+  TerminalProfile profile,
+) {
+  final container = ProviderContainer(
+    overrides: [
+      ptySessionBackendProvider.overrideWithValue(bindings),
+      sessionControllerProvider.overrideWith(_TestSessionController.new),
+      profileRepositoryProvider.overrideWithValue(
+        _TestProfileRepository(TerminalProfilesDocument(profiles: [profile])),
+      ),
+      appPreferencesRepositoryProvider.overrideWithValue(
+        _TestAppPreferencesRepository(null),
+      ),
+    ],
+  );
+  addTearDown(container.dispose);
+  return container;
+}
+
+Future<void> _retainSshExit(
+  _SshEventfulPtyBackend bindings,
+  ProviderContainer container,
+  String sessionId,
+) async {
+  bindings.enqueueExit(sessionId, code: 255);
+  await _waitForCondition(
+    description: 'retained SSH exit for $sessionId',
+    condition: () => container
+        .read(sessionControllerProvider)
+        .tabs
+        .any((tab) => tab.paneFor(sessionId)?.isExited == true),
+  );
 }
 
 class _CountingPtyBackend extends FakePtyBackend {
@@ -2619,6 +2658,8 @@ void main() {
         'command_start': 'registered',
         'command_finish': 'registered',
         'exit_code': 'registered',
+        'command_output_ranges': 'provided',
+        'user_variables': 'not_provided',
       },
       'sftp_route': true,
     });
@@ -2626,6 +2667,20 @@ void main() {
     expect(
       pane().shellIntegration.registrationChecks['current_directory'],
       'registered',
+    );
+    expect(
+      pane().shellIntegration.registrationChecks['command_output_ranges'],
+      'provided',
+    );
+    expect(
+      pane()
+          .shellCapabilities[ShellIntegrationCapability.commandOutputRanges]
+          .reason,
+      ShellCapabilityReason.awaitingEvent,
+    );
+    expect(
+      pane().shellCapabilities[ShellIntegrationCapability.userVariables].status,
+      ShellCapabilityStatus.notProvided,
     );
     expect(pane().shellIntegration.lastCommand, isNull);
     expect(pane().shellIntegration.lastExitCode, isNull);
@@ -2643,9 +2698,62 @@ void main() {
       'hook': 'precmd.pwd',
       'context_id': 'hop-a',
       'pwd': '/remote',
+      'integration_version': '2',
       'shell': 'bash',
     });
     expect(pane().shellIntegration.currentDirectory, '/remote');
+    expect(pane().shellIntegration.integrationVersion, '2');
+    expect(
+      pane()
+          .shellCapabilities[ShellIntegrationCapability.integrationVersion]
+          .isActive,
+      isTrue,
+    );
+    // A rejected SSH attempt never publishes a new context. Its same-parent
+    // resume preserves the connected host and the real command exit code.
+    await hook({'hook': 'preexec', 'context_id': 'hop-a', 'command': 'ssh sg'});
+    await hook({
+      'hook': 'bootstrap.resume',
+      'context_id': 'hop-a',
+      'host_context_id': 'hop-a',
+      'context_kind': 'ssh',
+      'host': 'a.example',
+      'user': 'lab',
+      'port': 2222,
+      'exit_code': 255,
+      'retired_contexts': ['failed-sg'],
+      'sftp_route': true,
+    });
+    await hook({
+      'hook': 'command_finished',
+      'context_id': 'hop-a',
+      'command': 'ssh sg',
+      'exit_code': 255,
+    });
+    await hook({
+      'hook': 'precmd.pwd',
+      'context_id': 'hop-a',
+      'pwd': '/remote',
+      'shell': 'bash',
+    });
+    expect(pane().shellIntegration.contextId, 'hop-a');
+    expect(pane().shellIntegration.bootstrapPhase, 'ready');
+    expect(pane().shellIntegration.currentDirectory, '/remote');
+    expect(pane().shellIntegration.integrationVersion, '2');
+    expect(pane().shellIntegration.lastCommand, 'ssh sg');
+    expect(pane().shellIntegration.lastExitCode, 255);
+    expect(pane().shellIntegration.sftpRoute, isTrue);
+    expect(pane().shellConnectionChain.map((hop) => hop.contextId), [
+      'root',
+      'hop-a',
+    ]);
+    expect(pane().shellConnectionChain.last.address, 'lab@a.example:2222');
+    expect(
+      pane()
+          .shellCapabilities[ShellIntegrationCapability.commandFinish]
+          .isActive,
+      isTrue,
+    );
     await hook({
       'hook': 'bootstrap.checking',
       'context_id': 'bash-a',
@@ -6237,6 +6345,7 @@ void main() {
         appearance: TerminalAppAppearance(
           themeMode: TerminalThemeMode.dark,
           terminalViewportPadding: 18,
+          preferredTerminalMode: TerminalViewMode.blocks,
         ),
       ),
     );
@@ -6260,6 +6369,7 @@ void main() {
     expect(state.tabs.single.profileId, 'ssh');
     expect(state.themeMode, TerminalThemeMode.dark);
     expect(state.terminalViewportPadding, 18);
+    expect(state.preferredTerminalMode, TerminalViewMode.blocks);
   });
 
   test('local config can globally disable shell integration', () async {
@@ -6663,8 +6773,11 @@ void main() {
       await container
           .read(sessionControllerProvider.notifier)
           .setTerminalViewportPadding(22);
+      await container
+          .read(sessionControllerProvider.notifier)
+          .setPreferredTerminalMode(TerminalViewMode.blocks);
 
-      expect(localConfigRepository.savedDocuments, hasLength(2));
+      expect(localConfigRepository.savedDocuments, hasLength(3));
       expect(
         localConfigRepository.savedDocuments.last.appearance.themeMode,
         TerminalThemeMode.dark,
@@ -6681,9 +6794,18 @@ void main() {
         localConfigRepository.savedDocuments.last.notifications.enabled,
         isFalse,
       );
+      expect(
+        localConfigRepository
+            .savedDocuments
+            .last
+            .appearance
+            .preferredTerminalMode,
+        TerminalViewMode.blocks,
+      );
       final state = container.read(sessionControllerProvider);
       expect(state.themeMode, TerminalThemeMode.dark);
       expect(state.terminalViewportPadding, 22);
+      expect(state.preferredTerminalMode, TerminalViewMode.blocks);
     },
   );
 
@@ -7028,6 +7150,299 @@ void main() {
   );
 
   test(
+    'SSH failure retains its pane and native history until explicit close',
+    () async {
+      final bindings = _SshEventfulPtyBackend(FakePtyBackend());
+      final profile = TerminalProfile(
+        id: 'retained-ssh',
+        name: 'Retained SSH',
+        shell: '',
+        connection: const terminal.TerminalConnectionConfig.ssh(
+          host: 'fixture.example.test',
+          user: 'fixture',
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(bindings),
+          sessionControllerProvider.overrideWith(_TestSessionController.new),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(
+              TerminalProfilesDocument(profiles: [profile]),
+            ),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(sessionControllerProvider.notifier);
+      controller.createSession(profile);
+      final id = container.read(sessionControllerProvider).activeSessionId!;
+      final viewport = controller.viewportFor(id);
+      bindings.enqueueExit(id, code: 255);
+      await _waitForCondition(
+        description: 'retained SSH transport failure',
+        condition: () =>
+            container.read(sessionControllerProvider).lastError != null,
+      );
+      final state = container.read(sessionControllerProvider);
+      expect(state.tabs, hasLength(1));
+      expect(state.activeSessionId, id);
+      expect(state.tabs.single.activePane.isExited, true);
+      expect(state.tabs.single.activePane.exitCode, 255);
+      expect(identical(controller.viewportFor(id), viewport), true);
+      expect(
+        container.read(terminalRuntimeControllerProvider).hasSession(id),
+        true,
+      );
+      final edited = profile.copyWith(
+        name: 'Edited SSH',
+        connection: const terminal.TerminalConnectionConfig.ssh(
+          host: 'updated-fixture.example.test',
+          user: 'fixture',
+        ),
+      );
+      expect(
+        controller.reconnectSession(
+          id,
+          editedProfile: edited.copyWith(id: 'other'),
+        ),
+        isNull,
+      );
+      final reconnected = controller.reconnectSession(
+        id,
+        editedProfile: edited,
+      );
+      expect(reconnected, isNotNull);
+      expect(reconnected, isNot(id));
+      final afterReconnect = container.read(sessionControllerProvider);
+      expect(afterReconnect.tabs, hasLength(2));
+      expect(afterReconnect.activeSessionId, reconnected);
+      expect(afterReconnect.tabs.first.activePane.isExited, true);
+      expect(
+        afterReconnect.tabs.last.activePane.profileSnapshot?.connection,
+        edited.connection,
+      );
+      expect(
+        afterReconnect.tabs.first.activePane.profileSnapshot?.connection,
+        profile.connection,
+      );
+      expect(identical(controller.viewportFor(id), viewport), true);
+      expect(controller.reconnectSession(reconnected!), isNull);
+      for (var attempt = 0; attempt < 5; attempt++) {
+        controller.activateSession(id);
+        expect(controller.reconnectSession(id), reconnected);
+        expect(
+          container.read(sessionControllerProvider).activeSessionId,
+          reconnected,
+        );
+      }
+      expect(bindings.createdSessionIds, [id, reconnected]);
+      expect(container.read(sessionControllerProvider).tabs, hasLength(2));
+      expect(container.read(sessionControllerProvider).reconnectionTargets, {
+        id: reconnected,
+      });
+      for (final invalidProfile in [
+        edited.copyWith(id: 'other'),
+        defaultTerminalProfile().copyWith(id: profile.id),
+      ]) {
+        controller.activateSession(id);
+        expect(
+          controller.reconnectSession(id, editedProfile: invalidProfile),
+          isNull,
+        );
+        expect(container.read(sessionControllerProvider).activeSessionId, id);
+      }
+      expect(bindings.createdSessionIds, [id, reconnected]);
+      expect(identical(controller.viewportFor(id), viewport), true);
+      await controller.closeSession(id);
+      expect(
+        container.read(sessionControllerProvider).tabs.single.sessionId,
+        reconnected,
+      );
+      expect(
+        container
+            .read(terminalRuntimeControllerProvider)
+            .hasSession(reconnected),
+        true,
+      );
+      await controller.closeSession(reconnected);
+      expect(container.read(sessionControllerProvider).tabs, isEmpty);
+      expect(
+        container.read(terminalRuntimeControllerProvider).hasSession(id),
+        false,
+      );
+    },
+  );
+
+  test(
+    'SSH reconnection follows descendants after exits and intermediate closes',
+    () async {
+      final bindings = _SshEventfulPtyBackend(FakePtyBackend());
+      final profile = TerminalProfile(
+        id: 'reconnect-chain',
+        name: 'Reconnect chain',
+        shell: '',
+        connection: const terminal.TerminalConnectionConfig.ssh(
+          host: 'fixture.example.test',
+          user: 'fixture',
+        ),
+      );
+      final container = _sshReconnectionContainer(bindings, profile);
+      final controller = container.read(sessionControllerProvider.notifier);
+      final first = controller.createSession(profile)!;
+      final originalViewport = controller.viewportFor(first);
+      await _retainSshExit(bindings, container, first);
+      final second = controller.reconnectSession(first)!;
+      await _retainSshExit(bindings, container, second);
+      expect(
+        container.read(sessionControllerProvider).latestReconnectionFor(first),
+        second,
+      );
+      final third = controller.reconnectSession(first)!;
+
+      controller.activateSession(first);
+      expect(controller.reconnectSession(first), third);
+      expect(container.read(sessionControllerProvider).activeSessionId, third);
+      expect(bindings.createdSessionIds, [first, second, third]);
+      expect(container.read(sessionControllerProvider).reconnectionTargets, {
+        first: second,
+        second: third,
+      });
+
+      await controller.closeSession(second);
+      expect(container.read(sessionControllerProvider).reconnectionTargets, {
+        first: third,
+      });
+      controller.activateSession(first);
+      expect(controller.reconnectSession(first), third);
+      expect(container.read(sessionControllerProvider).activeSessionId, third);
+      expect(bindings.createdSessionIds, [first, second, third]);
+
+      await controller.closeSession(third);
+      expect(
+        container.read(sessionControllerProvider).reconnectionTargets,
+        isEmpty,
+      );
+      expect(
+        container.read(sessionControllerProvider).liveReconnectionFor(first),
+        isNull,
+      );
+      final fourth = controller.reconnectSession(first)!;
+      expect(fourth, isNot(isIn([first, second, third])));
+      final state = container.read(sessionControllerProvider);
+      expect(state.tabs.map((tab) => tab.sessionId), [first, fourth]);
+      expect(state.tabs.first.activePane.isExited, isTrue);
+      expect(state.tabs.last.activePane.isExited, isFalse);
+      expect(state.reconnectionTargets, {first: fourth});
+      expect(state.activeSessionId, fourth);
+      expect(bindings.createdSessionIds, [first, second, third, fourth]);
+      expect(controller.viewportFor(first), same(originalViewport));
+      expect(
+        container.read(terminalRuntimeControllerProvider).hasSession(first),
+        isTrue,
+      );
+      await controller.closeSession(first);
+      await controller.closeSession(fourth);
+    },
+  );
+
+  test(
+    'SSH reconnection does not reuse an independent same-profile session',
+    () async {
+      final bindings = _SshEventfulPtyBackend(FakePtyBackend());
+      final profile = TerminalProfile(
+        id: 'shared-profile',
+        name: 'Independent SSH attempts',
+        shell: '',
+        connection: const terminal.TerminalConnectionConfig.ssh(
+          host: 'fixture.example.test',
+          user: 'fixture',
+        ),
+      );
+      final container = _sshReconnectionContainer(bindings, profile);
+      final controller = container.read(sessionControllerProvider.notifier);
+      final first = controller.createSession(profile)!;
+      final independent = controller.createSession(profile)!;
+      await _retainSshExit(bindings, container, first);
+
+      final replacement = controller.reconnectSession(first)!;
+      expect(replacement, isNot(independent));
+      expect(bindings.createdSessionIds, [first, independent, replacement]);
+      await _retainSshExit(bindings, container, independent);
+      final independentReplacement = controller.reconnectSession(independent)!;
+      expect(independentReplacement, isNot(replacement));
+      expect(container.read(sessionControllerProvider).reconnectionTargets, {
+        first: replacement,
+        independent: independentReplacement,
+      });
+      expect(controller.reconnectSession(first), replacement);
+      expect(controller.reconnectSession(independent), independentReplacement);
+      expect(bindings.createdSessionIds, [
+        first,
+        independent,
+        replacement,
+        independentReplacement,
+      ]);
+      for (final sessionId in bindings.createdSessionIds) {
+        await controller.closeSession(sessionId);
+      }
+    },
+  );
+
+  test('closing diagnostics clears only the matching source error', () async {
+    for (final closeAsTab in [false, true]) {
+      final bindings = _SshEventfulPtyBackend(FakePtyBackend());
+      final profile = TerminalProfile(
+        id: 'same-failing-profile',
+        name: 'Same endpoint',
+        shell: '',
+        connection: const terminal.TerminalConnectionConfig.ssh(
+          host: 'fixture.example.test',
+          user: 'fixture',
+        ),
+      );
+      final container = _sshReconnectionContainer(bindings, profile);
+      final controller = container.read(sessionControllerProvider.notifier);
+      Future<void> close(String id) async {
+        if (closeAsTab) {
+          await controller.closeTab(id);
+        } else {
+          await controller.closeSession(id);
+        }
+      }
+
+      final first = controller.createSession(profile)!;
+      final second = controller.createSession(profile)!;
+      await _retainSshExit(bindings, container, first);
+      final firstError = container.read(sessionControllerProvider).lastError;
+      await _retainSshExit(bindings, container, second);
+      final currentError = container.read(sessionControllerProvider).lastError;
+      // Identical endpoint text must not make the first record own the second error.
+      expect(currentError, isNotNull);
+      expect(currentError, firstError);
+
+      await close(first);
+      expect(container.read(sessionControllerProvider).lastError, currentError);
+      await close(second);
+      expect(container.read(sessionControllerProvider).lastError, isNull);
+
+      final third = controller.createSession(profile)!;
+      await _retainSshExit(bindings, container, third);
+      controller.reportRuntimeError('Unrelated recording failure');
+      await close(third);
+      expect(
+        container.read(sessionControllerProvider).lastError,
+        'Unrelated recording failure',
+      );
+      expect(container.read(sessionControllerProvider).tabs, isEmpty);
+      expect(bindings._delegate.closedSessionIds, [first, second, third]);
+    }
+  });
+
+  test(
     'SSH retry clears its matching failure and preserves unrelated errors',
     () async {
       final bindings = _SshEventfulPtyBackend(FakePtyBackend());
@@ -7102,7 +7517,12 @@ void main() {
       bindings.enqueueExit(failedSessionId, code: 255);
       await _waitForCondition(
         description: 'SSH transport failure exit polling',
-        condition: () => container.read(sessionControllerProvider).tabs.isEmpty,
+        condition: () => container
+            .read(sessionControllerProvider)
+            .tabs
+            .single
+            .activePane
+            .isExited,
       );
 
       const expectedFailure =
@@ -7112,12 +7532,13 @@ void main() {
         container.read(sessionControllerProvider).lastError,
         expectedFailure,
       );
-
       controller.createSession(otherSshProfile);
       expect(
         container.read(sessionControllerProvider).lastError,
         expectedFailure,
       );
+      await controller.closeSession(failedSessionId);
+      expect(container.read(sessionControllerProvider).lastError, isNull);
 
       controller.reportRuntimeError('A newer runtime failure');
       controller.createSession(sshProfile);
@@ -7131,10 +7552,15 @@ void main() {
       bindings.enqueueExit(retryFailureSessionId, code: 255);
       await _waitForCondition(
         description: 'retried SSH transport failure exit polling',
-        condition: () =>
-            container.read(sessionControllerProvider).tabs.length == 1,
+        condition: () => container
+            .read(sessionControllerProvider)
+            .tabs
+            .last
+            .activePane
+            .isExited,
       );
       expect(container.read(sessionControllerProvider).lastError, isNotNull);
+      await controller.closeSession(retryFailureSessionId);
 
       controller.createSession(sshProfile);
       expect(container.read(sessionControllerProvider).lastError, isNull);

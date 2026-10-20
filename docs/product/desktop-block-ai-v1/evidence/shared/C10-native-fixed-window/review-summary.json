@@ -1,0 +1,257 @@
+{
+  "schema_version": 1,
+  "prepared_at_utc": "2026-10-10T12:02:05.492855+00:00",
+  "record_type": "Independent read-only metadata/log review, combined with separately attributed independent image and sampled-video review.",
+  "run": "native-c10-ax-2",
+  "source_commit": "2d18e608c2a1149a093451b5246cb370de0167c3",
+  "source_clean_at_start": true,
+  "source_clean_at_end": true,
+  "app_pid": 3809,
+  "window_id": 31358,
+  "started_at": "2026-10-10T09:57:37.524059+00:00",
+  "ended_at": "2026-10-10T11:58:40.051713+00:00",
+  "runner_exit_code": 0,
+  "quit_method": "Flutter runner q; Application finished",
+  "completed_partial_observations": [
+    "Original screenshots and sampled pixels show inactive A as the sole displayed close target while B remains selected, then A exact command draft retained. Cancel is identified in the operator reconstruction; Escape and barrier-click cancellation are operator-recorded only.",
+    "B has an idle, unsent AI draft only, without a configured model/request according to setup/operator records. The original close-confirmation pixels list Session2/task-1 and that draft, followed by unchanged draft after dismissal; operator record identifies Cancel.",
+    "Later sampled pixels show the B close confirmation and then only A with its original command draft. Operator record identifies explicit Close. Discrete final owned-subtree records contain A PID3929/ttys008 and no B PID17469, without claiming global/continuous process absence."
+  ],
+  "ax_tree_error_count": 0,
+  "window_move_warning_count": 1,
+  "unresolved": [
+    "This fixed-window repeat did not reproduce the first run AXTree error; its first cause remains unresolved.",
+    "A native Window move warning exists although the operator reports no drag/resize and checkpoint bounds match. Do not infer causation."
+  ],
+  "recording": {
+    "started_at": "2026-10-10T11:53:44.035Z",
+    "finalized_at": "2026-10-10T11:58:00.234Z",
+    "duration_seconds_reported": 256,
+    "stream_stopped_at": "2026-10-10T11:58:00.235Z",
+    "stream_error_domain": "com.apple.ScreenCaptureKit.SCStreamErrorDomain",
+    "stream_error_code": -3822,
+    "covers_whole_app_run": false,
+    "note": "Recording finalized and the -3822 stream event remains present. The exact relationship to the operator stop request was not recorded. All seven UI checkpoint timestamps fall within the video interval; bounded independent pixel/sample review is separately attributed.",
+    "duration_seconds_ffprobe": 256.175
+  },
+  "recording_boundary_note": "All seven checkpoint timestamps are inside the recording interval. The video does not cover the full App lifetime. Finalization precedes the logged SCStream -3822 event by 1 ms; the exact relation to the operator stop request was not recorded.",
+  "foreground": "All seven checkpoints have empty active_pids; foreground physical keyboard behavior is not claimed.",
+  "private_semantics": "Operator reports four successful read-only existing extension RPCs. Current Flutter semantics is not the native AXTree or the earlier failed update. Dumps and debug service authentication URLs remain private.",
+  "not_completed": [
+    "12 tabs/overflow/reorder/pane movement/pending badge matrix",
+    "Split pane mouse first press/focus protocol and full right-click sequence",
+    "Running-command close, old-task/source-only variants",
+    "Physical keyboard/IME and full formal D2 case steps"
+  ],
+  "counter_scope": "The specific prepared unsubmitted fixture destination was absent at end; this does not establish zero total PTY bytes or network operations.",
+  "formal_case_pass_claimed": false,
+  "formal_case_status_changed": false,
+  "formal_baseline": {
+    "candidate": "C8",
+    "passed": 3,
+    "not_run": 61
+  },
+  "binaries_declared_by_original_identity": [
+    {
+      "path": "Contents/MacOS/Trail Development",
+      "sha256": "02616089311aa14200439654f1f79751d5913edaa6678fd0cd986172670af6f6",
+      "bytes": 40800
+    },
+    {
+      "path": "Contents/Frameworks/App.framework/Versions/A/App",
+      "sha256": "6ca2ef512a1b834a06f70cce7b453bb09bb7097ae0af03fa04dea187e3d106ae",
+      "bytes": 16800
+    },
+    {
+      "path": "Contents/Frameworks/App.framework/Versions/A/Resources/flutter_assets/kernel_blob.bin",
+      "sha256": "c6a30ac81e6e8c5a5ce6617c07d78a3cbdfecf2286363a4f819d3ccb3adb1dd5",
+      "bytes": 95906232
+    },
+    {
+      "path": "Contents/Resources/ianvs-api",
+      "sha256": "e294490147bd99ec5231170a1e8542691b1bf714ed92905ea8b92f77b1e5cace",
+      "bytes": 16426192
+    },
+    {
+      "path": "Contents/Frameworks/ianvs_core.framework/Versions/A/ianvs_core",
+      "sha256": "5d97cc7e2cbf4462652dee4cc2b614d56e381b0fea5e2ec691d6b2b88e14ab60",
+      "bytes": 14788880
+    }
+  ],
+  "source_records": [
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-ax-2/manual-run.json",
+      "bytes": 1493,
+      "sha256": "b011295e363f236a303bd2b30292a3213c419ba8401b850188f5f10b051dae4e"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-ax-2/operator-observations.json",
+      "bytes": 3667,
+      "sha256": "972d6fbd1768269f1ab3a3d20a800f7ae70c91a708352d4a9082a4ab37ddfaf4"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-ax-2/recording.log",
+      "bytes": 438,
+      "sha256": "65fd2d2f18e35ff2281b67a0346cddaf9bd08da7dd58242186c026d01b408162"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-ax-2/launch.log",
+      "bytes": 8467,
+      "sha256": "85f0381bcaefef29a2bfce5ebf6f85e54d35695f8c950e82caf10307312dc9b3"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c10-ax-2/app-identity.json",
+      "bytes": 1548,
+      "sha256": "4d894ea5bc8ea29b9d1e3f7e1b3cf8a7837e984000f14fef8e9a10eb6c4c2b9e"
+    }
+  ],
+  "checkpoint_checks": [
+    {
+      "name": "ai-close-confirmation",
+      "captured_at": "2026-10-10T11:56:26.703561+00:00",
+      "sha256": "66ec6c163e4d256c02e7ab85a0862addbfd96effd157067a239fd9dcdce94c73",
+      "app_active_at_capture": false,
+      "within_recording_timestamp_range": true,
+      "shell_process_sample": [
+        {
+          "pid": 3929,
+          "ppid": 3809,
+          "tty": "ttys008"
+        },
+        {
+          "pid": 17469,
+          "ppid": 3809,
+          "tty": "ttys016"
+        }
+      ]
+    },
+    {
+      "name": "ai-draft-after-cancel",
+      "captured_at": "2026-10-10T11:56:37.625610+00:00",
+      "sha256": "f7d7f231587a7aa5a185398444e2b3e41f4823d06579f8e41829be26f7458606",
+      "app_active_at_capture": false,
+      "within_recording_timestamp_range": true,
+      "shell_process_sample": [
+        {
+          "pid": 3929,
+          "ppid": 3809,
+          "tty": "ttys008"
+        },
+        {
+          "pid": 17469,
+          "ppid": 3809,
+          "tty": "ttys016"
+        }
+      ]
+    },
+    {
+      "name": "ai-draft-before-close",
+      "captured_at": "2026-10-10T11:56:11.563951+00:00",
+      "sha256": "c7922352291641d995d4cfe7bc47d26711768871086a5a74df77ab1dc5a93769",
+      "app_active_at_capture": false,
+      "within_recording_timestamp_range": true,
+      "shell_process_sample": [
+        {
+          "pid": 3929,
+          "ppid": 3809,
+          "tty": "ttys008"
+        },
+        {
+          "pid": 17469,
+          "ppid": 3809,
+          "tty": "ttys016"
+        }
+      ]
+    },
+    {
+      "name": "command-close-confirmation",
+      "captured_at": "2026-10-10T11:54:45.896850+00:00",
+      "sha256": "8c4858425cf9f2e67c6cd681f851b5243a22c12f31d522c89bf0688f540ef268",
+      "app_active_at_capture": false,
+      "within_recording_timestamp_range": true,
+      "shell_process_sample": [
+        {
+          "pid": 3929,
+          "ppid": 3809,
+          "tty": "ttys008"
+        },
+        {
+          "pid": 17469,
+          "ppid": 3809,
+          "tty": "ttys016"
+        }
+      ]
+    },
+    {
+      "name": "draft-after-cancel",
+      "captured_at": "2026-10-10T11:55:10.830743+00:00",
+      "sha256": "b244bf048de84db7e91579ce71c0ea092a8249dc8acdb36cb4f24adac59bdfdd",
+      "app_active_at_capture": false,
+      "within_recording_timestamp_range": true,
+      "shell_process_sample": [
+        {
+          "pid": 3929,
+          "ppid": 3809,
+          "tty": "ttys008"
+        },
+        {
+          "pid": 17469,
+          "ppid": 3809,
+          "tty": "ttys016"
+        }
+      ]
+    },
+    {
+      "name": "survivor-after-explicit-ai-close",
+      "captured_at": "2026-10-10T11:57:01.703020+00:00",
+      "sha256": "e991f06a5857b1f9be999a1690fbdafc4a19657494a77553f1da998e5f7575dd",
+      "app_active_at_capture": false,
+      "within_recording_timestamp_range": true,
+      "shell_process_sample": [
+        {
+          "pid": 3929,
+          "ppid": 3809,
+          "tty": "ttys008"
+        }
+      ]
+    },
+    {
+      "name": "two-tabs-before-close",
+      "captured_at": "2026-10-10T11:54:29.552012+00:00",
+      "sha256": "deec20e7a15a1e09df7ea54cd60a779a3d75051a40701b3201f8f0c4baf93188",
+      "app_active_at_capture": false,
+      "within_recording_timestamp_range": true,
+      "shell_process_sample": [
+        {
+          "pid": 3929,
+          "ppid": 3809,
+          "tty": "ttys008"
+        },
+        {
+          "pid": 17469,
+          "ppid": 3809,
+          "tty": "ttys016"
+        }
+      ]
+    }
+  ],
+  "visual_review": {
+    "status": "completed_bounded_review",
+    "reviewer": "/root/ai_contract_review",
+    "artifact": "independent-review-summary.json",
+    "sha256": "50e479d7a8ab0b6b1aa5f52d2ddf7a08e32bfdc88c6b28d08a77d2e587898cef",
+    "original_pngs_viewed": 7,
+    "distinct_video_frames_viewed": 53,
+    "source_video_frames": 7508,
+    "continuous_full_video_watched": false,
+    "escape_and_barrier_independently_video_verified": false,
+    "formal_cases_passed": []
+  },
+  "packaging_status": "finalized_second_run_partial_support_no_formal_case_pass",
+  "updated_at_utc": "2026-10-10T12:07:34.021362+00:00",
+  "archive_exclusions": [
+    "Original video and derived extracted-frame/contact-sheet review aids remain local; source video SHA, ffprobe metadata and actual sampling coverage are preserved in the independent review.",
+    "Raw launch.log remains local because it includes a local debug-service authentication URI; raw hash remains in source records.",
+    "Private framework semantics dumps, semantics-review-summary.private.json and service authentication URLs are not included in this public support group."
+  ]
+}

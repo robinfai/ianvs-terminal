@@ -1,0 +1,31 @@
+OpenSSH Composer: zsh-emacs
+PASS zsh-emacs
+OpenSSH Composer: zsh-vi
+PASS zsh-vi
+OpenSSH Composer: zsh-emacs-local-ssh
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+     Running tests/remote_composer_ssh_test.rs (native/core/target/debug/deps/remote_composer_ssh_test-442d122354809749)
+
+running 1 test
+
+thread 'remote_composer_ssh_negotiation_and_multihop' panicked at tests/remote_composer_ssh_test.rs:34:9:
+SSH prompt not ready: {"contextId":"root","cwd":"/tmp","dialect":"zsh","history":["printf 'AFTER_CANCEL\\n'","echo 'unfinished","printf 'SSH_PARENT:%s\\n' \"$COMPOSER_SSH_VALUE\"","ssh composer-hop","export COMPOSER_SSH_VALUE=parent; cd /tmp\nprintf '%s\\n' 'SSH_UNICODE_中文_😀'","ls","ls"],"historyRevision":7,"home":"/tmp/ianvs-composer-ssh-shsk13hd/home","lease":null,"outcome":"unknown","state":"draft","submissionId":"long-command","transport":"local"}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test remote_composer_ssh_negotiation_and_multihop ... FAILED
+
+failures:
+
+failures:
+    remote_composer_ssh_negotiation_and_multihop
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 13.24s
+
+error: test failed, to rerun pass `--test remote_composer_ssh_test`
+
+Traceback (most recent call last):
+  File "/Users/robinfai/flutter_projects/ianvs-terminal/tools/ssh_boundary_lab/composer.py", line 152, in <module>
+    main()
+    ~~~~^^
+  File "/Users/robinfai/flutter_projects/ianvs-terminal/tools/ssh_boundary_lab/composer.py", line 118, in main
+    raise RuntimeError(f'{name} failed')
+RuntimeError: zsh-emacs-local-ssh failed

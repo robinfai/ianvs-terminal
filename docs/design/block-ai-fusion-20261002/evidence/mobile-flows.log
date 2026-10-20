@@ -1,0 +1,19 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart
+00:00 +0: (setUpAll)
+00:00 +0: phone reader touch selection returns to the retained AI task
+00:02 +1: phone TUI AI overlay preserves grid and isolates auxiliary keys
+00:02 +2: phone session menu preserves the AI task through capability changes
+00:03 +3: iOS negotiates Blocks and preserves manual Normal
+00:04 +4: android negotiates Blocks and preserves manual Normal
+00:04 +5: SSH hop and fullscreen fall back; restore remains manual
+00:05 +6: main-screen application modes fall back without an alternate buffer
+00:05 +7: mobile Block input fits phone with the keyboard
+00:05 +8: mobile Block input fits landscape with the keyboard
+00:05 +9: mobile Block input fits fixed-text-dark with the keyboard
+00:06 +10: mobile Block input fits landscape-dark with the keyboard
+00:06 +11: mobile Block input fits ipad with the keyboard
+00:06 +12: mobile settings save Normal for new sessions only
+00:07 +13: explicit Normal preference overrides the mobile default
+00:07 +14: (tearDownAll)
+00:07 +14: All tests passed!

@@ -1,0 +1,72 @@
+{
+  "record_type": "operator transcript reconstructed from actual CUA tool responses; not a raw AX export or controller trace",
+  "recorded_at": "2026-10-10T09:52:36.469585+00:00",
+  "candidate": "2d18e608c2a1149a093451b5246cb370de0167c3",
+  "session_map": [
+    {
+      "alias": "A",
+      "session": "1",
+      "shell_pid": 77921,
+      "tty": "ttys008",
+      "mode": "Blocks",
+      "draft": "printf C10_DRAFT_A >> \"$TMPDIR/c10-unexpected-command.log\"",
+      "later_operator_appended": "_C10_FOCUS_CHECK"
+    },
+    {
+      "alias": "B",
+      "session": "2",
+      "shell_pid": 80398,
+      "tty": "ttys016",
+      "mode": "AI",
+      "draft": "C10_AI_DRAFT_B：保留这段未发送要求。"
+    },
+    {
+      "alias": "S",
+      "session": "3",
+      "shell_pid": 81098,
+      "tty": "ttys017",
+      "mode": "Blocks",
+      "draft": "printf C10_SURVIVOR_S >> \"$TMPDIR/c10-unexpected-command.log\""
+    },
+    {
+      "alias": "extra",
+      "session": "4",
+      "shell_pid": 87622,
+      "tty": "ttys018",
+      "mode": "Raw",
+      "draft": null
+    }
+  ],
+  "completed": [
+    "Created three ordinary local tabs via Cmd+T. Explicitly switched each original tab to Blocks; B opened AI and received an unsent draft.",
+    "Initial A command entered with typeText lost $, parentheses and backslash before execution; its resulting harmless printf remains the first block. Exact paste was inspected before executing the corrected identity command. This is an input-path observation, not established product cause.",
+    "S remained active with its own unsent command draft. Right-clicked inactive A and selected close tab; confirmation named only Session 1 and displayed the exact A draft.",
+    "Clicked Cancel. A and S original drafts visible on subsequent original screenshots, all three shell PIDs/TTYs retained.",
+    "Reopened A close confirmation via its tab menu; Escape dismissed it and A draft remained.",
+    "Later pasted an intentional _C10_FOCUS_CHECK suffix in A; exact focused AX text confirmed append. Never submitted the draft.",
+    "Cmd+T created a fourth Raw tab as a shortcut comparison."
+  ],
+  "not_completed": [
+    "Barrier-click cancel; final explicit close; idle AI close; old-task/source-only variants",
+    "Right-click another pane and first mouse/focus protocol regressions",
+    "12 tabs, overflow, reorder, existing pane movement, running-close cancellation, pending badges and menu bounds",
+    "Formal D2-T11/T14"
+  ],
+  "unresolved_observations": [
+    "Cmd+1/3/W/Z/Meta_L+3 and Raw Cmd+I produced no observed effect; Cmd+T worked. Native menu versus Flutter modifier paths differ; no physical key or event trace establishes cause.",
+    "After several tab/menu operations native log reported accessibility_bridge.cc AXTree update errors. AX tree became stale (S content with Raw4 footer) then collapsed to one checkbox despite original screenshot showing correct A view.",
+    "CUA native pipe closed during Raise+tab action, reconnect succeeded; later coordinate interactions returned AXError.failure. js_reset and rebind did not repair the AX tree.",
+    "Some screenshots were captured while App inactive; per-checkpoint window metadata is authoritative."
+  ],
+  "counter": {
+    "path": "fixture tmp/c10-unexpected-command.log",
+    "exists_at_end": false,
+    "scope": "Only this deliberately prepared draft side effect, not exact PTY writes/network counts"
+  },
+  "model": {
+    "configured": false,
+    "submitted_by_operator": false,
+    "network_capture": false
+  },
+  "privacy": "Only isolated public test data and local development paths; no production profiles or real model/SSH secrets loaded."
+}

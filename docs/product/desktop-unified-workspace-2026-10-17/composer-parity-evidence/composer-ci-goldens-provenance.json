@@ -1,0 +1,17 @@
+{
+  "run": 38933136958,
+  "head": "e5b0c03f1ed9a2767cdfe35f31e97e98ef8aef67",
+  "artifact": "visual-baseline-candidates-macos-26",
+  "review": "Nine expected changes only: Block + AI settings text and workspace entry icon. Reviewed before/after crops. Same macOS 26 CI renderer; no macOS 27 substitution.",
+  "files": [
+    "terminal-layout-review-20260916/implementation-narrow.png",
+    "terminal-layout-review-20260916/implementation-dark.png",
+    "terminal-layout-review-20260916/implementation-light.png",
+    "config-refresh/adaptive/settings-compact-scaled.png",
+    "settings-tabs/current/01-general.png",
+    "settings-general-20260912/renders/light-general.png",
+    "settings-general-20260912/renders/dark-general.png",
+    "app-surfaces/current/03-profiles-sheet.png",
+    "app-surfaces/current/01-desktop-shell.png"
+  ]
+}

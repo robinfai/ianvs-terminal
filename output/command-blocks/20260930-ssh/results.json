@@ -1,0 +1,13 @@
+{
+  "passed": true,
+  "appPassed": true,
+  "shells": [
+    "zsh",
+    "bash"
+  ],
+  "keymaps": [
+    "emacs",
+    "vi"
+  ],
+  "scope": "real loopback SSH, native session API, multi-hop and parent restoration"
+}

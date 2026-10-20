@@ -1,6 +1,7 @@
 import '../layout/local_terminal_relaunch_spec.dart';
 import '../preferences/app_preferences_models.dart';
 import '../profiles/profile_models.dart';
+import '../terminal_composer/terminal_mode.dart';
 import 'shell_connection_chain.dart';
 import 'shell_integration_capabilities.dart';
 
@@ -25,6 +26,7 @@ class TerminalPane {
     this.namedProgress = const <String, TerminalPaneProgressState>{},
     this.recentNotifications = const <TerminalPaneNotificationState>[],
     this.runtimeError,
+    this.terminalMode = const TerminalModeState(),
   });
 
   final String sessionId;
@@ -57,6 +59,7 @@ class TerminalPane {
   final Map<String, TerminalPaneProgressState> namedProgress;
   final List<TerminalPaneNotificationState> recentNotifications;
   final TerminalPaneRuntimeErrorState? runtimeError;
+  final TerminalModeState terminalMode;
 
   TerminalPane copyWith({
     String? title,
@@ -72,9 +75,11 @@ class TerminalPane {
     Map<String, TerminalPaneProgressState>? namedProgress,
     List<TerminalPaneNotificationState>? recentNotifications,
     Object? runtimeError = _terminalPaneNoChange,
+    TerminalModeState? terminalMode,
   }) {
     return TerminalPane(
       sessionId: sessionId,
+      terminalMode: terminalMode ?? this.terminalMode,
       title: title ?? this.title,
       profileId: profileId ?? this.profileId,
       profileSnapshot: identical(profileSnapshot, _terminalPaneNoChange)
@@ -602,6 +607,7 @@ class TerminalTab {
     this.namedProgress = const <String, TerminalPaneProgressState>{},
     this.recentNotifications = const <TerminalPaneNotificationState>[],
     this.runtimeError,
+    this.terminalMode = const TerminalModeState(),
   });
 
   final String sessionId;
@@ -622,6 +628,7 @@ class TerminalTab {
   final Map<String, TerminalPaneProgressState> namedProgress;
   final List<TerminalPaneNotificationState> recentNotifications;
   final TerminalPaneRuntimeErrorState? runtimeError;
+  final TerminalModeState terminalMode;
 
   TerminalPane get rootPane {
     return TerminalPane(
@@ -639,6 +646,7 @@ class TerminalTab {
       namedProgress: namedProgress,
       recentNotifications: recentNotifications,
       runtimeError: runtimeError,
+      terminalMode: terminalMode,
     );
   }
 
@@ -700,6 +708,7 @@ class TerminalTab {
         namedProgress: replacement.namedProgress,
         recentNotifications: replacement.recentNotifications,
         runtimeError: replacement.runtimeError,
+        terminalMode: replacement.terminalMode,
       );
     }
     final nextLayout = effectivePaneLayout.replacePane(replacement);
@@ -726,6 +735,7 @@ class TerminalTab {
       runtimeError: replacingRootPane
           ? replacement.runtimeError
           : _terminalTabNoChange,
+      terminalMode: replacingRootPane ? replacement.terminalMode : terminalMode,
       panes: nextLayout.panes,
       paneLayout: nextLayout,
     );
@@ -749,6 +759,7 @@ class TerminalTab {
     Map<String, TerminalPaneProgressState>? namedProgress,
     List<TerminalPaneNotificationState>? recentNotifications,
     Object? runtimeError = _terminalTabNoChange,
+    TerminalModeState? terminalMode,
   }) {
     final nextSplitAxis = splitAxis ?? this.splitAxis;
     final nextPaneLayout = identical(paneLayout, _terminalTabNoChange)
@@ -760,6 +771,7 @@ class TerminalTab {
         : paneLayout as TerminalPaneLayoutNode?;
     return TerminalTab(
       sessionId: sessionId,
+      terminalMode: terminalMode ?? this.terminalMode,
       title: title ?? this.title,
       profileId: profileId ?? this.profileId,
       profileSnapshot: identical(profileSnapshot, _terminalTabNoChange)
@@ -1030,12 +1042,14 @@ class SessionState {
     required String? configuredDefaultProfileId,
     required List<TerminalProfileLoadWarning> configurationWarnings,
     required TerminalThemeMode themeMode,
+    TerminalViewMode preferredTerminalMode = TerminalViewMode.normal,
     required TerminalLanguageMode languageMode,
     required double terminalViewportPadding,
     required bool isReady,
     Set<String> recordingSessionIds = const <String>{},
     Set<String> recordingPendingSaveSessionIds = const <String>{},
     Set<String> recordingBusySessionIds = const <String>{},
+    Map<String, String> reconnectionTargets = const {},
     String? lastError,
   }) {
     return SessionState._(
@@ -1046,6 +1060,7 @@ class SessionState {
       configuredDefaultProfileId: configuredDefaultProfileId,
       configurationWarnings: List.unmodifiable(configurationWarnings),
       themeMode: themeMode,
+      preferredTerminalMode: preferredTerminalMode,
       languageMode: languageMode,
       terminalViewportPadding: terminalViewportPadding,
       isReady: isReady,
@@ -1054,6 +1069,7 @@ class SessionState {
         recordingPendingSaveSessionIds,
       ),
       recordingBusySessionIds: Set.unmodifiable(recordingBusySessionIds),
+      reconnectionTargets: Map.unmodifiable(reconnectionTargets),
       lastError: lastError,
     );
   }
@@ -1066,12 +1082,14 @@ class SessionState {
     required this.configuredDefaultProfileId,
     required this.configurationWarnings,
     required this.themeMode,
+    required this.preferredTerminalMode,
     required this.languageMode,
     required this.terminalViewportPadding,
     required this.isReady,
     required this.recordingSessionIds,
     required this.recordingPendingSaveSessionIds,
     required this.recordingBusySessionIds,
+    this.reconnectionTargets = const {},
     this.lastError,
     this._layoutIdentity,
   });
@@ -1083,13 +1101,87 @@ class SessionState {
   final String? configuredDefaultProfileId;
   final List<TerminalProfileLoadWarning> configurationWarnings;
   final TerminalThemeMode themeMode;
+  final TerminalViewMode preferredTerminalMode;
   final TerminalLanguageMode languageMode;
   final double terminalViewportPadding;
   final bool isReady;
   final Set<String> recordingSessionIds;
   final Set<String> recordingPendingSaveSessionIds;
   final Set<String> recordingBusySessionIds;
+
+  /// Read-only attempts point to their replacement, without sharing native IDs.
+  final Map<String, String> reconnectionTargets;
   final String? lastError;
+
+  String? liveReconnectionFor(String sessionId) {
+    final panes = {
+      for (final tab in tabs)
+        for (final pane in tab.effectivePanes) pane.sessionId: pane,
+    };
+    final visited = <String>{sessionId};
+    var next = reconnectionTargets[sessionId];
+    while (next != null && visited.add(next)) {
+      final pane = panes[next];
+      if (pane != null && !pane.isExited) return next;
+      next = reconnectionTargets[next];
+    }
+    return null;
+  }
+
+  /// Continue the latest attempt even when the user opens an earlier record.
+  String latestReconnectionFor(String sessionId) {
+    final remaining = {
+      for (final tab in tabs)
+        for (final pane in tab.effectivePanes) pane.sessionId,
+    };
+    final visited = <String>{sessionId};
+    var latest = sessionId;
+    var next = reconnectionTargets[sessionId];
+    while (next != null && visited.add(next)) {
+      if (remaining.contains(next)) latest = next;
+      next = reconnectionTargets[next];
+    }
+    return latest;
+  }
+
+  /// Close replacement owners before their original read-only output sources.
+  List<String> sessionIdsInCloseOrder(Iterable<String> sessionIds) {
+    final candidates = sessionIds.toSet();
+    final visited = <String>{};
+    final result = <String>[];
+    void visit(String id) {
+      if (!visited.add(id)) return;
+      final next = reconnectionTargets[id];
+      if (next != null) visit(next);
+      if (candidates.contains(id)) result.add(id);
+    }
+
+    for (final id in candidates) {
+      visit(id);
+    }
+    return result;
+  }
+
+  Map<String, String> _reconnectionsFor(List<TerminalTab> nextTabs) {
+    final remaining = {
+      for (final tab in nextTabs)
+        for (final pane in tab.effectivePanes) pane.sessionId,
+    };
+    final result = <String, String>{};
+    for (final entry in reconnectionTargets.entries) {
+      if (!remaining.contains(entry.key)) continue;
+      final visited = <String>{entry.key};
+      String? target = entry.value;
+      while (target != null && visited.add(target)) {
+        if (remaining.contains(target)) {
+          result[entry.key] = target;
+          break;
+        }
+        target = reconnectionTargets[target];
+      }
+    }
+    return Map.unmodifiable(result);
+  }
 
   // A title-only update keeps this token. Every ordinary copy gets a new
   // identity, so layout, profile, status and session changes still rebuild.
@@ -1113,12 +1205,14 @@ class SessionState {
       configuredDefaultProfileId: configuredDefaultProfileId,
       configurationWarnings: configurationWarnings,
       themeMode: themeMode,
+      preferredTerminalMode: preferredTerminalMode,
       languageMode: languageMode,
       terminalViewportPadding: terminalViewportPadding,
       isReady: isReady,
       recordingSessionIds: recordingSessionIds,
       recordingPendingSaveSessionIds: recordingPendingSaveSessionIds,
       recordingBusySessionIds: recordingBusySessionIds,
+      reconnectionTargets: reconnectionTargets,
       lastError: lastError,
       layoutIdentity: layoutIdentity,
     );
@@ -1133,6 +1227,7 @@ class SessionState {
       configuredDefaultProfileId: null,
       configurationWarnings: <TerminalProfileLoadWarning>[],
       themeMode: TerminalThemeMode.system,
+      preferredTerminalMode: TerminalViewMode.normal,
       languageMode: TerminalLanguageMode.system,
       terminalViewportPadding:
           TerminalAppAppearance.defaultTerminalViewportPadding,
@@ -1151,12 +1246,14 @@ class SessionState {
     Object? configuredDefaultProfileId = _sessionStateNoChange,
     List<TerminalProfileLoadWarning>? configurationWarnings,
     TerminalThemeMode? themeMode,
+    TerminalViewMode? preferredTerminalMode,
     TerminalLanguageMode? languageMode,
     double? terminalViewportPadding,
     bool? isReady,
     Set<String>? recordingSessionIds,
     Set<String>? recordingPendingSaveSessionIds,
     Set<String>? recordingBusySessionIds,
+    Map<String, String>? reconnectionTargets,
     Object? lastError = _sessionStateNoChange,
   }) {
     return SessionState._(
@@ -1176,6 +1273,8 @@ class SessionState {
           ? this.configurationWarnings
           : List.unmodifiable(configurationWarnings),
       themeMode: themeMode ?? this.themeMode,
+      preferredTerminalMode:
+          preferredTerminalMode ?? this.preferredTerminalMode,
       languageMode: languageMode ?? this.languageMode,
       terminalViewportPadding:
           TerminalAppAppearance.normalizeTerminalViewportPadding(
@@ -1191,6 +1290,11 @@ class SessionState {
       recordingBusySessionIds: recordingBusySessionIds == null
           ? this.recordingBusySessionIds
           : Set.unmodifiable(recordingBusySessionIds),
+      reconnectionTargets: reconnectionTargets != null
+          ? Map.unmodifiable(reconnectionTargets)
+          : tabs == null
+          ? this.reconnectionTargets
+          : _reconnectionsFor(tabs),
       lastError: identical(lastError, _sessionStateNoChange)
           ? this.lastError
           : lastError as String?,

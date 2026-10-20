@@ -1,0 +1,27 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_citation_regression_test.dart
+00:00 +0: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_citation_regression_test.dart: streamed duplicate and overlapping evidence stays usable Size(960.0, 700.0)
+00:00 +1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_citation_regression_test.dart: streamed duplicate and overlapping evidence stays usable Size(960.0, 700.0)
+00:00 +2: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_citation_regression_test.dart: streamed duplicate and overlapping evidence stays usable Size(960.0, 700.0)
+00:00 +3: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_citation_regression_test.dart: streamed duplicate and overlapping evidence stays usable Size(960.0, 700.0)
+00:00 +4: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_citation_regression_test.dart: streamed duplicate and overlapping evidence stays usable Size(960.0, 700.0)
+00:00 +5: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_citation_regression_test.dart: streamed duplicate and overlapping evidence stays usable Size(960.0, 700.0)
+00:00 +6: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_citation_regression_test.dart: streamed duplicate and overlapping evidence stays usable Size(960.0, 700.0)
+00:00 +7: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_citation_regression_test.dart: streamed duplicate and overlapping evidence stays usable Size(960.0, 700.0)
+00:00 +8: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_citation_regression_test.dart: streamed duplicate and overlapping evidence stays usable Size(960.0, 700.0)
+00:00 +9: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: evidence returns to its task outside window chrome (dark false, phone false)
+00:00 +10: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_citation_regression_test.dart: streamed duplicate and overlapping evidence stays usable Size(390.0, 600.0)
+00:00 +11: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: evidence returns to its task outside window chrome (dark false, phone true)
+00:01 +12: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: evidence returns to its task outside window chrome (dark true, phone false)
+00:01 +13: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: evidence returns to its task outside window chrome (dark true, phone true)
+00:01 +14: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: reader respects a larger system inset without doubling chrome
+00:01 +15: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: citation retains source row and bypasses saved filter (phone false)
+00:01 +16: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: citation retains source row and bypasses saved filter (phone true)
+00:01 +17: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: citation cannot drift when source is evicted during before click
+00:01 +18: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: citation cannot drift when source is evicted during partial range
+00:01 +19: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: citation cannot drift when source is evicted during keyboard dismissal
+00:02 +20: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: citation cannot drift when source is evicted during native page
+00:02 +21: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: overlapping citations from different retained versions remain ambiguous
+00:02 +22: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: retained citation recovers its target after a page changes version
+00:02 +23: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: reconnected sessions with equal native IDs open the quoted source
+00:02 +24: All tests passed!

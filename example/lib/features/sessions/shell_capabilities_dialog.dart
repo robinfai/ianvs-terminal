@@ -467,8 +467,15 @@ class _CapabilityRow extends StatelessWidget {
     };
     final (status, icon, color) = switch (activation.status) {
       ShellCapabilityStatus.pending => (
-        l10n.shellCapabilityPending,
+        activation.reason == ShellCapabilityReason.awaitingEvent
+            ? l10n.shellCapabilityAwaitingEvent
+            : l10n.shellCapabilityPending,
         Icons.schedule_rounded,
+        theme.colorScheme.onSurfaceVariant,
+      ),
+      ShellCapabilityStatus.notProvided => (
+        l10n.shellCapabilityNotProvided,
+        Icons.info_outline_rounded,
         theme.colorScheme.onSurfaceVariant,
       ),
       ShellCapabilityStatus.active => (
@@ -490,6 +497,9 @@ class _CapabilityRow extends StatelessWidget {
     final reason = switch (activation.reason) {
       ShellCapabilityReason.awaitingEvidence =>
         l10n.shellCapabilityAwaitingEvidence,
+      ShellCapabilityReason.awaitingEvent =>
+        l10n.shellCapabilityAwaitingEventHelp,
+      ShellCapabilityReason.notProvided => l10n.shellCapabilityNotProvidedHelp,
       ShellCapabilityReason.initializationChecked =>
         l10n.shellCapabilityInitializationChecked,
       ShellCapabilityReason.initializationFailed =>
@@ -514,6 +524,8 @@ class _CapabilityRow extends StatelessWidget {
               Text(switch (registration) {
                 'registered' => l10n.shellCapabilityRegistered,
                 'unavailable' => l10n.shellCapabilityNotRegistered,
+                'provided' => l10n.shellCapabilityProviderReady,
+                'not_provided' => l10n.shellCapabilityNotProvided,
                 _ => l10n.shellCapabilityUnchecked,
               }, style: theme.textTheme.bodySmall),
             SizedBox(height: spacing.xs),

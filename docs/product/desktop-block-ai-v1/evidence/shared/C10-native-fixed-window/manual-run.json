@@ -1,0 +1,27 @@
+{
+  "source_commit": "2d18e608c2a1149a093451b5246cb370de0167c3",
+  "source_clean_at_launch": true,
+  "started_at": "2026-10-10T09:57:37.524059+00:00",
+  "fixture_directory": "/private/tmp/trail-desktop-prd-c10-ax-2",
+  "scope": "Bounded normal UI C10 repeat: fixed window; draft close Cancel/Esc and tab navigation; AX first-error capture. No formal complete case claimed.",
+  "input_mode": "CUA native keyboard/mouse; clipboard paste for exact fixture commands; no internal event/controller injection",
+  "full_case_pass_claimed": false,
+  "ended_at": "2026-10-10T11:58:40.051713+00:00",
+  "source_commit_at_end": "2d18e608c2a1149a093451b5246cb370de0167c3",
+  "source_clean_at_end": true,
+  "runner_exit_code": 0,
+  "quit_method": "Flutter runner q; Application finished",
+  "recording_exit_code": 0,
+  "recording_status": {
+    "started_at": "2026-10-10T11:53:44.035Z",
+    "finalized_at": "2026-10-10T11:58:00.234Z",
+    "duration_seconds_reported": 256,
+    "stream_stopped_at": "2026-10-10T11:58:00.235Z",
+    "stream_error_domain": "com.apple.ScreenCaptureKit.SCStreamErrorDomain",
+    "stream_error_code": -3822,
+    "covers_whole_app_run": false,
+    "note": "Recording file finalized; stream_stopped logged. Root later issued Ctrl-C, but exact relationship between stop request and stream event was not recorded. All seven UI checkpoints fall within this video interval; independent visual coverage review pending."
+  },
+  "ax_tree_error_count": 0,
+  "window_move_warning_count": 1
+}

@@ -39,8 +39,9 @@ void main() {
           dataEncryptionKeyStore:
               PortableMasterDataApiLocalDataEncryptionKeyStore(
                 masterKeyRepository: PortableMasterKeyRepository(
-                  storage:
-                      const FlutterSecurePortableMasterKeyStorage.development(),
+                  storage: DevelopmentPortableMasterKeyStorage(
+                    directoryResolver: () async => directory,
+                  ),
                   allowLegacyMigration: false,
                 ),
               ),

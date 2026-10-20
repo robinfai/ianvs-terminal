@@ -1,0 +1,17 @@
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart
+00:00 +0: reader drags and copies across pages (phone false, reverse false, filtered false) (variant: TargetPlatform.macOS)
+00:00 +1: reader drags and copies across pages (phone false, reverse false, filtered true) (variant: TargetPlatform.macOS)
+00:00 +2: reader drags and copies across pages (phone false, reverse true, filtered false) (variant: TargetPlatform.macOS)
+00:01 +3: reader drags and copies across pages (phone false, reverse true, filtered true) (variant: TargetPlatform.macOS)
+00:01 +4: reader drags and copies across pages (phone true, reverse false, filtered false) (variant: TargetPlatform.iOS)
+00:01 +5: reader drags and copies across pages (phone true, reverse false, filtered true) (variant: TargetPlatform.iOS)
+00:01 +6: reader drags and copies across pages (phone true, reverse true, filtered false) (variant: TargetPlatform.iOS)
+00:01 +7: reader drags and copies across pages (phone true, reverse true, filtered true) (variant: TargetPlatform.iOS)
+00:01 +8: touch copy rejects output evicted before the menu opens (variant: TargetPlatform.iOS)
+00:01 +9: reader Option drag copies a rectangle across pages after horizontal scroll (variant: TargetPlatform.macOS)
+00:01 +10: reader keyboard copies selection across native pages
+00:01 +11: reader distinguishes whole output, filtered output and selection
+00:01 +12: copy does not replace clipboard with a partially evicted snapshot
+00:02 +13: stale selected rows never copy replacement history
+00:02 +14: column selections preserve wide characters and rectangle line breaks
+00:02 +15: All tests passed!

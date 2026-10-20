@@ -1,0 +1,16 @@
+{
+  "scope": "document package only; terminal app was not built, modified or tested",
+  "version": "1.1",
+  "requirements": 49,
+  "acceptance_cases": 48,
+  "required_visible_state_checkpoints": 110,
+  "design_boards": 4,
+  "static_screen_examples": 12,
+  "broken_document_links": 0,
+  "validator_unit_tests_passed": 24,
+  "product_test_cases_executed": 0,
+  "all_product_cases": "not_run",
+  "template_schema_valid": true,
+  "template_structure_checks_passed": true,
+  "unrun_template_rejected_by_final_gates": true
+}

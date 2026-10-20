@@ -1,0 +1,69 @@
+{
+  "ci_run": 38352720965,
+  "artifact_id": 11791708445,
+  "source_commit": "8f62e716c1b6a0bce412a81e002d72954fde4ecd",
+  "artifact": "visual-comparison-failures",
+  "policy": "Inspected CI testImage PNGs; no macOS 27 files copied; comparator unchanged",
+  "baselines": [
+    {
+      "path": "example/test/design/goldens/macos-26/composer/compact-history.png",
+      "before_sha256": "5037ad69282111d93e81f26a6a495371a03bfd12772b86b9c08046e8306d2d52",
+      "after_sha256": "7ba39e2781d61753e212f1d2b4d573023a9aee0d56a8c858248f027cfbd6ba5c",
+      "review": "Expected neutral composer foreground/borders or blue adaptive switches; no geometry change."
+    },
+    {
+      "path": "example/test/design/goldens/macos-26/composer/compact-suggestion.png",
+      "before_sha256": "5d890c482fb2aac2467fd02cd1b44c226308bf2bcad313baf326768e09c91cc9",
+      "after_sha256": "725f91c0aa2f160d6beef9d4fff04ee684180bd8f211a797d99774a971b3423d",
+      "review": "Expected neutral composer foreground/borders or blue adaptive switches; no geometry change."
+    },
+    {
+      "path": "example/test/design/goldens/macos-26/composer/compact.png",
+      "before_sha256": "11657c1e15d131b3dff7dc5d4f9884f625913ed95421322f86614d9593695173",
+      "after_sha256": "ce0c1742b4540bfce1a8049f27e6f80e3426137341d4749078ccdfeee044ab1d",
+      "review": "Expected neutral composer foreground/borders or blue adaptive switches; no geometry change."
+    },
+    {
+      "path": "example/test/design/goldens/macos-26/composer/dark-history.png",
+      "before_sha256": "42f7cada9a640c18426d0385f31842e415aa4f1a29a4ae3037680a3e0f2509fa",
+      "after_sha256": "8f0ffc38593ed62350abe700f9120f0d3f8c5823fe992b9bcc6a3c279ff1bc23",
+      "review": "Expected neutral composer foreground/borders or blue adaptive switches; no geometry change."
+    },
+    {
+      "path": "example/test/design/goldens/macos-26/composer/dark-suggestion.png",
+      "before_sha256": "405c02b3cd341eab45c86220d0f886b56dc4bfb6a59689764f564f669e1216ff",
+      "after_sha256": "a1e7027f168ba49001e3448b6fb895478569bbfd5a913f145e6020a6a9fbc9a6",
+      "review": "Expected neutral composer foreground/borders or blue adaptive switches; no geometry change."
+    },
+    {
+      "path": "example/test/design/goldens/macos-26/composer/dark.png",
+      "before_sha256": "32b07cae9cc38aac8815860459bec78ffc1a8b629f0ce3011b0e1610a9a28ec6",
+      "after_sha256": "a5b4401af4f39992c1d65f86061c45454eddd5aff890a8f910a495786b9d1f66",
+      "review": "Expected neutral composer foreground/borders or blue adaptive switches; no geometry change."
+    },
+    {
+      "path": "example/test/design/goldens/macos-26/composer/light-history.png",
+      "before_sha256": "b79da834784651a1c83b0d35dbf8ef2848d09d18e26c388b22f87875bc082f95",
+      "after_sha256": "81af27d6dca761b69b1a639fb791ae22381282d6fd25c0064e1627f1d6284fa7",
+      "review": "Expected neutral composer foreground/borders or blue adaptive switches; no geometry change."
+    },
+    {
+      "path": "example/test/design/goldens/macos-26/composer/light-suggestion.png",
+      "before_sha256": "dea95d924730013fb429c11e4c5b8004f18d1b945c538fb817125aecd418a5ec",
+      "after_sha256": "99d5e4d5bcd9d22063e0a94dffdf24e281dd57ccc179145561728eb52bc76261",
+      "review": "Expected neutral composer foreground/borders or blue adaptive switches; no geometry change."
+    },
+    {
+      "path": "example/test/design/goldens/macos-26/composer/light.png",
+      "before_sha256": "fe4587ffef3ff1a1ef783ffc0986b55e0dd261d6a49f320ddddcf64128c5a443",
+      "after_sha256": "9a271345ce68d803d93d6564f318d4d3c645bcd7fb15c8a0e27d2eac958c95b1",
+      "review": "Expected neutral composer foreground/borders or blue adaptive switches; no geometry change."
+    },
+    {
+      "path": "example/test/design/goldens/macos-26/config-refresh/adaptive/settings-compact-scaled.png",
+      "before_sha256": "5e2a64a4119bdbd6ec285b54607b1ed927c4927ccef316de14eba41982a10d6b",
+      "after_sha256": "48d6d7bcd578dcf7aafecc554cbb629d89905575bb76b7d9561fc50b3fb7cd56",
+      "review": "Expected neutral composer foreground/borders or blue adaptive switches; no geometry change."
+    }
+  ]
+}

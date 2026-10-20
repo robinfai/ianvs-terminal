@@ -1,0 +1,47 @@
+{
+  "source_sha256": "a8d28e0c0127ecb3a4aa60f390e8a1d11a39fdb2aea12a9c23b7ac0a1f9ff8d9",
+  "source_size_bytes": 6863955,
+  "source_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+  "container_duration_seconds": 15.053333,
+  "decoded_frames": 393,
+  "audio_streams": 0,
+  "method": "all 393 decoded-frame thumbnails in 11 contact sheets plus 9 enlarged stills; not continuous player viewing or all-frame full-resolution inspection",
+  "contact_sheets_reviewed": 11,
+  "enlarged_frame_numbers": [
+    1,
+    89,
+    108,
+    135,
+    288,
+    296,
+    373,
+    381,
+    389
+  ],
+  "pts_range_seconds": [
+    0.0,
+    15.04
+  ],
+  "frame_pts_regressions": 0,
+  "packet_dts_regressions": 0,
+  "largest_frame_gap_seconds": 0.743333,
+  "one_hz_decode_output_seconds": 15.0,
+  "checkpoint_count": 7,
+  "checkpoint_pts_seconds": [
+    2.761667,
+    5.483333,
+    8.371667,
+    9.638333,
+    11.846667,
+    13.173333,
+    14.686667
+  ],
+  "checkpoint_origin_spread_seconds": 0.01955103874206543,
+  "before_tail_anomaly_present": false,
+  "raw_continuous_capture_supported_by_recording_logs_runner_and_matching_hashes": true,
+  "privacy_findings": [],
+  "visible_bootstrap_text": "Repeated dquote cmdsubst> text during SSH startup around 4.218\u20134.842s; also seen in Before; not a credential disclosure or a newly proven regression from this review.",
+  "public_suitability": "Suitable as simulator deterministic fixture demonstration within reviewed scope; do not attach private sidecar files or claim physical/API/IME/full-PRD acceptance.",
+  "source_unchanged": true,
+  "tracked_changes": false
+}

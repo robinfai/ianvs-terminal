@@ -1,0 +1,343 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart
+00:00 +0: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_architecture_test.dart: DartLibraryGraphScanner counts a part after it is migrated to a real import
+00:00 +1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +2: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +3: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +4: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +5: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +6: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +7: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +8: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +9: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +10: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +11: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +12: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +13: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +14: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +15: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +16: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +17: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +18: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +19: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +20: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +21: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +22: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +23: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +24: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +25: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +26: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +27: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +28: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +29: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +30: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +31: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +32: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +33: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +34: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +35: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +36: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +37: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +38: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +39: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +40: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +41: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +42: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +43: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +44: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +45: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:02 +46: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:02 +47: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection pending proposal cancellation preserves state and permits copying draft
+00:02 +48: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection pending proposal cancellation preserves state and permits copying draft
+00:02 +49: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection pending proposal cancellation preserves state and permits copying draft
+00:02 +50: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection pending proposal cancellation preserves state and permits copying draft
+00:02 +51: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection pending proposal cancellation preserves state and permits copying draft
+00:02 +52: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection pending proposal cancellation preserves state and permits copying draft
+00:02 +53: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection pending proposal cancellation preserves state and permits copying draft
+00:03 +54: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection pending proposal cancellation preserves state and permits copying draft
+00:03 +55: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection pending proposal cancellation preserves state and permits copying draft
+00:03 +56: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection pending proposal cancellation preserves state and permits copying draft
+00:03 +57: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection pending proposal cancellation preserves state and permits copying draft
+00:03 +58: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection pending proposal cancellation preserves state and permits copying draft
+00:03 +59: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection pending proposal cancellation preserves state and permits copying draft
+00:03 +60: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection pending proposal cancellation preserves state and permits copying draft
+00:03 +61: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/shell_ai_reconnect_test.dart: Shell AI reconnect ordinary reconnect preserves a closed AI and its old receipt
+00:04 +62: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/shell_ai_reconnect_test.dart: Shell AI reconnect ordinary reconnect preserves a closed AI and its old receipt
+00:04 +63: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/shell_ai_reconnect_test.dart: Shell AI reconnect ordinary reconnect preserves a closed AI and its old receipt
+00:04 +64: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:04 +65: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:04 +66: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:04 +67: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:04 +68: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:04 +69: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +70: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +71: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +72: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +73: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +74: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +75: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +76: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +77: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +78: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +79: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +80: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +81: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +82: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +83: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +84: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +85: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +86: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +87: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +88: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +89: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +90: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +91: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +92: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +93: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +94: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +95: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +96: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +97: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +98: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +99: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +100: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +101: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +102: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +103: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +104: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +105: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +106: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +107: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +108: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +109: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +110: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +111: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +112: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +113: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +114: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:06 +115: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:06 +116: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:06 +117: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:06 +118: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:06 +119: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:06 +120: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:06 +121: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:06 +122: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:06 +123: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:06 +124: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:06 +125: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/shell_ai_reconnect_test.dart: Shell AI reconnect an earlier history row reconnects the latest failed AI and terminal draft
+00:06 +126: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/shell_ai_reconnect_test.dart: Shell AI reconnect an earlier history row reconnects the latest failed AI and terminal draft
+00:06 +127: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/shell_ai_reconnect_test.dart: Shell AI reconnect an earlier history row reconnects the latest failed AI and terminal draft
+00:07 +128: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: active TUI secondary click respects the current input owner (variant: TargetPlatform.macOS)
+00:07 +129: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: active TUI secondary click respects the current input owner (variant: TargetPlatform.macOS)
+00:07 +130: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: AI evidence reinput reveals and focuses the draft from Normal on iOS (reconnected: true)
+00:07 +131: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: AI evidence reinput reveals and focuses the draft from Normal on iOS (reconnected: true)
+00:07 +132: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: AI evidence reinput reveals and focuses the draft from Normal on iOS (reconnected: true)
+00:07 +133: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection idle AI draft-only close preserves drafts on cancel and closes only the target on confirm
+00:07 +134: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection idle AI draft-only close preserves drafts on cancel and closes only the target on confirm
+00:07 +135: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection idle AI draft-only close preserves drafts on cancel and closes only the target on confirm
+00:07 +136: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection idle AI draft-only close preserves drafts on cancel and closes only the target on confirm
+00:07 +137: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection idle AI draft-only close preserves drafts on cancel and closes only the target on confirm
+00:07 +138: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection idle AI draft-only close preserves drafts on cancel and closes only the target on confirm
+00:07 +139: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection idle AI draft-only close preserves drafts on cancel and closes only the target on confirm
+00:07 +140: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection idle AI draft-only close preserves drafts on cancel and closes only the target on confirm
+00:08 +141: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection idle AI draft-only close preserves drafts on cancel and closes only the target on confirm
+00:08 +142: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection idle AI draft-only close preserves drafts on cancel and closes only the target on confirm
+00:08 +143: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection idle AI draft-only close preserves drafts on cancel and closes only the target on confirm
+00:08 +144: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection idle AI draft-only close preserves drafts on cancel and closes only the target on confirm
+00:08 +145: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection idle AI draft-only close preserves drafts on cancel and closes only the target on confirm
+00:08 +146: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_observer_test.dart: macOS AI revokes old and current system focus-loss reports (variant: TargetPlatform.macOS)
+00:08 +147: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_observer_test.dart: macOS AI revokes old and current system focus-loss reports (variant: TargetPlatform.macOS)
+00:08 +148: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_observer_test.dart: macOS AI revokes old and current system focus-loss reports (variant: TargetPlatform.macOS)
+00:08 +149: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_observer_test.dart: macOS AI revokes old and current system focus-loss reports (variant: TargetPlatform.macOS)
+00:08 +150: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_observer_test.dart: macOS AI revokes old and current system focus-loss reports (variant: TargetPlatform.macOS)
+00:08 +151: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/shell_ai_reconnect_test.dart: Shell AI reconnect history cleanup protects an AI source with an unknown receipt
+00:08 +152: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/shell_ai_reconnect_test.dart: Shell AI reconnect history cleanup protects an AI source with an unknown receipt
+00:08 +153: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection Composer and AI draft-only close preserves drafts on cancel and closes only the target on confirm
+00:08 +154: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection Composer and AI draft-only close preserves drafts on cancel and closes only the target on confirm
+00:09 +155: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection Composer and AI draft-only close preserves drafts on cancel and closes only the target on confirm
+00:09 +156: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection Composer and AI draft-only close preserves drafts on cancel and closes only the target on confirm
+00:09 +157: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection Composer and AI draft-only close preserves drafts on cancel and closes only the target on confirm
+00:09 +158: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection Composer and AI draft-only close preserves drafts on cancel and closes only the target on confirm
+00:09 +159: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection Composer and AI draft-only close preserves drafts on cancel and closes only the target on confirm
+00:09 +160: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection Composer and AI draft-only close preserves drafts on cancel and closes only the target on confirm
+00:09 +161: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection Composer and AI draft-only close preserves drafts on cancel and closes only the target on confirm
+00:09 +162: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection Composer and AI draft-only close preserves drafts on cancel and closes only the target on confirm
+00:09 +163: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection Composer and AI draft-only close preserves drafts on cancel and closes only the target on confirm
+00:09 +164: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection Composer and AI draft-only close preserves drafts on cancel and closes only the target on confirm
+00:10 +165: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection Composer and AI draft-only close preserves drafts on cancel and closes only the target on confirm
+00:10 +166: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection Composer and AI draft-only close preserves drafts on cancel and closes only the target on confirm
+00:10 +167: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection Composer and AI draft-only close preserves drafts on cancel and closes only the target on confirm
+00:10 +168: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection Composer and AI draft-only close preserves drafts on cancel and closes only the target on confirm
+00:10 +169: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection Composer and AI draft-only close preserves drafts on cancel and closes only the target on confirm
+00:10 +170: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/shell_ai_reconnect_test.dart: Shell AI reconnect split tab close removes its AI owner before the old source
+00:10 +171: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/shell_ai_reconnect_test.dart: Shell AI reconnect split tab close removes its AI owner before the old source
+00:10 +172: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/shell_ai_reconnect_test.dart: Shell AI reconnect split tab close removes its AI owner before the old source
+00:10 +173: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/shell_ai_reconnect_test.dart: Shell AI reconnect split tab close removes its AI owner before the old source
+00:10 +174: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/shell_ai_reconnect_test.dart: Shell AI reconnect split tab close removes its AI owner before the old source
+00:10 +175: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/shell_ai_reconnect_test.dart: Shell AI reconnect split tab close removes its AI owner before the old source
+00:10 +176: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: completed AI task returns to visible TerminalViewMode.blocks on TargetPlatform.macOS
+00:10 +177: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: completed AI task returns to visible TerminalViewMode.blocks on TargetPlatform.macOS
+00:10 +178: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: completed AI task returns to visible TerminalViewMode.blocks on TargetPlatform.macOS
+00:11 +179: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: completed AI task returns to visible TerminalViewMode.blocks on TargetPlatform.macOS
+00:11 +180: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: completed AI task returns to visible TerminalViewMode.blocks on TargetPlatform.macOS
+00:11 +181: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: completed AI task returns to visible TerminalViewMode.blocks on TargetPlatform.macOS
+00:11 +182: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection older idle AI task draft-only close preserves drafts on cancel and closes only the target on confirm
+00:11 +183: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection older idle AI task draft-only close preserves drafts on cancel and closes only the target on confirm
+00:11 +184: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/shell_ai_reconnect_test.dart: Shell AI reconnect split tab close retains the old source when its AI owner rejects close
+00:11 +185: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/shell_ai_reconnect_test.dart: Shell AI reconnect split tab close retains the old source when its AI owner rejects close
+00:11 +186: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_observer_test.dart: a TUI transition keeps Shell input read-only until explicit takeover (variant: TargetPlatform.iOS)
+00:11 +187: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: completed AI task returns to visible TerminalViewMode.normal on TargetPlatform.iOS
+00:11 +188: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: completed AI task returns to visible TerminalViewMode.normal on TargetPlatform.iOS
+00:11 +189: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: completed AI task returns to visible TerminalViewMode.normal on TargetPlatform.iOS
+00:11 +190: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: completed AI task returns to visible TerminalViewMode.normal on TargetPlatform.iOS
+00:12 +191: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: completed AI task returns to visible TerminalViewMode.normal on TargetPlatform.iOS
+00:12 +192: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: completed AI task returns to visible TerminalViewMode.normal on TargetPlatform.iOS
+00:12 +193: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: completed AI task returns to visible TerminalViewMode.normal on TargetPlatform.iOS
+00:12 +194: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: completed AI task returns to visible TerminalViewMode.normal on TargetPlatform.iOS
+00:12 +195: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: completed AI task returns to visible TerminalViewMode.normal on TargetPlatform.iOS
+00:12 +196: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: completed AI task returns to visible TerminalViewMode.normal on TargetPlatform.iOS
+00:12 +197: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_observer_test.dart: desktop Reader immediately revokes stale Composer Run and restores only current ownership, AI: true (variant: TargetPlatform.macOS)
+00:12 +198: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_observer_test.dart: desktop Reader immediately revokes stale Composer Run and restores only current ownership, AI: true (variant: TargetPlatform.macOS)
+00:12 +199: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_observer_test.dart: desktop Reader immediately revokes stale Composer Run and restores only current ownership, AI: true (variant: TargetPlatform.macOS)
+00:12 +200: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_observer_test.dart: desktop Reader immediately revokes stale Composer Run and restores only current ownership, AI: true (variant: TargetPlatform.macOS)
+00:12 +201: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_observer_test.dart: desktop Reader immediately revokes stale Composer Run and restores only current ownership, AI: true (variant: TargetPlatform.macOS)
+00:12 +202: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_observer_test.dart: desktop Reader immediately revokes stale Composer Run and restores only current ownership, AI: true (variant: TargetPlatform.macOS)
+00:12 +203: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: completed AI task returns to visible TerminalViewMode.blocks on TargetPlatform.iOS
+00:12 +204: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: completed AI task returns to visible TerminalViewMode.blocks on TargetPlatform.iOS
+00:13 +205: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: completed AI task returns to visible TerminalViewMode.blocks on TargetPlatform.iOS
+00:13 +206: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: completed AI task returns to visible TerminalViewMode.blocks on TargetPlatform.iOS
+00:13 +207: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: completed AI task returns to visible TerminalViewMode.blocks on TargetPlatform.iOS
+00:13 +208: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: completed AI task returns to visible TerminalViewMode.blocks on TargetPlatform.iOS
+00:13 +209: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: completed AI task returns to visible TerminalViewMode.blocks on TargetPlatform.iOS
+00:13 +210: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: completed AI task returns to visible TerminalViewMode.blocks on TargetPlatform.iOS
+00:13 +211: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_observer_test.dart: desktop split retains inactive AI workspace and its draft (variant: TargetPlatform.macOS)
+00:13 +212: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_observer_test.dart: desktop split retains inactive AI workspace and its draft (variant: TargetPlatform.macOS)
+00:13 +213: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection a pane added while confirmation is open is never closed by it
+00:13 +214: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/shell_ai_reconnect_test.dart: Shell AI reconnect desktop menu and shortcut preserve retained evidence while live clear still works
+00:13 +215: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/shell_ai_reconnect_test.dart: Shell AI reconnect desktop menu and shortcut preserve retained evidence while live clear still works
+00:13 +216: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/shell_ai_reconnect_test.dart: Shell AI reconnect desktop menu and shortcut preserve retained evidence while live clear still works
+00:13 +217: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/shell_ai_reconnect_test.dart: Shell AI reconnect desktop menu and shortcut preserve retained evidence while live clear still works
+00:13 +218: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/shell_ai_reconnect_test.dart: Shell AI reconnect desktop menu and shortcut preserve retained evidence while live clear still works
+00:14 +219: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: overflow new output marker can focus a hidden split pane
+00:14 +220: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: reduced motion session menus preserve input and grid on TargetPlatform.iOS
+00:14 +221: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: reduced motion session menus preserve input and grid on TargetPlatform.iOS
+00:14 +222: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: reduced motion session menus preserve input and grid on TargetPlatform.iOS
+00:14 +223: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: hidden overflow new output marker prioritizes inactive pane in active hidden split tab
+00:14 +224: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: hidden overflow new output marker prioritizes inactive pane in active hidden split tab
+00:14 +225: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection topology changes during recording finalization reject stale close and resume recording
+00:14 +226: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection topology changes during recording finalization reject stale close and resume recording
+00:14 +226: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+
+Warning: A call to tap() with finder "Found 1 widget with key [<'ai-terminal-settings'>]: [
+  TextButton-[<'ai-terminal-settings'>](dirty, dependencies: [IconTheme, InheritedCupertinoTheme, MediaQuery, _InheritedTheme, _LocalizationsScope-[GlobalKey#0fe19], _ScrollableScope], state: _ButtonStyleState#ea976),
+]" derived an Offset (Offset(524.0, 311.0)) that would not hit test on the specified widget.
+Maybe the widget is actually off-screen, or another widget is obscuring it, or the widget cannot receive pointer events.
+The finder corresponds to this RenderBox: RenderSemanticsAnnotations#4f9fe relayoutBoundary=up8 NEEDS-PAINT
+The hit test result at that offset is: HitTestResult(RenderPointerListener#d0ae2@Offset(524.0, 311.0), RenderSemanticsAnnotations#f3689@Offset(524.0, 311.0), RenderSemanticsAnnotations#29683@Offset(524.0, 311.0), RenderSemanticsAnnotations#edf40@Offset(524.0, 311.0), RenderSemanticsAnnotations#7508a@Offset(524.0, 311.0), RenderTapRegionSurface#012cf@Offset(524.0, 311.0), RenderSemanticsAnnotations#508bc@Offset(524.0, 311.0), RenderSemanticsAnnotations#73240@Offset(524.0, 311.0), RenderSemanticsAnnotations#0b4d2@Offset(524.0, 311.0), RenderRepaintBoundary#34b6a@Offset(524.0, 311.0), HitTestEntry<HitTestTarget>#70036(_ReusableRenderView#fa919), HitTestEntry<HitTestTarget>#dad02(<ConfigurationCaptureBinding>))
+#0      WidgetController._getElementPoint (package:flutter_test/src/controller.dart:2165:25)
+#1      WidgetController.getCenter (package:flutter_test/src/controller.dart:1947:12)
+#2      WidgetController.tap (package:flutter_test/src/controller.dart:1080:7)
+#3      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart:753:20)
+<asynchronous suspension>
+#4      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#5      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+#6      StackZoneSpecification._registerCallback.<anonymous closure> (package:stack_trace/src/stack_zone_specification.dart:114:42)
+<asynchronous suspension>
+To silence this warning, pass "warnIfMissed: false" to "tap()".
+To make this warning fatal, set WidgetController.hitTestWarningShouldBeFatal to true.
+
+00:14 +227: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection topology changes during recording finalization reject stale close and resume recording
+00:14 +228: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:14 +229: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:14 +230: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:14 +231: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:15 +232: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:15 +233: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:15 +234: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on macOS
+00:15 +235: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection recording save rejection preserves the approved close target AI state
+00:15 +236: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection recording save rejection preserves the approved close target AI state
+00:15 +237: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection recording save rejection preserves the approved close target AI state
+00:15 +238: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on iOS
+00:15 +239: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on iOS
+
+Warning: A call to tap() with finder "Found 1 widget with key [<'ai-terminal-settings'>]: [
+  TextButton-[<'ai-terminal-settings'>](dirty, dependencies: [IconTheme, InheritedCupertinoTheme, MediaQuery, _InheritedTheme, _LocalizationsScope-[GlobalKey#d371d], _ScrollableScope], state: _ButtonStyleState#fbea9),
+]" derived an Offset (Offset(253.0, 518.0)) that would not hit test on the specified widget.
+Maybe the widget is actually off-screen, or another widget is obscuring it, or the widget cannot receive pointer events.
+The finder corresponds to this RenderBox: RenderSemanticsAnnotations#f80e5 relayoutBoundary=up8 NEEDS-PAINT
+The hit test result at that offset is: HitTestResult(RenderPointerListener#304b8@Offset(253.0, 518.0), RenderSemanticsAnnotations#7ea61@Offset(253.0, 518.0), RenderSemanticsAnnotations#cb611@Offset(253.0, 518.0), RenderSemanticsAnnotations#6baa6@Offset(253.0, 518.0), RenderSemanticsAnnotations#1369f@Offset(253.0, 518.0), RenderTapRegionSurface#3246b@Offset(253.0, 518.0), RenderSemanticsAnnotations#121e0@Offset(253.0, 518.0), RenderSemanticsAnnotations#0c1cf@Offset(253.0, 518.0), RenderSemanticsAnnotations#b2db0@Offset(253.0, 518.0), RenderRepaintBoundary#fd25d@Offset(253.0, 518.0), HitTestEntry<HitTestTarget>#68efe(_ReusableRenderView#fa919), HitTestEntry<HitTestTarget>#23588(<ConfigurationCaptureBinding>))
+#0      WidgetController._getElementPoint (package:flutter_test/src/controller.dart:2165:25)
+#1      WidgetController.getCenter (package:flutter_test/src/controller.dart:1947:12)
+#2      WidgetController.tap (package:flutter_test/src/controller.dart:1080:7)
+#3      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart:753:20)
+<asynchronous suspension>
+#4      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#5      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+#6      StackZoneSpecification._registerCallback.<anonymous closure> (package:stack_trace/src/stack_zone_specification.dart:114:42)
+<asynchronous suspension>
+To silence this warning, pass "warnIfMissed: false" to "tap()".
+To make this warning fatal, set WidgetController.hitTestWarningShouldBeFatal to true.
+
+00:15 +240: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on iOS
+00:15 +241: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on iOS
+00:15 +242: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on iOS
+00:15 +243: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH failure keeps AI draft and output on iOS
+00:15 +244: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_observer_test.dart: iPad task and observer share one session and preserve draft across width threshold (variant: TargetPlatform.iOS)
+00:15 +245: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_observer_test.dart: iPad task and observer share one session and preserve draft across width threshold (variant: TargetPlatform.iOS)
+00:16 +246: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection pane close protection targets only that pane
+00:16 +247: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone can recheck current support without changing mode or task
+00:16 +248: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone can recheck current support without changing mode or task
+00:16 +249: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone can recheck current support without changing mode or task
+00:16 +250: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone can recheck current support without changing mode or task
+00:16 +251: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: shortcut editor saves and hot-reloads an override
+00:16 +252: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_close_protection_test.dart: Shell close protection disconnected mobile owner with unknown result can cancel removal
+00:16 +253: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:17 +254: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:17 +255: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:17 +256: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:17 +257: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:17 +258: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:17 +259: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:17 +260: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:17 +261: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:17 +262: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:17 +263: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:17 +264: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:17 +265: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:17 +266: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:18 +267: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:18 +268: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone reader touch selection returns to the retained AI task
+00:18 +269: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: form fields keep command and native paste out of the terminal (variant: TargetPlatform.macOS)
+00:18 +270: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:18 +271: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:18 +272: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:18 +273: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:19 +274: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership portrait
+00:19 +275: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: tab context menu can reopen the most recently closed split pane
+00:19 +276: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership landscape
+00:19 +277: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership landscape
+00:19 +278: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership landscape
+00:19 +279: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership landscape
+00:19 +280: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership landscape
+00:19 +281: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership landscape
+00:20 +282: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership landscape
+00:20 +283: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: defaults close restores the layout cue and keyboard path
+00:20 +284: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone TUI grid and input ownership short-dark
+00:20 +285: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: phone session menu preserves the AI task through capability changes
+00:21 +286: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: iOS negotiates Blocks and preserves manual Normal
+00:22 +287: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: android negotiates Blocks and preserves manual Normal
+00:22 +288: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: SSH hop and fullscreen fall back; restore remains manual
+00:23 +289: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: main-screen application modes fall back without an alternate buffer
+00:23 +290: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits phone with the keyboard
+00:23 +291: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits landscape with the keyboard
+00:24 +292: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits fixed-text-dark with the keyboard
+00:24 +293: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits landscape-dark with the keyboard
+00:24 +294: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile Block input fits ipad with the keyboard
+00:24 +295: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: mobile settings save Normal for new sessions only
+00:25 +296: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart: explicit Normal preference overrides the mobile default
+00:25 +297: All tests passed!

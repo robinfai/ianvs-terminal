@@ -172,10 +172,17 @@ final class _MasterKeyManagementPanelState
   @override
   Widget build(BuildContext context) {
     final theme = context.appTheme;
-    if (!widget.repository.allowLegacyMigration) {
+    final localStorageDescription = switch (widget.repository.storagePolicy) {
+      PortableMasterKeyStoragePolicy.platformVault => null,
+      PortableMasterKeyStoragePolicy.developmentFile =>
+        context.l10n.developmentMasterKeyStorageDescription,
+      PortableMasterKeyStoragePolicy.acceptanceDeviceOnly =>
+        context.l10n.acceptanceDeviceOnlyMasterKeyStorageDescription,
+    };
+    if (localStorageDescription != null) {
       return AppSectionHeader(
         title: context.l10n.masterKey,
-        description: context.l10n.developmentMasterKeyStorageDescription,
+        description: localStorageDescription,
       );
     }
     final usesAppleKeychain = usesAutomaticallySynchronizedAppleKeychain;

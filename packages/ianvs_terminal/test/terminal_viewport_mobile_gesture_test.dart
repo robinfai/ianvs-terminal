@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/cupertino.dart';
@@ -150,6 +151,47 @@ void main() {
     },
     variant: const TargetPlatformVariant({TargetPlatform.iOS}),
   );
+
+  for (final unmount in [false, true]) {
+    testWidgets(
+      'pending touch selection capture ignores stale content (unmount $unmount)',
+      (tester) async {
+        final capture = Completer<String>();
+        var captures = 0;
+        final harness = _MobileViewportHarness(
+          captureSelectionText: () {
+            captures++;
+            return capture.future;
+          },
+        );
+        addTearDown(harness.dispose);
+        await tester.pumpWidget(harness.widget());
+        final render = tester.renderObject<RenderTerminalViewport>(
+          _terminalSurface(),
+        );
+        await tester.longPressAt(
+          render.localToGlobal(
+            Offset(
+              render.debugCellSize.width * 7.5,
+              render.debugCellSize.height * .5,
+            ),
+          ),
+        );
+        expect(captures, 1);
+        if (unmount) {
+          await tester.pumpWidget(const SizedBox());
+        } else {
+          harness.selectionController.clear();
+        }
+        capture.complete('original selected text');
+        await tester.pumpAndSettle();
+        expect(find.byKey(terminalTouchCopyMenuItemKey), findsNothing);
+        expect(harness.copiedText, isEmpty);
+        expect(tester.takeException(), isNull);
+      },
+      variant: const TargetPlatformVariant({TargetPlatform.iOS}),
+    );
+  }
 
   testWidgets(
     'iPhone one-finger drag scrolls the viewport instead of terminal modes',
@@ -625,6 +667,7 @@ final class _MobileViewportHarness {
     int initialScrollbackOffset = 0,
     this.applyScrolls = false,
     this.clipboardText = '',
+    this.captureSelectionText,
   }) : controller = TerminalViewportController(),
        selectionController = SelectionController(),
        inputSink = _RecordingInputSink(),
@@ -682,6 +725,7 @@ final class _MobileViewportHarness {
   final TerminalFrameModes modes;
   final bool applyScrolls;
   final String clipboardText;
+  final Future<String> Function()? captureSelectionText;
   final _RecordingInputSink inputSink;
   late final TerminalInputController inputController;
   final List<int> scrollDeltas = <int>[];
@@ -714,6 +758,7 @@ final class _MobileViewportHarness {
               controller: controller,
               selectionController: selectionController,
               inputController: inputController,
+              captureSelectionText: captureSelectionText,
               onPasteClipboard: () async {
                 pasteCallbackCount += 1;
                 await inputController.pasteClipboard();

@@ -1,0 +1,106 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/widget_test.dart
+00:00 +0: split headers omit protocol modes without disabling them
+00:00 +1: pane menu keeps its target when the active pane changes
+00:01 +2: narrow pane keeps split and zoom accessible through more (variant: TargetPlatform.macOS)
+00:01 +3: shell startup waits silently for bootstrap content
+00:01 +4: shell startup failure presents a retry action
+00:01 +5: remote startup failure can explicitly switch to the last local snapshot
+00:02 +6: shell startup can explicitly repair a noncanonical current config
+00:02 +7: shell screen keeps line timestamp overlays hidden by default
+00:02 +8: shell screen can open a second tab from the command menu
+00:02 +9: tab strip uses compact tabs before overflowing (variant: TargetPlatform.macOS)
+00:03 +10: profile tab color renders in the active tab and overflow selector (variant: TargetPlatform.macOS)
+00:03 +11: OSC 6 tab color components render incrementally and restore the profile color (variant: TargetPlatform.macOS)
+00:03 +12: tab overflow menu activates hidden tabs (variant: TargetPlatform.macOS)
+00:04 +13: tab overflow badge can focus an inactive split pane (variant: TargetPlatform.macOS)
+00:05 +14: new tab shows loading content until its first frame
+00:05 +15: new tab ignores placeholder frames before terminal content
+00:05 +16: tab context menu split right opens a second pane in the active tab
+00:05 +17: tab context menu allows splitting down after splitting right
+00:05 +18: tab context menu explains unavailable split and layout actions
+00:06 +19: tab context menu stops growing a pane before a sibling becomes too small
+00:06 +20: tab context menu disables pane management actions while zoomed
+00:06 +21: hovering a split pane does not activate it, but clicking does
+00:06 +22: clicking an inactive split pane with mouse reporting activates and reports to that pane
+00:06 +23: switching split panes routes focus reports to the pane gaining or losing focus
+00:06 +24: terminal focus updates refresh policy without backgrounding it
+00:06 +25: disabling focus tracking stops split pane focus reports
+00:07 +26: active split pane header exposes split affordances
+00:07 +27: tab title follows active pane title when tab has multiple panes
+00:07 +28: collapsed split tab keeps remaining pane title and badge after closing root pane
+00:07 +29: active split pane header zooms and closes the pane
+00:07 +30: dragging a split pane divider resizes adjacent panes
+00:08 +31: dragging a split pane divider respects minimum pane width
+00:08 +32: native paste sends clipboard text to the active session
+00:08 +33: middle click pastes the clipboard when mouse reporting is off
+00:08 +34: native paste confirms carriage-return multiline text
+00:08 +35: command-option-b opens instant replay workspace backed by terminal viewport (variant: TargetPlatform.macOS)
+00:09 +36: instant replay stays usable with touch-sized controls on iPhone (variant: TargetPlatform.iOS)
+00:09 +37: copy shortcut writes the selection to the clipboard
+00:09 +38: OSC 1337 inline buttons route custom activation and explicit copy through product bridges
+00:09 +39: hidden OSC 1337 annotation adds a terminal badge
+00:09 +40: visible OSC 1337 annotation shows its note and a badge
+00:09 +41: command-shift-p opens the command menu without leaking input (variant: TargetPlatform.macOS)
+00:10 +42: command-t opens the default local profile at the active live directory (variant: TargetPlatform.macOS)
+00:10 +43: command-t opens the selected default instead of the current profile (variant: TargetPlatform.macOS)
+00:10 +44: command-t opens the default SSH profile with shell integration enabled (variant: TargetPlatform.macOS)
+00:10 +45: command-t falls back to the local profile when no tab is open (variant: TargetPlatform.macOS)
+00:10 +46: shortcut proof matrix covers retained mac shortcuts (variant: TargetPlatform.macOS)
+00:11 +47: repeated command-t is swallowed by the shell shortcut handler (variant: TargetPlatform.macOS)
+00:11 +48: control-t on macOS stays in terminal input instead of opening a new tab (variant: TargetPlatform.macOS)
+00:11 +49: command menu explains disabled actions inline
+00:11 +50: clear buffer reports its successful effect
+00:11 +51: export diagnostics explains when no bundle is available
+00:11 +52: command menu omits clipboard paste and folder-specific tabs
+00:11 +53: read-only mode blocks shortcut and native paste before clipboard read (variant: TargetPlatform.macOS)
+00:11 +54: command menu accepts hyphenated read-only query
+00:12 +55: focused shell semantics expose command search and selected tab
+00:12 +56: command menu supports keyboard-only focus traversal to actions
+00:12 +57: tab strip supports keyboard-only focus traversal between tabs
+00:12 +58: control-t on non-macOS still opens another tab (variant: TargetPlatform.linux)
+00:12 +59: command-number activates the matching tab without input leak (variant: TargetPlatform.macOS)
+00:12 +60: native find menu opens search without leaking input (variant: TargetPlatform.macOS)
+00:12 +61: command-q requests quit confirmation without leaking input (variant: TargetPlatform.macOS)
+00:12 +62: shell posts notifications for command completion and bells
+00:12 +63: inactive session activity posts a notification
+00:13 +64: notification authorization failures surface actionable feedback once
+00:13 +65: inactive session activity notifications redact immediate and trailing output
+00:13 +66: profile triggers notify and send text for matching output
+00:13 +67: profile triggers fire for repeated delta output
+00:13 +68: profile triggers match wrapped logical rows for notifications and send-text actions
+00:13 +69: switching panes does not show the return-to-shell cue
+00:13 +70: clicking another pane updates focus without a legacy cue
+00:13 +71: command menu keeps pane focus traversal hidden
+00:13 +72: shift-command arrows track global prompt marks through new output and caps (variant: TargetPlatform.macOS)
+00:13 +73: global row zero prompt mark jumps in a one-row terminal (variant: TargetPlatform.macOS)
+00:13 +74: command-w closes the active tab without leaking input (variant: TargetPlatform.macOS)
+00:14 +75: partial split-tab close cleans removed pane state and focuses survivor (variant: TargetPlatform.macOS)
+00:14 +76: command-comma opens defaults and returns keyboard to terminal (variant: TargetPlatform.macOS)
+00:14 +77: native Settings menu opens defaults
+00:14 +78: command-shift-t opens the SSH session launcher (variant: TargetPlatform.macOS)
+00:14 +79: native terminal menu actions choose the requested type
+00:14 +80: closing the last tab can recover from the empty state
+00:14 +81: closing the last tab can recover via Reopen closed tab
+00:14 +82: terminal exit returns the shell to the empty state
+00:14 +83: SSH transport failure keeps history until its tab is closed
+00:14 +84: shell terminal scrollbar drag sends absolute scroll requests
+00:15 +85: shell search opens and scrolls to matches (variant: TargetPlatform.macOS)
+00:15 +86: shell search closes on Escape without terminal input (variant: TargetPlatform.macOS)
+00:15 +87: shell search keeps vertical padding balanced (variant: TargetPlatform.macOS)
+00:15 +88: shell search compacts inside a narrow terminal pane (variant: TargetPlatform.macOS)
+00:15 +89: cmd-f opens shell search without writing to terminal (variant: TargetPlatform.macOS)
+00:15 +90: shell search opening and clearing keeps input focused (variant: TargetPlatform.macOS)
+00:15 +91: shell search mode and navigation do not force input focus (variant: TargetPlatform.macOS)
+00:15 +92: shell search scope searches current tab panes and jumps between panes (variant: TargetPlatform.macOS)
+00:16 +93: shell search overlay stays inside active split pane (variant: TargetPlatform.macOS)
+00:16 +94: shell search jump clears inactive pane new output marker (variant: TargetPlatform.macOS)
+00:16 +95: shell search drops closed split pane matches (variant: TargetPlatform.macOS)
+00:17 +96: shell search pane scope refreshes after activating another pane (variant: TargetPlatform.macOS)
+00:17 +97: shell search scope searches all tabs and jumps across tabs (variant: TargetPlatform.macOS)
+00:17 +98: shell search highlights visible matches (variant: TargetPlatform.macOS)
+00:17 +99: shell search recomputes selected highlight geometry after resize (variant: TargetPlatform.macOS)
+00:17 +100: shell search recomputes selected highlight geometry after output updates (variant: TargetPlatform.macOS)
+00:17 +101: shell search regex mode matches visible terminal output (variant: TargetPlatform.macOS)
+00:18 +102: shell search regex mode keeps text editable and reports errors (variant: TargetPlatform.macOS)
+00:18 +103: All tests passed!

@@ -1,0 +1,36 @@
+{
+  "date": "2026-10-08",
+  "scope": "documentation_and_validator_only",
+  "counts": {
+    "requirements": 64,
+    "cases": 64,
+    "screenshot_checkpoints": 159,
+    "designs": 16,
+    "work_packages": 16
+  },
+  "stage_shots": {
+    "D1": 42,
+    "D2": 40,
+    "D3": 36,
+    "D4": 41
+  },
+  "validator_self_tests": {
+    "count": 46,
+    "result": "passed"
+  },
+  "template_structure": "passed",
+  "template_final_gate": "expected_failure_all_not_run",
+  "design_render": "16 static HTML rendered to 1440x810 PNG",
+  "design_geometry": "example Block heights satisfy <= pane viewport H/3",
+  "relative_markdown_links": "passed",
+  "product_tests": "not_run",
+  "github_product_code_changed": false,
+  "fonts_included": false,
+  "visual_review": "all16 contact sheet plus representative full-size UX1-03 UX2-02 UX3-02 UX4-01 UX4-03; static design only",
+  "limits": [
+    "No Flutter/native app was built or run",
+    "No physical keyboard/trackpad/IME/VoiceOver or hardware performance verified",
+    "Validator verifies metadata/files, not authenticity or behavioral truth",
+    "Example UI is illustrative, not an implemented prototype"
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "target": "user-configured ssh cloud",
+  "transport": "production native SSH",
+  "negotiated_blocks": true,
+  "completed_ls_commands": 2,
+  "manual_normal_preserved_blocks_and_session": true,
+  "tui_preserved_ls_identity_output_exit_and_source_rows": true,
+  "fullscreen_programs": [
+    "Linux top",
+    "vim"
+  ],
+  "full_terminal_size": {
+    "width": 1728.0,
+    "height": 1002.0,
+    "rows": 44,
+    "columns": 203
+  },
+  "manual_blocks_restored_same_context": true,
+  "remote_configuration_written": false,
+  "scope": "Direct SSH; nested hops use the separate loopback lab."
+}

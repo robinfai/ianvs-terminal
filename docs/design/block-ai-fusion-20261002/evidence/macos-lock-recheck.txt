@@ -1,0 +1,4 @@
+2026-10-03
+Read-only CUA getApp for Trail Development returned:
+The Mac is locked and automatic unlock could not unlock it. Ask the user to unlock the Mac manually before continuing.
+No new native integration run started; the previous timeout remains terminal.

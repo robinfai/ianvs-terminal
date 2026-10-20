@@ -1,0 +1,997 @@
+{
+  "schema_version": "1.0",
+  "product": "ianvs-terminal-desktop",
+  "baseline_commit": "763dc166bb1e56d6d50ed3379b57f366c9ca06b7",
+  "implementation_commit": null,
+  "notes": "所有产品场景初始未运行。字段示例见 environment.example.json；不要把示例当真实结果。",
+  "stages": [
+    {
+      "id": "D1",
+      "status": "planned",
+      "implementation_commit": null,
+      "result_path": "results/D1.md"
+    },
+    {
+      "id": "D2",
+      "status": "planned",
+      "implementation_commit": null,
+      "result_path": "results/D2.md"
+    },
+    {
+      "id": "D3",
+      "status": "planned",
+      "implementation_commit": null,
+      "result_path": "results/D3.md"
+    },
+    {
+      "id": "D4",
+      "status": "planned",
+      "implementation_commit": null,
+      "result_path": "results/D4.md"
+    }
+  ],
+  "environments": [],
+  "artifacts": [],
+  "cases": [
+    {
+      "id": "D1-T01",
+      "requirement_ids": [
+        "D1-R01"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D1.md"
+    },
+    {
+      "id": "D1-T02",
+      "requirement_ids": [
+        "D1-R02"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D1.md"
+    },
+    {
+      "id": "D1-T03",
+      "requirement_ids": [
+        "D1-R03"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D1.md"
+    },
+    {
+      "id": "D1-T04",
+      "requirement_ids": [
+        "D1-R04"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D1.md"
+    },
+    {
+      "id": "D1-T05",
+      "requirement_ids": [
+        "D1-R05"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D1.md"
+    },
+    {
+      "id": "D1-T06",
+      "requirement_ids": [
+        "D1-R06"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D1.md"
+    },
+    {
+      "id": "D1-T07",
+      "requirement_ids": [
+        "D1-R07"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D1.md"
+    },
+    {
+      "id": "D1-T08",
+      "requirement_ids": [
+        "D1-R08"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D1.md"
+    },
+    {
+      "id": "D1-T09",
+      "requirement_ids": [
+        "D1-R09"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D1.md"
+    },
+    {
+      "id": "D1-T10",
+      "requirement_ids": [
+        "D1-R10"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D1.md"
+    },
+    {
+      "id": "D1-T11",
+      "requirement_ids": [
+        "D1-R11"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D1.md"
+    },
+    {
+      "id": "D1-T12",
+      "requirement_ids": [
+        "D1-R12"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D1.md"
+    },
+    {
+      "id": "D1-T13",
+      "requirement_ids": [
+        "D1-R13"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D1.md"
+    },
+    {
+      "id": "D1-T14",
+      "requirement_ids": [
+        "D1-R14"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D1.md"
+    },
+    {
+      "id": "D1-T15",
+      "requirement_ids": [
+        "D1-R15"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D1.md"
+    },
+    {
+      "id": "D1-T16",
+      "requirement_ids": [
+        "D1-R16"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D1.md"
+    },
+    {
+      "id": "D2-T01",
+      "requirement_ids": [
+        "D2-R01"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D2.md"
+    },
+    {
+      "id": "D2-T02",
+      "requirement_ids": [
+        "D2-R02"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D2.md"
+    },
+    {
+      "id": "D2-T03",
+      "requirement_ids": [
+        "D2-R03"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D2.md"
+    },
+    {
+      "id": "D2-T04",
+      "requirement_ids": [
+        "D2-R04"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D2.md"
+    },
+    {
+      "id": "D2-T05",
+      "requirement_ids": [
+        "D2-R05"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D2.md"
+    },
+    {
+      "id": "D2-T06",
+      "requirement_ids": [
+        "D2-R06"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D2.md"
+    },
+    {
+      "id": "D2-T07",
+      "requirement_ids": [
+        "D2-R07"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D2.md"
+    },
+    {
+      "id": "D2-T08",
+      "requirement_ids": [
+        "D2-R08"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D2.md"
+    },
+    {
+      "id": "D2-T09",
+      "requirement_ids": [
+        "D2-R09"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D2.md"
+    },
+    {
+      "id": "D2-T10",
+      "requirement_ids": [
+        "D2-R10"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D2.md"
+    },
+    {
+      "id": "D2-T11",
+      "requirement_ids": [
+        "D2-R11"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D2.md"
+    },
+    {
+      "id": "D2-T12",
+      "requirement_ids": [
+        "D2-R12"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D2.md"
+    },
+    {
+      "id": "D2-T13",
+      "requirement_ids": [
+        "D2-R13"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D2.md"
+    },
+    {
+      "id": "D2-T14",
+      "requirement_ids": [
+        "D2-R14"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D2.md"
+    },
+    {
+      "id": "D2-T15",
+      "requirement_ids": [
+        "D2-R15"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D2.md"
+    },
+    {
+      "id": "D2-T16",
+      "requirement_ids": [
+        "D2-R16"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D2.md"
+    },
+    {
+      "id": "D3-T01",
+      "requirement_ids": [
+        "D3-R01"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D3.md"
+    },
+    {
+      "id": "D3-T02",
+      "requirement_ids": [
+        "D3-R02"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D3.md"
+    },
+    {
+      "id": "D3-T03",
+      "requirement_ids": [
+        "D3-R03"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D3.md"
+    },
+    {
+      "id": "D3-T04",
+      "requirement_ids": [
+        "D3-R04"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D3.md"
+    },
+    {
+      "id": "D3-T05",
+      "requirement_ids": [
+        "D3-R05"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D3.md"
+    },
+    {
+      "id": "D3-T06",
+      "requirement_ids": [
+        "D3-R06"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D3.md"
+    },
+    {
+      "id": "D3-T07",
+      "requirement_ids": [
+        "D3-R07"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D3.md"
+    },
+    {
+      "id": "D3-T08",
+      "requirement_ids": [
+        "D3-R08"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D3.md"
+    },
+    {
+      "id": "D3-T09",
+      "requirement_ids": [
+        "D3-R09"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D3.md"
+    },
+    {
+      "id": "D3-T10",
+      "requirement_ids": [
+        "D3-R10"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D3.md"
+    },
+    {
+      "id": "D3-T11",
+      "requirement_ids": [
+        "D3-R11"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D3.md"
+    },
+    {
+      "id": "D3-T12",
+      "requirement_ids": [
+        "D3-R12"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D3.md"
+    },
+    {
+      "id": "D3-T13",
+      "requirement_ids": [
+        "D3-R13"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D3.md"
+    },
+    {
+      "id": "D3-T14",
+      "requirement_ids": [
+        "D3-R14"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D3.md"
+    },
+    {
+      "id": "D3-T15",
+      "requirement_ids": [
+        "D3-R15"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D3.md"
+    },
+    {
+      "id": "D3-T16",
+      "requirement_ids": [
+        "D3-R16"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D3.md"
+    },
+    {
+      "id": "D4-T01",
+      "requirement_ids": [
+        "D4-R01"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D4.md"
+    },
+    {
+      "id": "D4-T02",
+      "requirement_ids": [
+        "D4-R02"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D4.md"
+    },
+    {
+      "id": "D4-T03",
+      "requirement_ids": [
+        "D4-R03"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D4.md"
+    },
+    {
+      "id": "D4-T04",
+      "requirement_ids": [
+        "D4-R04"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D4.md"
+    },
+    {
+      "id": "D4-T05",
+      "requirement_ids": [
+        "D4-R05"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D4.md"
+    },
+    {
+      "id": "D4-T06",
+      "requirement_ids": [
+        "D4-R06"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D4.md"
+    },
+    {
+      "id": "D4-T07",
+      "requirement_ids": [
+        "D4-R07"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D4.md"
+    },
+    {
+      "id": "D4-T08",
+      "requirement_ids": [
+        "D4-R08"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D4.md"
+    },
+    {
+      "id": "D4-T09",
+      "requirement_ids": [
+        "D4-R09"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D4.md"
+    },
+    {
+      "id": "D4-T10",
+      "requirement_ids": [
+        "D4-R10"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D4.md"
+    },
+    {
+      "id": "D4-T11",
+      "requirement_ids": [
+        "D4-R11"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D4.md"
+    },
+    {
+      "id": "D4-T12",
+      "requirement_ids": [
+        "D4-R12"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D4.md"
+    },
+    {
+      "id": "D4-T13",
+      "requirement_ids": [
+        "D4-R13"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D4.md"
+    },
+    {
+      "id": "D4-T14",
+      "requirement_ids": [
+        "D4-R14"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D4.md"
+    },
+    {
+      "id": "D4-T15",
+      "requirement_ids": [
+        "D4-R15"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D4.md"
+    },
+    {
+      "id": "D4-T16",
+      "requirement_ids": [
+        "D4-R16"
+      ],
+      "status": "not_run",
+      "reason": "尚未实施/运行。",
+      "implementation_commit": null,
+      "implementation_paths": [],
+      "actual_steps": "",
+      "observed_result": "",
+      "artifact_ids": [],
+      "assertions": [],
+      "result_path": "results/D4.md"
+    }
+  ]
+}

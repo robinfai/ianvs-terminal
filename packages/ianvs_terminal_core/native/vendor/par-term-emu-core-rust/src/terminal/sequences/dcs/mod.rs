@@ -7,9 +7,13 @@ use crate::graphics::{next_graphic_id, GraphicProtocol, ImageDimension, Terminal
 use crate::terminal::{Terminal, TerminalInputBufferDiscardReason};
 use vte::Params;
 
-/// Non-Sixel DCS payloads have no consumer, so retain only a small bounded
-/// prefix before discarding the remainder of the sequence through ST.
+/// Non-Sixel payloads retain only a bounded prefix. Ianvs shell hooks use a
+/// separate bound to accommodate hex-encoded command/context metadata.
 pub(crate) const MAX_NON_SIXEL_DCS_BYTES: usize = 4 * 1024;
+// Composer accepts 64 KiB of literal UTF-8. JSON can double each permitted
+// byte (quotes, backslashes, tabs/newlines), then the hook hex-encodes it.
+// Leave bounded space for hook, shell, context and submission metadata.
+const MAX_SHELL_HOOK_DCS_BYTES: usize = 4 * 64 * 1024 + 1024;
 
 fn sixel_display_width_for_pixel_aspect(
     width: usize,
@@ -128,7 +132,13 @@ impl Terminal {
                 }
                 self.dcs_buffer.push(byte);
             }
-        } else if self.dcs_buffer.len() >= MAX_NON_SIXEL_DCS_BYTES {
+        } else if self.dcs_buffer.len()
+            >= if self.dcs_action == Some('h') {
+                MAX_SHELL_HOOK_DCS_BYTES
+            } else {
+                MAX_NON_SIXEL_DCS_BYTES
+            }
+        {
             self.dcs_buffer = Vec::new();
             self.dcs_discarding = true;
             self.record_input_buffer_discard(TerminalInputBufferDiscardReason::NonSixelDcsLimit);
@@ -141,6 +151,10 @@ impl Terminal {
     pub(in crate::terminal) fn dcs_unhook(&mut self) {
         if !self.dcs_active {
             return;
+        }
+
+        if self.dcs_action == Some('h') && !self.dcs_discarding {
+            self.capture_ianvs_shell_hook();
         }
 
         if self.dcs_action == Some('q') && self.sixel_parser.is_some() {

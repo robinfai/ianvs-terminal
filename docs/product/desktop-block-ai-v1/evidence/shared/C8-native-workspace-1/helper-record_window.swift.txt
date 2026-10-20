@@ -1,0 +1,125 @@
+import AppKit
+import AVFoundation
+import CoreGraphics
+import Foundation
+import ScreenCaptureKit
+
+// Host-only evidence helper, never linked into Trail. Uses an explicit window
+// filter and SCRecordingOutput; no display capture or audio fallback exists.
+// https://developer.apple.com/documentation/screencapturekit/sccontentfilter/init(desktopindependentwindow:)
+// https://developer.apple.com/documentation/screencapturekit/screcordingoutput
+func emit(_ event: String, _ extra: [String: Any] = [:]) {
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    var value = extra
+    value["event"] = event
+    value["at"] = formatter.string(from: Date())
+    if let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]) {
+        FileHandle.standardOutput.write(data + Data("\n".utf8))
+    }
+}
+
+final class RecorderDelegate: NSObject, SCRecordingOutputDelegate, SCStreamDelegate {
+    private let lock = NSLock()
+    private var completion: Int32?
+    private var stopped: Date?
+    var result: Int32? { lock.withLock { completion } }
+    var stoppedAt: Date? { lock.withLock { stopped } }
+
+    private func finish(_ code: Int32) {
+        lock.withLock { if completion == nil { completion = code } }
+    }
+    func recordingOutputDidStartRecording(_ output: SCRecordingOutput) {
+        emit("recording_started")
+    }
+    func recordingOutputDidFinishRecording(_ output: SCRecordingOutput) {
+        emit("recording_finished", ["duration_seconds": CMTimeGetSeconds(output.recordedDuration),
+                                    "size_bytes": output.recordedFileSize])
+        finish(0)
+    }
+    func recordingOutput(_ output: SCRecordingOutput, didFailWithError error: Error) {
+        let native = error as NSError
+        emit("recording_failed", ["domain": native.domain, "code": native.code])
+        finish(2)
+    }
+    func stream(_ stream: SCStream, didStopWithError error: Error) {
+        let native = error as NSError
+        emit("stream_stopped", ["domain": native.domain, "code": native.code])
+        // Allow the recording output to finalize after its source window
+        // closes. Its own completion remains the authority for file success.
+        lock.withLock { stopped = Date() }
+    }
+}
+
+@main
+struct RecordWindow {
+    @MainActor
+    static func main() async {
+        // Initialize AppKit's connection to WindowServer before CoreGraphics
+        // permission/window calls in this standalone command-line process.
+        _ = NSApplication.shared
+        guard CommandLine.arguments.count == 5,
+              let windowID = UInt32(CommandLine.arguments[2]),
+              let pid = Int32(CommandLine.arguments[3]) else { exit(64) }
+        let appPath = URL(fileURLWithPath: CommandLine.arguments[1]).standardizedFileURL.path
+        let outputURL = URL(fileURLWithPath: CommandLine.arguments[4]).standardizedFileURL
+        guard !FileManager.default.fileExists(atPath: outputURL.path),
+              CGPreflightScreenCaptureAccess(),
+              NSRunningApplication(processIdentifier: pid)?.bundleURL?.standardizedFileURL.path == appPath
+        else { emit("preflight_failed"); exit(65) }
+        do {
+            let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
+            guard let window = content.windows.first(where: {
+                $0.windowID == windowID && $0.owningApplication?.processID == pid
+            }) else { emit("target_window_missing"); exit(66) }
+            let filter = SCContentFilter(desktopIndependentWindow: window)
+            let configuration = SCStreamConfiguration()
+            let scale = CGFloat(filter.pointPixelScale)
+            configuration.width = Int(ceil(filter.contentRect.width * scale))
+            configuration.height = Int(ceil(filter.contentRect.height * scale))
+            configuration.minimumFrameInterval = CMTime(value: 1, timescale: 30)
+            configuration.ignoreShadowsSingleWindow = true
+            configuration.showsCursor = true
+            configuration.capturesAudio = false
+            configuration.captureMicrophone = false
+            let recording = SCRecordingOutputConfiguration()
+            recording.outputURL = outputURL
+            recording.outputFileType = .mp4
+            recording.videoCodecType = .h264
+            let delegate = RecorderDelegate()
+            let stream = SCStream(filter: filter, configuration: configuration, delegate: delegate)
+            let output = SCRecordingOutput(configuration: recording, delegate: delegate)
+            try stream.addRecordingOutput(output)
+            signal(SIGINT, SIG_IGN)
+            let interrupt = DispatchSource.makeSignalSource(signal: SIGINT, queue: .main)
+            interrupt.setEventHandler {
+                Task {
+                    do { try await stream.stopCapture() }
+                    catch { emit("stop_failed"); exit(3) }
+                }
+            }
+            interrupt.resume()
+            emit("window_selected", ["window_id": windowID, "pid": pid,
+                                     "width": configuration.width, "height": configuration.height,
+                                     "point_pixel_scale": filter.pointPixelScale])
+            try await stream.startCapture()
+            let deadline = Date().addingTimeInterval(1200)
+            while delegate.result == nil && Date() < deadline {
+                if let stopped = delegate.stoppedAt, Date().timeIntervalSince(stopped) > 10 { break }
+                try await Task.sleep(nanoseconds: 100_000_000)
+            }
+            if delegate.result == nil {
+                try await stream.stopCapture()
+                for _ in 0..<100 where delegate.result == nil {
+                    try await Task.sleep(nanoseconds: 100_000_000)
+                }
+            }
+            interrupt.cancel()
+            exit(delegate.result ?? 3)
+        } catch {
+            let native = error as NSError
+            emit("capture_failed", ["domain": native.domain, "code": native.code])
+            exit(2)
+        }
+    }
+}

@@ -1,0 +1,70 @@
+{
+  "implementation_commit": "19001573d9974c510e1e4cbcfeb01c94368ea157",
+  "source_clean_at_start": true,
+  "created_at": "2026-10-10T07:41:01.744661+00:00",
+  "fixture_directory": "/private/tmp/trail-desktop-prd-c8-tabs-1",
+  "scope": "D1-T01 normal UI two-tab local shell identity and draft retention",
+  "status": "interaction_complete_pending_independent_review",
+  "physical_input": false,
+  "model_configured": false,
+  "capture_scope": "only isolated Trail Development window and same-PID owned dialogs",
+  "limits": [
+    "Synthetic native OS keyboard/mouse actions are not physical input certification",
+    "Choose Blocks explicitly through ordinary UI; fresh desktop default remains normal terminal",
+    "No private profiles, API keys, or SSH keys are imported",
+    "Process trees are discrete checkpoints; no proof about every instantaneous child process",
+    "Native screenshots and source-derived font scale do not certify physical IME, VoiceOver, multi-display or mixed DPI"
+  ],
+  "started_at": "2026-10-10T07:49:09.789146+00:00",
+  "source_clean_at_launch": true,
+  "finished_at": "2026-10-10T07:55:46.969735+00:00",
+  "source_clean_at_end": true,
+  "head_at_end": "19001573d9974c510e1e4cbcfeb01c94368ea157",
+  "app_pid": 29146,
+  "window_id": 28828,
+  "viewport_logical": [
+    1728,
+    1084
+  ],
+  "pixel_size": [
+    3456,
+    2168
+  ],
+  "pixel_ratio": 2,
+  "font_scale": 1,
+  "font_scale_basis": "source-derived from exact Flutter macOS engine; not runtime-measured",
+  "os_version": "27.0.1",
+  "os_build": "26A434",
+  "device": "Mac16,7",
+  "input_method": "CUA native OS keyboard/mouse events, no FlutterDriver enterText or runtime/controller injection",
+  "capture_method": "screencapture -l exact App window 28828; no video",
+  "initial_mode": "normal terminal; switched both tabs explicitly to Blocks through normal context menu",
+  "binary_sha256": {
+    "example/build/macos/Build/Products/Debug/Trail Development.app/Contents/MacOS/Trail Development": "1924040700751349744e2cfa075b17806a951de8e5dd321adc5384d3a02ff057",
+    "example/build/macos/Build/Products/Debug/Trail Development.app/Contents/Frameworks/App.framework/Versions/A/App": "9075c34fd69adccac7aef612ae0400efc34d889cab7e0bbc8fd25f7834e62183",
+    "example/build/macos/Build/Products/Debug/Trail Development.app/Contents/Frameworks/App.framework/Versions/A/Resources/flutter_assets/kernel_blob.bin": "302fe4480bef27d731b36ba647685ea4b865fd43c80937be6fee7b39ad2055de",
+    "example/build/macos/Build/Products/Debug/Trail Development.app/Contents/Frameworks/ianvs_core.framework/Versions/A/ianvs_core": "5d97cc7e2cbf4462652dee4cc2b614d56e381b0fea5e2ec691d6b2b88e14ab60",
+    "example/build/macos/Build/Products/Debug/Trail Development.app/Contents/Resources/ianvs-api": "4d1b58e4757183ddfa674f07402d24adb2de628abbf744e9fc7545d25a491ec4"
+  },
+  "sessions": {
+    "A": {
+      "session_id": 1,
+      "node": "root",
+      "shell_pid_before": 29364,
+      "tty_before": "/dev/ttys014",
+      "marker": "A-D1-20261010"
+    },
+    "B": {
+      "session_id": 2,
+      "node": "root",
+      "shell_pid_before": 32038,
+      "tty_before": "/dev/ttys016",
+      "marker": "B-D1-20261010"
+    }
+  },
+  "launcher_exit_code": 0,
+  "launcher_ended_normally": true,
+  "session_id_evidence": "operator-observations.log: post-run verbatim transcription of bottom-status CUA accessibility responses",
+  "window_state": "normal window; some captures inactive, see per-checkpoint active_pids/frontmost_pid",
+  "read_only_probe_scope": "auxiliary no-echo observation only; not standalone proof of write blocking"
+}

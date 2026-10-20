@@ -1,10 +1,32 @@
-# 当前 UI 验证入口
+# Latest design review: header tabs
 
-产品 UI 的检查要求见 [人工验收清单](docs/compatibility/MANUAL_VERIFICATION.md)，
-运行方法见 [TESTING](docs/TESTING.md)。本页不保存历次设计方案或截图验收记录。
+final result: passed
 
-- 组件与交互测试：`example/test/ui/`、`example/test/shell/`。
-- 视觉回归测试：`example/test/design/`；当前黄金图保存在
-  [goldens](example/test/design/goldens/)，不保存在 `docs/`。
-- 平台约束及未解决的视觉差异见 [KNOWN_ISSUES](docs/KNOWN_ISSUES.md)。
-- 新截图、对比图和运行日志写入 `build/`；基线更新必须先确认预期视觉变化。
+[Header tabs comparison, interaction verification and limitations](docs/product/header-tabs-2026-10-17/design-qa.md).
+
+---
+
+# Full application UI refinement — reviewed; remote gates pending
+
+The selected Focused Reading style now covers default Block, AI, SSH/configuration
+forms, settings, profile sections, SFTP, replay, startup and shared dialogs.
+Only presentation was changed in the UI refinement commits.
+
+- [Coverage, validation and limitations](docs/product/ui-refinement-2026-10-13/README.md)
+- [Light overview](docs/product/mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/overview-light.png)
+- [Dark overview](docs/product/mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/overview-dark.png)
+- [Final nested-state overview](docs/product/mobile-block-ai-v1/evidence/shared/full-ui-refinement-2026-10-13/final-details-overview.png)
+- [Historical AI-only report](docs/product/ui-refinement-2026-10-13/previous-ai-only-qa.md)
+
+Local review and validation pass. Native iOS 26.3.1 dark/light portrait/landscape
+checks include the actual Shell Block/AI drafts, Chinese glyphs and dismissed AI
+height of 56 logical pixels. Two short-window dialogs and a tablet toolbar width
+budget were corrected. The latest production build is installed in place on the
+original Trail. Host fixtures and simulator captures do not establish a new full
+physical-device input matrix or coverage of every supported OS release.
+
+PR #12 remains Draft and unmerged. Remote CI is pending. The final UI commit passed seven jobs; macOS native quit
+tests failed on different cases in two attempts. The test-only follow-up adds a
+callback scheduling allowance and retained xcresult diagnostics; 280 local native
+runs pass. Exact remote failure cause is not yet established. Do not treat this review as a
+green CI or merge approval.

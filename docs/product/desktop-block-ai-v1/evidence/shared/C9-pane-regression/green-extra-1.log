@@ -1,0 +1,17 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart
+00:00 +0: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +1: primary PointerDeviceKind.mouse click still activates the clicked pane without losing draft (variant: TargetPlatform.macOS)
+00:02 +2: primary PointerDeviceKind.touch click still activates the clicked pane without losing draft (variant: TargetPlatform.macOS)
+00:03 +3: cancelling an inactive tab menu restores the original Composer draft focus (variant: TargetPlatform.macOS)
+00:04 +4: inactive TUI secondary click respects the current input owner (variant: TargetPlatform.macOS)
+00:04 +5: active TUI secondary click respects the current input owner (variant: TargetPlatform.macOS)
+00:05 +6: DPR-only resize updates native pixels and replay metrics without changing cells (variant: TargetPlatform.macOS)
+00:05 +7: DPR 1 to 2 to 1 before debounce never commits obsolete metrics (variant: TargetPlatform.macOS)
+00:05 +8: selection release cannot commit a queued resize from the previous DPR (variant: TargetPlatform.macOS)
+00:05 +9: tab menu TerminalActionId.closePane keeps its captured target after the original pane exits (variant: TargetPlatform.macOS)
+00:05 +10: tab menu TerminalActionId.closeActiveTab keeps its captured target after the original pane exits (variant: TargetPlatform.macOS)
+00:05 +11: old tab mode menu cannot follow a pane moved into another tab (variant: TargetPlatform.macOS)
+00:06 +12: old mode menu cannot follow a detached root pane reusing the tab ID (variant: TargetPlatform.macOS)
+00:06 +13: old close tab menu cannot follow a detached root pane reusing the tab ID (variant: TargetPlatform.macOS)
+00:06 +14: All tests passed!

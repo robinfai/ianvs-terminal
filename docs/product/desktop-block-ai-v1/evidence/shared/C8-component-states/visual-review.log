@@ -1,0 +1,26 @@
+C8 component-state representative image review — independent read-only visual inspection
+
+Candidate: 19001573d9974c510e1e4cbcfeb01c94368ea157
+Source: build/desktop-prd-v1/iteration-1/component-states-c8-1/captures/
+Run metadata: exit_code=0; clean_start/end=true; candidate_unchanged=true; capture manifest has 63 PNG entries.
+No SDK commands, app launch, GUI operation, tests or tracked edits performed by this reviewer.
+
+Actually opened and inspected the following four final PNG originals:
+1. button-focused.png — visible blue primary Run button with distinct double focus boundary; white inner separation and blue outer boundary remain visible. Label/icon legible; no crop/overflow.
+2. block-selected.png — stable selected Block has subtle whole-block background/border, readable original-output rows and exit status. No lingering pressed gray ink or prior-control focus residue.
+3. block-focused.png — clear blue outline around command-title target only; it is visually distinct from whole-block selection. The result body remains readable and unfilled by focus ink.
+4. native-menu-high-contrast-dark-2x-reduced-520px.png — dynamic environment controls show dark/high-contrast/2x/reduced-motion/520px; real tab fixture text and zero activation/close counters are visible, with no overflow or missing glyphs in this representative image.
+
+Scope: flutter_widget_production_components; default target platform macOS. All four originals are 2240x1600 PNGs, exported at pixel ratio 2 from a widget test with device pixel ratio 1. The first three have text_scale 1.0; the high-contrast image has text_scale 2.0, high_contrast=true and reduce_motion=true. Its 520px label is the inner fixture constraint, not evidence of a 520px native app window. The filename native-menu describes the preview environment menu; it is still a widget image, not an actual native window capture.
+Fonts are the capture harness repository/pinned SDK assets. Manifest explicitly marks native_pty=false, model_api=false, physical_device=false, native_display_dpi_verified=false and native_system_fonts_verified=false.
+
+Conclusion: no new visual blocker found in these four representative final images. This inspection does not claim that all 63 images were manually reviewed, that native preview was launched, or that the full D3-T09 / D3-T16 platform/state/keyboard/accessibility matrix has passed. Existing 48 test results and the separate native build status remain separate evidence.
+
+SHA-256 bindings:
+button-focused.png: ab401c8884cb64db20fb839bd28d04233722b0100ae72f34e91cd31b7a5c2ab7
+block-selected.png: 5c8fa58c77ab06a7c0945908461d55c33f1369fe8bf27daf1d6241b30b542244
+block-focused.png: e1997faa012091c87de804fb5591f4f0f561054aad7811ad09aa7e37fef8c92f
+native-menu-high-contrast-dark-2x-reduced-520px.png: dba421057cebb029071c9e0ff497fff6b7a50efc7c3a336e8fa3e8566d96af91
+capture-run.json: ba63ccc8bde13bf7380cc900b02d47d03be8dd732658b808383582d420b9e9bc
+captures/capture-manifest.json: 7c3301b55ae0c96ca3b68c8ebe0c72d855b4bef5cbe4254eefa127a89f88665a
+capture.log: 2a41986ce055e8a10c813d650bb01adb4da47dbc05a361f11073f4a244a21e9d

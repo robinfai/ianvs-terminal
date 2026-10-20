@@ -1,0 +1,31 @@
+{
+  "recorded_at": "2026-10-03T04:06:17.029090+00:00",
+  "source": "Summary of native command outputs and CUA observations from this authorized review; not a captured speech transcript.",
+  "authorization": "User authorized temporary VoiceOver verification limited to the independent Trail fixture and cleanup afterwards.",
+  "native_fixture_test_passed": true,
+  "voiceover_started_pid": 72969,
+  "voiceover_welcome_dialog_encountered": true,
+  "apple_script_control_checkbox": false,
+  "caption_panel_checkbox": true,
+  "apple_script_permission_changed": false,
+  "speech_read": false,
+  "speech_verified": false,
+  "approval_review_rejections": [
+    {
+      "action": "Read UserNotificationCenter UI to investigate a possible control prompt",
+      "reason": "May expose unrelated private notifications; not covered by limited fixture authorization",
+      "executed": false
+    },
+    {
+      "action": "Bind VoiceOver application to read captions after confirming fixture foreground PID and title",
+      "reason": "Global captions cannot be proven to originate only from the fixture; authorization is limited to the fixture",
+      "executed": false
+    }
+  ],
+  "cleanup": {
+    "voiceover_quit_exit": 0,
+    "voiceover_and_utility_processes_absent_on_final_check": true,
+    "native_fixture_finished": true
+  },
+  "remaining": "Await explicit authorization for temporary global VoiceOver caption/current-speech read or user instruction to omit actual speech verification."
+}

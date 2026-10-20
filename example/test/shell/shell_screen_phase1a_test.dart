@@ -84,24 +84,13 @@ void main() {
       expect(find.byKey(const Key('shell-status-bar')), findsNothing);
       expect(
         tester.getSize(find.byKey(const Key('shell-chrome-bar'))).height,
-        82,
+        44,
       );
+      expect(find.byKey(const Key('shell-chrome-window-title')), findsNothing);
       expect(
-        find.byKey(const Key('shell-chrome-window-title')),
-        findsOneWidget,
-      );
-      expect(
-        tester
-            .widget<Text>(find.byKey(const Key('shell-chrome-window-title')))
-            .data,
-        'Trail',
-      );
-      expect(
-        tester.getCenter(find.byKey(const Key('shell-chrome-window-title'))).dx,
+        tester.getCenter(find.byKey(const Key('shell-tab-strip'))).dy,
         closeTo(
-          tester
-              .getCenter(find.byKey(const Key('shell-chrome-title-surface')))
-              .dx,
+          tester.getCenter(find.byKey(const Key('shell-chrome-menu'))).dy,
           0.5,
         ),
       );
@@ -117,6 +106,7 @@ void main() {
       expect(find.text('Copy'), findsNothing);
       expect(find.text('Paste'), findsNothing);
     },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
   testWidgets('gear command palette opens settings and terminal search', (

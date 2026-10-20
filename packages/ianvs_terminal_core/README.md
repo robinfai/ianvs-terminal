@@ -4,6 +4,13 @@
 It ships the Dart/Flutter terminal runtime, viewport, tabbed bottom panel, and
 the Rust-backed native PTY implementation as one package.
 
+The optional `TerminalComposerView` / `TerminalComposerController` provide a
+local command draft, validated completion edits and explicit submission. Hosts
+bind providers with `TerminalRuntimeController.composerRequest`; the example app
+shows lifecycle assembly. Static completion needs no host IO. Local file/script
+suggestions require an explicit policy and a current local macOS zsh lease;
+other shells remain draft-only. Drafts are never automatically sent or persisted.
+
 ## Requirements
 
 - macOS on Apple silicon or Intel

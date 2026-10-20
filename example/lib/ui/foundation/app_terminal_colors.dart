@@ -20,7 +20,8 @@ AppTerminalColors resolveTerminalColors(
     cursor: colorScheme.primary,
     selection: colorScheme.primary.withValues(alpha: 0.28),
     scrollbarTrack: colorScheme.outlineVariant.withValues(alpha: 0.32),
-    scrollbarThumb: colorScheme.onSurfaceVariant.withValues(alpha: 0.62),
+    // The thumb is composited over the translucent track, not just the canvas.
+    scrollbarThumb: colorScheme.onSurfaceVariant.withValues(alpha: 0.75),
     // Preserve explicit program colors for fades while keeping theme-derived
     // text readable on backgrounds selected by terminal applications.
     minimumContrastRatio: 4.5,

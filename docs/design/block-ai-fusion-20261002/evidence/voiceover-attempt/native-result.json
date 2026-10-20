@@ -1,0 +1,73 @@
+{
+  "stages": [
+    {
+      "stage": "proposal",
+      "pid": 79876,
+      "window_title": "Trail Accessibility Fixture · 79876",
+      "fixture": "memory-only; no PTY, credentials, or network",
+      "phase": "awaitingApproval",
+      "semantic_status": "One action needs review",
+      "terminal_writes": 0,
+      "recorded_at": "2026-10-03T04:01:53.284672Z",
+      "speech_verified": false
+    },
+    {
+      "stage": "snapshot",
+      "pid": 79876,
+      "window_title": "Trail Accessibility Fixture · 79876",
+      "fixture": "memory-only; no PTY, credentials, or network",
+      "phase": "awaitingApproval",
+      "semantic_status": "One action needs review",
+      "terminal_writes": 0,
+      "recorded_at": "2026-10-03T04:02:13.738144Z",
+      "speech_verified": false
+    },
+    {
+      "stage": "observing",
+      "pid": 79876,
+      "window_title": "Trail Accessibility Fixture · 79876",
+      "fixture": "memory-only; no PTY, credentials, or network",
+      "phase": "observing",
+      "semantic_status": "AI is observing the terminal",
+      "terminal_writes": 0,
+      "recorded_at": "2026-10-03T04:02:34.495861Z",
+      "speech_verified": false
+    },
+    {
+      "stage": "output-updated",
+      "pid": 79876,
+      "window_title": "Trail Accessibility Fixture · 79876",
+      "fixture": "memory-only; no PTY, credentials, or network",
+      "phase": "observing",
+      "semantic_status": "AI is observing the terminal",
+      "terminal_writes": 0,
+      "recorded_at": "2026-10-03T04:02:55.976510Z",
+      "speech_verified": false
+    },
+    {
+      "stage": "paused",
+      "pid": 79876,
+      "window_title": "Trail Accessibility Fixture · 79876",
+      "fixture": "memory-only; no PTY, credentials, or network",
+      "phase": "idle",
+      "semantic_status": "AI paused · command is not interrupted",
+      "terminal_writes": 0,
+      "recorded_at": "2026-10-03T04:03:16.379816Z",
+      "speech_verified": false
+    },
+    {
+      "stage": "disconnected",
+      "pid": 79876,
+      "window_title": "Trail Accessibility Fixture · 79876",
+      "fixture": "memory-only; no PTY, credentials, or network",
+      "phase": "idle",
+      "semantic_status": "Terminal unavailable · check its status",
+      "terminal_writes": 0,
+      "recorded_at": "2026-10-03T04:03:36.649742Z",
+      "speech_verified": false
+    }
+  ],
+  "terminal_writes": 0,
+  "fake_model_requests": 3,
+  "speech_verified": false
+}

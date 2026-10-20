@@ -5,6 +5,8 @@ analyzer:
     - "**/*.pb.dart"
     - "**/*.pbenum.dart"
     - "**/*.pbjson.dart"
+    # Local probes and staged copies live in this git-ignored scratch folder.
+    - "tmp/**"
   language:
     strict-casts: true
     strict-inference: true

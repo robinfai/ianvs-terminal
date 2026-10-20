@@ -1,0 +1,8 @@
+{
+  "packages/ianvs_terminal/lib/src/composer/composer_intent_menu.dart": "ab270f516c50e64db092dce2fdfc0962304e00dd8b8dc241a42b63aae0017f33",
+  "packages/ianvs_terminal/lib/src/composer/terminal_composer_view.dart": "ea2b7fa8d9ab096e09104910d13ecce4908ca347522f9ec408f60aeea7511b57",
+  "example/lib/features/ai/terminal_ai_workspace.dart": "4afe03345a2a27e7c61acc2f3a324ee9b50435d2831769b5b561d144b85dde3b",
+  "example/lib/features/ai/terminal_ai_workspace_mobile.dart": "996c19bd8e594c885edda69310748dc71c74cb16a218df52c04d30727ddbc1c8",
+  "example/test/design/mobile_workspace_alignment_test.dart": "28249213c04ec790c3aa8ecb6d3fb856dc7cf8bd4084813ded9511f08a8641a7",
+  "example/integration_test/ios_design_review_test.dart": "d3abbbef831743218ce2aa5a82b7143f995b1fedb2589597655566b9f819952e"
+}

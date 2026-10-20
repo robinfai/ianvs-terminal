@@ -1,0 +1,301 @@
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_reader_tools_test.dart
+00:00 +0: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_reader_tools_test.dart: find keeps context and selection across native pages
+00:00 +1: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_reader_tools_test.dart: find keeps context and selection across native pages
+00:00 +2: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_reader_tools_test.dart: find keeps context and selection across native pages
+00:00 +3: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_reader_tools_test.dart: find keeps context and selection across native pages
+00:00 +4: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_reader_tools_test.dart: find keeps context and selection across native pages
+00:00 +5: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_reader_tools_test.dart: find keeps context and selection across native pages
+00:00 +6: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_reader_tools_test.dart: find keeps context and selection across native pages
+00:00 +7: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_reader_tools_test.dart: find keeps context and selection across native pages
+00:00 +8: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_reader_tools_test.dart: find keeps context and selection across native pages
+00:00 +9: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_reader_tools_test.dart: find keeps context and selection across native pages
+00:00 +10: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_reader_tools_test.dart: find keeps context and selection across native pages
+00:01 +11: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_reader_tools_test.dart: find keeps context and selection across native pages
+00:01 +12: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_reader_tools_test.dart: find keeps context and selection across native pages
+00:01 +13: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_reader_tools_test.dart: find keeps context and selection across native pages
+00:01 +13: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader drags and copies across pages (phone false, reverse false, filtered true) (variant: TargetPlatform.macOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following StateError was thrown running a test:
+Bad state: No element
+
+When the exception was thrown, this was the stack:
+#0      Iterable.first (dart:core/iterable.dart:663:7)
+#1      _FirstFinderMixin.filter (package:flutter_test/src/finders.dart:1383:28)
+#3      Iterable.single (dart:core/iterable.dart:694:13)
+#4      WidgetController.widget (package:flutter_test/src/controller.dart:828:30)
+#5      main.rowPoint (file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart:131:25)
+#6      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart:155:25)
+<asynchronous suspension>
+#7      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#8      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided 2 frames from dart:async-patch and package:stack_trace)
+
+The test description was:
+  reader drags and copies across pages (phone false, reverse false, filtered true) (variant:
+  TargetPlatform.macOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:01 +13 -1: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_reader_tools_test.dart: find keeps context and selection across native pages
+00:01 +13 -1: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader drags and copies across pages (phone false, reverse false, filtered true) (variant: TargetPlatform.macOS) [E]
+  Test failed. See exception logs above.
+  The test description was: reader drags and copies across pages (phone false, reverse false, filtered true) (variant: TargetPlatform.macOS)
+  
+00:01 +14 -1: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:01 +15 -1: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:01 +16 -1: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:01 +17 -1: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:01 +18 -1: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:01 +19 -1: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:01 +19 -1: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader drags and copies across pages (phone false, reverse true, filtered true) (variant: TargetPlatform.macOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following StateError was thrown running a test:
+Bad state: No element
+
+When the exception was thrown, this was the stack:
+#0      Iterable.first (dart:core/iterable.dart:663:7)
+#1      _FirstFinderMixin.filter (package:flutter_test/src/finders.dart:1383:28)
+#3      Iterable.single (dart:core/iterable.dart:694:13)
+#4      WidgetController.widget (package:flutter_test/src/controller.dart:828:30)
+#5      main.rowPoint (file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart:131:25)
+#6      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart:150:27)
+<asynchronous suspension>
+#7      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#8      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided 2 frames from dart:async-patch and package:stack_trace)
+
+The test description was:
+  reader drags and copies across pages (phone false, reverse true, filtered true) (variant:
+  TargetPlatform.macOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:01 +19 -2: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:01 +19 -2: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader drags and copies across pages (phone false, reverse true, filtered true) (variant: TargetPlatform.macOS) [E]
+  Test failed. See exception logs above.
+  The test description was: reader drags and copies across pages (phone false, reverse true, filtered true) (variant: TargetPlatform.macOS)
+  
+00:01 +20 -2: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:01 +21 -2: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:02 +22 -2: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:02 +22 -2: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader drags and copies across pages (phone true, reverse false, filtered true) (variant: TargetPlatform.iOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following StateError was thrown running a test:
+Bad state: No element
+
+When the exception was thrown, this was the stack:
+#0      Iterable.first (dart:core/iterable.dart:663:7)
+#1      _FirstFinderMixin.filter (package:flutter_test/src/finders.dart:1383:28)
+#3      Iterable.single (dart:core/iterable.dart:694:13)
+#4      WidgetController.widget (package:flutter_test/src/controller.dart:828:30)
+#5      main.rowPoint (file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart:131:25)
+#6      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart:155:25)
+<asynchronous suspension>
+#7      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#8      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided 2 frames from dart:async-patch and package:stack_trace)
+
+The test description was:
+  reader drags and copies across pages (phone true, reverse false, filtered true) (variant:
+  TargetPlatform.iOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:02 +22 -3: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:02 +22 -3: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader drags and copies across pages (phone true, reverse false, filtered true) (variant: TargetPlatform.iOS) [E]
+  Test failed. See exception logs above.
+  The test description was: reader drags and copies across pages (phone true, reverse false, filtered true) (variant: TargetPlatform.iOS)
+  
+00:02 +23 -3: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:02 +24 -3: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:02 +25 -3: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:02 +26 -3: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:02 +27 -3: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:02 +27 -3: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader drags and copies across pages (phone true, reverse true, filtered true) (variant: TargetPlatform.iOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following StateError was thrown running a test:
+Bad state: No element
+
+When the exception was thrown, this was the stack:
+#0      Iterable.first (dart:core/iterable.dart:663:7)
+#1      _FirstFinderMixin.filter (package:flutter_test/src/finders.dart:1383:28)
+#3      Iterable.single (dart:core/iterable.dart:694:13)
+#4      WidgetController.widget (package:flutter_test/src/controller.dart:828:30)
+#5      main.rowPoint (file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart:131:25)
+#6      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart:150:27)
+<asynchronous suspension>
+#7      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#8      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided 2 frames from dart:async-patch and package:stack_trace)
+
+The test description was:
+  reader drags and copies across pages (phone true, reverse true, filtered true) (variant:
+  TargetPlatform.iOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:02 +27 -4: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:02 +27 -4: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader drags and copies across pages (phone true, reverse true, filtered true) (variant: TargetPlatform.iOS) [E]
+  Test failed. See exception logs above.
+  The test description was: reader drags and copies across pages (phone true, reverse true, filtered true) (variant: TargetPlatform.iOS)
+  
+00:02 +28 -4: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:02 +29 -4: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:02 +30 -4: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:02 +31 -4: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:03 +32 -4: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:03 +33 -4: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:03 +34 -4: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:03 +35 -4: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:03 +36 -4: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:03 +37 -4: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:03 +38 -4: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:03 +39 -4: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_mobile_test.dart: touch reader crosses native pages without jumping or opening IME (variant: TargetPlatform.iOS)
+00:03 +40 -4: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_test.dart: offscreen bookmarks reveal lazily built blocks and wheel scroll is not pulled back
+00:04 +41 -4: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader edge drag scrolls beyond its starting page (phone false, upward false, filtered false) (variant: TargetPlatform.macOS)
+00:04 +42 -4: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader edge drag scrolls beyond its starting page (phone false, upward false, filtered false) (variant: TargetPlatform.macOS)
+00:04 +43 -4: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader edge drag scrolls beyond its starting page (phone false, upward false, filtered false) (variant: TargetPlatform.macOS)
+00:04 +44 -4: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader edge drag scrolls beyond its starting page (phone false, upward false, filtered false) (variant: TargetPlatform.macOS)
+00:04 +45 -4: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader edge drag scrolls beyond its starting page (phone false, upward false, filtered false) (variant: TargetPlatform.macOS)
+00:04 +46 -4: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader edge drag scrolls beyond its starting page (phone false, upward false, filtered false) (variant: TargetPlatform.macOS)
+00:04 +47 -4: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader edge drag scrolls beyond its starting page (phone false, upward false, filtered false) (variant: TargetPlatform.macOS)
+00:05 +48 -4: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_test.dart: one trackpad gesture crosses block boundaries and survives source refreshes (running: true) (variant: TargetPlatform.macOS)
+00:05 +49 -4: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader edge drag scrolls beyond its starting page (phone false, upward false, filtered true) (variant: TargetPlatform.macOS)
+00:05 +50 -4: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader edge drag scrolls beyond its starting page (phone false, upward false, filtered true) (variant: TargetPlatform.macOS)
+00:05 +51 -4: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader edge drag scrolls beyond its starting page (phone false, upward false, filtered true) (variant: TargetPlatform.macOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: a value greater than <924.4>
+  Actual: <924.4>
+   Which: is not a value greater than <924.4>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart:294:13)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart line 294
+The test description was:
+  reader edge drag scrolls beyond its starting page (phone false, upward false, filtered true)
+  (variant: TargetPlatform.macOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:05 +51 -5: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_blocks_test.dart: running block owns focus and PTY input; completed terminal is read-only
+00:05 +51 -5: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader edge drag scrolls beyond its starting page (phone false, upward false, filtered true) (variant: TargetPlatform.macOS) [E]
+  Test failed. See exception logs above.
+  The test description was: reader edge drag scrolls beyond its starting page (phone false, upward false, filtered true) (variant: TargetPlatform.macOS)
+  
+00:05 +52 -5: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader edge drag scrolls beyond its starting page (phone false, upward true, filtered false) (variant: TargetPlatform.macOS)
+00:05 +53 -5: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader edge drag scrolls beyond its starting page (phone false, upward true, filtered false) (variant: TargetPlatform.macOS)
+00:06 +54 -5: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader edge drag scrolls beyond its starting page (phone false, upward true, filtered true) (variant: TargetPlatform.macOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following StateError was thrown running a test:
+Bad state: No element
+
+When the exception was thrown, this was the stack:
+#0      Iterable.first (dart:core/iterable.dart:663:7)
+#1      _FirstFinderMixin.filter (package:flutter_test/src/finders.dart:1383:28)
+#3      Iterable.single (dart:core/iterable.dart:694:13)
+#4      WidgetController.state (package:flutter_test/src/controller.dart:932:42)
+#5      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart:260:33)
+<asynchronous suspension>
+#6      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#7      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided 2 frames from dart:async-patch and package:stack_trace)
+
+The test description was:
+  reader edge drag scrolls beyond its starting page (phone false, upward true, filtered true)
+  (variant: TargetPlatform.macOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:06 +54 -6: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader edge drag scrolls beyond its starting page (phone false, upward true, filtered true) (variant: TargetPlatform.macOS) [E]
+  Test failed. See exception logs above.
+  The test description was: reader edge drag scrolls beyond its starting page (phone false, upward true, filtered true) (variant: TargetPlatform.macOS)
+  
+00:06 +54 -6: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader edge drag scrolls beyond its starting page (phone true, upward false, filtered false) (variant: TargetPlatform.iOS)
+00:08 +55 -6: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader edge drag scrolls beyond its starting page (phone true, upward false, filtered true) (variant: TargetPlatform.iOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: a value greater than <924.4>
+  Actual: <924.4>
+   Which: is not a value greater than <924.4>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart:294:13)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart line 294
+The test description was:
+  reader edge drag scrolls beyond its starting page (phone true, upward false, filtered true)
+  (variant: TargetPlatform.iOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:08 +55 -7: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader edge drag scrolls beyond its starting page (phone true, upward false, filtered true) (variant: TargetPlatform.iOS) [E]
+  Test failed. See exception logs above.
+  The test description was: reader edge drag scrolls beyond its starting page (phone true, upward false, filtered true) (variant: TargetPlatform.iOS)
+  
+00:08 +55 -7: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader edge drag scrolls beyond its starting page (phone true, upward true, filtered false) (variant: TargetPlatform.iOS)
+00:09 +56 -7: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader edge drag scrolls beyond its starting page (phone true, upward true, filtered true) (variant: TargetPlatform.iOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following StateError was thrown running a test:
+Bad state: No element
+
+When the exception was thrown, this was the stack:
+#0      Iterable.first (dart:core/iterable.dart:663:7)
+#1      _FirstFinderMixin.filter (package:flutter_test/src/finders.dart:1383:28)
+#3      Iterable.single (dart:core/iterable.dart:694:13)
+#4      WidgetController.state (package:flutter_test/src/controller.dart:932:42)
+#5      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart:260:33)
+<asynchronous suspension>
+#6      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#7      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided 2 frames from dart:async-patch and package:stack_trace)
+
+The test description was:
+  reader edge drag scrolls beyond its starting page (phone true, upward true, filtered true)
+  (variant: TargetPlatform.iOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:09 +56 -8: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader edge drag scrolls beyond its starting page (phone true, upward true, filtered true) (variant: TargetPlatform.iOS) [E]
+  Test failed. See exception logs above.
+  The test description was: reader edge drag scrolls beyond its starting page (phone true, upward true, filtered true) (variant: TargetPlatform.iOS)
+  
+00:09 +56 -8: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader edge scroll stops on cancellation or disposal (phone false, unmount false) (variant: TargetPlatform.macOS)
+00:09 +57 -8: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader edge scroll stops on cancellation or disposal (phone false, unmount true) (variant: TargetPlatform.macOS)
+00:09 +58 -8: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader edge scroll stops on cancellation or disposal (phone true, unmount false) (variant: TargetPlatform.iOS)
+00:09 +59 -8: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader edge scroll stops on cancellation or disposal (phone true, unmount true) (variant: TargetPlatform.iOS)
+00:09 +60 -8: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: selecting running output pauses tail following until explicitly resumed (phone false) (variant: TargetPlatform.macOS)
+00:10 +61 -8: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: selecting running output pauses tail following until explicitly resumed (phone true) (variant: TargetPlatform.iOS)
+00:10 +62 -8: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader Option drag copies a rectangle across pages after horizontal scroll (variant: TargetPlatform.macOS)
+00:10 +63 -8: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader keyboard copies selection across native pages
+00:10 +64 -8: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader distinguishes whole output, filtered output and selection
+00:10 +65 -8: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: copy does not replace clipboard with a partially evicted snapshot
+00:10 +66 -8: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: stale selected rows never copy replacement history
+00:10 +67 -8: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: column selections preserve wide characters and rectangle line breaks
+00:11 +68 -8: Some tests failed.
+
+Failing tests:
+  /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader drags and copies across pages (phone false, reverse false, filtered true) (variant: TargetPlatform.macOS)
+  /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader drags and copies across pages (phone false, reverse true, filtered true) (variant: TargetPlatform.macOS)
+  /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader drags and copies across pages (phone true, reverse false, filtered true) (variant: TargetPlatform.iOS)
+  /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader drags and copies across pages (phone true, reverse true, filtered true) (variant: TargetPlatform.iOS)
+  ... and 4 more

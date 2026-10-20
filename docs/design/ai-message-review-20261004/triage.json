@@ -1,0 +1,32 @@
+{
+  "scope": "AI messages, review, evidence, recovery, settings, mobile modes and TUI handoff; macOS native and fixed-font phone previews",
+  "rounds": [
+    {
+      "round": 1,
+      "findings": [
+        {"issue": "Roles only indicated by small icons", "decision": "fixed", "implementation": "Explicit You/AI labels, neutral user background, same body alignment"},
+        {"issue": "Prose spans the full desktop window", "decision": "fixed", "implementation": "960pt maximum prose width; native blocks retain full width"},
+        {"issue": "Generated timestamps and altered composer", "decision": "not adopted", "reason": "Invented content not supported by actual product data or requested scope"}
+      ]
+    },
+    {
+      "round": 2,
+      "findings": [
+        {"issue": "Red top-right badge crowding", "decision": "rejected", "reason": "Badge is an imagegen annotation and is absent from the actual proposal screenshot"},
+        {"issue": "Dark AI role text contrast", "decision": "fixed", "source": "actual widget luminance test", "before": 3.0920494153, "after": "At least 4.5:1 in both themes; theme primary text token"},
+        {"issue": "Unknown submission still says confirmation needed", "decision": "fixed", "source": "actual state walkthrough", "implementation": "Historical approval and pending approval labels are separate; unknown outcome remains unresolved"}
+      ]
+    },
+    {
+      "round": 3,
+      "findings": [
+        {"issue": "Phone decline requires entering full review", "decision": "fixed", "implementation": "Direct decline on compact proposal, with no terminal input; full review remains required before execution"},
+        {"issue": "2x settings Save button clipped", "decision": "rejected", "reason": "Original screenshot has complete button and bottom padding; live settings save behavior passes"},
+        {"issue": "Unknown result is uncertain", "decision": "expected state", "reason": "The command outcome is actually unknown; card warns against resubmission and recovery offers receipt inspection. Do not fabricate completion."}
+      ]
+    },
+    {"round": 4, "result": "No confirmed new visible issues", "screens": ["phone proposal with decline", "full command review", "real ACP result", "evidence reader", "Vim input review"]},
+    {"round": 5, "result": "No confirmed new visible issues", "screens": ["SSH fallback menu", "connection tested but unsaved", "dark phone reader", "180pt-high reader", "unknown submission recovery"]}
+  ],
+  "interpretation": "Imagegen output is an advisory reconstructed review board. Original screenshots and behavioral assertions control the final diagnosis; no claim of universal defect absence."
+}

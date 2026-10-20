@@ -1,0 +1,12 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/widget_test.dart
+00:00 +0: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/terminal_focus_loss_permission_test.dart: inactive focus loss is isolated and remains revocable, protocol: false
+00:00 +1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/terminal_focus_loss_permission_test.dart: inactive focus loss is isolated and remains revocable, protocol: true
+00:00 +2: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_observer_test.dart: macOS AI revokes old and current system focus-loss reports (variant: TargetPlatform.macOS)
+00:00 +3: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_observer_test.dart: macOS AI revokes old and current system focus-loss reports (variant: TargetPlatform.macOS)
+00:00 +4: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_observer_test.dart: macOS AI revokes old and current system focus-loss reports (variant: TargetPlatform.macOS)
+00:01 +5: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/widget_test.dart: clicking an inactive split pane with mouse reporting activates and reports to that pane
+00:01 +6: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_observer_test.dart: iOS AI revokes old and current system focus-loss reports (variant: TargetPlatform.iOS)
+00:01 +7: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/widget_test.dart: switching split panes routes focus reports to the pane gaining or losing focus
+00:01 +8: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_observer_test.dart: desktop TUI evidence blocks old input and keeps native geometry (variant: TargetPlatform.macOS)
+00:01 +9: All tests passed!

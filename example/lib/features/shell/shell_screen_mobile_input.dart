@@ -4,6 +4,79 @@ const double _minimumMobileTerminalFontScale = 0.7;
 const double _maximumMobileTerminalFontScale = 2.0;
 
 extension _ShellScreenMobileInput on _ShellScreenState {
+  Widget? _mobileControlsFor(
+    SessionController sessionController,
+    String? activeSessionId,
+    AppThemeTokens palette, {
+    required bool keyboardVisible,
+    required bool visible,
+  }) {
+    if (!visible ||
+        defaultTargetPlatform != TargetPlatform.iOS ||
+        _recordingShelfOpen ||
+        _isSftpPanelOpen ||
+        _isSearchOpen ||
+        _selectedRecording != null ||
+        _instantReplayLayoutSession != null ||
+        activeSessionId == null) {
+      return null;
+    }
+    final exited =
+        _paneForSession(_sessionState, activeSessionId)?.isExited == true;
+    return !keyboardVisible || exited
+        ? _MobileTerminalToolbar(
+            onKeyboard: exited ? null : () => _focusSession(activeSessionId),
+            onSearch: _openSearch,
+            onReplay: () => unawaited(_openRecordingLibrary()),
+            onRecording:
+                _sessionState.recordingBusySessionIds.contains(
+                      activeSessionId,
+                    ) ||
+                    (exited &&
+                        !_sessionState.recordingPendingSaveSessionIds.contains(
+                          activeSessionId,
+                        ) &&
+                        !_sessionState.recordingSessionIds.contains(
+                          activeSessionId,
+                        ))
+                ? null
+                : () => unawaited(
+                    _toggleActiveSessionRecording(
+                      sessionController,
+                      activeSessionId,
+                    ),
+                  ),
+            recording: _sessionState.recordingSessionIds.contains(
+              activeSessionId,
+            ),
+            pendingSave: _sessionState.recordingPendingSaveSessionIds.contains(
+              activeSessionId,
+            ),
+          )
+        : ListenableBuilder(
+            listenable:
+                _composerSessions[activeSessionId]?.controller ??
+                _focusNodeFor(activeSessionId),
+            builder: (context, _) {
+              final composer = _composerSessions[activeSessionId];
+              if (composer?.enabled == true &&
+                  composer!.controller.ownership ==
+                      terminal.ComposerOwnership.ready) {
+                return const SizedBox.shrink();
+              }
+              return IosTerminalInputBar(
+                key: const Key('ios-terminal-input-bar'),
+                palette: palette,
+                keyboardVisible: keyboardVisible,
+                onSendBytes: (bytes) =>
+                    _sendMobileTerminalBytes(activeSessionId, bytes),
+                onDismissKeyboard: () =>
+                    _dismissMobileTerminalKeyboard(activeSessionId),
+              );
+            },
+          );
+  }
+
   double _mobileFontScaleFor(String sessionId) {
     return _mobileTerminalFontScales[sessionId] ?? 1.0;
   }
@@ -53,7 +126,14 @@ extension _ShellScreenMobileInput on _ShellScreenState {
   }
 
   void _sendMobileTerminalBytes(String sessionId, List<int> bytes) {
-    if (bytes.isEmpty || _isSessionReadOnly(sessionId)) {
+    if (bytes.isEmpty || _manualInputBlocked(sessionId)) {
+      return;
+    }
+    // Raw terminal shortcuts belong to the live PTY. The Block editor owns
+    // ready-shell input and must never invalidate its lease through this bar.
+    final composer = _composerSessions[sessionId];
+    if (composer?.enabled == true &&
+        composer!.controller.ownership == terminal.ComposerOwnership.ready) {
       return;
     }
     ref
@@ -63,6 +143,7 @@ extension _ShellScreenMobileInput on _ShellScreenState {
   }
 
   void _dismissMobileTerminalKeyboard(String sessionId) {
+    _composerSessions[sessionId]?.editorFocus.unfocus();
     _focusNodeFor(sessionId).unfocus();
     unawaited(SystemChannels.textInput.invokeMethod<void>('TextInput.hide'));
   }

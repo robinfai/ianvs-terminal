@@ -1,0 +1,25 @@
+{
+  "recorded_at": "2026-10-03T02:19:58.572066+00:00",
+  "scope": "M03 current fixed-font light/dark component flow: six output rows, reading anchor, background pause, final elapsed time",
+  "limits": "Production component and injected native snapshots; not physical iPhone or live SSH",
+  "artifacts": {
+    "M03-completed-elapsed-dark.png": "7ad818f2f8485c5439cc17fe6c400fc559c3c4458e2f7b9d6e7e85c316faf48d",
+    "M03-completed-elapsed-light.png": "8f2db4979384c2b654dd1b8f45cc22e190df4da95a72b7a30d7fdc9124066bae",
+    "M03-live-history-stays-dark.png": "e1b38b3d5f3f1de3efb15cac561ea8c4b22c525b414e533aa59dab1b8810dbf6",
+    "M03-live-history-stays-light.png": "ed033104bf732b79be38272d0d230f6d0979329de78135490f33fc63afb0ba07",
+    "M03-live-paused-after-background-dark.png": "7c1f834d35fe330ad97b6f942e53c2521bc839ce50ec75ad4d741c37347959ed",
+    "M03-live-paused-after-background-light.png": "09a24cb39afbdcb5ddc71c52b9d0775a52e4cd71151ba0b02820a704a5edd4f0",
+    "M03-live-six-rows-dark.png": "a8ac0451f1f80859e4558607d0344a00812dedca6b139df893f8775a32d3964e",
+    "M03-live-six-rows-light.png": "4ebdec1898a3e8dd2a2c103719cb0b8a588f8623939cc44ddd11e8f7ac55a312",
+    "mobile-scene-current.log": "3eac156ce518c39b8354f09a558075b49b6a8758d25616c91c112c03c4d6c55f"
+  },
+  "sources": {
+    "example/test/ai/terminal_ai_workspace_test.dart": "71f49f82e055678209690e8926fb9288a88210996f4a129f4a9c2e7bd4389571",
+    "example/lib/features/ai/terminal_ai_workspace.dart": "802d485d205234596a7e9ca3da2999f22a53ab2abdce44c2465c5b1b0154c3e3",
+    "example/lib/features/ai/terminal_ai_controller.dart": "616694f93f8db66f55e32c805c6073c51ab9dc28513a5f77ef5b410d4f5d2bc2",
+    "packages/ianvs_terminal/lib/src/terminal/command_blocks_view.dart": "edf8a015e629153296cae9bf294bb4a900272626e7eff4017de1932371ad15c6",
+    "packages/ianvs_terminal/lib/src/terminal/command_blocks_output.dart": "71605d5ebd143d897171611f038a1a0be9d7ff3e9cc3ae0dc42ff3f56531401c",
+    "packages/ianvs_terminal/lib/src/terminal/command_timeline.dart": "e2d2965173b2b1a3b7185a14d5e6a41e6f8826b9eb73e2349f26a97a5d5cbdeb",
+    "packages/ianvs_terminal/lib/src/terminal/command_block_elapsed.dart": "713ba18f8e34bedf101a334b976367cfd3d0d046b5be9e025260d375bbf39e0f"
+  }
+}

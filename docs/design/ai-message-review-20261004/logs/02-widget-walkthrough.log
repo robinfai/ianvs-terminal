@@ -1,0 +1,152 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart
+00:00 +0: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: (setUpAll)
+00:00 +0: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_message_test.dart: role surfaces share alignment and bounded reading width at 1.0
+00:00 +1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: conversation role distinction desktop-light
+00:00 +2: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: conversation role distinction desktop-light
+00:00 +3: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: conversation role distinction desktop-light
+00:00 +4: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: conversation role distinction desktop-light
+00:00 +5: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: conversation role distinction desktop-light
+00:00 +6: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: conversation role distinction desktop-light
+00:00 +7: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: evidence returns to its task outside window chrome (dark false, phone false)
+00:00 +8: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: conversation role distinction desktop-dark
+00:01 +9: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: evidence returns to its task outside window chrome (dark false, phone true)
+00:01 +10: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: conversation role distinction desktop-wide
+00:01 +11: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: conversation role distinction desktop-wide
+00:01 +12: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: evidence returns to its task outside window chrome (dark true, phone true)
+00:01 +13: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: conversation role distinction desktop-scaled
+00:01 +14: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: conversation role distinction desktop-scaled
+00:01 +15: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: citation retains source row and bypasses saved filter (phone false)
+00:01 +16: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: citation retains source row and bypasses saved filter (phone false)
+00:01 +17: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: conversation role distinction phone-dark-small
+00:01 +18: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: citation retains source row and bypasses saved filter (phone true)
+00:01 +19: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: conversation role distinction phone-landscape
+00:02 +20: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: conversation role distinction phone-landscape
+00:02 +21: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: conversation role distinction phone-landscape
+00:02 +22: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: conversation role distinction phone-landscape
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: at least one matching candidate
+  Actual: _TextWidgetFinder:<Found 0 widgets with text "你": []>
+   Which: means none were found but some were expected
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart:187:7)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart line 187
+The test description was:
+  conversation role distinction phone-landscape
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:02 +22 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: citation cannot drift when source is evicted during native page
+00:02 +22 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: conversation role distinction phone-landscape [E]
+  Test failed. See exception logs above.
+  The test description was: conversation role distinction phone-landscape
+  
+00:02 +23 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: manual approval explains how to enable smart review en
+00:02 +24 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: manual approval explains how to enable smart review en
+00:02 +25 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: retained citation recovers its target after a page changes version
+00:02 +26 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: retained citation recovers its target after a page changes version
+00:02 +27 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: smart review state and reason phone=false Brightness.dark
+00:02 +28 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_evidence_navigation_test.dart: reconnected sessions with equal native IDs open the quoted source
+00:02 +29 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: smart review state and reason phone=false Brightness.light
+00:02 +30 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: smart review state and reason phone=true Brightness.dark
+00:02 +31 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: smart review state and reason phone=true Brightness.light
+00:02 +32 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: desktop header hover explains actions without invoking them
+00:03 +33 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: IME commit updates the visible intent without waiting or sending
+00:03 +34 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: input intent routes commands and keeps manual override dark phone=false
+00:03 +35 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: input intent routes commands and keeps manual override dark phone=true
+00:03 +36 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop dark
+00:04 +37 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop-2x dark
+00:04 +38 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion phone-fixed dark
+00:05 +39 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: input intent routes commands and keeps manual override light phone=false
+00:05 +40 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: input intent routes commands and keeps manual override light phone=true
+00:05 +41 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop light
+00:05 +42 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion desktop-2x light
+00:06 +43 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: high contrast and reduced motion phone-fixed light
+00:06 +44 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: source markers render only valid original lines: empty=true
+00:06 +45 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: source markers render only valid original lines: empty=false
+00:06 +46 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: truncated citations keep source numbering after new output arrives
+00:06 +47 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: workspace layout dark Size(960.0, 700.0) scale 1.0
+00:06 +48 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: workspace layout dark Size(960.0, 700.0) scale 2.0
+00:06 +49 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: workspace layout dark Size(390.0, 480.0) scale 1.0
+00:06 +50 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: workspace layout dark Size(320.0, 260.0) scale 1.0
+00:06 +51 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: workspace layout light Size(960.0, 700.0) scale 1.0
+00:06 +52 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: workspace layout light Size(960.0, 700.0) scale 2.0
+00:06 +53 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: workspace layout light Size(390.0, 480.0) scale 1.0
+00:06 +54 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: workspace layout light Size(320.0, 260.0) scale 1.0
+00:06 +55 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: short phone keeps draft usable with a proposal and attachment
+00:06 +56 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: long command keeps its source range visible on a phone
+00:06 +57 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: IME does not send; sent context stays frozen and draft is separate
+00:06 +58 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: mobile review has full command and fixed footer; stale target revokes
+00:06 +59 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: new response preserves reading; latest and return are explicit
+00:07 +60 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: navigation labels fit and preserve pending reading wide-en
+00:07 +61 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: navigation labels fit and preserve pending reading wide-zh-dark
+00:07 +62 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: navigation labels fit and preserve pending reading desktop-2x
+00:07 +63 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: navigation labels fit and preserve pending reading narrow-desktop-2x
+00:07 +64 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: navigation labels fit and preserve pending reading phone-fixed
+00:07 +65 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: latest cancels an unfinished return to the reading anchor
+00:08 +66 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: live status announces phase changes without elapsed time or output (phone false)
+00:09 +67 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: each consecutive proposal needs its own UI approval (phone false)
+00:09 +68 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: live status announces phase changes without elapsed time or output (phone true)
+00:10 +69 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: each consecutive proposal needs its own UI approval (phone true)
+00:10 +70 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: editing requires a fresh revision and one approval sends once
+00:10 +71 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: task switch restores the same message after width reflow
+00:10 +72 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: desktop keyboard review requires focus on the approval button
+00:10 +73 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: clarification stays in one task and pause preserves a new draft
+00:10 +74 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: phone long-command review scrolls without approving Size(390.0, 480.0)
+00:11 +75 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: phone long-command review scrolls without approving Size(844.0, 300.0)
+00:11 +76 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: mobile live block keeps six rows, reading and paused task dark
+00:11 +77 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: mobile live block keeps six rows, reading and paused task light
+00:11 +78 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: mobile background cancels proposal without interrupting terminal
+00:11 +79 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: TUI overlay consumes Escape and returns after approved keys only once
+00:11 +80 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: TUI exit before its receipt still returns input once
+00:11 +81 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: entering full-screen returns the input owner to the terminal
+00:11 +82 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: workspace configuration failure preserves draft and save never sends it desktop-light
+00:12 +83 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: workspace configuration failure preserves draft and save never sends it desktop-dark-2x
+00:12 +84 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: workspace configuration failure preserves draft and save never sends it phone-light
+00:12 +85 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: workspace configuration failure preserves draft and save never sends it phone-landscape
+00:12 +86 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: authentication recovery saves without sending or losing task
+00:13 +87 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: phone disconnect recovery is explicit and revokes old approval
+00:13 +88 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: unknown submission checks its receipt without retrying the command
+00:13 +89 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: unknown submission explains possible execution after reconnect en desktop-light
+00:13 +90 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: unknown submission explains possible execution after reconnect en desktop-dark
+00:13 +91 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: unknown submission explains possible execution after reconnect en desktop-2x
+00:13 +92 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: unknown submission explains possible execution after reconnect en phone-light
+00:13 +93 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: unknown submission explains possible execution after reconnect en phone-dark
+00:13 +94 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: unknown submission explains possible execution after reconnect en phone-landscape
+00:14 +95 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: unknown submission explains possible execution after reconnect zh desktop-light
+00:14 +96 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: unknown submission explains possible execution after reconnect zh desktop-dark
+00:14 +97 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: unknown submission explains possible execution after reconnect zh desktop-2x
+00:14 +98 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: unknown submission explains possible execution after reconnect zh phone-light
+00:14 +99 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: unknown submission explains possible execution after reconnect zh phone-dark
+00:14 +100 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: unknown submission explains possible execution after reconnect zh phone-landscape
+00:14 +101 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: target dialog never transfers approval and rechecks changed target
+00:15 +102 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: target resume double click opens one dialog and one model turn
+00:15 +103 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: target choice cannot resume another task
+00:15 +104 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: inline target choice rejects an unseen hop and preserves draft
+00:15 +105 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: target long labels desktop dark
+00:15 +106 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: target long labels desktop light
+00:15 +107 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: target long labels desktop-zh dark
+00:16 +108 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: target long labels desktop-zh light
+00:16 +109 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: target long labels desktop-large dark
+00:16 +110 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: target long labels desktop-large light
+00:16 +111 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: target long labels phone dark
+00:16 +112 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: target long labels phone light
+00:17 +113 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: target long labels phone-short dark
+00:17 +114 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: target long labels phone-short light
+00:17 +115 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: target long labels phone-landscape dark
+00:17 +116 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: target long labels phone-landscape light
+00:17 +117 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: canonical block replaces accepted proposal without copied output
+00:17 +118 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: (tearDownAll)
+00:17 +118 -1: Some tests failed.
+
+Failing tests:
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/terminal_ai_workspace_test.dart: conversation role distinction phone-landscape

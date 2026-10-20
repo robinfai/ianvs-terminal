@@ -1,0 +1,13 @@
+{
+  "scope": "Derived connection metadata only; no install or acceptance claim",
+  "source_record_sha256": "f0425905f40d36b32d06a55d147290747f3bd7dfa4875c66309ce3c0c2768ebd",
+  "source_file_mtime": 1791613558.2582912,
+  "device_type": "iPhone",
+  "product_type": "iPhone18,3",
+  "os_version": "27.0.1",
+  "developer_mode": "enabled",
+  "transport": "wired",
+  "tunnel_state": "connected",
+  "prior_acceptance_app_installed": false,
+  "production_trail_installed": true
+}

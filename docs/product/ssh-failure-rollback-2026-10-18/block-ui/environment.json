@@ -1,0 +1,11 @@
+{
+  "image": "sha256:d84e1c9df4f30b589d004c99db69376a845318bd3efa9c577adec045d015959e",
+  "host": "ProductName:\t\tmacOS\nProductVersion:\t\t27.0.1\nBuildVersion:\t\t26A434",
+  "server": "OpenSSH_10.0p2 Debian-7+deb13u4, OpenSSL 3.5.7 9 Jun 2026",
+  "shells": {
+    "cloud": "GNU bash, version 5.2.37(1)-release (aarch64-unknown-linux-gnu)",
+    "zsh": "zsh 5.9 (aarch64-unknown-linux-gnu)",
+    "fish": "fish, version 4.0.2",
+    "target": "GNU bash, version 5.2.37(1)-release (aarch64-unknown-linux-gnu)"
+  }
+}

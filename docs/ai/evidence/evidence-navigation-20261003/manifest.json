@@ -1,0 +1,39 @@
+{
+  "date": "2026-10-03",
+  "os": "macOS 27.0.1",
+  "problem": "The full-window evidence reader put Back at y=9 within the native 44-point window controls/drag strip. NSWindow could consume a real mouse click before Flutter navigation received it.",
+  "fix": "The host theme declares a reader top inset using the same title bar metric as the shell. The shared reader SafeArea takes the maximum of this inset and the system safe area. Embedded hosts and phones default to zero extra height.",
+  "passed": {
+    "appNavigationAndThemeTests": 18,
+    "sharedReaderAndThemeTests": 21,
+    "nativeIntegrationScenarios": 2,
+    "nativeMouseBackClick": true,
+    "evidenceReturnVisits": 2,
+    "extraCommandsOnNavigation": 0,
+    "extraModelRequestsOnNavigation": 0,
+    "staticAnalysis": true,
+    "canonicalMirrorCheck": true
+  },
+  "visualReview": "CUA inspected the native macOS window, including the traffic lights above the Back button, and sent a real OS mouse click. Saved PNGs capture Flutter content; native window buttons are outside that capture.",
+  "coverage": [
+    "light/dark",
+    "640x400 macOS window",
+    "320x568 fixed-font phone layout",
+    "desktop 1.5x text and larger system safe area",
+    "retained-source evidence navigation",
+    "shared reader search, selection and scrolling"
+  ],
+  "limitations": [
+    "No physical iPhone validation; installed daily app not replaced.",
+    "Native integration uses a controlled loopback AI fixture and real zsh PTY.",
+    "LaunchServices reported a foreground warning; CUA selected the exact build path and native clicking plus both scenarios passed."
+  ],
+  "sources": {
+    "packages/ianvs_terminal/lib/src/composer/composer_theme.dart": "a9704acc963972aa73e8155e226cdc0f6274cbad008a495f82ba2dae02263778",
+    "packages/ianvs_terminal/lib/src/terminal/command_block_reader.dart": "b5a58f40cae269bb620b2d7aa94e39b0aca985447ffa726c95f79907eb39701a",
+    "example/lib/ui/foundation/app_theme.dart": "53eee097005a040c3af809028273de2b9299618ac1a3ccb8d9cd0a1c9d4ee621",
+    "example/lib/features/shell/shell_screen_chrome.dart": "607da40d1f1ea12ae37dc92c12fc840205f499734150f4e5e9bef3252346cd31",
+    "example/test/ai/terminal_ai_evidence_navigation_test.dart": "0954c30ae5f1270c3de0420e62ceb33440dbdcd467d4867357a95e4a1f700c66",
+    "example/integration_test/input_intent_acceptance_test.dart": "f371bdd63bf7f53a9daf77e218f1821dba5c51cc873915861414083d955b9a10"
+  }
+}

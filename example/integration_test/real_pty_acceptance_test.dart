@@ -11,6 +11,7 @@ import 'package:app/features/sessions/session_state.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/features/shell/window_bridge.dart';
 import 'package:app/features/terminal/render_terminal_viewport.dart';
+import 'package:app/l10n/l10n.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -2154,12 +2155,12 @@ sleep 5
       );
       expect(savedPath, '/virtual/osc-phase28.txt');
       expect(savedBytes, utf8.encode('hello phase 28'));
+      final l10n = tester.element(find.byType(ShellScreen)).l10n;
       await _waitFor(
         tester,
         description: 'OSC 1337 real PTY saved feedback',
         condition: () =>
-            find.byType(SnackBar).evaluate().isNotEmpty &&
-            find.textContaining('osc-phase28.txt').evaluate().isNotEmpty,
+            find.text(l10n.savedFile('osc-phase28.txt')).evaluate().isNotEmpty,
       );
 
       _signal(uploadFile);
@@ -2167,8 +2168,7 @@ sleep 5
         tester,
         description: 'OSC 1337 real PTY upload denial',
         condition: () =>
-            find.byType(SnackBar).evaluate().isNotEmpty &&
-            find.textContaining('osc-phase28.txt').evaluate().isEmpty &&
+            find.text(l10n.fileUploadRequestBlocked).evaluate().isNotEmpty &&
             _terminalText(
               harness.container,
             ).contains('OSC1337-FILE-TRANSFER-DONE'),
@@ -2844,7 +2844,13 @@ Future<_RealPtyHarness> _pumpRealPtyApp(
       }),
     ],
   );
-  addTearDown(container.dispose);
+  addTearDown(() async {
+    // UncontrolledProviderScope does not own its container. Unmount consumers
+    // and drain their queued callbacks before disposing the provider state.
+    ensureMacosIntegrationTestFramesEnabled(tester.binding);
+    await tester.pumpWidget(const SizedBox.shrink());
+    container.dispose();
+  });
 
   await tester.pumpWidget(
     UncontrolledProviderScope(
@@ -3209,7 +3215,29 @@ while [ ! -f "$RELEASE_FILE" ]; do sleep 0.05; done
   if (path == _IdleWakePath.nativeHint) {
     expect(wakeResult!['request_reason'], 'native_hint');
     expect(wakeResult!['hint_poll_count'], greaterThan(0));
-    expect(wakeResult!['full_poll_count'], preparedFullPollCount + 1);
+    // The child and Dart scheduler run independently. A legitimate empty
+    // deadline poll can occur between the prepared result and FIFO output;
+    // count those requests instead of assuming the two results are adjacent.
+    final wakeWindow = runtimeEvents.sublist(
+      runtimeEvents.indexOf(preparedResult!) + 1,
+      runtimeEvents.indexOf(wakeResult!) + 1,
+    );
+    final requestedPolls = wakeWindow.where(
+      (event) =>
+          event['schema_version'] == 'ianvs-terminal-refresh-policy-v1' &&
+          event['session_id'] == sessionId &&
+          event['event'] == 'full_poll_requested',
+    );
+    expect(
+      wakeResult!['full_poll_count'],
+      preparedFullPollCount + requestedPolls.length,
+      reason: 'Every full poll must have a matching request: $wakeWindow',
+    );
+    expect(
+      requestedPolls.where((event) => event['request_reason'] == 'native_hint'),
+      hasLength(1),
+      reason: 'The FIFO wake must request exactly one native-hint full poll.',
+    );
     final lifecycle = _refreshLifecycle(
       runtimeEvents,
       sessionId,

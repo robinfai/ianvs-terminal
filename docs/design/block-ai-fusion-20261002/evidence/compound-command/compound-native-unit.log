@@ -1,0 +1,18 @@
+   Compiling par-term-emu-core-rust v0.41.1 (/Users/robinfai/flutter_projects/ianvs-terminal/native/vendor/par-term-emu-core-rust)
+   Compiling ianvs_core v0.1.0 (/Users/robinfai/flutter_projects/ianvs-terminal/native/core)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.78s
+     Running unittests src/lib.rs (native/core/target/debug/deps/ianvs_core-aace0d3be1a44b38)
+
+running 9 tests
+test session::command_blocks::tests::empty_output_and_multiline_command_are_not_guessed_from_screen ... ok
+test session::command_blocks::tests::boundaries_exclude_prompt_and_preserve_unterminated_output ... ok
+test session::command_blocks::tests::split_hook_and_alternate_screen_are_safe ... ok
+test session::command_blocks::tests::replay_preserves_execution_identity_and_elapsed_metadata ... ok
+test session::command_blocks::tests::wrapping_carriage_return_ansi_and_links_preserve_terminal_cells ... ok
+test session::command_blocks::tests::filtering_is_reversible_with_context_and_invalid_regex ... ok
+test session::command_blocks::tests::pages_search_and_eviction_report_the_retained_source ... ok
+test session::command_blocks::tests::composer_limit_preserves_literal_command_after_json_and_hex_encoding ... ok
+test session::command_blocks::tests::oversized_command_and_hook_are_rejected_without_poisoning_next_block ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 406 filtered out; finished in 0.08s
+

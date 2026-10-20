@@ -414,6 +414,7 @@ void main() {
     );
 
     await _openCommandMenu(tester);
+    await tester.ensureVisible(find.text('Defaults & appearance'));
     await tester.tap(find.text('Defaults & appearance'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('defaults-section-security')));
@@ -449,6 +450,7 @@ void main() {
       );
 
       await _openCommandMenu(tester);
+      await tester.ensureVisible(find.text('Defaults & appearance'));
       await tester.tap(find.text('Defaults & appearance'));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('defaults-section-appearance')));
@@ -490,6 +492,7 @@ void main() {
       localConfigRepository: localConfigRepository,
     );
     await _openCommandMenu(tester);
+    await tester.ensureVisible(find.text('Defaults & appearance'));
     await tester.tap(find.text('Defaults & appearance'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('defaults-section-security')));
@@ -523,6 +526,7 @@ void main() {
       localConfigRepository: localConfigRepository,
     );
     await _openCommandMenu(tester);
+    await tester.ensureVisible(find.text('Defaults & appearance'));
     await tester.tap(find.text('Defaults & appearance'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('defaults-section-security')));
@@ -567,6 +571,7 @@ void main() {
       localConfigRepository: localConfigRepository,
     );
     await _openCommandMenu(tester);
+    await tester.ensureVisible(find.text('Defaults & appearance'));
     await tester.tap(find.text('Defaults & appearance'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('defaults-section-security')));
@@ -816,6 +821,7 @@ void main() {
     ]);
 
     await _openCommandMenu(tester);
+    await tester.ensureVisible(find.text('Defaults & appearance'));
     await tester.tap(find.text('Defaults & appearance'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('defaults-section-security')));
@@ -1999,11 +2005,18 @@ void main() {
         ),
         hasLength(1),
       );
-      expect(fakeBindings.jsonRequests.single, <String, Object?>{
-        'kind': 'terminal.zmodem.accept_receive',
-        'transferId': '52',
-        'destination': '/chosen/downloads',
-      });
+      expect(
+        fakeBindings.jsonRequests
+            .where(
+              (request) => request['kind'] == 'terminal.zmodem.accept_receive',
+            )
+            .single,
+        <String, Object?>{
+          'kind': 'terminal.zmodem.accept_receive',
+          'transferId': '52',
+          'destination': '/chosen/downloads',
+        },
+      );
     },
   );
 
@@ -3057,10 +3070,18 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
 
       expect(find.byKey(const Key('shell-zmodem-recovery')), findsNothing);
-      expect(fakeBindings.jsonRequests.last, <String, Object?>{
-        'kind': 'terminal.zmodem.dismiss_recovery',
-        'recoveryToken': 'fedcba9876543210fedcba9876543210',
-      });
+      expect(
+        fakeBindings.jsonRequests
+            .where(
+              (request) =>
+                  request['kind'] == 'terminal.zmodem.dismiss_recovery',
+            )
+            .single,
+        <String, Object?>{
+          'kind': 'terminal.zmodem.dismiss_recovery',
+          'recoveryToken': 'fedcba9876543210fedcba9876543210',
+        },
+      );
     },
   );
 
@@ -3341,11 +3362,18 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(pickerCalls, 2);
-    expect(fakeBindings.jsonRequests.last, <String, Object?>{
-      'kind': 'terminal.zmodem.accept_receive',
-      'transferId': '52',
-      'destination': '/retry/downloads',
-    });
+    expect(
+      fakeBindings.jsonRequests
+          .where(
+            (request) => request['kind'] == 'terminal.zmodem.accept_receive',
+          )
+          .single,
+      <String, Object?>{
+        'kind': 'terminal.zmodem.accept_receive',
+        'transferId': '52',
+        'destination': '/retry/downloads',
+      },
+    );
     expect(find.byKey(const Key('shell-zmodem-transfer-retry')), findsNothing);
     expect(find.textContaining('unknown size'), findsOneWidget);
   });
@@ -5081,6 +5109,7 @@ void main() {
     );
 
     await _openCommandMenu(tester);
+    await tester.ensureVisible(find.text('Defaults & appearance'));
     await tester.tap(find.text('Defaults & appearance'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('defaults-section-shortcuts')));
@@ -5158,6 +5187,7 @@ void main() {
     );
 
     await _openCommandMenu(tester);
+    await tester.ensureVisible(find.text('Defaults & appearance'));
     await tester.tap(find.text('Defaults & appearance'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('defaults-section-shortcuts')));
@@ -5696,6 +5726,7 @@ void main() {
 
       await _pumpShellScreen(tester, fakeBindings: fakeBindings);
       await _openCommandMenu(tester);
+      await tester.ensureVisible(find.text('Defaults & appearance'));
       await tester.tap(find.text('Defaults & appearance'));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('defaults-section-appearance')));
@@ -5737,6 +5768,7 @@ void main() {
       final fakeBindings = FakePtyBackend();
       await _pumpShellScreen(tester, fakeBindings: fakeBindings);
       await _openCommandMenu(tester);
+      await tester.ensureVisible(find.text('Defaults & appearance'));
       await tester.tap(find.text('Defaults & appearance'));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('defaults-section-appearance')));
@@ -5914,9 +5946,12 @@ void main() {
         find.byKey(Key('shell-pane-action-more-$closedSessionId')),
       );
       await tester.pumpAndSettle();
-      await tester.tap(
-        find.byKey(Key('shell-pane-menu-closePane-$closedSessionId')),
+      final closePane = find.byKey(
+        Key('shell-pane-menu-closePane-$closedSessionId'),
       );
+      await tester.ensureVisible(closePane);
+      await tester.pumpAndSettle();
+      await tester.tap(closePane);
       await tester.pumpAndSettle();
 
       expect(find.byType(TerminalViewport), findsOneWidget);
@@ -6227,6 +6262,7 @@ void main() {
     await tester.pump();
 
     await _openCommandMenu(tester);
+    await tester.ensureVisible(find.text('Defaults & appearance'));
     await tester.tap(find.text('Defaults & appearance'));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Close defaults'));

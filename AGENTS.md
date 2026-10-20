@@ -13,6 +13,7 @@ For Flutter UI work, prefer these workflows:
 - For Material 3 UI, prefer `ThemeData(useMaterial3: true)`, `ColorScheme`, component themes, and adaptive layout.
 - For responsive UI, prefer `LayoutBuilder`, `MediaQuery.sizeOf`, `Expanded`, `Flexible`, and constraint-based decisions instead of hard-coding device classes.
 - Before finalizing generated UI, check dark mode, text scaling, semantic labels, keyboard/scroll behavior, overflow, tap target size, loading/empty/error states, and widget previews.
+- 手机端 UI 只考虑固定字号，设计、实现和验收均以固定字号为准；系统字号跟随、动态文字缩放及大字号适配不纳入手机端要求。上述文字缩放检查仅适用于非手机端，除非用户另有明确要求。
 - Do not hard-code colors directly inside widgets unless there is a documented reason; use theme tokens or ThemeExtension.
 
 ## Apple platform compatibility

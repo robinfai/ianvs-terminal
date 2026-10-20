@@ -1,0 +1,29 @@
+{
+  "_notice": "截图字段说明；路径从PRD根目录开始",
+  "kind": "screenshot",
+  "path": "evidence/S1/S1-T01/实际run-id/after-01.png",
+  "role": "after",
+  "modified": false,
+  "sha256": "填真实64位SHA256",
+  "implementation_commit": "填完整实现commit",
+  "captured_at": "带时区ISO8601",
+  "environment_id": "匹配环境id",
+  "pixel_size": [
+    1170,
+    2532
+  ],
+  "viewport_logical": [
+    390,
+    844
+  ],
+  "pixel_ratio": 3,
+  "orientation": "portrait",
+  "locale": "zh-CN",
+  "theme": "light",
+  "font_policy": "phone_fixed",
+  "keyboard": "hidden",
+  "description": "填写实际步骤与截图所见；这里的尺寸只是字段样例",
+  "shot_ids": [
+    "S1-T01-F01"
+  ]
+}

@@ -1,0 +1,189 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart
+00:00 +0: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +2: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +3: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +4: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +5: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +6: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +7: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +8: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +9: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +10: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +11: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +12: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +13: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +14: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +15: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +16: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +17: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +18: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +19: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:00 +20: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +21: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +22: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +23: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +24: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +25: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +26: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +27: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +28: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +29: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +30: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +31: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +32: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +33: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +34: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +35: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +36: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +37: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +38: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +39: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +40: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +41: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +42: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +43: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +44: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:01 +45: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:02 +46: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: secondary click in inactive raw pane preserves Composer target and draft (variant: TargetPlatform.macOS)
+00:02 +47: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: defaults dialog saves OSC 52 ask policy
+00:02 +48: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: defaults dialog saves OSC 52 ask policy
+00:02 +49: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:02 +50: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:02 +51: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:02 +52: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:02 +53: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:02 +54: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:03 +55: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:03 +56: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:03 +57: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:03 +58: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:03 +59: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:03 +60: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:03 +61: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:03 +62: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:03 +63: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:04 +64: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:04 +65: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:04 +66: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:04 +67: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:04 +68: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +69: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +69: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: DPR-only resize updates native pixels and replay metrics without changing cells (variant: TargetPlatform.macOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following StateError was thrown running a test:
+Bad state: Too many elements
+
+When the exception was thrown, this was the stack:
+#0      _Array.single (dart:core-patch/array.dart:63:5)
+#1      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart:328:44)
+<asynchronous suspension>
+#2      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#3      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+The test description was:
+  DPR-only resize updates native pixels and replay metrics without changing cells (variant:
+  TargetPlatform.macOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:05 +69 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +69 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: DPR-only resize updates native pixels and replay metrics without changing cells (variant: TargetPlatform.macOS) [E]
+  Test failed. See exception logs above.
+  The test description was: DPR-only resize updates native pixels and replay metrics without changing cells (variant: TargetPlatform.macOS)
+  
+00:05 +70 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +71 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +72 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ui/pane_divider_keyboard_test.dart: real 2 by 2 outer divider resizes its own split with keyboard and keeps pane, focus, PTY writes and size constraints (variant: TargetPlatform.macOS)
+00:05 +73 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: selection release cannot commit a queued resize from the previous DPR (variant: TargetPlatform.macOS)
+00:05 +74 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: OSC 1337 ReportVariable denies first and remembers future allow
+00:05 +75 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: tab menu TerminalActionId.closePane keeps its captured target after the original pane exits (variant: TargetPlatform.macOS)
+00:05 +76 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: tab menu TerminalActionId.closePane keeps its captured target after the original pane exits (variant: TargetPlatform.macOS)
+00:05 +77 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: tab menu TerminalActionId.closePane keeps its captured target after the original pane exits (variant: TargetPlatform.macOS)
+00:05 +78 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: OSC 1337 OpenURL denial and bursts never invoke the opener
+00:05 +79 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: tab menu TerminalActionId.closeActiveTab keeps its captured target after the original pane exits (variant: TargetPlatform.macOS)
+00:05 +80 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: tab menu TerminalActionId.closeActiveTab keeps its captured target after the original pane exits (variant: TargetPlatform.macOS)
+00:06 +81 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: OSC 1337 OpenURL ignores inactive and unsafe requests
+00:06 +82 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: old tab mode menu cannot follow a pane moved into another tab (variant: TargetPlatform.macOS)
+00:06 +83 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: old tab mode menu cannot follow a pane moved into another tab (variant: TargetPlatform.macOS)
+00:06 +84 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: OSC 8 file link prompt identifies source split pane
+00:06 +85 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: OSC 1337 download requires Save before writing bytes
+00:06 +86 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: ZMODEM receive requires a folder and exposes progress/cancel
+00:06 +87 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: ZMODEM does not open a picker for a transfer ended in the same poll
+00:06 +88 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: ZMODEM deferred write failure persists and suppresses same-poll success
+00:07 +89 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: ZMODEM ignores an ended picker request before authorizing a new transfer
+00:07 +90 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: ZMODEM rejects bidi filenames before display or receive authorization
+00:07 +91 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: ZMODEM rejects 257 selected files without authorizing a truncated batch
+00:07 +92 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: ZMODEM gap survivor exposes recovery without prior transfer UI state
+00:07 +93 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: Old publish recovery does not hide the current gap reconciliation UI
+00:07 +94 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: Old terminal does not hide a successor drain reconciliation UI
+00:07 +95 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: First-batch ZMODEM gap survivor exposes transfer UI and pauses input
+00:07 +96 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: First-batch ZMODEM gap without survivors exposes cancellation recovery
+00:07 +97 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: Cancel during native drain preserves the completed result
+00:07 +98 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: Inactive ZMODEM result is shown when its session is activated
+00:08 +99 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: Inactive ZMODEM authorization is cancelled and notified
+00:08 +100 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: Inactive ZMODEM reconciliation marks output and notifies attention
+00:08 +101 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: Inactive preserved ZMODEM receive marks output and notifies attention
+00:08 +102 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: Fallback ZMODEM recovery identifies its inactive source session
+00:08 +103 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: ZMODEM recovery survives session close and is consumed after Reveal
+00:08 +104 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: ZMODEM recovery retains transient Reveal failures and dismisses stale tokens
+00:08 +105 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: ZMODEM Reveal consumes native authority safely after ShellScreen unmounts
+00:08 +106 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: ZMODEM multi-file send keeps batch progress and clears finished names
+00:08 +107 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: ZMODEM picker cancel keeps a recoverable retry state
+00:08 +108 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: Active ZMODEM transfer blocks pane close without losing state
+00:08 +109 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: Native ZMODEM close busy protects an event not yet polled by Dart
+00:09 +110 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: ZMODEM authorization failure remains retryable
+00:09 +111 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: ZMODEM native start clears a lost authorization response error
+00:09 +112 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: ZMODEM session-switch cancel failure is visible and retryable
+00:09 +113 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: OSC 1337 download cancel and inactive pane release bytes
+00:09 +114 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: OSC 5522 prompt can remember an exact application password for the session
+00:09 +115 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: OSC 52 prompt identifies inactive split pane
+00:09 +116 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: tab badge from inactive split pane focuses originating pane
+00:09 +117 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: OSC 52 paste read labels empty clipboard preview
+00:10 +118 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: OSC shell context remote cwd disables local duplicate affordance
+00:10 +119 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: visible split tab badge does not mark hidden overflow tabs
+00:10 +120 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: overflow tab new output dot can focus an inactive pane inside a hidden split tab
+00:10 +121 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: overflow new output marker can focus a hidden split pane
+00:10 +122 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: hidden overflow new output marker prioritizes inactive pane in active hidden split tab
+00:11 +123 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: OSC notification stays in the tab instead of a snackbar
+00:11 +124 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: manual notification removal supports osc9 without an ID
+00:11 +125 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: manual notification removal supports osc777 without an ID
+00:11 +126 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: manual notification removal supports osc99 without an ID
+00:11 +127 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: manual notification clear all covers every tab pane and hidden history
+00:11 +128 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: OSC 99 system notification keeps stable ID, expiry and close
+00:12 +129 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: command finished notification identifies inactive split pane
+00:12 +130 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: activity bell and exit notifications identify inactive split pane
+00:12 +131 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: shell shortcuts honor local config keybinding overrides
+00:12 +132 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: shortcut editor saves and hot-reloads an override
+00:12 +133 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: shortcut editor restores defaults and hot-reloads them
+00:13 +134 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: native paste confirms multiline text before sending
+00:13 +135 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: local paste config can disable multiline confirmation
+00:13 +136 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: local paste config can force bracketed paste wrapping
+00:13 +137 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: marker-only forced bracketed paste is ignored
+00:13 +138 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: local paste config can force plain paste despite terminal mode
+00:13 +139 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: command-v uses paste confirmation before sending multiline text
+00:13 +140 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: command-v honors forced bracketed paste wrapping
+00:13 +141 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: command-v read-only paste does not read clipboard
+00:13 +142 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: tab context menu hides pane zoom actions
+00:13 +143 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: tab context menu hides focus pane actions while zoomed
+00:13 +144 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: modal barriers block native paste and terminal host input (variant: TargetPlatform.macOS)
+00:14 +145 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: form fields keep command and native paste out of the terminal (variant: TargetPlatform.macOS)
+00:14 +146 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: native select all targets the focused form field (variant: TargetPlatform.macOS)
+00:14 +147 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: command-v pastes into the open search field instead of the terminal (variant: TargetPlatform.macOS)
+00:14 +148 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: native paste menu pastes into the open search field instead of the terminal (variant: TargetPlatform.macOS)
+00:14 +149 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: tab context menu disables split actions while pane is zoomed
+00:14 +150 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: tab context menu can reopen the most recently closed split pane
+00:15 +151 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: split tab semantics describe pane signals and new output
+00:15 +152 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: shell coalesces rapid window-width changes into the final terminal resize
+00:15 +153 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: split panes each commit their debounced terminal resize
+00:15 +154 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: terminal focus alone does not show the shell layout cue
+00:15 +155 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: shell passes theme-aware terminal colors into the viewport
+00:15 +156 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: launcher close shows a brief return cue at top right and keeps keyboard path
+00:15 +157 -1: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_screen_phase4_test.dart: defaults close restores the layout cue and keyboard path
+00:15 +158 -1: Some tests failed.
+
+Failing tests:
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/shell_pane_input_metrics_test.dart: DPR-only resize updates native pixels and replay metrics without changing cells (variant: TargetPlatform.macOS)

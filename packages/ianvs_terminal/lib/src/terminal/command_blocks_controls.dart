@@ -1,0 +1,770 @@
+part of 'command_blocks_view.dart';
+
+String? _blockRequestError(
+  String? error,
+  bool chinese, {
+  bool retained = false,
+}) {
+  return switch (error) {
+    'Invalid regular expression' =>
+      retained
+          ? (chinese ? '正则无效，未更新结果' : 'Invalid regex; results unchanged')
+          : (chinese ? '正则表达式无效' : 'Invalid regular expression'),
+    'Output is no longer available' => chinese ? '输出已不可用' : error,
+    _ => error,
+  };
+}
+
+Widget _blockErrorMessage(BuildContext context, String? message) {
+  if (message == null) return const SizedBox.shrink();
+  final tokens = ComposerTheme.of(context);
+  return Padding(
+    padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+    child: Semantics(
+      liveRegion: true,
+      child: Text(
+        message,
+        style: tokens.metadataStyle.copyWith(color: tokens.error),
+      ),
+    ),
+  );
+}
+
+extension _CommandBlocksControls on _CommandBlocksViewState {
+  List<String>? get _timelineBlockIds => widget.timeline == null
+      ? null
+      : [
+          for (final item in _items)
+            if (item.blockId != null) item.blockId!,
+        ];
+
+  List<CommandBlock> get _selectedTimelineBlocks => [
+    for (final block in c.blocks)
+      if (c.selected.contains(block.id) &&
+          (_timelineBlockIds?.contains(block.id) ?? true))
+        block,
+  ];
+
+  Widget _selectionToolbar(ComposerTheme tokens) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 12),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(
+            t(
+              '${_selectedTimelineBlocks.length} selected',
+              '已选择 ${_selectedTimelineBlocks.length} 个',
+            ),
+            style: tokens.metadataStyle,
+          ),
+        ),
+        TextButton.icon(
+          key: const Key('blocks-attach-selection'),
+          onPressed: () => widget.onAttachBlocks!(_selectedTimelineBlocks),
+          icon: const Icon(Icons.attach_file, size: 17),
+          label: Text(t('Attach to AI', '附给 AI')),
+        ),
+        IconButton(
+          key: const Key('blocks-clear-selection'),
+          tooltip: t('Clear block selection', '取消命令块选择'),
+          onPressed: c.clearSelection,
+          icon: const Icon(Icons.close, size: 17),
+        ),
+      ],
+    ),
+  );
+
+  Widget _icon(IconData icon, String label, VoidCallback action) => IconButton(
+    tooltip: label,
+    onPressed: action,
+    icon: Icon(icon, size: 17),
+    style: IconButton.styleFrom(
+      minimumSize: Size.square(ComposerTheme.of(context).controlHeight),
+      padding: const EdgeInsets.all(7),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    ),
+  );
+
+  Widget _toolbar(ComposerTheme tokens) => Container(
+    key: const Key('blocks-toolbar'),
+    decoration: _readerLayout
+        ? BoxDecoration(
+            border: Border(bottom: BorderSide(color: tokens.divider)),
+          )
+        : null,
+    padding: _readerLayout
+        ? const EdgeInsets.fromLTRB(12, 4, 12, 3)
+        : const EdgeInsets.fromLTRB(18, 4, 12, 2),
+    child: Row(
+      children: [
+        if (_readerLayout) ...[
+          Icon(Icons.terminal_outlined, size: 20, color: tokens.muted),
+          const SizedBox(width: 8),
+        ],
+        if (c.selected.isNotEmpty && widget.onAttachBlocks != null)
+          _icon(
+            Icons.attach_file,
+            t('Attach selected blocks to AI', '将所选命令块附给 AI'),
+            () => widget.onAttachBlocks!([
+              for (final block in c.blocks)
+                if (c.selected.contains(block.id)) block,
+            ]),
+          ),
+        Expanded(
+          child: Text(
+            c.selected.length > 1
+                ? t(
+                    '${c.selected.length} selected',
+                    '已选择 ${c.selected.length} 个',
+                  )
+                : t('Blocks · ${c.blocks.length}', '命令块 · ${c.blocks.length}'),
+            style: _readerLayout
+                ? Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: tokens.foreground,
+                  )
+                : tokens.metadataStyle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        _icon(
+          Icons.search,
+          t('Find in blocks', '在命令块中查找'),
+          () => _openFind(null),
+        ),
+        if (c.bookmarks.isNotEmpty)
+          PopupMenuButton<String>(
+            popUpAnimationStyle: ComposerTheme.overlayAnimation(context),
+            tooltip: t('Bookmarks', '书签'),
+            icon: Icon(Icons.bookmark_outline, size: 17, color: tokens.muted),
+            onSelected: (id) => c.select(id, reveal: true),
+            itemBuilder: (_) => [
+              for (final block in c.blocks.where(
+                (b) => c.bookmarks.contains(b.id),
+              ))
+                PopupMenuItem(
+                  value: block.id,
+                  child: Text(
+                    block.command,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+            ],
+          ),
+        _icon(
+          Icons.vertical_align_bottom,
+          t('Jump to latest output', '跳到最新输出'),
+          () {
+            _follow = true;
+            _tail();
+          },
+        ),
+        PopupMenuButton<String>(
+          style: _readerLayout
+              ? IconButton.styleFrom(
+                  minimumSize: const Size.square(44),
+                  maximumSize: const Size.square(44),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                )
+              : null,
+          popUpAnimationStyle: ComposerTheme.overlayAnimation(context),
+          tooltip: t('Block view options', '命令块显示选项'),
+          icon: Icon(Icons.tune, size: 17, color: tokens.muted),
+          onSelected: (value) {
+            switch (value) {
+              case 'compact':
+                c.setAppearance(compact: !c.compact);
+              case 'dividers':
+                c.setAppearance(dividers: !c.dividers);
+              case 'sticky':
+                c.setAppearance(stickyHeader: !c.stickyHeader);
+              case 'terminal':
+                widget.onUseTerminal?.call();
+            }
+          },
+          itemBuilder: (_) => [
+            if (!_readerLayout)
+              CheckedPopupMenuItem(
+                value: 'compact',
+                checked: c.compact,
+                child: Text(t('Compact spacing', '紧凑间距')),
+              ),
+            CheckedPopupMenuItem(
+              value: 'dividers',
+              checked: c.dividers,
+              child: Text(t('Block dividers', '命令块分隔线')),
+            ),
+            if (!_readerLayout)
+              CheckedPopupMenuItem(
+                value: 'sticky',
+                checked: c.stickyHeader,
+                child: Text(t('Sticky command header', '固定命令标题')),
+              ),
+            if (widget.onUseTerminal != null)
+              PopupMenuItem(
+                value: 'terminal',
+                child: Text(t('Use terminal input', '使用终端输入')),
+              ),
+          ],
+        ),
+      ],
+    ),
+  );
+  List<PopupMenuEntry<String>> _menuItems(CommandBlock block) => [
+    PopupMenuItem(value: 'command', child: Text(t('Copy command', '复制命令'))),
+    PopupMenuItem(value: 'output', child: Text(t('Copy output', '复制输出'))),
+    PopupMenuItem(
+      value: 'both',
+      child: Text(
+        t(
+          c.selected.length > 1
+              ? 'Copy selected blocks'
+              : 'Copy command and output',
+          c.selected.length > 1 ? '复制所选命令块' : '复制命令和输出',
+        ),
+      ),
+    ),
+    const PopupMenuDivider(),
+    if (widget.onAskAi != null)
+      PopupMenuItem(
+        value: 'ai',
+        enabled: !block.running,
+        child: Text(
+          block.exitCode != null && block.exitCode != 0
+              ? t('Correct with AI', '用 AI 纠正')
+              : t('Ask AI about this block', '向 AI 询问此命令块'),
+        ),
+      ),
+    PopupMenuItem(
+      value: 'reinput',
+      enabled: block.command.isNotEmpty,
+      child: Text(t('Insert into Composer', '放入 Composer 编辑')),
+    ),
+    PopupMenuItem(value: 'find', child: Text(t('Find within block', '在此块中查找'))),
+    PopupMenuItem(
+      value: 'reader',
+      child: Text(t('Open output reader', '打开输出阅读器')),
+    ),
+    CheckedPopupMenuItem(
+      value: 'filter',
+      enabled: !block.running,
+      checked: c.filtering.contains(block.id),
+      child: Text(t('Filter output', '过滤输出')),
+    ),
+    CheckedPopupMenuItem(
+      value: 'bookmark',
+      checked: c.bookmarks.contains(block.id),
+      child: Text(t('Bookmark', '书签')),
+    ),
+    PopupMenuItem(
+      value: 'collapse',
+      enabled: !block.running,
+      child: Text(
+        t(
+          c.collapsed.contains(block.id) ? 'Expand output' : 'Collapse output',
+          c.collapsed.contains(block.id) ? '展开输出' : '折叠输出',
+        ),
+      ),
+    ),
+    PopupMenuItem(value: 'top', child: Text(t('Jump to start', '跳到开头'))),
+    PopupMenuItem(value: 'bottom', child: Text(t('Jump to end', '跳到末尾'))),
+    const PopupMenuDivider(),
+    PopupMenuItem(
+      value: 'share',
+      enabled: !block.running,
+      child: Text(t('Export as Markdown…', '导出为 Markdown…')),
+    ),
+  ];
+  Future<void> _menu(CommandBlock block, Offset point) async {
+    final overlay =
+        Overlay.of(context).context.findRenderObject()! as RenderBox;
+    final value = await showMenu<String>(
+      context: context,
+      popUpAnimationStyle: ComposerTheme.overlayAnimation(context),
+      position: RelativeRect.fromRect(
+        Rect.fromLTWH(point.dx, point.dy, 0, 0),
+        Offset.zero & overlay.size,
+      ),
+      items: _menuItems(block),
+    );
+    if (mounted && value != null) _action(block, value);
+  }
+
+  void _action(CommandBlock block, String action) {
+    switch (action) {
+      case 'reader':
+        unawaited(_openReader(block.id));
+      case 'ai':
+        widget.onAskAi?.call(block);
+      case 'command':
+      case 'output':
+      case 'both':
+        unawaited(
+          _copy(
+            action,
+            id: action == 'both' && c.selected.length > 1 ? null : block.id,
+          ),
+        );
+      case 'reinput':
+        widget.onReinput(block.command);
+      case 'find':
+        _openFind(block.id);
+      case 'filter':
+        c.toggleFilter(block.id);
+        if (_readerLayout) unawaited(_openReader(block.id));
+      case 'bookmark':
+        c.toggleBookmark(block.id);
+      case 'collapse':
+        c.toggleCollapsed(block.id);
+      case 'top':
+        if (_readerLayout) {
+          unawaited(_openReader(block.id, row: 0));
+        } else {
+          c.reveal(block.id);
+        }
+      case 'bottom':
+        if (_readerLayout) {
+          unawaited(_openReader(block.id, bottom: true));
+        } else {
+          c.reveal(block.id, bottom: true);
+        }
+      case 'share':
+        unawaited(_export(block));
+    }
+  }
+
+  Future<void> _export(CommandBlock block) async {
+    try {
+      final output = await c.outputText(block.id);
+      if (!mounted) return;
+      var commandIncluded = true;
+      var outputIncluded = true;
+      var contextIncluded = false;
+      String markdown() {
+        final content = [
+          if (commandIncluded) block.command,
+          if (outputIncluded) output,
+        ].join('\n');
+        var fenceLength = 3;
+        while (content.contains('`' * fenceLength)) {
+          fenceLength++;
+        }
+        final fence = '`' * fenceLength;
+        return '${contextIncluded ? '${block.cwd}\nExit ${block.exitCode ?? "unknown"}\n\n' : ''}$fence\n$content\n$fence';
+      }
+
+      await showDialog<void>(
+        context: context,
+        animationStyle: ComposerTheme.overlayAnimation(context),
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            title: Text(t('Export block', '导出命令块')),
+            content: SizedBox(
+              width: 520,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      t(
+                        'Choose what to include in the Markdown copy.',
+                        '选择复制到 Markdown 的内容。',
+                      ),
+                    ),
+                    CheckboxListTile(
+                      value: commandIncluded,
+                      onChanged: (v) =>
+                          setDialogState(() => commandIncluded = v!),
+                      title: Text(t('Command', '命令')),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    CheckboxListTile(
+                      value: outputIncluded,
+                      onChanged: (v) =>
+                          setDialogState(() => outputIncluded = v!),
+                      title: Text(t('Output', '输出')),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    CheckboxListTile(
+                      value: contextIncluded,
+                      onChanged: (v) =>
+                          setDialogState(() => contextIncluded = v!),
+                      title: Text(t('Directory and exit status', '目录和退出状态')),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 180),
+                      child: SingleChildScrollView(
+                        child: SelectableText(
+                          markdown(),
+                          style: ComposerTheme.of(context).metadataStyle,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(t('Cancel', '取消')),
+              ),
+              FilledButton(
+                onPressed: !commandIncluded && !outputIncluded
+                    ? null
+                    : () async {
+                        await Clipboard.setData(
+                          ClipboardData(text: markdown()),
+                        );
+                        if (context.mounted) Navigator.pop(context);
+                        _announce(t('Markdown copied', '已复制 Markdown'));
+                      },
+                child: Text(t('Copy Markdown', '复制 Markdown')),
+              ),
+            ],
+          ),
+        ),
+      );
+    } on Object catch (error) {
+      _announce(error.toString());
+    }
+  }
+
+  Widget _findBar(ComposerTheme tokens) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _find,
+                focusNode: _findFocus,
+                onChanged: (_) => _search(),
+                onSubmitted: (_) {
+                  if (_matches.isNotEmpty) _showMatch(_matches.first);
+                },
+                decoration: InputDecoration(
+                  isDense: true,
+                  hintText: t('Find commands and output', '查找命令和输出'),
+                  prefixIcon: const Icon(Icons.search, size: 17),
+                  error: _findError == null ? null : const SizedBox.shrink(),
+                ),
+                style: tokens.resultStyle,
+              ),
+            ),
+            _icon(Icons.close, t('Close find', '关闭查找'), () {
+              _update(() => _finding = false);
+              _focus.requestFocus();
+            }),
+          ],
+        ),
+        _blockErrorMessage(
+          context,
+          _blockRequestError(_findError, widget.chinese),
+        ),
+        Wrap(
+          spacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            FilterChip(
+              label: const Text('Aa'),
+              tooltip: t('Case sensitive', '区分大小写'),
+              selected: _findCase,
+              onSelected: (v) {
+                _update(() => _findCase = v);
+                _search();
+              },
+            ),
+            FilterChip(
+              label: const Text('.*'),
+              tooltip: t('Regular expression', '正则表达式'),
+              selected: _findRegex,
+              onSelected: (v) {
+                _update(() => _findRegex = v);
+                _search();
+              },
+            ),
+            if (_findScope != null)
+              InputChip(
+                label: Text(t('This block', '当前块')),
+                onDeleted: () {
+                  _update(() => _findScope = null);
+                  _search();
+                },
+              ),
+            Text(
+              _findBlockLimited || _findTotalLimited
+                  ? t(
+                      '${_matches.length} matches shown',
+                      '已显示 ${_matches.length} 条匹配',
+                    )
+                  : t(
+                      '${_matches.length} matching lines',
+                      '${_matches.length} 行匹配',
+                    ),
+              style: tokens.metadataStyle,
+            ),
+          ],
+        ),
+        if (_findBlockLimited || _findTotalLimited)
+          Text(
+            _findTotalLimited
+                ? t(
+                    'Search display limit reached: 1,000 matches total. Refine the query or search within a block.',
+                    '已达到查找显示上限：合计 1,000 条匹配。请缩小查询范围或在单个命令块中查找。',
+                  )
+                : t(
+                    'Search results are limited to one output page per block (up to 200 matching lines). Refine the query or open the block reader.',
+                    '每个命令块的查找结果最多显示一页输出（200 行匹配）。请细化查询或打开命令块阅读器。',
+                  ),
+            key: const Key('block-find-limit'),
+            style: tokens.metadataStyle,
+          ),
+        if (_find.text.isNotEmpty && _matches.isEmpty && _findError == null)
+          Padding(
+            padding: const EdgeInsets.all(6),
+            child: Text(t('No matches', '无匹配结果'), style: tokens.metadataStyle),
+          ),
+        if (_matches.isNotEmpty)
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 130),
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: _matches.length,
+              itemBuilder: (context, index) {
+                final match = _matches[index];
+                return ListTile(
+                  dense: true,
+                  title: Text(
+                    match.$2.text,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: tokens.resultStyle,
+                  ),
+                  subtitle: Text(
+                    match.$1.command,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: tokens.metadataStyle,
+                  ),
+                  onTap: () => _showMatch(match),
+                );
+              },
+            ),
+          ),
+      ],
+    ),
+  );
+  void _showMatch((CommandBlock, TerminalRow) match) {
+    final row = match.$2;
+    final range = row.index < 0
+        ? null
+        : CommandBlockReadRange(
+            startLine: row.index,
+            endLine: row.index + 1,
+            sourceLineBase: row.sourceRow == null
+                ? match.$1.sourceLineBase
+                : row.sourceRow! - row.index,
+          );
+    c.expandedOutput.add(match.$1.id);
+    if (c.filtering.contains(match.$1.id)) c.toggleFilter(match.$1.id);
+    if (c.collapsed.contains(match.$1.id)) c.toggleCollapsed(match.$1.id);
+    final running = c.blocks
+        .where((block) => block.id == match.$1.id)
+        .any((block) => block.running);
+    if (_readerLayout || running) {
+      unawaited(
+        _openReader(match.$1.id, row: range == null ? 0 : null, range: range),
+      );
+      return;
+    }
+    if (range != null && !c.pageRange(match.$1.id, range)) {
+      _announce(t('The matching output is no longer available', '匹配输出已不再保留'));
+      return;
+    }
+    c.select(match.$1.id, reveal: true);
+  }
+}
+
+class _BlockFilterEditor extends StatefulWidget {
+  const _BlockFilterEditor({
+    super.key,
+    required this.value,
+    required this.chinese,
+    required this.onChanged,
+    required this.onClose,
+    this.error,
+    this.compact = false,
+  });
+  final CommandBlockFilter value;
+  final bool chinese;
+  final ValueChanged<CommandBlockFilter> onChanged;
+  final VoidCallback onClose;
+  final String? error;
+  final bool compact;
+  @override
+  State<_BlockFilterEditor> createState() => _BlockFilterEditorState();
+}
+
+class _BlockFilterEditorState extends State<_BlockFilterEditor> {
+  late final _query = TextEditingController(text: widget.value.query);
+  Timer? _debounce;
+  String t(String en, String zh) => widget.chinese ? zh : en;
+  @override
+  void dispose() {
+    _query.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 6),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _query,
+                style: ComposerTheme.of(context).resultStyle,
+                decoration: InputDecoration(
+                  isDense: true,
+                  hintText: t('Filter output', '过滤输出'),
+                  // The full-width message below must not shift the adjacent
+                  // actions when it wraps at accessibility text sizes.
+                  error: widget.error == null ? null : const SizedBox.shrink(),
+                  prefixIcon: const Icon(Icons.filter_list, size: 17),
+                ),
+                onChanged: (query) {
+                  _debounce?.cancel();
+                  _debounce = Timer(
+                    const Duration(milliseconds: 160),
+                    () => widget.onChanged(widget.value.copyWith(query: query)),
+                  );
+                },
+              ),
+            ),
+            if (widget.compact) _optionsMenu(),
+            IconButton(
+              tooltip: t('Close filter', '关闭过滤'),
+              onPressed: widget.onClose,
+              icon: const Icon(Icons.close, size: 17),
+            ),
+          ],
+        ),
+        _blockErrorMessage(
+          context,
+          _blockRequestError(widget.error, widget.chinese, retained: true),
+        ),
+        if (!widget.compact)
+          Wrap(
+            spacing: 4,
+            runSpacing: 2,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              FilterChip(
+                label: const Text('Aa'),
+                tooltip: t('Case sensitive', '区分大小写'),
+                selected: widget.value.caseSensitive,
+                onSelected: (v) =>
+                    widget.onChanged(widget.value.copyWith(caseSensitive: v)),
+              ),
+              FilterChip(
+                label: const Text('.*'),
+                tooltip: t('Regular expression', '正则表达式'),
+                selected: widget.value.regex,
+                onSelected: (v) =>
+                    widget.onChanged(widget.value.copyWith(regex: v)),
+              ),
+              FilterChip(
+                label: Text(t('Invert', '反向')),
+                selected: widget.value.invert,
+                onSelected: (v) =>
+                    widget.onChanged(widget.value.copyWith(invert: v)),
+              ),
+              PopupMenuButton<int>(
+                popUpAnimationStyle: ComposerTheme.overlayAnimation(context),
+                tooltip: t('Context lines', '上下文行数'),
+                onSelected: (v) =>
+                    widget.onChanged(widget.value.copyWith(contextLines: v)),
+                itemBuilder: (_) => [
+                  for (final n in [0, 1, 2, 3, 5, 10, 20])
+                    PopupMenuItem(value: n, child: Text('$n')),
+                ],
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: ComposerTheme.of(context).controlHeight,
+                    minWidth: ComposerTheme.of(context).controlHeight,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          t(
+                            'Context ${widget.value.contextLines}',
+                            '上下文 ${widget.value.contextLines}',
+                          ),
+                          style: ComposerTheme.of(context).actionStyle,
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.arrow_drop_down,
+                          size: 18,
+                          color: ComposerTheme.of(context).muted,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+      ],
+    ),
+  );
+
+  Widget _optionsMenu() => PopupMenuButton<CommandBlockFilter>(
+    popUpAnimationStyle: ComposerTheme.overlayAnimation(context),
+    key: const Key('block-filter-options'),
+    tooltip: t('Filter options', '过滤选项'),
+    icon: Icon(Icons.tune, size: 17, color: ComposerTheme.of(context).muted),
+    onSelected: widget.onChanged,
+    itemBuilder: (_) => [
+      CheckedPopupMenuItem(
+        value: widget.value.copyWith(
+          caseSensitive: !widget.value.caseSensitive,
+        ),
+        checked: widget.value.caseSensitive,
+        child: Text(t('Case sensitive', '区分大小写')),
+      ),
+      CheckedPopupMenuItem(
+        value: widget.value.copyWith(regex: !widget.value.regex),
+        checked: widget.value.regex,
+        child: Text(t('Regular expression', '正则表达式')),
+      ),
+      CheckedPopupMenuItem(
+        value: widget.value.copyWith(invert: !widget.value.invert),
+        checked: widget.value.invert,
+        child: Text(t('Invert', '反向')),
+      ),
+      const PopupMenuDivider(),
+      for (final n in [0, 1, 2, 3, 5, 10, 20])
+        CheckedPopupMenuItem(
+          value: widget.value.copyWith(contextLines: n),
+          checked: widget.value.contextLines == n,
+          child: Text(t('Context $n lines', '上下文 $n 行')),
+        ),
+    ],
+  );
+}

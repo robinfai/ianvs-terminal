@@ -147,6 +147,7 @@ Project Workspace identity，不切换现有 tab/PTY，也不维护 Recent Works
 - `ianvs_terminal_core` 是 pub.dev 发布入口；workspace packages 仍是 canonical 开发源。
 - SSH 已作为 Profile/Session 扩展实现，SFTP 复用 SSH 连接配置；它们不恢复 Project Workspace。
 - Toolbelt 和旧 completion/wiring 产品面板已退役；历史验证模型仅用于工程回归，用户诊断导出保持独立。
+- 新的可选 [Composer](composer/README.md) 是 Session 内的独立草稿组件；纯 Rust matcher、受限本地 provider 与私有 ZLE 通道分层，通过当前 Session Request v1 接入，不恢复旧面板或 ABI。
 
 ## 模块代码与文档入口
 

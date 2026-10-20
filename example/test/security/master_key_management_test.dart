@@ -28,6 +28,69 @@ void main() {
   );
 
   testWidgets(
+    'PRD device-only policy has accurate storage copy and no transfer',
+    (tester) async {
+      final repository = PortableMasterKeyRepository(
+        storage: const FlutterSecurePortableMasterKeyStorage.iosPrdDeviceOnly(),
+        allowLegacyMigration: false,
+      );
+
+      await _pumpPanel(tester, repository);
+
+      expect(find.textContaining("this device's Keychain"), findsOneWidget);
+      expect(find.textContaining('local file'), findsNothing);
+      expect(
+        find.byKey(const Key('master-key-apple-keychain-status')),
+        findsNothing,
+      );
+      expect(find.byKey(const Key('master-key-copy')), findsNothing);
+      expect(find.byKey(const Key('master-key-import')), findsNothing);
+    },
+    variant: const TargetPlatformVariant(<TargetPlatform>{TargetPlatform.iOS}),
+  );
+
+  testWidgets(
+    'development file policy keeps its distinct storage explanation',
+    (tester) async {
+      final repository = PortableMasterKeyRepository(
+        storage: DevelopmentPortableMasterKeyStorage(
+          directoryResolver: () => throw StateError('UI must not read secrets'),
+        ),
+        allowLegacyMigration: false,
+      );
+
+      await _pumpPanel(tester, repository);
+
+      expect(find.textContaining('local file'), findsOneWidget);
+      expect(find.textContaining("this device's Keychain"), findsNothing);
+      expect(find.byKey(const Key('master-key-copy')), findsNothing);
+      expect(find.byKey(const Key('master-key-import')), findsNothing);
+    },
+    variant: const TargetPlatformVariant(<TargetPlatform>{
+      TargetPlatform.macOS,
+    }),
+  );
+
+  testWidgets(
+    'disabling migration does not relabel the platform vault',
+    (tester) async {
+      final repository = PortableMasterKeyRepository(
+        storage: _MemoryMasterKeyStorage(),
+        allowLegacyMigration: false,
+      );
+
+      await _pumpPanel(tester, repository);
+
+      expect(
+        find.byKey(const Key('master-key-apple-keychain-status')),
+        findsOneWidget,
+      );
+      expect(find.textContaining('local file'), findsNothing);
+    },
+    variant: const TargetPlatformVariant(<TargetPlatform>{TargetPlatform.iOS}),
+  );
+
+  testWidgets(
     'copy requires confirmation and exports the portable key',
     (tester) async {
       final repository = PortableMasterKeyRepository(

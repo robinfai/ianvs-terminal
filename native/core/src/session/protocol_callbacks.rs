@@ -15,6 +15,9 @@ pub(super) const OSC5522_MAX_APPLICATION_NAME_BYTES: usize = 256;
 pub(super) const ITERM_CLIPBOARD_MAX_BYTES: usize = 4 * 1024 * 1024;
 pub(super) const ITERM_FILE_DOWNLOAD_MAX_BYTES: usize = 16 * 1024 * 1024;
 pub(super) const ITERM_FILE_DOWNLOAD_MAX_PENDING: usize = 8;
+// Match the terminal's bounded Ianvs hook frame: 64 KiB literal command,
+// JSON escaping, hex encoding and small provenance metadata.
+const SHELL_HOOK_FRAME_MAX_BYTES: usize = 4 * 65_536 + 1024;
 
 pub(super) struct ProtocolCompletedTransfer {
     pub(super) direction: TransferDirection,
@@ -334,9 +337,16 @@ impl HostProtocolState {
 
         if index > 0 {
             self.buffer.drain(..index);
-        } else if self.buffer.len() > 4096 {
-            let keep = 4096usize.min(self.buffer.len());
-            self.buffer.drain(..self.buffer.len() - keep);
+        } else {
+            let limit = if self.buffer.starts_with(b"\x1bPhook;") {
+                SHELL_HOOK_FRAME_MAX_BYTES
+            } else {
+                4096
+            };
+            if self.buffer.len() > limit {
+                let keep = 4096usize.min(self.buffer.len());
+                self.buffer.drain(..self.buffer.len() - keep);
+            }
         }
 
         events
@@ -459,7 +469,11 @@ impl HostProtocolState {
         let command = parts.next().unwrap_or_default();
         let encoded = parts.next().unwrap_or_default();
 
-        if command != b"hook" || encoded.is_empty() || encoded.len() % 2 != 0 {
+        if command != b"hook"
+            || encoded.is_empty()
+            || encoded.len() % 2 != 0
+            || payload.len() > SHELL_HOOK_FRAME_MAX_BYTES
+        {
             return;
         }
 
@@ -1726,5 +1740,52 @@ mod tests {
                 if payload["source"] == "osc9;4" && payload["percent"] == 42
         ));
         assert!(observer.buffer.is_empty());
+    }
+
+    #[test]
+    fn fragmented_full_composer_command_reaches_host_hook_without_truncation() {
+        let command = format!("echo {}", "\\\"\t\n".repeat(16_380));
+        let payload = serde_json::json!({"hook":"preexec", "command":command,
+            "submission_id":"long-submission", "context_id":"ssh-context"});
+        let hex: String = payload
+            .to_string()
+            .bytes()
+            .map(|b| format!("{b:02x}"))
+            .collect();
+        let wire = format!("\x1bPhook;{hex}\x1b\\");
+        let mut observer = HostProtocolState::default();
+        let mut events = Vec::new();
+        for chunk in wire.as_bytes().chunks(1283) {
+            events.extend(observer.observe(chunk, TerminalEmulation::Xterm256));
+        }
+        assert_eq!(events.len(), 1);
+        assert!(
+            matches!(&events[0], CallbackEvent::ShellHook { payload: actual } if *actual == payload)
+        );
+        assert!(observer.buffer.is_empty());
+    }
+
+    #[test]
+    fn oversized_shell_hook_is_bounded_and_next_host_event_survives() {
+        let wire = format!(
+            "\x1bPhook;{}\x1b\\",
+            "00".repeat(SHELL_HOOK_FRAME_MAX_BYTES)
+        );
+        for size in [1283, wire.len()] {
+            let mut observer = HostProtocolState::default();
+            for chunk in wire.as_bytes().chunks(size) {
+                assert!(
+                    observer
+                        .observe(chunk, TerminalEmulation::Xterm256)
+                        .is_empty()
+                );
+                assert!(observer.buffer.len() <= SHELL_HOOK_FRAME_MAX_BYTES);
+            }
+            let events = observer.observe(b"\x1b[8;24;80t", TerminalEmulation::Xterm256);
+            assert!(matches!(
+                events.as_slice(),
+                [CallbackEvent::Resize { rows: 24, cols: 80 }]
+            ));
+        }
     }
 }

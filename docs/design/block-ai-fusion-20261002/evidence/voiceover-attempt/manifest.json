@@ -1,0 +1,16 @@
+{
+  "recorded_at": "2026-10-03T04:06:17.029256+00:00",
+  "scope": "Authorized VoiceOver attempt, native regression, and cleanup; no speech read or verified",
+  "artifacts": {
+    "attempt-summary.json": "cbf2981ade82aaed89f6e3f17ba9e98c7648a878802e375f2ca1769d15ed0f45",
+    "captions-native.log": "1617b7ad5cec46e1509dfea3d4e1715dc8b0cf0bc58711bbaed95adb2634844c",
+    "control-preflight.json": "f53c64cbee1366ccbab0f53574adca52d1b933a9a6d55d39fbcdea1ab63c03de",
+    "native-result.json": "b6648e05a484f7be732a78bc32b93ee1fc3431928f65855f307ebf0d671bfa3a",
+    "preflight-native.log": "1617b7ad5cec46e1509dfea3d4e1715dc8b0cf0bc58711bbaed95adb2634844c",
+    "voiceover-running-native.log": "1617b7ad5cec46e1509dfea3d4e1715dc8b0cf0bc58711bbaed95adb2634844c"
+  },
+  "sources": {
+    "example/integration_test/terminal_ai_accessibility_acceptance_test.dart": "208615bbbb5b853b6790a6af026fa79a8eafa55039bde8b996712001e13ea658",
+    "example/tool/verify_accessibility_fixture.py": "f5c1af209003ac81d8b381caa0a37bb6525ce3ec95f122b292b972460a57f926"
+  }
+}

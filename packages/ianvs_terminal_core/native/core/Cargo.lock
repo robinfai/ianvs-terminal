@@ -1363,6 +1363,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ianvs_completion_core"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "unicode-segmentation",
+]
+
+[[package]]
 name = "ianvs_core"
 version = "0.1.0"
 dependencies = [
@@ -1373,6 +1382,7 @@ dependencies = [
  "futures-util",
  "getrandom 0.3.4",
  "glob",
+ "ianvs_completion_core",
  "libc",
  "par-term-emu-core-rust",
  "parking_lot",

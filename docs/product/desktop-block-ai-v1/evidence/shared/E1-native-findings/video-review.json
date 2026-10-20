@@ -1,0 +1,390 @@
+{
+  "schema_version": 1,
+  "reviewed_at": "2026-10-10T09:13:47.636264+00:00",
+  "reviewer": "ai_contract_review independent read-only evidence review",
+  "scope": "E1 pre-fix draft-close failure evidence only; no App, SDK, build or UI operation performed for this review.",
+  "source": {
+    "file": "../draft-close-before.mp4",
+    "sha256_before_review": "e5d6d58e94e77828c2fd78b770a99e1639e998b2dfaecd52b294fb2f192debf6",
+    "sha256_after_review": "e5d6d58e94e77828c2fd78b770a99e1639e998b2dfaecd52b294fb2f192debf6",
+    "original_bytes_unchanged": true,
+    "bytes": 4511722,
+    "candidate_label": "E1",
+    "source_commit": "d13e0c02c5f5921927c3f7855fd3aadce6559b64",
+    "code_equivalent_candidate_from_manual_run": "19001573d9974c510e1e4cbcfeb01c94368ea157",
+    "not_a_C9_post_fix_recording": true,
+    "source_identity_basis": "../manual-run.json and ../draft-close-before-recording.json; this review did not launch or rebuild the candidate.",
+    "window_identity_from_recorder": {
+      "pid": 68899,
+      "window_id": 29753,
+      "width_pixels": 3456,
+      "height_pixels": 2168,
+      "point_pixel_scale": 2
+    },
+    "capture_scope": "One selected App main window. No audio stream. This does not provide an all-desktop or continuous frontmost-PID trace.",
+    "container": {
+      "format": "MP4",
+      "video_codec": "H.264 Main / avc1",
+      "pixel_format": "yuv420p",
+      "width": 3456,
+      "height": 2168,
+      "video_stream_count": 1,
+      "audio_stream_count": 0,
+      "duration_seconds": 129.438333,
+      "source_frame_count": 3771,
+      "time_base": "1/600",
+      "first_source_pts_seconds": 0.0,
+      "last_source_pts_seconds": 129.421667
+    },
+    "recorder_events": {
+      "window_selected_at": "2026-10-10T08:26:51.234Z",
+      "recording_started_at": "2026-10-10T08:26:51.307Z",
+      "recording_finished_at": "2026-10-10T08:29:00.753Z",
+      "exit_code": 0,
+      "error_event_observed": false
+    },
+    "metadata_caveat": "recording_finished.size_bytes is 4460724, while the finalized MP4 is 4511722 bytes (difference 50998). The finalized SHA matches the sidecar and was unchanged through review. The cause of this event-size difference was not established; the event size is not used as the final-file integrity measurement."
+  },
+  "method": {
+    "tools": {
+      "ffprobe": "7.1.1",
+      "ffmpeg": "7.1.1",
+      "Pillow": "12.1.0",
+      "viewer": "tools.view_image"
+    },
+    "metadata_files": [
+      "ffprobe-metadata.json",
+      "source-frame-timestamps.json"
+    ],
+    "decode_result": "ffmpeg extraction completed with exit code 0 and no warning/error output in the four extract logs. The overview selection includes the last source frame, so the original stream was decoded through its end. Successful decode is distinct from visual inspection.",
+    "source_indexing": "Zero-based ffprobe/ffmpeg source-frame index. Captions use original best_effort_timestamp_time and the 1/600 source time base, not generated fps timestamps.",
+    "derived_images": "Source frames were decoded to PNG. Overview and local interval images were scaled to width 1120 for storage; contact-sheet thumbnails are 560 x 352 with a separate timestamp band. Ten key-original PNGs retain the original decoded 3456 x 2168 raster. No source video edit, overwrite, crop, redaction or re-encode was performed.",
+    "viewer_scaling": "view_image displayed the 1680 x 1520 contact sheets at about 1662 x 1504 and the original-resolution key PNGs at about 1989 x 1248. These were not pixel-for-pixel full-resolution inspections.",
+    "continuous_player_viewed": false,
+    "all_original_frames_visually_reviewed": false,
+    "all_pixels_inspected": false,
+    "unique_source_frames_visually_represented": 215,
+    "total_source_frames": 3771,
+    "overview": {
+      "selection": "First actual source frame at or after each integer second 0 through 129, plus the final source frame.",
+      "sample_count": 131,
+      "actual_pts_range_seconds": [
+        0.0,
+        129.421667
+      ],
+      "all_generated_overview_contact_sheets_viewed": true,
+      "viewed_files": [
+        "overview-sheet-01.png",
+        "overview-sheet-02.png",
+        "overview-sheet-03.png",
+        "overview-sheet-04.png",
+        "overview-sheet-05.png",
+        "overview-sheet-06.png",
+        "overview-sheet-07.png",
+        "overview-sheet-08.png",
+        "overview-sheet-09.png",
+        "overview-sheet-10.png",
+        "overview-sheet-11.png"
+      ],
+      "index": "overview-manifest.json",
+      "sheet_index": "overview-sheets.json"
+    },
+    "local_transitions": [
+      {
+        "label": "AI draft tab close",
+        "requested_pts_range_seconds": [
+          49.75,
+          51.25
+        ],
+        "actual_pts_range_seconds": [
+          49.751667,
+          51.228333
+        ],
+        "source_frame_indices_inclusive": [
+          1446,
+          1489
+        ],
+        "all_actual_source_frames_in_interval_selected": true,
+        "frame_count": 44,
+        "all_contact_sheet_cells_viewed": true,
+        "viewed_files": [
+          "ai-close-sheet-01.png",
+          "ai-close-sheet-02.png",
+          "ai-close-sheet-03.png",
+          "ai-close-sheet-04.png"
+        ],
+        "index": "ai-close-manifest.json"
+      },
+      {
+        "label": "Command draft tab close",
+        "requested_pts_range_seconds": [
+          97.75,
+          99.25
+        ],
+        "actual_pts_range_seconds": [
+          97.768333,
+          99.245
+        ],
+        "source_frame_indices_inclusive": [
+          2845,
+          2888
+        ],
+        "all_actual_source_frames_in_interval_selected": true,
+        "frame_count": 44,
+        "all_contact_sheet_cells_viewed": true,
+        "viewed_files": [
+          "command-close-sheet-01.png",
+          "command-close-sheet-02.png",
+          "command-close-sheet-03.png",
+          "command-close-sheet-04.png"
+        ],
+        "index": "command-close-manifest.json"
+      }
+    ],
+    "key_frames": {
+      "all_ten_generated_original_resolution_key_pngs_viewed": true,
+      "frames": [
+        {
+          "sample": 1,
+          "source_frame_index": 439,
+          "source_pts": 9003,
+          "source_pts_seconds": 15.005,
+          "requested_time": 15,
+          "file": "key-original-01.png"
+        },
+        {
+          "sample": 2,
+          "source_frame_index": 1022,
+          "source_pts": 21015,
+          "source_pts_seconds": 35.025,
+          "requested_time": 35,
+          "file": "key-original-02.png"
+        },
+        {
+          "sample": 3,
+          "source_frame_index": 1221,
+          "source_pts": 25203,
+          "source_pts_seconds": 42.005,
+          "requested_time": 42,
+          "file": "key-original-03.png"
+        },
+        {
+          "sample": 4,
+          "source_frame_index": 1454,
+          "source_pts": 30017,
+          "source_pts_seconds": 50.028333,
+          "requested_time": 50,
+          "file": "key-original-04.png"
+        },
+        {
+          "sample": 5,
+          "source_frame_index": 1483,
+          "source_pts": 30612,
+          "source_pts_seconds": 51.02,
+          "requested_time": 51,
+          "file": "key-original-05.png"
+        },
+        {
+          "sample": 6,
+          "source_frame_index": 2154,
+          "source_pts": 44407,
+          "source_pts_seconds": 74.011667,
+          "requested_time": 74,
+          "file": "key-original-06.png"
+        },
+        {
+          "sample": 7,
+          "source_frame_index": 2474,
+          "source_pts": 51013,
+          "source_pts_seconds": 85.021667,
+          "requested_time": 85,
+          "file": "key-original-07.png"
+        },
+        {
+          "sample": 8,
+          "source_frame_index": 2765,
+          "source_pts": 57017,
+          "source_pts_seconds": 95.028333,
+          "requested_time": 95,
+          "file": "key-original-08.png"
+        },
+        {
+          "sample": 9,
+          "source_frame_index": 2852,
+          "source_pts": 58803,
+          "source_pts_seconds": 98.005,
+          "requested_time": 98,
+          "file": "key-original-09.png"
+        },
+        {
+          "sample": 10,
+          "source_frame_index": 2882,
+          "source_pts": 59419,
+          "source_pts_seconds": 99.031667,
+          "requested_time": 99,
+          "file": "key-original-10.png"
+        }
+      ],
+      "index": "key-original-manifest.json"
+    },
+    "artifact_hash_inventory": {
+      "file": "review-artifacts-sha256.json",
+      "sha256": "494226c76e55034c44703041c35fbc50561c24b36a6b8becfe46d4bcbf552578"
+    }
+  },
+  "observed_timeline": [
+    {
+      "source_pts_seconds": [
+        0.0,
+        14.013333
+      ],
+      "basis": "approximately one-second overview samples",
+      "observation": "AI new-task view is visible; no sent transcript is shown."
+    },
+    {
+      "source_pts_seconds": [
+        15.005,
+        34.021667
+      ],
+      "basis": "overview samples plus key-original-01 at 15.005 s",
+      "observation": "AI editor contains D2_AI_DRAFT_CLOSE_PROTECTION：保留这段未发送草稿。 The body still presents the new-task waiting state. This is visible unsent-draft UI, not independent network telemetry."
+    },
+    {
+      "source_pts_seconds": [
+        35.025,
+        38.005
+      ],
+      "basis": "overview samples plus key-original-02",
+      "observation": "A modal labelled 新建终端标签页 offers 本地 Shell / SSH 会话 and the Desktop PRD local fixture. The draft remains visible behind it. This is a new-terminal selector, not a close-confirmation dialog."
+    },
+    {
+      "source_pts_seconds": [
+        39.028333,
+        50.645
+      ],
+      "basis": "overview and AI-transition contact sheets plus key-original-03/04",
+      "observation": "Two tabs are present; the visible content is a raw trail-prd% prompt. A context menu anchored near the first tab includes 关闭活动窗格 and 关闭活动标签页. The menu itself does not display the draft or a discard warning."
+    },
+    {
+      "source_pts_seconds": [
+        50.645,
+        50.711667
+      ],
+      "basis": "all source frames in the local interval; source frames 1472, 1473, 1474",
+      "observation": "At frame 1472 / 50.645 s the complete context menu and two tabs remain. At 1473 / 50.678333 s the menu is collapsing/fading and the tab strip has one tab. At 1474 / 50.711667 s the menu is gone and one raw terminal remains. No in-window draft-confirmation dialog appears in any of the 44 inspected transition frames."
+    },
+    {
+      "source_pts_seconds": [
+        51.02,
+        65.01
+      ],
+      "basis": "overview samples plus key-original-05",
+      "observation": "One raw terminal tab remains. The earlier AI editor and draft are no longer on screen."
+    },
+    {
+      "source_pts_seconds": [
+        66.005,
+        70.021667
+      ],
+      "basis": "overview samples",
+      "observation": "The remaining tab context menu is used around a transition to Blocks; the Blocks surface shows no command blocks."
+    },
+    {
+      "source_pts_seconds": [
+        74.011667,
+        84.021667
+      ],
+      "basis": "overview samples plus key-original-06",
+      "observation": "The Command editor contains printf 'D2_COMPOSER_DRAFT_CLOSE_PROTECTION\\n', with 命令块 · 0, Shell 就绪 and an enabled-looking 执行 control. No executed output is shown."
+    },
+    {
+      "source_pts_seconds": [
+        85.021667,
+        91.015
+      ],
+      "basis": "overview samples plus key-original-07",
+      "observation": "The 新建终端标签页 selector is open over the Command draft, then a second tab appears. This is again a new-terminal selector, not a close confirmation."
+    },
+    {
+      "source_pts_seconds": [
+        92.021667,
+        98.656667
+      ],
+      "basis": "overview and Command-transition contact sheets plus key-original-08/09",
+      "observation": "Two tabs, a raw prompt, and the first-tab context menu are visible; the menu has the Blocks mode checkmark and the two close entries."
+    },
+    {
+      "source_pts_seconds": [
+        98.656667,
+        98.755
+      ],
+      "basis": "all source frames in the local interval; source frames 2871 through 2874",
+      "observation": "The complete menu remains at frame 2871 / 98.656667 s. It collapses/fades at 2872 / 98.69 s and 2873 / 98.726667 s as the tab strip becomes one tab. Frame 2874 / 98.755 s shows one raw terminal and no menu. No in-window draft-confirmation dialog appears in any of the 44 inspected transition frames."
+    },
+    {
+      "source_pts_seconds": [
+        99.031667,
+        129.421667
+      ],
+      "basis": "overview samples, local transition frames and key-original-10",
+      "observation": "One raw terminal remains through the last sampled/source frame; the Command draft view is no longer on screen."
+    }
+  ],
+  "conclusions": {
+    "supports_pre_fix_failure_record": true,
+    "statement_zh": "录像补强了 E1 两次草稿关闭缺陷的可见时序：先有未发送草稿，再新增另一标签页，关闭菜单消失时标签数直接从二变一；转换附近的全部源帧均未出现窗口内草稿确认框。",
+    "video_alone_proves": [
+      "The two visible drafts existed before the respective tab-removal sequences.",
+      "The apparent modal before each close sequence is the new-terminal selector, not a discard confirmation.",
+      "In the fully sampled close-transition intervals, the context menu leads directly to one remaining raw tab without an in-window confirmation."
+    ],
+    "requires_correlated_evidence": [
+      "Which internal session/task IDs were closed and which PTYs exited depends on the operator record and process snapshots; tab labels alone are truncated and positional shortcut labels can renumber.",
+      "Permanent disposal of the in-memory draft and absence of recovery are not independently proved by pixels alone. The video supports the visible removal sequence; controller/source and the existing operator/process evidence establish the lifecycle consequence.",
+      "The recording is limited to one main window. It cannot exclude another-window/native alert outside that filter, certify continuous foreground ownership, or measure PTY/model request counts."
+    ],
+    "coverage_limits": [
+      "Only 215 distinct source frames were visually represented. The rest of the full recording was decoded but not visually inspected.",
+      "Every source frame was inspected only within the two stated short transition intervals, at contact-sheet scale. Outside those intervals the overview is approximately one frame per second.",
+      "No continuous player viewing, exhaustive all-frame privacy scan, or pixel-perfect inspection is claimed.",
+      "This is E1 pre-fix failure evidence. It is not a C9 fix validation and does not mark any full PRD case passed."
+    ],
+    "formal_case_pass_claimed": false,
+    "post_fix_native_result_claimed": false
+  },
+  "privacy": {
+    "credentials_observed_in_reviewed_frames": false,
+    "private_documents_or_messages_observed_in_reviewed_frames": false,
+    "other_app_pixels_observed_in_reviewed_frames": false,
+    "audio_present": false,
+    "visible_nonsecret_content": [
+      "Controlled AI and printf draft markers.",
+      "Desktop PRD local fixture profile label and trail-prd% prompt.",
+      "/private/tmp/trail-desktop-prd-e1-windows-1/home fixture directory.",
+      "/bin/zsh and xterm-256color profile metadata.",
+      "App UI labels, tab positions and recording fixture state."
+    ],
+    "publication_assessment": "No concrete sensitive-pixel blocker was found in the frames actually reviewed. This is a scoped sampled review, not a guarantee about every unsampled frame.",
+    "sidecar_metadata_note": "The recording sidecar command and ffprobe filename include the real local account directory and absolute repository paths. Those are separate metadata disclosures, not visible credential content in the reviewed video frames. Do not silently describe raw metadata as anonymized.",
+    "source_redaction_performed": false
+  },
+  "related_records": [
+    {
+      "file": "../manual-run.json",
+      "sha256": "400da6a7e472e7ebbb69306b53335b556b6b5f3688d10d2a19c310bd02c3c001"
+    },
+    {
+      "file": "../draft-close-before-recording.json",
+      "sha256": "35b4a58aeb57c5baef0bfc9fea838247b4215d3933838b3476727b956024dfee"
+    },
+    {
+      "file": "../draft-close-before-recording.log",
+      "sha256": "41a6764732b56c7566b215a5655cb28ce72091e45b99b8857280941e915e72d5"
+    },
+    {
+      "file": "../visual-review.log",
+      "sha256": "fc7173d67bdff53ad7b86a1e25e7a9796ea7a42c46f10de6a0099ed23baee69e",
+      "note": "Earlier still-image review remains unchanged. Its statement that the MP4 had not yet been viewed describes that earlier review; this JSON supplements it."
+    }
+  ]
+}

@@ -1,0 +1,133 @@
+{
+  "implementation_commit": "7e9f0dd8e7bd825c655ceb80d817d5fe214337bd",
+  "scope": "Supporting gates and protocol probes only; not formal complete PRD cases",
+  "files": [
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-7.log",
+      "path": "shared/C3-gates/verify.log",
+      "sha256": "f99e6cbbe1fd093b6c39d420587686bfd2460de6fbdbdfb4440242a2fa23058a",
+      "copied_without_modification": true
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-7-metadata.json",
+      "path": "shared/C3-gates/verify-metadata.json",
+      "sha256": "44ebe043e5da8fa3ff3c646f9878d4bab5400926cbc22e29d565cff81c02c56d",
+      "copied_without_modification": true
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/ssh-c3-native-1/bash-emacs-local-ssh.sshd.log",
+      "path": "shared/C3-ssh-native-1/bash-emacs-local-ssh.sshd.log",
+      "sha256": "5996283b716c21b31ae4a02898e4c61243e24ac4d050ccd69764022bed49c646",
+      "copied_without_modification": true
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/ssh-c3-native-1/bash-emacs-local-ssh.test.log",
+      "path": "shared/C3-ssh-native-1/bash-emacs-local-ssh.test.log",
+      "sha256": "e5a0bfc4de0785c419a147b8d7f21136810495bcb3e9d5b0f0ddb5d3b15774cf",
+      "copied_without_modification": true
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/ssh-c3-native-1/bash-emacs.sshd.log",
+      "path": "shared/C3-ssh-native-1/bash-emacs.sshd.log",
+      "sha256": "b46620ed39f8edd1fb5928c66a81170aed61e39967a1a87b81fc2b3b08be2c65",
+      "copied_without_modification": true
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/ssh-c3-native-1/bash-emacs.test.log",
+      "path": "shared/C3-ssh-native-1/bash-emacs.test.log",
+      "sha256": "f0133a7ee3fd93ea034ae29061eee22f4532db9b96bbb072e114cfac64adb13c",
+      "copied_without_modification": true
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/ssh-c3-native-1/bash-vi.sshd.log",
+      "path": "shared/C3-ssh-native-1/bash-vi.sshd.log",
+      "sha256": "b46620ed39f8edd1fb5928c66a81170aed61e39967a1a87b81fc2b3b08be2c65",
+      "copied_without_modification": true
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/ssh-c3-native-1/bash-vi.test.log",
+      "path": "shared/C3-ssh-native-1/bash-vi.test.log",
+      "sha256": "4c27e60895f339e2b0819f2ef7647115f889f1b0f2a7fe5b6c1a54a88a285f73",
+      "copied_without_modification": true
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/ssh-c3-native-1/results.json",
+      "path": "shared/C3-ssh-native-1/results.json",
+      "sha256": "8fe3d1897b36093c94ab580e74831bd22dc041c98462494f4dd1ac3f7cc8915d",
+      "copied_without_modification": true
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/ssh-c3-native-1/run-metadata.json",
+      "path": "shared/C3-ssh-native-1/run-metadata.json",
+      "sha256": "51ebe88161f73d98285a1e68825b74e0d97dd87b625c0909542cb3edb6d7683e",
+      "copied_without_modification": true
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/ssh-c3-native-1/runner.log",
+      "path": "shared/C3-ssh-native-1/runner.log",
+      "sha256": "5534da637ae18ca9afb7953d7ff746cf4772852be77a2384c36bd9dca84f7e2b",
+      "copied_without_modification": true
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/ssh-c3-native-1/zsh-emacs-local-ssh.sshd.log",
+      "path": "shared/C3-ssh-native-1/zsh-emacs-local-ssh.sshd.log",
+      "sha256": "5996283b716c21b31ae4a02898e4c61243e24ac4d050ccd69764022bed49c646",
+      "copied_without_modification": true
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/ssh-c3-native-1/zsh-emacs-local-ssh.test.log",
+      "path": "shared/C3-ssh-native-1/zsh-emacs-local-ssh.test.log",
+      "sha256": "4e956d71e57a4f60e5b0462c8dc68117ae5523185167e9654c308f6779183213",
+      "copied_without_modification": true
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/ssh-c3-native-1/zsh-emacs.sshd.log",
+      "path": "shared/C3-ssh-native-1/zsh-emacs.sshd.log",
+      "sha256": "b46620ed39f8edd1fb5928c66a81170aed61e39967a1a87b81fc2b3b08be2c65",
+      "copied_without_modification": true
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/ssh-c3-native-1/zsh-emacs.test.log",
+      "path": "shared/C3-ssh-native-1/zsh-emacs.test.log",
+      "sha256": "e7c89b843349d20666b3174c60413b25789198e13b1cec14d90f7bcf924bc2f7",
+      "copied_without_modification": true
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/ssh-c3-native-1/zsh-vi.sshd.log",
+      "path": "shared/C3-ssh-native-1/zsh-vi.sshd.log",
+      "sha256": "b46620ed39f8edd1fb5928c66a81170aed61e39967a1a87b81fc2b3b08be2c65",
+      "copied_without_modification": true
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/ssh-c3-native-1/zsh-vi.test.log",
+      "path": "shared/C3-ssh-native-1/zsh-vi.test.log",
+      "sha256": "0f48768bf1de6d8b1680b7b6197fcc6d7d98f650bf8554f2b3b5c90a2c48435d",
+      "copied_without_modification": true
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/acp-c3-protocol-1/probe.private.log",
+      "path": "shared/C3-acp-protocol-1/probe.log",
+      "sha256": "a807087c1ca4f3773fe00ac3a9dd209005da03a77f5bf02fc07d5e2627a8c74a",
+      "copied_without_modification": true
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/acp-c3-protocol-1/run-metadata.json",
+      "path": "shared/C3-acp-protocol-1/run-metadata.json",
+      "sha256": "5986916be0474eefa978801ce8587549b4990a5f48cef066f8fcb69319359b54",
+      "copied_without_modification": true
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/acp-c3-resume-1/probe.private.log",
+      "path": "shared/C3-acp-resume-1/probe.log",
+      "sha256": "81779a2e9daa7987eee80fc5b0ed069e416dece09580901f19b72f765ba5a3da",
+      "copied_without_modification": true
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/acp-c3-resume-1/run-metadata.json",
+      "path": "shared/C3-acp-resume-1/run-metadata.json",
+      "sha256": "4bbc710679ae6f7262caa0fb8f16d2da332c78269b9b78378e6ceb3bb7673cdb",
+      "copied_without_modification": true
+    }
+  ],
+  "path_base": "docs/product/desktop-block-ai-v1/evidence"
+}

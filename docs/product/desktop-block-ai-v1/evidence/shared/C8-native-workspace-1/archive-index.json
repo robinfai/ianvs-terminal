@@ -1,0 +1,241 @@
+{
+  "implementation_commit": "19001573d9974c510e1e4cbcfeb01c94368ea157",
+  "archived_at": "2026-10-10T07:39:51.620872+00:00",
+  "copies": [
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-workspace-1/native-window-060.png",
+      "destination": "evidence/D3/D3-T05/after/after-01.png",
+      "bytes": 496227,
+      "sha256": "401c135012d1f8387f981307cfb087b5bfea8fb1a6868346d02834b0f179ee15",
+      "captured_at": "2026-10-10T07:18:18.441622+00:00",
+      "copy_mode": "original bytes, no transformation"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-workspace-1/native-window-017.png",
+      "destination": "evidence/D3/D3-T05/after/after-02.png",
+      "bytes": 510389,
+      "sha256": "3db5a2ec77bc9ff89c638de93f94c40aee9695949cd2c81652781f1dc2aa4bc8",
+      "captured_at": "2026-10-10T07:17:47.625794+00:00",
+      "copy_mode": "original bytes, no transformation"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-workspace-1/driver-artifacts/native-D06-failure-diagnostic-draft.png",
+      "destination": "evidence/D4/D4-T01/after/after-01.png",
+      "bytes": 531915,
+      "sha256": "498f159ac1e2188e9d9b89c54ab8124e8b1861cb4c5020e5151a5d5a163b86a6",
+      "captured_at": "2026-10-10T07:17:43.630923+00:00",
+      "copy_mode": "original bytes, no transformation"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-workspace-1/driver-artifacts/native-D06-correction-review.png",
+      "destination": "evidence/D4/D4-T01/after/after-02.png",
+      "bytes": 536260,
+      "sha256": "6c3541bb3af2f5c1aa6bcbb4c243d1834cbb84c17b2a74adccc5917cc8afacb1",
+      "captured_at": "2026-10-10T07:17:44.549794+00:00",
+      "copy_mode": "original bytes, no transformation"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-workspace-1/driver-artifacts/native-D06-correction-result.png",
+      "destination": "evidence/D4/D4-T01/after/after-03.png",
+      "bytes": 509644,
+      "sha256": "d94a17a72e51dde84622ff5853f15fca8cbbcf8445a5286832625eaa557bc518",
+      "captured_at": "2026-10-10T07:17:45.542297+00:00",
+      "copy_mode": "original bytes, no transformation"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-workspace-1/driver-artifacts/native-D06-correction-original-output.png",
+      "destination": "evidence/D4/D4-T01/supporting/original-output-reader.png",
+      "bytes": 237052,
+      "sha256": "14a1e9674e8ab5ff975c6003c266ba6af047a4e4a79ba760e1b9bae53af7ccb6",
+      "captured_at": "2026-10-10T07:17:46.484773+00:00",
+      "copy_mode": "original bytes, no transformation"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-workspace-1/driver-artifacts/native-D06-failure-retained-after-correction.png",
+      "destination": "evidence/D4/D4-T01/supporting/failure-retained.png",
+      "bytes": 510205,
+      "sha256": "85c55b39e187a5fdf6c74a4811273362bb652142289a564658054ff64f833054",
+      "captured_at": "2026-10-10T07:17:47.328472+00:00",
+      "copy_mode": "original bytes, no transformation"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-workspace-1/run-metadata.json",
+      "destination": "evidence/shared/C8-native-workspace-1/run-metadata.json",
+      "bytes": 33343,
+      "sha256": "b7be062e2a451833bece85584a9adc5b3f84335df12e02e397d9bf15ab7bbf74",
+      "captured_at": "2026-10-10T07:18:29.467537+00:00",
+      "copy_mode": "original bytes, no transformation"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-workspace-1/driver-artifacts/result.json",
+      "destination": "evidence/shared/C8-native-workspace-1/result.json",
+      "bytes": 2708,
+      "sha256": "968aca33c26c898d00d500a4d307e4c237c9d026fa959cd96ed077a714f928c7",
+      "captured_at": "2026-10-10T07:18:27.324051Z",
+      "copy_mode": "original bytes, no transformation"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-workspace-1/native-test.private.log",
+      "destination": "evidence/shared/C8-native-workspace-1/native-test.log",
+      "bytes": 642,
+      "sha256": "89c208872328e635150abb1e17866ca2526b6b438ca8b32b5fa95fbbfbe36650",
+      "captured_at": "2026-10-10T07:18:29.467537+00:00",
+      "copy_mode": "original bytes, no transformation"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-c8-workspace-1/native-window.mp4",
+      "destination": "evidence/shared/C8-native-workspace-1/native-window.mp4",
+      "bytes": 19282647,
+      "sha256": "38ad41e96cdb97ca44477b9b705627290d2945651841b0558ccc0332b75ae23f",
+      "captured_at": "2026-10-10T07:17:35.085Z",
+      "copy_mode": "original bytes, no transformation"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/c8-helper-snapshot/source-input-hashes.json",
+      "destination": "evidence/shared/C8-native-workspace-1/source-input-hashes.json",
+      "bytes": 20819,
+      "sha256": "91f2b0e406f52e98da1d8b8224f07d8d72c2757d0a738a451243d3c2338eafb7",
+      "captured_at": null,
+      "copy_mode": "original bytes, no transformation"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/c8-helper-snapshot/snapshot-index.json",
+      "destination": "evidence/shared/C8-native-workspace-1/helper-snapshot-index.json",
+      "bytes": 889,
+      "sha256": "3a5cd175e7ef05d820f4fb888c56e1da4ae94d88e2f7569bef2ef01b17002a9a",
+      "captured_at": null,
+      "copy_mode": "original bytes, no transformation"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/c8-helper-snapshot/run_native.py.txt",
+      "destination": "evidence/shared/C8-native-workspace-1/helper-run_native.py.txt",
+      "bytes": 19924,
+      "sha256": "218aec61b9fd3775624085e931d559f9cf80c709899452ff9b83d081a8998ec5",
+      "captured_at": null,
+      "copy_mode": "original bytes, no transformation"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/c8-helper-snapshot/window_inventory.swift.txt",
+      "destination": "evidence/shared/C8-native-workspace-1/helper-window_inventory.swift.txt",
+      "bytes": 1613,
+      "sha256": "f3177aac1dfc6ae137f360aeb4ce3e604a01079f8971797d1898560dceeccdfe",
+      "captured_at": null,
+      "copy_mode": "original bytes, no transformation"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/c8-helper-snapshot/record_window.swift.txt",
+      "destination": "evidence/shared/C8-native-workspace-1/helper-record_window.swift.txt",
+      "bytes": 6129,
+      "sha256": "2a6a5699ff899826b5961f328675f828fc2f36521b23e82dd00d8886bf08f72a",
+      "captured_at": null,
+      "copy_mode": "original bytes, no transformation"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/c8-helper-snapshot/run_verify.py.txt",
+      "destination": "evidence/shared/C8-native-workspace-1/helper-run_verify.py.txt",
+      "bytes": 2226,
+      "sha256": "85b52b3aa38337f80e64b310b0e9c41c6f722fdf3702afa257ed572cc778dbfe",
+      "captured_at": null,
+      "copy_mode": "original bytes, no transformation"
+    },
+    {
+      "source": "/Users/robinfai/development/flutter/engine/src/flutter/shell/platform/darwin/macos/framework/Source/FlutterEngine.mm",
+      "destination": "evidence/shared/C8-native-workspace-1/sdk-FlutterEngine.mm.txt",
+      "bytes": 72138,
+      "sha256": "dab7e1748a404d3562e27287b0d2e62e3334c5f15ab0db4ee0819d64a8da6b4b",
+      "captured_at": null,
+      "copy_mode": "original bytes, no transformation"
+    },
+    {
+      "source": "/Users/robinfai/development/flutter/packages/flutter_test/lib/src/window.dart",
+      "destination": "evidence/shared/C8-native-workspace-1/sdk-flutter-test-window.dart.txt",
+      "bytes": 81938,
+      "sha256": "543cfa45804043c1e760f0b1e714da35f79393af8a7b3e933070734c3d907cd4",
+      "captured_at": null,
+      "copy_mode": "original bytes, no transformation"
+    },
+    {
+      "source": "/Users/robinfai/development/flutter/packages/flutter/lib/src/widgets/media_query.dart",
+      "destination": "evidence/shared/C8-native-workspace-1/sdk-media-query.dart.txt",
+      "bytes": 105785,
+      "sha256": "48d128afaa61e47a52f54d8af7313ccb8b3a827bc56a3c0500e42689c010f081",
+      "captured_at": null,
+      "copy_mode": "original bytes, no transformation"
+    },
+    {
+      "source": "/Users/robinfai/development/flutter/packages/integration_test/lib/integration_test.dart",
+      "destination": "evidence/shared/C8-native-workspace-1/sdk-integration-test.dart.txt",
+      "bytes": 17591,
+      "sha256": "f80d6c866c22108972859ce1fe65667be324c0d46d87b049c2bc7bf3670a9898",
+      "captured_at": null,
+      "copy_mode": "original bytes, no transformation"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-9-metadata.json",
+      "destination": "evidence/shared/C8-gates/verify-9-metadata.json",
+      "bytes": 409,
+      "sha256": "a3437299da9a38a30d1de3ddc6dc328b01b0a99be8f1818dc88cb42852c2469d",
+      "captured_at": "2026-10-10T07:22:26.466089+00:00",
+      "copy_mode": "original bytes, no transformation"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-9.log",
+      "destination": "evidence/shared/C8-gates/verify-9.log",
+      "bytes": 20565,
+      "sha256": "e69ad70e5943ddb65ea2c8de24e2904ce2d2b4dd994259ffe886a07077e7a7e8",
+      "captured_at": "2026-10-10T07:22:26.466089+00:00",
+      "copy_mode": "original bytes, no transformation"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-10-metadata.json",
+      "destination": "evidence/shared/C8-gates/verify-10-metadata.json",
+      "bytes": 411,
+      "sha256": "cc98a468099edc8eb65dee91efa4dec68333edbb1685e1dcfa5b9deef433ecd3",
+      "captured_at": "2026-10-10T07:38:10.258023+00:00",
+      "copy_mode": "original bytes, no transformation"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-10.log",
+      "destination": "evidence/shared/C8-gates/verify-10.log",
+      "bytes": 1704941,
+      "sha256": "5f5c2bdce6377a6f0ca5b2ca008947db1ba327ff227f826f984d8b561673aa45",
+      "captured_at": "2026-10-10T07:38:10.258023+00:00",
+      "copy_mode": "original bytes, no transformation"
+    },
+    {
+      "source": "tmp/desktop_prd_capture/native-c8-visual-review.md",
+      "destination": "evidence/shared/C8-native-workspace-1/visual-review.log",
+      "bytes": 14667,
+      "sha256": "3707114509e19e7989923c6c72047c3e9a911bfc23e175b0232277f56b448c0b",
+      "captured_at": "2026-10-10T07:39:51.620872+00:00",
+      "copy_mode": "original bytes, no transformation"
+    }
+  ],
+  "generated_files": [
+    {
+      "path": "evidence/shared/C8-native-workspace-1/source-input-hashes-supplement.json",
+      "sha256": "365e30c8da858074285a46144379b42a15be381b54ad0d4a96aa0b91d5b0f599",
+      "bytes": 8226,
+      "derived": true
+    },
+    {
+      "path": "evidence/shared/C8-native-workspace-1/binary-input-hashes.json",
+      "sha256": "5c9f426d867bb73a35b5d563deda498ffa9c0b8f68ac8adeec4d4b13b5adcbee",
+      "bytes": 1365,
+      "derived": true
+    },
+    {
+      "path": "evidence/shared/C8-native-workspace-1/font-scale-source-basis.json",
+      "sha256": "abf3b28dd08df2a019cd80882f71db53e7378bb3ee7c3226f36aa01c5aa1e979",
+      "bytes": 1873,
+      "derived": true
+    },
+    {
+      "path": "evidence/shared/C8-native-workspace-1/environment.json",
+      "sha256": "b4381ae19ba6f00cca319d98b7546127a1ec3a6d6c6e6d8db62b764c0ca0728b",
+      "bytes": 1514,
+      "derived": true
+    }
+  ],
+  "scope": "Selected original screenshots/video/logs; not every periodic capture is copied. Original run contains 133 hashed artifacts."
+}

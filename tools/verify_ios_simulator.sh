@@ -109,7 +109,19 @@ xcrun simctl bootstatus "$IOS_SIMULATOR_UDID" -b
 
 (
   cd "$EXAMPLE_DIR"
-  "${apple_build_env[@]}" flutter build ios --simulator --debug --no-codesign
+  # Resolve Flutter's generated Swift packages before asking Xcode for scheme
+  # destinations. They do not exist yet in a clean checkout.
+  if ! "${apple_build_env[@]}" flutter build ios --simulator --debug --no-codesign \
+    -d "$IOS_SIMULATOR_UDID"; then
+    # Preserve the build failure, while exposing destination filtering in CI.
+    # Runner keeps its physical-phone Release launch configuration; the gate
+    # explicitly uses Debug on the same booted device as the native tests.
+    "${apple_build_env[@]}" xcodebuild -workspace ios/Runner.xcworkspace \
+      -scheme Runner -configuration Debug -sdk iphonesimulator \
+      -showdestinations || true
+    exit 1
+  fi
+
 )
 
 IOS_APP="$(find "$EXAMPLE_DIR/build/ios/iphonesimulator" -maxdepth 1 -name '*.app' -print -quit)"
@@ -132,6 +144,8 @@ verify_ios_native_exports "$IOS_APP" "$simulator_arch"
     CODE_SIGNING_ALLOWED=NO
   "${apple_build_env[@]}" flutter test -d "$IOS_SIMULATOR_UDID" \
     integration_test/ios_sandbox_shell_acceptance_test.dart
+  "${apple_build_env[@]}" flutter test -d "$IOS_SIMULATOR_UDID" \
+    integration_test/compact_mobile_acceptance_test.dart
 )
 
 (

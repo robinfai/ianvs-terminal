@@ -1,6 +1,43 @@
 part of 'shell_screen.dart';
 
 extension _ShellScreenStateSessions on _ShellScreenState {
+  /// Ends the UI-owned controller lifetimes when the complete shell closes.
+  /// Individual session removal uses _clearPresentationStateForSession below.
+  void _disposePresentationControllers() {
+    for (final guard in _selectionResizeGuards.values) {
+      guard.dispose();
+    }
+    _selectionResizeGuards.clear();
+    for (final selectionController in _selectionControllers.values) {
+      selectionController.dispose();
+    }
+    for (final entry in _tabColorViewportControllers.entries) {
+      final listener = _tabColorViewportListeners[entry.key];
+      if (listener != null) {
+        entry.value.removeListener(listener);
+      }
+    }
+    _tabColorViewportControllers.clear();
+    _tabColorViewportListeners.clear();
+    _lastTabColors.clear();
+    for (final focusNode in _terminalFocusNodes.values) {
+      focusNode.dispose();
+    }
+    _searchFocusNode.dispose();
+    for (final session in _composerSessions.values) {
+      session.dispose();
+    }
+    _composerSessions.clear();
+    for (final ai in _aiSessions.values) {
+      ai.dispose();
+    }
+    _aiSessions.clear();
+    for (final reader in _readerControllers.values) {
+      reader.dispose();
+    }
+    _readerControllers.clear();
+  }
+
   void _commitViewportResize(
     SessionController sessionController,
     String sessionId,
@@ -15,7 +52,10 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       // Selection can be cleared during a build (for example closing a pane).
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !_sessionExists(sessionId)) return;
-        if (_scheduledViewportSizes[sessionId] != viewportSize) return;
+        if (_scheduledViewportSizes[sessionId] != viewportSize ||
+            _terminalViewportDevicePixelRatios[sessionId] != devicePixelRatio) {
+          return;
+        }
         if (selection?.selection != null) {
           _selectionResizeGuards[sessionId]?.resize(applyResize);
           return;
@@ -101,6 +141,12 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     _clearViewportMetricsForSession(sessionId);
     _clearInstantReplayHistory(sessionId);
 
+    _composerSessions.remove(sessionId)?.dispose();
+    _aiSessions.remove(sessionId)?.dispose();
+    _readerControllers.remove(sessionId)?.dispose();
+    _openAiSessions.remove(sessionId);
+    _manualInputEpochs.remove(sessionId);
+    _observedAiTargets.remove(sessionId);
     _selectionResizeGuards.remove(sessionId)?.dispose();
     final selectionController = _selectionControllers.remove(sessionId);
     if (selectionController != null) {
@@ -337,7 +383,11 @@ extension _ShellScreenStateSessions on _ShellScreenState {
 
     final sessionController = ref.read(sessionControllerProvider.notifier);
     for (final sessionId in sessionIds) {
-      final viewport = sessionController.viewportFor(sessionId);
+      final viewport = sessionController.existingViewportFor(sessionId);
+      if (viewport == null) {
+        _detachTabColorViewportListener(sessionId);
+        continue;
+      }
       if (identical(_tabColorViewportControllers[sessionId], viewport)) {
         continue;
       }
@@ -386,8 +436,9 @@ extension _ShellScreenStateSessions on _ShellScreenState {
 
     final frame = ref
         .read(sessionControllerProvider.notifier)
-        .viewportFor(previousActiveSessionId)
-        .frame;
+        .existingViewportFor(previousActiveSessionId)
+        ?.frame;
+    if (frame == null) return;
     final preview = _framePreview(frame);
     _sessionsSeenForActivityNotifications.add(previousActiveSessionId);
     _lastActivityFramePreviews[previousActiveSessionId] = preview;
@@ -649,8 +700,8 @@ extension _ShellScreenStateSessions on _ShellScreenState {
   Color? _tabProfileColor(SessionState sessionState, TerminalTab tab) {
     final dynamicColor = ref
         .read(sessionControllerProvider.notifier)
-        .viewportFor(tab.activePane.sessionId)
-        .frame
+        .existingViewportFor(tab.activePane.sessionId)
+        ?.frame
         .tabColor;
     if (dynamicColor != null) {
       return dynamicColor;
@@ -695,8 +746,9 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     }
     final frame = ref
         .read(sessionControllerProvider.notifier)
-        .viewportFor(sessionId)
-        .frame;
+        .existingViewportFor(sessionId)
+        ?.frame;
+    if (frame == null) return context.l10n.noActivePaneAvailable;
     final primarySize = requestedAxis == TerminalSplitAxis.horizontal
         ? frame.viewportCols
         : frame.viewportRows;
@@ -728,7 +780,8 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     SessionController sessionController,
     String sessionId,
   ) {
-    final viewport = sessionController.viewportFor(sessionId);
+    final viewport = sessionController.existingViewportFor(sessionId);
+    if (viewport == null) return false;
     if (viewport.frameVersion <= 0) {
       return false;
     }
@@ -841,7 +894,10 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       if (pane.sessionId == activeSessionId) {
         continue;
       }
-      final frame = sessionController.viewportFor(pane.sessionId).frame;
+      final frame = sessionController
+          .existingViewportFor(pane.sessionId)
+          ?.frame;
+      if (frame == null) return context.l10n.noActivePaneAvailable;
       final primarySize = activeTab.splitAxis == TerminalSplitAxis.horizontal
           ? frame.viewportCols
           : frame.viewportRows;
@@ -899,8 +955,9 @@ extension _ShellScreenStateSessions on _ShellScreenState {
   String _visibleFrameText(String sessionId) {
     final frame = ref
         .read(sessionControllerProvider.notifier)
-        .viewportFor(sessionId)
-        .frame;
+        .existingViewportFor(sessionId)
+        ?.frame;
+    if (frame == null) return '';
     final lines = <String>[
       for (final row in _logicalRows(frame.rows)) row.text.trimRight(),
     ];
@@ -1001,6 +1058,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     try {
       await showDialog<void>(
         context: context,
+        animationStyle: appDialogAnimation(context),
         builder: (dialogContext) => Consumer(
           builder: (context, ref, _) {
             final sessions = ref.watch(sessionControllerProvider);
@@ -1050,6 +1108,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       if (!_readOnlySessionIds.add(sessionId)) {
         _readOnlySessionIds.remove(sessionId);
       }
+      _revokeManualInput(sessionId);
     });
   }
 
@@ -1109,22 +1168,39 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     SessionState sessionState,
     String sessionId,
   ) async {
-    final closesLastSession =
-        sessionState.tabs.length == 1 &&
-        sessionState.tabs.single.effectivePanes.length == 1;
-    if (!await sessionController.closeSession(sessionId)) {
-      return;
-    }
-    if (closesLastSession) {
-      _recentlyClosedLastSession = true;
-    }
-    _clearPresentationStateForSession(sessionId);
-    final nextActiveSessionId = ref
-        .read(sessionControllerProvider)
-        .activeSessionId;
-    if (nextActiveSessionId != null) {
-      _scheduleReturningCue();
-      _focusSession(nextActiveSessionId);
+    if (!_closingSessionIds.add(sessionId)) return;
+    try {
+      if (_sessionSourceInUse(sessionId)) {
+        _showShellSnackBar(context.l10n.mobileSessionReferencedByAi);
+        return;
+      }
+      final approved = _closeProtectionSnapshot(sessionId, wholeTab: false);
+      if (approved == null || !await _confirmProtectedClose(approved)) return;
+      if (!_closeProtectionStillValid(approved)) return;
+      final currentState = ref.read(sessionControllerProvider);
+      final closesLastSession =
+          currentState.tabs.length == 1 &&
+          currentState.tabs.single.effectivePanes.length == 1;
+      if (!await sessionController.closeSession(
+        sessionId,
+        canClose: () => _closeProtectionStillValid(approved),
+      )) {
+        return;
+      }
+      if (!mounted) return;
+      if (closesLastSession) {
+        _recentlyClosedLastSession = true;
+      }
+      _clearPresentationStateForSession(sessionId);
+      final nextActiveSessionId = ref
+          .read(sessionControllerProvider)
+          .activeSessionId;
+      if (nextActiveSessionId != null) {
+        _scheduleReturningCue();
+        _focusSession(nextActiveSessionId);
+      }
+    } finally {
+      _closingSessionIds.remove(sessionId);
     }
   }
 
@@ -1147,55 +1223,111 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     SessionState sessionState,
     String tabSessionId,
   ) async {
-    final closesLastTab = sessionState.tabs.length == 1;
-    final closingTab = sessionState.tabs.firstWhere(
-      (tab) => tab.sessionId == tabSessionId,
-      orElse: () => sessionState.tabs.first,
-    );
-    final closeCompleted = await sessionController.closeTab(tabSessionId);
-    final currentState = ref.read(sessionControllerProvider);
-    final remainingSessionIds = currentState.tabs
-        .expand((tab) => tab.effectivePanes)
+    // A tab keeps its stable ID after the original split pane has closed.
+    // Resolve the tab identity directly instead of looking for a live pane.
+    final target = ref
+        .read(sessionControllerProvider)
+        .tabs
+        .where((tab) => tab.sessionId == tabSessionId)
+        .firstOrNull;
+    if (target == null) return;
+    final closingSessionIds = target.effectivePanes
         .map((pane) => pane.sessionId)
         .toSet();
-    final removedSessionIds = closingTab.effectivePanes
-        .map((pane) => pane.sessionId)
-        .where((sessionId) => !remainingSessionIds.contains(sessionId))
-        .toList(growable: false);
-    // Native close is per pane. A later pane can become busy after an earlier
-    // pane closed, so reconcile presentation resources even when the tab-wide
-    // operation returns false.
-    _clearPresentationStateForSessions(removedSessionIds);
-    final nextActiveSessionId = currentState.activeSessionId;
-    if (removedSessionIds.isNotEmpty && nextActiveSessionId != null) {
-      _scheduleReturningCue();
-      _focusSession(nextActiveSessionId);
-    }
-    if (!closeCompleted) {
-      return;
-    }
-    if (closesLastTab) {
-      _recentlyClosedLastSession = true;
-    }
-    if (nextActiveSessionId != null && removedSessionIds.isEmpty) {
-      _scheduleReturningCue();
-      _focusSession(nextActiveSessionId);
+    if (closingSessionIds.any(_closingSessionIds.contains)) return;
+    _closingSessionIds.addAll(closingSessionIds);
+    try {
+      if (target.effectivePanes.any(
+        (pane) => _sessionSourceInUse(
+          pane.sessionId,
+          closingSessions: closingSessionIds,
+        ),
+      )) {
+        _showShellSnackBar(context.l10n.mobileSessionReferencedByAi);
+        return;
+      }
+      final approved = _closeProtectionSnapshot(tabSessionId, wholeTab: true);
+      if (approved == null || !await _confirmProtectedClose(approved)) return;
+      if (!_closeProtectionStillValid(approved)) return;
+      final closesLastTab =
+          ref.read(sessionControllerProvider).tabs.length == 1;
+      final closeCompleted = await sessionController.closeTab(
+        tabSessionId,
+        canClose: () => _closeProtectionStillValid(approved),
+      );
+      if (!mounted) return;
+      final currentState = ref.read(sessionControllerProvider);
+      final remainingSessionIds = currentState.tabs
+          .expand((tab) => tab.effectivePanes)
+          .map((pane) => pane.sessionId)
+          .toSet();
+      final removedSessionIds = target.effectivePanes
+          .map((pane) => pane.sessionId)
+          .where((sessionId) => !remainingSessionIds.contains(sessionId))
+          .toList(growable: false);
+      // Native close is per pane. A later pane can become busy after an earlier
+      // pane closed, so reconcile presentation resources even when the tab-wide
+      // operation returns false.
+      _clearPresentationStateForSessions(removedSessionIds);
+      final nextActiveSessionId = currentState.activeSessionId;
+      if (removedSessionIds.isNotEmpty && nextActiveSessionId != null) {
+        _scheduleReturningCue();
+        _focusSession(nextActiveSessionId);
+      }
+      if (!closeCompleted) {
+        return;
+      }
+      if (closesLastTab) {
+        _recentlyClosedLastSession = true;
+      }
+      if (nextActiveSessionId != null && removedSessionIds.isEmpty) {
+        _scheduleReturningCue();
+        _focusSession(nextActiveSessionId);
+      }
+    } finally {
+      _closingSessionIds.removeAll(closingSessionIds);
     }
   }
 
   void _focusSession(String? sessionId) {
-    if (sessionId == null) {
+    if (!mounted || sessionId == null) {
       return;
     }
-    final focusNode = _focusNodeFor(sessionId);
-    if (!focusNode.canRequestFocus) {
-      return;
-    }
+    final owner = FocusManager.instance.primaryFocus;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !focusNode.canRequestFocus) {
+      if (!mounted) return;
+      final lifecycle = WidgetsBinding.instance.lifecycleState;
+      final currentOwner = FocusManager.instance.primaryFocus;
+      // Explicit takeover removes the old AI/observer focus. A dismissed menu
+      // can also leave only the shell route's scope while its former scope is
+      // disabled. These fallbacks are not a new editor chosen by the user.
+      final releasedOwner =
+          currentOwner == null ||
+          (identical(currentOwner, FocusScope.of(context)) &&
+              owner?.canRequestFocus == false);
+      if (ref.read(sessionControllerProvider).activeSessionId != sessionId ||
+          _shellModalInputBlocked ||
+          (lifecycle != null && lifecycle != AppLifecycleState.resumed) ||
+          (currentOwner != owner && !releasedOwner) ||
+          _readerControllers[sessionId]?.blocksInput == true ||
+          !_sessionExists(sessionId) ||
+          _mobileSessionsOpen ||
+          (context.usesMobileNavigation && _mobileConnectionsOpen)) {
         return;
       }
-      focusNode.requestFocus();
+      if (_openAiSessions.contains(sessionId)) {
+        if (!_mobileRequiresLlm && !_observedAiTargets.containsKey(sessionId)) {
+          _aiSessions[sessionId]?.requestDraftFocus();
+        }
+        return;
+      }
+      final composer = _composerSessions[sessionId];
+      final focusNode =
+          composer?.enabled == true &&
+              composer!.controller.ownership == terminal.ComposerOwnership.ready
+          ? composer.editorFocus
+          : _focusNodeFor(sessionId);
+      if (focusNode.canRequestFocus) focusNode.requestFocus();
     });
   }
 

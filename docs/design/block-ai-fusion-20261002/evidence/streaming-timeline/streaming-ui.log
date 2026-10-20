@@ -1,0 +1,39 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/integration_test/terminal_ai_workspace_acceptance_test.dart
+Building macOS application...                                   
+✓ Built build/macos/Build/Products/Debug/Trail Development.app
+00:00 +0: Main AI timeline submits once and returns unchanged TUI grid
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following StateError was thrown running a test:
+Bad state: Too many elements
+
+When the exception was thrown, this was the stack:
+#0      Iterable.single (dart:core/iterable.dart:696:24)
+#1      WidgetController.widget (package:flutter_test/src/controller.dart:828:30)
+#2      verifyStreamingTimeline (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/integration_test/terminal_ai_stream_acceptance.dart:50:29)
+<asynchronous suspension>
+#3      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/integration_test/terminal_ai_workspace_acceptance_test.dart:783:25)
+<asynchronous suspension>
+#4      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#5      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+The test description was:
+  Main AI timeline submits once and returns unchanged TUI grid
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:39 +0 -1: Main AI timeline submits once and returns unchanged TUI grid [E]
+  Test failed. See exception logs above.
+  The test description was: Main AI timeline submits once and returns unchanged TUI grid
+  
+00:39 +0 -1: Production component preview M01-fixed-text
+00:44 +1 -1: Production component preview M01-keyboard-space
+00:46 +2 -1: Production component preview M03-dark-evidence
+00:49 +3 -1: Production component preview M01-landscape
+00:54 +4 -1: (tearDownAll)
+00:54 +4 -1: Some tests failed.
+
+Failing tests:
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/integration_test/terminal_ai_workspace_acceptance_test.dart: Main AI timeline submits once and returns unchanged TUI grid

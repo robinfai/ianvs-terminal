@@ -1,6 +1,9 @@
 part of 'shell_screen.dart';
 
 extension _ShellScreenStateCommandActions on _ShellScreenState {
+  bool _useAnimations(bool enabled) =>
+      enabled && !MediaQuery.disableAnimationsOf(context);
+
   Future<bool> _executeProductionActionIfBound({
     required ShellActionProductionRuntimeAdapter adapter,
     required TerminalActionId action,
@@ -38,7 +41,9 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
       sessionState.profiles,
       sessionState.defaultProfileId,
     );
-    final animationsEnabled = ref.read(shellAnimationsEnabledProvider);
+    final animationsEnabled = _useAnimations(
+      ref.read(shellAnimationsEnabledProvider),
+    );
     if (_isCommandMenuOpen) {
       return;
     }
@@ -83,10 +88,19 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         isActiveSessionRecording: isActiveSessionRecording,
         isActiveRecordingPendingSave: isActiveRecordingPendingSave,
         isActiveRecordingBusy: isActiveRecordingBusy,
+        modeSelection:
+            context.usesTouchControlDensity && activeSessionIdBeforeOpen != null
+            ? _MobileTerminalModes(
+                sessionId: activeSessionIdBeforeOpen,
+                hasUnifiedWorkspace: () =>
+                    _mobileRequiresLlm &&
+                    _openAiSessions.contains(activeSessionIdBeforeOpen),
+              )
+            : null,
       );
     }
 
-    final commandMenuRoute = RawDialogRoute<TerminalActionId>(
+    final commandMenuRoute = RawDialogRoute<Object>(
       barrierDismissible: true,
       barrierLabel: l10n.closeCommandPalette,
       barrierColor: Colors.black.withValues(alpha: 0.42),
@@ -124,26 +138,32 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         );
       },
     );
-    final TerminalActionId? action;
+    final Object? selection;
     if (context.usesMobileNavigation) {
       FocusManager.instance.primaryFocus?.unfocus();
-      action = await showModalBottomSheet<TerminalActionId>(
+      selection = await showModalBottomSheet<Object>(
         context: context,
+        sheetAnimationStyle: animationsEnabled
+            ? null
+            : AnimationStyle.noAnimation,
         useRootNavigator: true,
         useSafeArea: true,
         isScrollControlled: true,
         showDragHandle: true,
         builder: (_) => _MobileSessionMenu(
-          hasSession: hasActiveSession,
+          sessionId: activeSessionIdBeforeOpen,
+          hasUnifiedWorkspace: () =>
+              _mobileRequiresLlm &&
+              _openAiSessions.contains(activeSessionIdBeforeOpen),
           readOnly: isActiveSessionReadOnly,
           canReopen: sessionController.canReopenClosedTab,
         ),
       );
     } else {
-      action = await Navigator.of(
+      selection = await Navigator.of(
         context,
         rootNavigator: true,
-      ).push<TerminalActionId>(commandMenuRoute);
+      ).push<Object>(commandMenuRoute);
       await commandMenuRoute.completed;
     }
 
@@ -160,6 +180,37 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
       return;
     }
 
+    if (selection is _MobileConnectionMenuAction) {
+      if (activeSessionIdBeforeOpen != null) {
+        switch (selection) {
+          case _MobileConnectionMenuAction.reconnect:
+            await _reconnectMobileSession(activeSessionIdBeforeOpen);
+          case _MobileConnectionMenuAction.close:
+            await _closeMobileSession(activeSessionIdBeforeOpen);
+        }
+      }
+      return;
+    }
+    if (selection == _TerminalModeMenuAction.recheck) {
+      if (activeSessionIdBeforeOpen != null) {
+        _refreshTerminalSupport(
+          activeSessionIdBeforeOpen,
+          recheckSupport: true,
+        );
+      }
+      return;
+    }
+    if (selection is TerminalViewMode) {
+      if (activeSessionIdBeforeOpen != null) {
+        _selectTerminalMode(
+          sessionController,
+          activeSessionIdBeforeOpen,
+          selection,
+        );
+      }
+      return;
+    }
+    final action = selection as TerminalActionId?;
     final currentState = ref.read(sessionControllerProvider);
     final currentSessionId = currentState.activeSessionId;
     final productionMenuAdapter = _buildScopedProductionActionAdapter(
@@ -582,6 +633,10 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
               l10n.clearBufferRequiresSession,
             );
           }
+          final unavailable = _bufferClearUnavailableReason(currentSessionId);
+          if (unavailable != null) {
+            return ShellActionBindingResult.skipped(unavailable);
+          }
           final cleared = ref
               .read(terminalRuntimeControllerProvider)
               .clearBuffer(currentSessionId);
@@ -847,6 +902,9 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
       sessionState.defaultProfileId,
     );
     final targetSessionId = paneSessionId ?? tab.activeSessionId;
+    final originalPaneIds = {
+      for (final pane in tab.effectivePanes) pane.sessionId,
+    };
     final hasMultiplePanes = tab.effectivePanes.length > 1;
     final paneManagementBlockedReason = _zoomedPaneManagementUnavailableReason(
       tab,
@@ -939,13 +997,31 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
       );
     }
 
-    final action = await showMenu<TerminalActionId>(
+    if (!context.usesMobileNavigation) {
+      _refreshTerminalSupport(targetSessionId);
+    }
+    final action = await showMenu<Object>(
       context: context,
+      popUpAnimationStyle: appDialogAnimation(context),
       position: RelativeRect.fromRect(
         Rect.fromLTWH(position.dx, position.dy, 1, 1),
         Offset.zero & overlaySize,
       ),
       items: [
+        if (!context.usesMobileNavigation) ...[
+          for (final mode in TerminalViewMode.values)
+            TerminalModeMenuEntry(
+              sessionId: targetSessionId,
+              value: mode,
+              hasUnifiedWorkspace: () =>
+                  _openAiSessions.contains(targetSessionId),
+            ),
+          TerminalModeMenuEntry(
+            sessionId: targetSessionId,
+            value: _TerminalModeMenuAction.recheck,
+          ),
+          const PopupMenuDivider(),
+        ],
         item(
           action: TerminalActionId.duplicateCurrentCwd,
           icon: Icons.create_new_folder_rounded,
@@ -1023,19 +1099,91 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
     if (!mounted || action == null) {
       return;
     }
+    final currentState = ref.read(sessionControllerProvider);
+    // Detaching the root pane reuses its ID for a new tab. If original members
+    // now live elsewhere, this menu no longer describes the same tab. Natural
+    // exits do not count as moves, so explicit close-tab remains available.
+    if (currentState.tabs.any(
+      (currentTab) =>
+          currentTab.sessionId != tab.sessionId &&
+          currentTab.effectivePanes.any(
+            (pane) => originalPaneIds.contains(pane.sessionId),
+          ),
+    )) {
+      return;
+    }
+    if (action == _TerminalModeMenuAction.recheck ||
+        action is TerminalViewMode) {
+      final currentTab = _tabForSession(currentState, targetSessionId);
+      if (currentTab?.sessionId != tab.sessionId) return;
+    }
+    if (action == _TerminalModeMenuAction.recheck) {
+      _refreshTerminalSupport(targetSessionId, recheckSupport: true);
+      return;
+    }
+    if (action is TerminalViewMode) {
+      _selectTerminalMode(sessionController, targetSessionId, action);
+      return;
+    }
     await _runTabContextAction(
       sessionController,
-      action,
+      action as TerminalActionId,
       targetTabSessionId: tab.sessionId,
-      targetPaneSessionId: paneSessionId,
+      targetPaneSessionId: targetSessionId,
     );
+  }
+
+  void _selectTerminalMode(
+    SessionController sessionController,
+    String sessionId,
+    TerminalViewMode mode,
+  ) {
+    final session = _composerSessions[sessionId];
+    final pane = _paneForSession(
+      ref.read(sessionControllerProvider),
+      sessionId,
+    );
+    if (session == null || pane == null) return;
+    session.updateEnvironment(pane, readOnly: _isSessionReadOnly(sessionId));
+    if (!session.selectMode(mode)) return;
+    _activateSession(sessionController, sessionId, requestFocus: false);
+    if (mode == TerminalViewMode.blocks) {
+      _openAi(sessionId);
+      return;
+    }
+    // A manual terminal choice also leaves the AI workspace that covers it.
+    // Keep its task/draft, revoke pending agent input, then focus the chosen view.
+    _takeOverAiInput(sessionId);
+  }
+
+  void _refreshTerminalSupport(
+    String sessionId, {
+    bool recheckSupport = false,
+  }) {
+    final pane = _paneForSession(
+      ref.read(sessionControllerProvider),
+      sessionId,
+    );
+    if (pane == null) return;
+    final wasInitialized = _composerSessions.containsKey(sessionId);
+    final session = _composerFor(sessionId);
+    final readOnly = _isSessionReadOnly(sessionId);
+    session.updateEnvironment(pane, readOnly: readOnly);
+    if (pane.isExited || readOnly) return;
+    if (!wasInitialized) {
+      // Restored/background tabs may never have mounted a ComposerPane.
+      // Observe their handshake without activating the tab or granting input.
+      // Keep polling so an open menu also sees a delayed shell becoming ready.
+      session.setVisible(false);
+    }
+    session.refreshShellState(recheckSupport: recheckSupport);
   }
 
   Future<void> _runTabContextAction(
     SessionController sessionController,
     TerminalActionId action, {
     required String targetTabSessionId,
-    String? targetPaneSessionId,
+    required String targetPaneSessionId,
   }) async {
     final defaultProfile = _effectiveDefaultProfileFor(
       ref.read(sessionControllerProvider).profiles,
@@ -1052,13 +1200,13 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
     if (targetTab == null) {
       return;
     }
-    final targetSessionId = targetPaneSessionId ?? targetTab.activeSessionId;
-    if (!targetTab.containsSession(targetSessionId)) {
+    if (action == TerminalActionId.closeActiveTab) {
+      _closeTab(sessionController, initialState, targetTab.sessionId);
       return;
     }
 
-    if (action == TerminalActionId.closeActiveTab) {
-      _closeTab(sessionController, initialState, targetTab.sessionId);
+    final targetSessionId = targetPaneSessionId;
+    if (!targetTab.containsSession(targetSessionId)) {
       return;
     }
 

@@ -1,0 +1,16 @@
+{
+  "implementation_commit": "1c95adcaab32fac64fb08142da7a0eb3b8620b5a",
+  "started_at": "2026-10-10T06:31:12.090286+00:00",
+  "source_clean_at_start": true,
+  "command_summary": "tools/mobile_prd/build_ios_fixture.sh --platform physical --mode profile --entrypoint app (same cached signer/profile as the C3 isolated app)",
+  "installed": false,
+  "device_validated": false,
+  "acceptance_passed": false,
+  "log": "build/desktop-prd-v1/iteration-1/iphone-c4-build-1/runner.private.log",
+  "finished_at": "2026-10-10T06:32:00.829689+00:00",
+  "elapsed_seconds": 49,
+  "exit_code": 0,
+  "head_at_end": "1c95adcaab32fac64fb08142da7a0eb3b8620b5a",
+  "source_clean_at_end": true,
+  "app_output_directory": "build/mobile-prd-v1.1/ios/physical-profile.sCXhyL"
+}

@@ -367,6 +367,14 @@ void main() {
       expect(certificate.codesignLog, isNot(contains('--force')));
       expect(certificate.codesignLog, contains('--verify --deep --strict'));
 
+      final invalidLibrary = await _runSignerFixture(
+        signature: 'adhoc',
+        entitlements: validEntitlements,
+        nativeLibrarySucceeds: false,
+      );
+      expect(invalidLibrary.result.exitCode, isNonZero);
+      expect(invalidLibrary.codesignLog, isEmpty);
+
       final wrongCertificate = await _runSignerFixture(
         signature: 'certificate',
         entitlements: validEntitlements,
@@ -589,6 +597,7 @@ Future<_SignerFixtureResult> _runSignerFixture({
   String authority = 'Apple Development: developer@example.test (FIXTURE123)',
   bool runtimeFlag = true,
   bool verifySucceeds = true,
+  bool nativeLibrarySucceeds = true,
 }) async {
   final repositoryRoot = _exampleRoot().parent;
   final directory = Directory.systemTemp.createTempSync(
@@ -600,6 +609,24 @@ Future<_SignerFixtureResult> _runSignerFixture({
     final codesignLog = File('${directory.path}/codesign.log')..createSync();
     final finalEntitlements = File('${directory.path}/entitlements.plist')
       ..writeAsStringSync(entitlements);
+    final pythonPath = await Process.run('python3', <String>[
+      '-c',
+      'import sys; print(sys.executable)',
+    ]);
+    expect(pythonPath.exitCode, 0, reason: pythonPath.stderr as String?);
+    // This cross-platform fixture tests signing decisions. Real Mach-O loading
+    // is covered by tools/tests/test_macos_native_library.py on macOS.
+    final python = File('${bin.path}/python3')
+      ..writeAsStringSync(r'''
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "$1" == */verify_macos_native_library.py ]]; then
+  [[ "$2" == "$FAKE_APP_PATH/Contents/Frameworks/ianvs_core.framework/ianvs_core" ]]
+  [[ "$FAKE_NATIVE_LIBRARY_SUCCEEDS" == "true" ]]
+else
+  exec "$REAL_PYTHON" "$@"
+fi
+''');
     final uname = File('${bin.path}/uname')
       ..writeAsStringSync('#!/usr/bin/env bash\necho Darwin\n');
     final codesign = File('${bin.path}/codesign')
@@ -637,6 +664,7 @@ fi
       '+x',
       uname.path,
       codesign.path,
+      python.path,
     ]);
     expect(chmod.exitCode, 0, reason: chmod.stderr as String?);
 
@@ -649,6 +677,9 @@ fi
       ],
       environment: <String, String>{
         'PATH': '${bin.path}:$parentPath',
+        'REAL_PYTHON': (pythonPath.stdout as String).trim(),
+        'FAKE_APP_PATH': app.path,
+        'FAKE_NATIVE_LIBRARY_SUCCEEDS': nativeLibrarySucceeds.toString(),
         'FAKE_SIGNATURE': signature,
         'FAKE_AUTHORITY': authority,
         'FAKE_RUNTIME_FLAG': runtimeFlag.toString(),

@@ -1,0 +1,66 @@
+{
+  "implementation_commit": "1c95adcaab32fac64fb08142da7a0eb3b8620b5a",
+  "scope": "C4 failed gate, successful isolated install, later physical launch/API-connection UI observations, and subsequent authorized import blocked before transfer by device availability. Original per-step records retained; no complete mobile acceptance.",
+  "files": [
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-8.log",
+      "archive_name": "verify-8.log",
+      "sha256": "ac09ce0ef592e800af49b295d60897f18f34f9a9ba8de7a41b4f475cd97f3ce0",
+      "record_kind": "original"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/verify-8-metadata.json",
+      "archive_name": "verify-8-metadata.json",
+      "sha256": "fc08d6d70a3fd46c695abc71d1a1db74c04191a508430033f407c8393fa166df",
+      "record_kind": "original"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/iphone-c4-build-1/run-metadata.json",
+      "archive_name": "iphone-build-run.json",
+      "sha256": "e87d1193548cfca8430e3da10896f10a9ed644942e6c5124b18f17cb09fbd906",
+      "record_kind": "original"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/iphone-c4-build-1/iphone-build-summary.json",
+      "archive_name": "iphone-build-summary.json",
+      "sha256": "10161f0130613a2ad50b52e1e122defe1ef2e3e1a91194fa057a1566cc6bb518",
+      "record_kind": "derived safe metadata"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/iphone-c4-install-1/install-summary.json",
+      "archive_name": "iphone-install-summary.json",
+      "sha256": "7fe3d8dccdc9a5890a7d0272afa3d398b879f2de9a4552f28f359686d69229f0",
+      "record_kind": "derived safe metadata"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/iphone-c4-availability-3-summary.json",
+      "archive_name": "iphone-connection-summary.json",
+      "sha256": "6efe7abedfce167b9987b1bbfde8a3c836c4b558da39b89d0b0a543ffbb9cd03",
+      "record_kind": "derived safe metadata"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/iphone-c4-install-1/ui-followup-summary.json",
+      "archive_name": "ui-followup-summary.json",
+      "sha256": "d2c4ef2aadd8cbb9467a2d7c49faef048792cabe68941c3567d609672aa65576",
+      "bytes": 3497,
+      "record_kind": "original bytes of the safe UI observation summary"
+    },
+    {
+      "source": "tmp/desktop_prd_capture/phone-cloud-import-pending-summary.json",
+      "archive_name": "cloud-import-pending-summary.json",
+      "sha256": "26af23620a99fe421d25468ef3b7e0c484380182cef2e9596b9ac86fc2872d48",
+      "bytes": 1054,
+      "record_kind": "derived safe availability/authorization summary"
+    },
+    {
+      "source": "Root sanitized summary from CoreDevice and CUA observations",
+      "archive_name": "cloud-import-followup-summary.json",
+      "sha256": "8d90e61b5b285bf456c4033d83ab4d8e0619c25324b77d45781820af1d2a0397",
+      "bytes": 929,
+      "record_kind": "derived safe device/UI follow-up summary"
+    }
+  ],
+  "latest_followup": "cloud-import-followup-summary.json",
+  "updated_at": "2026-10-10T08:13:46.015297+00:00",
+  "history_note": "Earlier install/availability summaries retain their then-observed locked/connected states; ui-followup-summary records the later successful launch, while cloud-import-pending-summary records a subsequent unavailable transport/mirror lock. Do not collapse these observations into one current state. The latest follow-up separately records recovered USB transport while Mirroring remained locked."
+}

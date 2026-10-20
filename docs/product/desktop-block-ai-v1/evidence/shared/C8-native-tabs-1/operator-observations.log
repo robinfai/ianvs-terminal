@@ -1,0 +1,84 @@
+D1-T01 manual native UI observations
+Recorded after the run from the CUA tool responses in this conversation; this is an operator transcription, not a saved live AX dump.
+
+The following verbatim bottom-status accessibility text was observed during normal UI interaction:
+A before opening AI:
+D1-A
+会话: 1
+节点: root
+/private/tmp/trail-desktop-prd-c8-tabs-1/home
+Blocks
+人工输入
+Shell 已就绪
+
+A while its AI task was visible:
+D1-A
+会话: 1
+节点: root
+/private/tmp/trail-desktop-prd-c8-tabs-1/home
+AI 任务
+人工输入已暂停
+Shell 已就绪
+
+A after folding the task:
+D1-A
+会话: 1
+节点: root
+/private/tmp/trail-desktop-prd-c8-tabs-1/home
+只读观察
+人工输入已暂停
+Shell 已就绪
+
+B after its BEFORE command, before entering AI:
+D1-B
+会话: 2
+节点: root
+/private/tmp/trail-desktop-prd-c8-tabs-1/home
+Blocks
+人工输入
+Shell 已就绪
+
+B while its AI task was visible:
+D1-B
+会话: 2
+节点: root
+/private/tmp/trail-desktop-prd-c8-tabs-1/home
+AI 任务
+人工输入已暂停
+Shell 已就绪
+
+B after explicit manual takeover:
+D1-B
+会话: 2
+节点: root
+/private/tmp/trail-desktop-prd-c8-tabs-1/home
+Blocks
+人工输入
+Shell 已就绪
+
+Final return to A after both AFTER commands:
+D1-A
+会话: 1
+节点: root
+/private/tmp/trail-desktop-prd-c8-tabs-1/home
+Blocks
+人工输入
+Shell 已就绪
+
+Observed action sequence:
+1. Normal UI + opened two isolated local fixture tabs. Each began in normal terminal mode and was explicitly switched to Blocks through its own tab context menu.
+2. A BEFORE command executed once, then command draft printf 'D1_A_COMMAND_DRAFT\n' was left unsubmitted.
+3. B BEFORE command executed once, then command draft printf 'D1_B_COMMAND_DRAFT\n' was left unsubmitted.
+4. Returned to A: its command draft and original Block remained. Captured D1-T01-F01.
+5. Opened A AI task; pasted 保留 D1_A_AI_DRAFT，暂不发送 without submitting. Captured D1-T01-F02.
+6. Folded using global AI toggle; observed read-only terminal and unchanged A target. Native CUA click/typeText/Return probe produced no visible echo, but its input-delivery/foreground timing was not independently recorded, so this is auxiliary observation only, not a certified write-blocking assertion.
+7. Returned to A AI: original draft visible. Changed to B: B command draft remained. Opened B AI, pasted 保留 D1_B_AI_DRAFT，暂不发送 without submitting, then returned to A: A AI draft remained separate.
+8. Folded A AI, explicitly clicked 人工接管. Captured original restored command draft BEFORE replacing it. Replaced with AFTER command and explicitly executed once.
+9. Returned to B AI: B AI draft remained. Folded to observer and returned to task, then captured restored B AI draft. Folded again and explicitly clicked 人工接管; captured original B command draft BEFORE replacing it. Executed B AFTER once.
+10. Returned to A: original BEFORE and AFTER Blocks remained under session 1.
+11. Quit the isolated app through Flutter runner q; runner exit 0 / Application finished.
+
+No AI request sent and no model configured. No private profiles or credentials used by this desktop fixture. Each session has exactly two visible Blocks from the deliberate BEFORE/AFTER commands; draft-only commands were not executed.
+Session IDs above come from bottom-status AX text, NOT from the tab Command 1/Command 2 shortcut labels.
+Captured App/window identity is exact PID 29146 / window 28828. Some screenshot metadata report this window inactive because the separately approved evidence helper ran while another app was frontmost; do not label all screenshots foreground.
+Discrete process-tree checkpoints preserve the two zsh PID/TTY identities; they do not establish absence of every possible transient process between samples.

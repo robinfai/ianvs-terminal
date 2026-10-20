@@ -11,8 +11,9 @@ extension PumpApp on WidgetTester {
     TargetPlatform platform = TargetPlatform.macOS,
     String? fontFamily,
     List<String>? fontFamilyFallback,
-  }) => pumpWidget(
-    MaterialApp(
+    Widget Function(Widget app)? wrapper,
+  }) {
+    final app = MaterialApp(
       theme: buildIanvsTerminalTheme(brightness, platform: platform).copyWith(
         textTheme: buildIanvsTerminalTheme(brightness, platform: platform)
             .textTheme
@@ -31,6 +32,7 @@ extension PumpApp on WidgetTester {
         child: child!,
       ),
       home: Scaffold(body: child),
-    ),
-  );
+    );
+    return pumpWidget(wrapper?.call(app) ?? app);
+  }
 }

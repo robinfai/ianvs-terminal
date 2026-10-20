@@ -66,3 +66,42 @@ return Response v1, including structured protocol/runtime errors. Runtime Capabi
 Operation-specific clients supply an operation name and its payload separately. Native dispatches
 the validated operation and payload directly; no `{kind, ...payload}` compatibility object crosses
 this contract. No application Profile fields or undeclared native internals cross it either.
+
+Composer uses the same correlated envelope for `completion.query`,
+`completion.local_start`, `completion.local_poll`, `completion.local_cancel`,
+`composer.state` and `composer.submit`. Their payloads are closed shapes and
+reject unknown fields. See [Composer V1](COMPOSER_V1.md) for identity, limits,
+local-read policy, lease checks and submission outcomes. These operations add no
+exported FFI symbol or predecessor completion ABI.
+
+`terminal.command_blocks` is an additive, read-only operation on this same
+envelope. An empty payload returns bounded command previews; `id`, `offset`
+and `limit` page retained terminal rows. Optional `query`, `regex`,
+`caseSensitive`, `invert`, `contextLines` and `tail` select a view without
+modifying terminal output. Responses carry native cell styles, hyperlinks,
+execution metadata and scrollback-eviction status. Unsupported runtimes keep
+using the full terminal view. See [Command Blocks](../command-blocks/WARP_COMMAND_BLOCKS_RESEARCH.md)
+for bounds and presentation behavior. This operation grants no PTY write
+capability and adds no FFI symbol.
+
+Command-block paging and evidence coordinates have separate meanings:
+
+- `offset`, `nextOffset` and `totalLines` count retained rows owned by the
+  command; a filtered view pages its selected rows and reports `matchingLines`.
+- `lines[].index` addresses physical source rows relative to the retained source
+  base (`source_row - index`). `sourceLineCount` is that physical span, including
+  gaps occupied by nested shells. Consumers of older responses default it to
+  `totalLines`.
+- `segmented: true` means source indices may have gaps. An optional `sourceLine`
+  request takes precedence over `offset` and starts exactly at that source
+  index; unavailable rows or rows absent from a filtered view return an error
+  instead of substituting another row. Saved references must also validate the
+  source base, since scrollback eviction can change relative indices.
+- `running: true, suspended: true` preserves a parent command's lifecycle while
+  a nested shell owns input. Its output excludes the child's rows and its view
+  must not route keyboard, paste or pointer input to the PTY.
+
+Parent output segments and shared-row ownership are bounded. If terminal edits
+move or replace cells whose ownership cannot be preserved, affected segments
+are discarded and `evicted` becomes true. Consumers must treat that output as
+unavailable, not reuse the corresponding child text.

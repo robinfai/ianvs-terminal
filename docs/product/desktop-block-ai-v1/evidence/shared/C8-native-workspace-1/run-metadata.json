@@ -1,0 +1,680 @@
+{
+  "implementation_commit": "19001573d9974c510e1e4cbcfeb01c94368ea157",
+  "source_clean_at_start": true,
+  "started_at": "2026-10-10T07:17:08.952902+00:00",
+  "case": "workspace",
+  "command": [
+    "/Users/robinfai/development/flutter/bin/flutter",
+    "test",
+    "--no-pub",
+    "-d",
+    "macos",
+    "integration_test/terminal_ai_workspace_acceptance_test.dart",
+    "--dart-define=TRAIL_FUSION_EVIDENCE=/Users/robinfai/flutter_projects/ianvs-terminal/build/desktop-prd-v1/iteration-1/native-c8-workspace-1/driver-artifacts",
+    "--reporter",
+    "expanded",
+    "--plain-name",
+    "Main AI timeline submits once and returns unchanged TUI grid",
+    "--dart-define=TRAIL_FUSION_NATIVE_CHECKPOINTS=true"
+  ],
+  "driver_sha256": "197197bdd5494916a510bc7b69089db12f956c7c54c2c26f77e4b18de1f520c7",
+  "capture_helper_sha256": "218aec61b9fd3775624085e931d559f9cf80c709899452ff9b83d081a8998ec5",
+  "window_inventory_sha256": "f3177aac1dfc6ae137f360aeb4ce3e604a01079f8971797d1898560dceeccdfe",
+  "window_recorder_sha256": "2a6a5699ff899826b5961f328675f828fc2f36521b23e82dd00d8886bf08f72a",
+  "environment": {
+    "os": "27.0.1",
+    "os_build": "26A434",
+    "architecture": "arm64",
+    "device_model": "Mac16,7",
+    "flutter": {
+      "frameworkVersion": "3.44.8",
+      "channel": "stable",
+      "repositoryUrl": "https://github.com/flutter/flutter.git",
+      "frameworkRevision": "058e0af2c2b57e369d905a03ac9748b0ebf543c6",
+      "frameworkCommitDate": "2026-07-23 10:56:21 -0700",
+      "engineRevision": "0cd610717bde95fd88343c64f81c11ba4e5c0010",
+      "engineCommitDate": "2026-07-23 16:11:34.000Z",
+      "engineContentHash": "13ffd72b2f9a5ca4db2a74ea52d5353ec2e8f939",
+      "engineBuildDate": "2026-07-24 00:36:29.809",
+      "dartSdkVersion": "3.12.2",
+      "devToolsVersion": "2.57.0",
+      "flutterVersion": "3.44.8"
+    },
+    "build_mode": "debug",
+    "bundle_id": "work.ianvs.trail.development"
+  },
+  "scope": "Native macOS App and PTY; automated UI input, not physical input certification",
+  "window_capture_scope": "New process at exact build product path; no desktop or other app capture",
+  "window_capture_interval_seconds": 0.3,
+  "post_result_recording_seconds": 1.4,
+  "checkpoint_captures": [
+    {
+      "name": "D01-initial-mode",
+      "pid": 91804,
+      "window_id": 28413,
+      "path": "driver-artifacts/native-D01-initial-mode.png",
+      "at": "2026-10-10T07:17:37.643371+00:00",
+      "is_active": true,
+      "frontmost_pid": 91804,
+      "status": "captured",
+      "exit_code": 0
+    },
+    {
+      "name": "D06-failure-diagnostic-draft",
+      "pid": 91804,
+      "window_id": 28413,
+      "path": "driver-artifacts/native-D06-failure-diagnostic-draft.png",
+      "at": "2026-10-10T07:17:43.630923+00:00",
+      "is_active": true,
+      "frontmost_pid": 91804,
+      "status": "captured",
+      "exit_code": 0
+    },
+    {
+      "name": "D06-correction-review",
+      "pid": 91804,
+      "window_id": 28413,
+      "path": "driver-artifacts/native-D06-correction-review.png",
+      "at": "2026-10-10T07:17:44.549794+00:00",
+      "is_active": true,
+      "frontmost_pid": 91804,
+      "status": "captured",
+      "exit_code": 0
+    },
+    {
+      "name": "D06-correction-result",
+      "pid": 91804,
+      "window_id": 28413,
+      "path": "driver-artifacts/native-D06-correction-result.png",
+      "at": "2026-10-10T07:17:45.542297+00:00",
+      "is_active": true,
+      "frontmost_pid": 91804,
+      "status": "captured",
+      "exit_code": 0
+    },
+    {
+      "name": "D06-correction-original-output",
+      "pid": 91804,
+      "window_id": 28413,
+      "path": "driver-artifacts/native-D06-correction-original-output.png",
+      "at": "2026-10-10T07:17:46.484773+00:00",
+      "is_active": true,
+      "frontmost_pid": 91804,
+      "status": "captured",
+      "exit_code": 0
+    },
+    {
+      "name": "D06-failure-retained-after-correction",
+      "pid": 91804,
+      "window_id": 28413,
+      "path": "driver-artifacts/native-D06-failure-retained-after-correction.png",
+      "at": "2026-10-10T07:17:47.328472+00:00",
+      "is_active": true,
+      "frontmost_pid": 91804,
+      "status": "captured",
+      "exit_code": 0
+    }
+  ],
+  "activity_events": [
+    {
+      "at": "2026-10-10T07:17:34.729979+00:00",
+      "pid": 91804,
+      "app_active": true,
+      "frontmost_is_test_app": true
+    }
+  ],
+  "windows": [
+    {
+      "bounds": {
+        "Height": 1084,
+        "Width": 1728,
+        "X": 0,
+        "Y": 33
+      },
+      "pid": 91804,
+      "window_id": 28413,
+      "started_at": "2026-10-10T07:17:34.727110+00:00"
+    }
+  ],
+  "captures": [
+    {
+      "path": "native-window-001.png",
+      "at": "2026-10-10T07:17:34.977278+00:00"
+    },
+    {
+      "path": "native-window-002.png",
+      "at": "2026-10-10T07:17:35.696252+00:00"
+    },
+    {
+      "path": "native-window-003.png",
+      "at": "2026-10-10T07:17:36.431316+00:00"
+    },
+    {
+      "path": "native-window-004.png",
+      "at": "2026-10-10T07:17:37.124048+00:00"
+    },
+    {
+      "path": "native-window-005.png",
+      "at": "2026-10-10T07:17:37.911505+00:00"
+    },
+    {
+      "path": "native-window-006.png",
+      "at": "2026-10-10T07:17:38.670942+00:00"
+    },
+    {
+      "path": "native-window-007.png",
+      "at": "2026-10-10T07:17:39.420703+00:00"
+    },
+    {
+      "path": "native-window-008.png",
+      "at": "2026-10-10T07:17:40.155006+00:00"
+    },
+    {
+      "path": "native-window-009.png",
+      "at": "2026-10-10T07:17:40.933137+00:00"
+    },
+    {
+      "path": "native-window-010.png",
+      "at": "2026-10-10T07:17:41.677939+00:00"
+    },
+    {
+      "path": "native-window-011.png",
+      "at": "2026-10-10T07:17:42.445029+00:00"
+    },
+    {
+      "path": "native-window-012.png",
+      "at": "2026-10-10T07:17:43.185232+00:00"
+    },
+    {
+      "path": "native-window-013.png",
+      "at": "2026-10-10T07:17:43.880794+00:00"
+    },
+    {
+      "path": "native-window-014.png",
+      "at": "2026-10-10T07:17:44.870006+00:00"
+    },
+    {
+      "path": "native-window-015.png",
+      "at": "2026-10-10T07:17:45.805817+00:00"
+    },
+    {
+      "path": "native-window-016.png",
+      "at": "2026-10-10T07:17:46.798765+00:00"
+    },
+    {
+      "path": "native-window-017.png",
+      "at": "2026-10-10T07:17:47.625794+00:00"
+    },
+    {
+      "path": "native-window-018.png",
+      "at": "2026-10-10T07:17:48.349617+00:00"
+    },
+    {
+      "path": "native-window-019.png",
+      "at": "2026-10-10T07:17:49.091402+00:00"
+    },
+    {
+      "path": "native-window-020.png",
+      "at": "2026-10-10T07:17:49.764399+00:00"
+    },
+    {
+      "path": "native-window-021.png",
+      "at": "2026-10-10T07:17:50.475222+00:00"
+    },
+    {
+      "path": "native-window-022.png",
+      "at": "2026-10-10T07:17:51.223606+00:00"
+    },
+    {
+      "path": "native-window-023.png",
+      "at": "2026-10-10T07:17:51.894784+00:00"
+    },
+    {
+      "path": "native-window-024.png",
+      "at": "2026-10-10T07:17:52.595673+00:00"
+    },
+    {
+      "path": "native-window-025.png",
+      "at": "2026-10-10T07:17:53.291021+00:00"
+    },
+    {
+      "path": "native-window-026.png",
+      "at": "2026-10-10T07:17:54.037152+00:00"
+    },
+    {
+      "path": "native-window-027.png",
+      "at": "2026-10-10T07:17:54.763533+00:00"
+    },
+    {
+      "path": "native-window-028.png",
+      "at": "2026-10-10T07:17:55.326229+00:00"
+    },
+    {
+      "path": "native-window-029.png",
+      "at": "2026-10-10T07:17:56.065690+00:00"
+    },
+    {
+      "path": "native-window-030.png",
+      "at": "2026-10-10T07:17:56.760998+00:00"
+    },
+    {
+      "path": "native-window-031.png",
+      "at": "2026-10-10T07:17:57.496760+00:00"
+    },
+    {
+      "path": "native-window-032.png",
+      "at": "2026-10-10T07:17:58.228228+00:00"
+    },
+    {
+      "path": "native-window-033.png",
+      "at": "2026-10-10T07:17:58.975129+00:00"
+    },
+    {
+      "path": "native-window-034.png",
+      "at": "2026-10-10T07:17:59.739577+00:00"
+    },
+    {
+      "path": "native-window-035.png",
+      "at": "2026-10-10T07:18:00.298335+00:00"
+    },
+    {
+      "path": "native-window-036.png",
+      "at": "2026-10-10T07:18:01.150760+00:00"
+    },
+    {
+      "path": "native-window-037.png",
+      "at": "2026-10-10T07:18:01.962364+00:00"
+    },
+    {
+      "path": "native-window-038.png",
+      "at": "2026-10-10T07:18:02.726327+00:00"
+    },
+    {
+      "path": "native-window-039.png",
+      "at": "2026-10-10T07:18:03.386832+00:00"
+    },
+    {
+      "path": "native-window-040.png",
+      "at": "2026-10-10T07:18:04.062671+00:00"
+    },
+    {
+      "path": "native-window-041.png",
+      "at": "2026-10-10T07:18:04.754889+00:00"
+    },
+    {
+      "path": "native-window-042.png",
+      "at": "2026-10-10T07:18:05.480512+00:00"
+    },
+    {
+      "path": "native-window-043.png",
+      "at": "2026-10-10T07:18:06.142948+00:00"
+    },
+    {
+      "path": "native-window-044.png",
+      "at": "2026-10-10T07:18:06.821995+00:00"
+    },
+    {
+      "path": "native-window-045.png",
+      "at": "2026-10-10T07:18:07.521965+00:00"
+    },
+    {
+      "path": "native-window-046.png",
+      "at": "2026-10-10T07:18:08.285512+00:00"
+    },
+    {
+      "path": "native-window-047.png",
+      "at": "2026-10-10T07:18:09.023749+00:00"
+    },
+    {
+      "path": "native-window-048.png",
+      "at": "2026-10-10T07:18:09.711314+00:00"
+    },
+    {
+      "path": "native-window-049.png",
+      "at": "2026-10-10T07:18:10.464624+00:00"
+    },
+    {
+      "path": "native-window-050.png",
+      "at": "2026-10-10T07:18:11.226692+00:00"
+    },
+    {
+      "path": "native-window-051.png",
+      "at": "2026-10-10T07:18:11.904908+00:00"
+    },
+    {
+      "path": "native-window-052.png",
+      "at": "2026-10-10T07:18:12.651765+00:00"
+    },
+    {
+      "path": "native-window-053.png",
+      "at": "2026-10-10T07:18:13.389852+00:00"
+    },
+    {
+      "path": "native-window-054.png",
+      "at": "2026-10-10T07:18:14.119022+00:00"
+    },
+    {
+      "path": "native-window-055.png",
+      "at": "2026-10-10T07:18:14.798158+00:00"
+    },
+    {
+      "path": "native-window-056.png",
+      "at": "2026-10-10T07:18:15.569390+00:00"
+    },
+    {
+      "path": "native-window-057.png",
+      "at": "2026-10-10T07:18:16.261626+00:00"
+    },
+    {
+      "path": "native-window-058.png",
+      "at": "2026-10-10T07:18:17.003288+00:00"
+    },
+    {
+      "path": "native-window-059.png",
+      "at": "2026-10-10T07:18:17.680200+00:00"
+    },
+    {
+      "path": "native-window-060.png",
+      "at": "2026-10-10T07:18:18.441622+00:00"
+    },
+    {
+      "path": "native-window-061.png",
+      "at": "2026-10-10T07:18:19.130375+00:00"
+    },
+    {
+      "path": "native-window-062.png",
+      "at": "2026-10-10T07:18:19.874546+00:00"
+    },
+    {
+      "path": "native-window-063.png",
+      "at": "2026-10-10T07:18:20.636772+00:00"
+    },
+    {
+      "path": "native-window-064.png",
+      "at": "2026-10-10T07:18:21.398598+00:00"
+    },
+    {
+      "path": "native-window-065.png",
+      "at": "2026-10-10T07:18:22.148968+00:00"
+    },
+    {
+      "path": "native-window-066.png",
+      "at": "2026-10-10T07:18:22.866740+00:00"
+    },
+    {
+      "path": "native-window-067.png",
+      "at": "2026-10-10T07:18:23.540005+00:00"
+    },
+    {
+      "path": "native-window-068.png",
+      "at": "2026-10-10T07:18:24.302763+00:00"
+    },
+    {
+      "path": "native-window-069.png",
+      "at": "2026-10-10T07:18:25.021077+00:00"
+    },
+    {
+      "path": "native-window-070.png",
+      "at": "2026-10-10T07:18:25.728506+00:00"
+    },
+    {
+      "path": "native-window-071.png",
+      "at": "2026-10-10T07:18:26.496673+00:00"
+    },
+    {
+      "path": "native-window-072.png",
+      "at": "2026-10-10T07:18:27.165400+00:00"
+    },
+    {
+      "path": "native-window-073.png",
+      "at": "2026-10-10T07:18:27.836097+00:00"
+    },
+    {
+      "path": "native-window-074.png",
+      "at": "2026-10-10T07:18:28.537020+00:00"
+    }
+  ],
+  "inventory_errors": [],
+  "finished_at": "2026-10-10T07:18:29.467537+00:00",
+  "elapsed_seconds": 80,
+  "exit_code": 0,
+  "source_clean_at_end": true,
+  "video_capture_exit_code": 0,
+  "video_metadata": {
+    "programs": [],
+    "stream_groups": [],
+    "streams": [
+      {
+        "codec_name": "h264",
+        "width": 3456,
+        "height": 2168
+      }
+    ],
+    "format": {
+      "duration": "53.658333",
+      "size": "19282647"
+    }
+  },
+  "recording_control": {
+    "stop_requested_at": "2026-10-10T07:18:28.743270+00:00",
+    "stop_reason": "driver_result_written",
+    "exited_before_result": false
+  },
+  "recording_events": [
+    {
+      "at": "2026-10-10T07:17:34.995Z",
+      "event": "window_selected",
+      "height": 2168,
+      "pid": 91804,
+      "point_pixel_scale": 2,
+      "width": 3456,
+      "window_id": 28413
+    },
+    {
+      "at": "2026-10-10T07:17:35.085Z",
+      "event": "recording_started"
+    },
+    {
+      "at": "2026-10-10T07:18:28.762Z",
+      "duration_seconds": 53,
+      "event": "recording_finished",
+      "size_bytes": 19251974
+    }
+  ],
+  "capture_artifacts_readable": true,
+  "artifact_sha256": {
+    "driver-artifacts/D01-initial-mode.png": "477cd7550b71cf0210bfd1b6b2855ddafc2ac641594cfffe88cfc44990a40e3d",
+    "driver-artifacts/D03-command-review.png": "f869bd5b0438a6d13ca1024f729590ca9dd7d38d746eca605c7e7ce4433c025d",
+    "driver-artifacts/D04-silent-command-ai-paused-elapsed.png": "07ed3cd1ac4e78dad4d926016906b206c864ca9034b0eacf97064b0fd0a23468",
+    "driver-artifacts/D04-silent-command-completed-elapsed.png": "dc15fa8b820be77ed9b996368016e1e05de0131d57a6a9fd05e152c99fb43eea",
+    "driver-artifacts/D04-silent-command-observation.png": "8d9c42ba083b03f91bf6056aa3ce3281b60a48f977995799e87836ef46607391",
+    "driver-artifacts/D04-stream-latest-third-batch.png": "0a4899519894365f6532af51edd319814c7d5b26f9987678304910c87735020c",
+    "driver-artifacts/D04-streaming-one-native-block.png": "387bb1f643172ea62133a0c224b2c0d6fbf708977fb5a507cf63fa9406cefdf3",
+    "driver-artifacts/D05-follow-up-without-refocusing.png": "24542f1d4e8cb673c0351931fecf15372bc30ef5b93f0367d9a20694e0c9d6b8",
+    "driver-artifacts/D05-native-block-evidence.png": "2497bab45fbcc4e29afecfd1db770401fa53e6bfa0edd9ff3b1f5a10bc76c2dd",
+    "driver-artifacts/D06-correction-original-output.png": "3e7bacc18ede4f47bb5e04e35de6b1d0fcae0a51175fd7884ab411df5d328efe",
+    "driver-artifacts/D06-correction-result.png": "81130bc89bd99781355eb328efbb4d556525fb3c6f9bfe31254e77a8f14d3574",
+    "driver-artifacts/D06-correction-review.png": "0f44721b92fb6682d30d5a2179d197af0b4b86d042c15309c552221906ee6c14",
+    "driver-artifacts/D06-failure-attached-without-send.png": "af0f2206f0bb1344c6ead0a1e9e245e99775b2ee5d568db28478b7d5b22ae375",
+    "driver-artifacts/D06-failure-diagnostic-draft.png": "8d141f755e55cd48307c44d1d7cc1c0c07b0bf7018c32812f977f16097c81529",
+    "driver-artifacts/D06-failure-retained-after-correction.png": "854cb816e7429dcfe935dbe1e2296ed91373021cac74281662dc4802a35cbfc9",
+    "driver-artifacts/D07-header-multi-selection.png": "f3a8fe45e6574de3f09cd5200694337255c15cca5566c2f70a738475d7275a38",
+    "driver-artifacts/D07-pending-contexts.png": "c62c01c964bf4d537b6b7376fd18ac24212d102ffb47b123769b19629c3ea9f8",
+    "driver-artifacts/D07-sent-contexts.png": "0e0949fb7e64342b08781316cb2101df9d174313c51a6bd96efcb2cb36a9c78b",
+    "driver-artifacts/D08-disjoint-context-preview.png": "b3ba51b7af6e55c348cc68ee6ea6de4aa9c4135151f19900e5a1a3b4027ee195",
+    "driver-artifacts/D08-disjoint-context-sent.png": "1f0a661719c8385b127a72243401e4b0787a4d8de1d4cd3f2da0afa2e2531d50",
+    "driver-artifacts/D08-filtered-native-selection.png": "56762cd3a222255ed1a077a97ce46a5348d07eff5bf648b2e32cf17f46ace7ab",
+    "driver-artifacts/D08-native-reader-find.png": "f812714d7abdb836b7354464b6727f977284f6ea1eb6199088a46d1d6c66b53d",
+    "driver-artifacts/D08-native-reader-reopened.png": "e36f0a34b38b320163d74ad2e99642d4a2d223aa07526748052a042134ae2482",
+    "driver-artifacts/D08-native-reader-selected.png": "e36f0a34b38b320163d74ad2e99642d4a2d223aa07526748052a042134ae2482",
+    "driver-artifacts/D08-original-output-reader.png": "d711fc686c1f3f2340f5f57fb194da5d9587e8b95b11aa3ca5538c256f588417",
+    "driver-artifacts/D10-authentication-recovery.png": "838569ca87d8ce7e7f0e57c9375e7c99a1a30d709bd74d3707dc0be26894bda8",
+    "driver-artifacts/D12-vim-return-normal.png": "9ab96c45896aaca5cdca65680e4afeaf5b0de247aa6b13830286aa80b8e765ce",
+    "driver-artifacts/D12-vim-review-overlay.png": "6a81117c6d6c9edfb3416d31ee6093832d6ba504a39c12aa7fb9781f727e2327",
+    "driver-artifacts/D13-stream-completed-proposal-keeps-history.png": "d18118170d7a35a8be2530f57271f9dc519b6622ad801c183721b7dbcf075d5c",
+    "driver-artifacts/D13-stream-explicit-proposal-location.png": "a2b1be105cca224a4a4fdc6cb8473c02e4d26582e70aa8f85dc54e3205bfe45c",
+    "driver-artifacts/D13-stream-history-after-next-batch.png": "42f1590333e772b3c1396b53ece6b63b16941c4f60a338d4d0b3015d61900398",
+    "driver-artifacts/D13-stream-history-before-next-batch.png": "15fff4d179a922ddce502218bf8898cdc65c3c78b432ecc749888c27bd77f1fd",
+    "driver-artifacts/D13-stream-proposal-after-layout.png": "a2b1be105cca224a4a4fdc6cb8473c02e4d26582e70aa8f85dc54e3205bfe45c",
+    "driver-artifacts/D13-stream-proposal-first-frame.png": "a2b1be105cca224a4a4fdc6cb8473c02e4d26582e70aa8f85dc54e3205bfe45c",
+    "driver-artifacts/D13-stream-second-explicit-proposal-location.png": "656e2f0079ea8d7de4f7f342d4929b9f3fd2c4e26e12d87fd5d5b425c2ad0971",
+    "driver-artifacts/D14-configuration-missing-status.png": "7ae089ce9b549cff58e7d306e1bb3a25f415b0412e52e93c08a088fe172fd679",
+    "driver-artifacts/D14-configuration-saved-status.png": "eddd4d23d397105a9c65185db7f7795ce799736f0e5b38bbef9951d4e5b758a1",
+    "driver-artifacts/D14-connection-failed-edit-retained.png": "b37b6f5f49433a4e25310585368df14a3fcf0e43b986d8927ca4b0e61a20acfd",
+    "driver-artifacts/D14-connection-tested-not-saved.png": "e83f8aca9bb60d368e401423a29311a44644fbc465fb6d37f9960094736a3e38",
+    "driver-artifacts/D14-platform-preference-options.png": "bdbd0310477d9bbfe106236b028dcab45a61eb2fb1ed0d627ba822617f33bc89",
+    "driver-artifacts/D14-platform-preference-staged.png": "d960364875a104c09629e203bb6782314658d60af1ffaa7bf1f3adc66a199565",
+    "driver-artifacts/D14-saved-task-retained.png": "b972ec6da4ce84a17a7391f84a30a69755687282a6fa2b0cfc7c6b327f99e30a",
+    "driver-artifacts/native-D01-initial-mode.json": "6cbb0f8c13d7365b838549e2f4194b85a763f121dac96f5f9439620c627e99f3",
+    "driver-artifacts/native-D01-initial-mode.png": "05419bf93d9cd433853de051708423bcffefa0b9854edf6e4897493b65c50e20",
+    "driver-artifacts/native-D06-correction-original-output.json": "27bbba3b5966f7c66a89ed315f5d7753d4ffabd86477c8e7136d6b0c8db068dd",
+    "driver-artifacts/native-D06-correction-original-output.png": "14a1e9674e8ab5ff975c6003c266ba6af047a4e4a79ba760e1b9bae53af7ccb6",
+    "driver-artifacts/native-D06-correction-result.json": "b05763ebb65bb0214adb47adf225f354276b4189f6accfefbee8b1acd841e9cc",
+    "driver-artifacts/native-D06-correction-result.png": "d94a17a72e51dde84622ff5853f15fca8cbbcf8445a5286832625eaa557bc518",
+    "driver-artifacts/native-D06-correction-review.json": "584c339c525cfb7256ffd046bf085597e4a8346d69fc5c9ed0ef5bb62605962b",
+    "driver-artifacts/native-D06-correction-review.png": "6c3541bb3af2f5c1aa6bcbb4c243d1834cbb84c17b2a74adccc5917cc8afacb1",
+    "driver-artifacts/native-D06-failure-diagnostic-draft.json": "08d400fdbac7be945d04be4a6ed7192c4ee573879bca812b79ba7ffafd164cbd",
+    "driver-artifacts/native-D06-failure-diagnostic-draft.png": "498f159ac1e2188e9d9b89c54ab8124e8b1861cb4c5020e5151a5d5a163b86a6",
+    "driver-artifacts/native-D06-failure-retained-after-correction.json": "1f060df8e6e1204733660fd479e06c48b0a4bee33faadfe1e5ac5f24e8a6bf81",
+    "driver-artifacts/native-D06-failure-retained-after-correction.png": "85c55b39e187a5fdf6c74a4811273362bb652142289a564658054ff64f833054",
+    "driver-artifacts/native-capture-request.json": "33e8c1796c3dec7830a4c6499dc2f8fbac86e97646492370da0bf57e68f0e03f",
+    "driver-artifacts/native-recording-finished.json": "7acd5affae9080ee8e85dbaedaeda48026711cbd6aff4e97e1f02c08fe8cf638",
+    "driver-artifacts/result.json": "968aca33c26c898d00d500a4d307e4c237c9d026fa959cd96ed077a714f928c7",
+    "driver-artifacts/vim-approval-preflight.json": "a83f8893a030ebe6582e297eb75739213bae65baad28d55cd81f21843ba3aa59",
+    "native-window-001.png": "00375caec5c8cc136d791fb0bd0410dd6a6eec3438df12974a43b9824aa48b92",
+    "native-window-002.png": "5b79d95545c66554e3c87a1c05851e379eae86e5e60e36d2b0d139a5e3665c5b",
+    "native-window-003.png": "3c9db983c0c2318a18aac619ba3e0d4175dfcbc41c78648a3c414bbc12143c57",
+    "native-window-004.png": "3c9db983c0c2318a18aac619ba3e0d4175dfcbc41c78648a3c414bbc12143c57",
+    "native-window-005.png": "05419bf93d9cd433853de051708423bcffefa0b9854edf6e4897493b65c50e20",
+    "native-window-006.png": "e731a3e1744b92ede0f35ef0c756b0505ff3d1997799bb4e66c5595806251c82",
+    "native-window-007.png": "564956254bf6af932ef129c4929b953cc31efd92de03a12cfe568147c2d73642",
+    "native-window-008.png": "6f323da267a0ff139e7e25d4cf291dd94da72bc812e7343c3eefa0e26d4b9a40",
+    "native-window-009.png": "2460efa1ce4d4a4f50269bf29dc970d570f6f336e57e16bdab51deda62b17402",
+    "native-window-010.png": "e3a18ad1b582b19ba04bd80bb737c825e66ccc570a94a8cc9aaf348598b0c556",
+    "native-window-011.png": "4f3c87aedecbc069e85cbe8891784e1844cf721a82283a70ad65e8b503eaa0a2",
+    "native-window-012.png": "11db485d45a24c0e49cbc4932da55d3f5eba495bac5702d30a51ecfc7a98d76f",
+    "native-window-013.png": "d23a5a7512fd3efb3242c7589efc71c42b0fc1ebd25def0b2012cba83883eee2",
+    "native-window-014.png": "e2ca6611fd5016d0149e5ad357dd7a0e9cc490246f50b30138807fd08e3227c4",
+    "native-window-015.png": "14a1e9674e8ab5ff975c6003c266ba6af047a4e4a79ba760e1b9bae53af7ccb6",
+    "native-window-016.png": "66478c7fef37da55ee0e0315ee3083eaf85b5cacb39c2ca7c45c3b32cce97f2c",
+    "native-window-017.png": "3db5a2ec77bc9ff89c638de93f94c40aee9695949cd2c81652781f1dc2aa4bc8",
+    "native-window-018.png": "65d1f0e71ba68d699cbc3ed19ce004b9f06285ee12dabb6dcfeeedd6a6d2bb84",
+    "native-window-019.png": "1576fcb5344560fe561cbe41528c755cb8039ccbda12de4786ff3285bb0d6938",
+    "native-window-020.png": "1576fcb5344560fe561cbe41528c755cb8039ccbda12de4786ff3285bb0d6938",
+    "native-window-021.png": "1576fcb5344560fe561cbe41528c755cb8039ccbda12de4786ff3285bb0d6938",
+    "native-window-022.png": "1576fcb5344560fe561cbe41528c755cb8039ccbda12de4786ff3285bb0d6938",
+    "native-window-023.png": "370d8e0367fc97214cc1a08f92ee9db250c98c58a768268b363b6c28c24c4901",
+    "native-window-024.png": "75a306b209eba5cafcd63c798084ba6f607bd306b4806f176cedbfff60f5eefe",
+    "native-window-025.png": "7a8c075b14d50b360fc503ae62b9e86e248ae6e4d394e2ed07a3a8b6cb287d27",
+    "native-window-026.png": "77a900180435ac3428fb4939fa3fa0f562329106313f229f4bc0630895017628",
+    "native-window-027.png": "898f22586c77ac6713958328b539e18c684ba066297a67e8ebd040fb0c412fab",
+    "native-window-028.png": "48860870d373856a60d705875e7ccf99b26f0bbd40bffcc7dde9922fa7534294",
+    "native-window-029.png": "84a385b3ce4b1d19051e10ba0bcfd2070d32ba14a7423dc6009b68f0f1f92b17",
+    "native-window-030.png": "87f13b22ad29fc52557e8f2ed095e5854b03200d15e3bb6208d62973c0a226c0",
+    "native-window-031.png": "12aafd39393965656d513d79bac2962167d23617466b0c0d45f09d424de336a0",
+    "native-window-032.png": "12aafd39393965656d513d79bac2962167d23617466b0c0d45f09d424de336a0",
+    "native-window-033.png": "1e3bd195f71d21b2979456f0344963f0e489554c6fec5d485f1ab6bf40b45745",
+    "native-window-034.png": "a9bcd10751c892c81c83cf7c27fe23b2a93f2b093450418639aa66a6950a7462",
+    "native-window-035.png": "2d8480e4f3c7af69b865193b1e7e3fbe419e31c1d9cd3ae604e8a2824a658624",
+    "native-window-036.png": "87c9f71e00954c6117778744e69bd3be493354900688a572127ca7f6ea9ef7d7",
+    "native-window-037.png": "f80870dae41f4ab388cc872c871468ed07c9faa7ca813f34d5436b65ce0c6626",
+    "native-window-038.png": "78f3bc6655bd651116d4f30ec470a1e96af1676541bf611f2b8769965d645c03",
+    "native-window-039.png": "328c8e1612a215104faf78162c4d6b3c6fca12b3c30cb06f7ef3f789d31fc7cb",
+    "native-window-040.png": "923d8332af61295c17b2d432a435a287094bed1ecf6a734f26b52846d8045f43",
+    "native-window-041.png": "4da97c2e0e41132c60bab5b36993e75456b172f30c08a1a46495b3b62cb4a684",
+    "native-window-042.png": "94831b8a43dcccb6f0fb90e00392c9dbf5a88a3e95ee1272c113d40f3f822dca",
+    "native-window-043.png": "4da97c2e0e41132c60bab5b36993e75456b172f30c08a1a46495b3b62cb4a684",
+    "native-window-044.png": "bcc822c1bd35b1c8db2bf166b28a955694a062d9d7cf1bc42d9ada0e4a245985",
+    "native-window-045.png": "7bdab1a8cfe402da358cf986a0cb1aa7bb51155e2c6d9e046a1040b184656253",
+    "native-window-046.png": "449c0631bd8b406bd1eb66ab35c0fd3372eb8c5e7257f90c22a1aeeec6e0d7b7",
+    "native-window-047.png": "3c446a6533b9137b3975f203593fa5e68facd159e26ab7d72ab318467fa1119d",
+    "native-window-048.png": "83bfa0c9096d5e45294d452e343c0b00157a6d3b3ef1042fa07692491d82acbd",
+    "native-window-049.png": "db12ce9fe90f54fff4c7d14a6164aa3cd1cb1d175779503bf7599be9edb4aa45",
+    "native-window-050.png": "c5882ded13680fb5de8f3263fdb0c43ed88996384790ffc2b63909ef354cd126",
+    "native-window-051.png": "bdc2639d71494c469593d2826af7dd28410d103e9a2d2bdfa41b417ae85b3408",
+    "native-window-052.png": "bdc2639d71494c469593d2826af7dd28410d103e9a2d2bdfa41b417ae85b3408",
+    "native-window-053.png": "bdc2639d71494c469593d2826af7dd28410d103e9a2d2bdfa41b417ae85b3408",
+    "native-window-054.png": "bdc2639d71494c469593d2826af7dd28410d103e9a2d2bdfa41b417ae85b3408",
+    "native-window-055.png": "4d507208e3873532bd6ef25df8c43c65f33736b19d044addfc444bcacb766341",
+    "native-window-056.png": "8d65aefe1338bb97822e779173f44f0a4760da974dc22c065bed5cf73981d83c",
+    "native-window-057.png": "ddf28b6114b3d8148e55bee12eee1375cd9ea753965c0a6353796fde08abff7a",
+    "native-window-058.png": "54f3398f2d15b43e1c5c1e46d2a750bf4b85bb4e146722ac703f622d672f9918",
+    "native-window-059.png": "92f86a8f2cbaf7cd00ec817098ead916aa3671a436b19c45d656a8081c1427f4",
+    "native-window-060.png": "401c135012d1f8387f981307cfb087b5bfea8fb1a6868346d02834b0f179ee15",
+    "native-window-061.png": "581da3c87105057ea294b69df89a3688ebb828ed38ca3a9a4ecb2aeebe99fdae",
+    "native-window-062.png": "c3674a356607118130d37e633a3ca321a297feb3631442b660450fa68933d561",
+    "native-window-063.png": "29c35a9aed607e70f69f44293dbc36a47f5ef9c10dc31e7338fd216c54764892",
+    "native-window-064.png": "c077b4a2c191c920e08d796f141b59bcb428dd510cf103ee6fcdf0b7624eb192",
+    "native-window-065.png": "9382eb1b6a2c39512454b27b03cc9e7eb4c64b12b6777caa7390ba6255092c75",
+    "native-window-066.png": "6031498fc74a82ec2883b291c1a08c49218b9b507abd75c7c6cb75ca5a4fe3d1",
+    "native-window-067.png": "7b087c514bd0a7406fb217ca343184495c6c2de69476c07374f3fb3248db3502",
+    "native-window-068.png": "2521cc18e9cdfacc000ed6e9eeed8f032a4a75b07bf5fe7669c657bfa308644b",
+    "native-window-069.png": "0b1a1fa448fe66f33901c78a2ab2bda53b8d55f9e94cc10f22d2fbe48d71f9e4",
+    "native-window-070.png": "3ac1558d99296932cc9aa3a301336d929ef3d77d6f8db065878b3a6fc16d3f8f",
+    "native-window-071.png": "3d1778a31f02edd0e7ca86d1c1682b89481aa5b1cdd371320dd705dd31e61d82",
+    "native-window-072.png": "fa01201156cfa67229c93b2a675ae7b2321ef8cd87db9e63013068de96d91c18",
+    "native-window-073.png": "c75a5257a955dcdcbb1da9d8dbd5332df189c2be1207883f39ab1b2b0ea76de3",
+    "native-window-074.png": "c75a5257a955dcdcbb1da9d8dbd5332df189c2be1207883f39ab1b2b0ea76de3",
+    "native-window.mp4": "38ad41e96cdb97ca44477b9b705627290d2945651841b0558ccc0332b75ae23f"
+  },
+  "driver_capture_times": {
+    "driver-artifacts/D01-initial-mode.png": "2026-10-10T07:17:37.726935+00:00",
+    "driver-artifacts/D03-command-review.png": "2026-10-10T07:17:39.195400+00:00",
+    "driver-artifacts/D04-silent-command-ai-paused-elapsed.png": "2026-10-10T07:17:52.534049+00:00",
+    "driver-artifacts/D04-silent-command-completed-elapsed.png": "2026-10-10T07:18:00.327962+00:00",
+    "driver-artifacts/D04-silent-command-observation.png": "2026-10-10T07:17:52.309350+00:00",
+    "driver-artifacts/D04-stream-latest-third-batch.png": "2026-10-10T07:18:16.550428+00:00",
+    "driver-artifacts/D04-streaming-one-native-block.png": "2026-10-10T07:18:14.904285+00:00",
+    "driver-artifacts/D05-follow-up-without-refocusing.png": "2026-10-10T07:17:40.529033+00:00",
+    "driver-artifacts/D05-native-block-evidence.png": "2026-10-10T07:17:40.417634+00:00",
+    "driver-artifacts/D06-correction-original-output.png": "2026-10-10T07:17:46.155322+00:00",
+    "driver-artifacts/D06-correction-result.png": "2026-10-10T07:17:45.159525+00:00",
+    "driver-artifacts/D06-correction-review.png": "2026-10-10T07:17:44.234858+00:00",
+    "driver-artifacts/D06-failure-attached-without-send.png": "2026-10-10T07:17:43.079491+00:00",
+    "driver-artifacts/D06-failure-diagnostic-draft.png": "2026-10-10T07:17:43.227805+00:00",
+    "driver-artifacts/D06-failure-retained-after-correction.png": "2026-10-10T07:17:46.746133+00:00",
+    "driver-artifacts/D07-header-multi-selection.png": "2026-10-10T07:18:00.851776+00:00",
+    "driver-artifacts/D07-pending-contexts.png": "2026-10-10T07:18:01.330401+00:00",
+    "driver-artifacts/D07-sent-contexts.png": "2026-10-10T07:18:01.777781+00:00",
+    "driver-artifacts/D08-disjoint-context-preview.png": "2026-10-10T07:18:10.031449+00:00",
+    "driver-artifacts/D08-disjoint-context-sent.png": "2026-10-10T07:18:10.514522+00:00",
+    "driver-artifacts/D08-filtered-native-selection.png": "2026-10-10T07:18:09.497667+00:00",
+    "driver-artifacts/D08-native-reader-find.png": "2026-10-10T07:18:07.039211+00:00",
+    "driver-artifacts/D08-native-reader-reopened.png": "2026-10-10T07:18:06.162035+00:00",
+    "driver-artifacts/D08-native-reader-selected.png": "2026-10-10T07:18:04.942988+00:00",
+    "driver-artifacts/D08-original-output-reader.png": "2026-10-10T07:17:41.114755+00:00",
+    "driver-artifacts/D10-authentication-recovery.png": "2026-10-10T07:18:19.923609+00:00",
+    "driver-artifacts/D12-vim-return-normal.png": "2026-10-10T07:18:23.794986+00:00",
+    "driver-artifacts/D12-vim-review-overlay.png": "2026-10-10T07:18:23.192787+00:00",
+    "driver-artifacts/D13-stream-completed-proposal-keeps-history.png": "2026-10-10T07:18:17.841438+00:00",
+    "driver-artifacts/D13-stream-explicit-proposal-location.png": "2026-10-10T07:18:18.523118+00:00",
+    "driver-artifacts/D13-stream-history-after-next-batch.png": "2026-10-10T07:18:15.810164+00:00",
+    "driver-artifacts/D13-stream-history-before-next-batch.png": "2026-10-10T07:18:15.211982+00:00",
+    "driver-artifacts/D13-stream-proposal-after-layout.png": "2026-10-10T07:18:18.473076+00:00",
+    "driver-artifacts/D13-stream-proposal-first-frame.png": "2026-10-10T07:18:18.069161+00:00",
+    "driver-artifacts/D13-stream-second-explicit-proposal-location.png": "2026-10-10T07:18:18.927645+00:00",
+    "driver-artifacts/D14-configuration-missing-status.png": "2026-10-10T07:18:25.476203+00:00",
+    "driver-artifacts/D14-configuration-saved-status.png": "2026-10-10T07:18:24.977129+00:00",
+    "driver-artifacts/D14-connection-failed-edit-retained.png": "2026-10-10T07:18:20.364696+00:00",
+    "driver-artifacts/D14-connection-tested-not-saved.png": "2026-10-10T07:18:20.576236+00:00",
+    "driver-artifacts/D14-platform-preference-options.png": "2026-10-10T07:18:26.755356+00:00",
+    "driver-artifacts/D14-platform-preference-staged.png": "2026-10-10T07:18:27.022664+00:00",
+    "driver-artifacts/D14-saved-task-retained.png": "2026-10-10T07:18:20.813549+00:00",
+    "driver-artifacts/native-D01-initial-mode.png": "2026-10-10T07:17:37.604965+00:00",
+    "driver-artifacts/native-D06-correction-original-output.png": "2026-10-10T07:17:46.468665+00:00",
+    "driver-artifacts/native-D06-correction-result.png": "2026-10-10T07:17:45.514383+00:00",
+    "driver-artifacts/native-D06-correction-review.png": "2026-10-10T07:17:44.528714+00:00",
+    "driver-artifacts/native-D06-failure-diagnostic-draft.png": "2026-10-10T07:17:43.600965+00:00",
+    "driver-artifacts/native-D06-failure-retained-after-correction.png": "2026-10-10T07:17:47.283601+00:00"
+  },
+  "driver_capture_interval_verified": true,
+  "capture_artifacts_complete": true,
+  "binary_sha256": {
+    "example/build/macos/Build/Products/Debug/Trail Development.app/Contents/MacOS/Trail Development": "e9b598129708fbe7ca46f26518209c9d05caf74d5baa7ca3c57f27256115871a",
+    "example/build/macos/Build/Products/Debug/Trail Development.app/Contents/Frameworks/ianvs_core.framework/ianvs_core": "5d97cc7e2cbf4462652dee4cc2b614d56e381b0fea5e2ec691d6b2b88e14ab60",
+    "example/build/macos/Build/Products/Debug/Trail Development.app/Contents/Frameworks/App.framework/Versions/A/App": "dbb6abb8ffbc1bede2d051417de62c391319ff92dc731c3443768ef63999056f",
+    "example/build/macos/Build/Products/Debug/Trail Development.app/Contents/Frameworks/App.framework/Versions/A/Resources/flutter_assets/kernel_blob.bin": "27eced939683fc28d3ced81282778b8585da0675eb7c434355eb7f79c7e05f7b",
+    "native/core/target/debug/libianvs_core.dylib": "1943ae4429605b6cb7a5e2f79c4f4025cdfab3768a28343237e5a04f7b0a2f03"
+  },
+  "capture_note": "Artifact presence and decoding only; visual review and PRD case assertions remain separate"
+}

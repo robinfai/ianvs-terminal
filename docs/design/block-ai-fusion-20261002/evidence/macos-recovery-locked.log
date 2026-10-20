@@ -1,0 +1,124 @@
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/integration_test/terminal_ai_workspace_acceptance_test.dart
+Building macOS application...                                   
+✓ Built build/macos/Build/Products/Debug/Trail Development.app
+00:00 +0: Main AI timeline submits once and returns unchanged TUI grid
+05:00 +0 -1: Main AI timeline submits once and returns unchanged TUI grid [E]
+  TimeoutException after 0:05:00.000000: Test timed out after 5 minutes.
+  dart:isolate  _RawReceivePort._handleMessage
+  
+  Guarded function conflict.
+  You must use "await" with all Future-returning test APIs.
+  The guarded method "pump" from class WidgetTester was called from file:///Users/robinfai/flutter_projects/ianvs-terminal/example/integration_test/terminal_ai_workspace_acceptance_test.dart on line 124.
+  Then, the "pumpWidget" method (also from class WidgetTester) was called from file:///Users/robinfai/flutter_projects/ianvs-terminal/example/integration_test/terminal_ai_workspace_acceptance_test.dart on line 108.
+  The first method (WidgetTester.pump) had not yet finished executing at the time that the second method (WidgetTester.pumpWidget) was called. Since both are guarded, and the second was not a nested call inside the first, the first must complete its execution before the second can be called. Typically, this is achieved by putting an "await" statement in front of the call to the first.
+  
+  When the first method (WidgetTester.pump) was called, this was the stack:
+  #0      TestAsyncUtils.guard (package:flutter_test/src/test_async_utils.dart:72:42)
+  #1      WidgetTester.pump (package:flutter_test/src/widget_tester.dart:652:27)
+  #2      main.<anonymous closure>.waitFor (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/integration_test/terminal_ai_workspace_acceptance_test.dart:124:24)
+  <asynchronous suspension>
+  #3      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/integration_test/terminal_ai_workspace_acceptance_test.dart:457:7)
+  <asynchronous suspension>
+  #4      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+  <asynchronous suspension>
+  #5      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+  <asynchronous suspension>
+  <asynchronous suspension>
+  (elided one frame from package:stack_trace)
+  package:flutter_test/src/test_async_utils.dart 312:5                                                                    TestAsyncUtils.guardSync
+  package:flutter_test/src/test_async_utils.dart 66:5                                                                     TestAsyncUtils.guard
+  package:flutter_test/src/widget_tester.dart 595:27                                                                      WidgetTester.pumpWidget
+  integration_test/terminal_ai_workspace_acceptance_test.dart 108:22                                                      main.<fn>.<fn>
+  ===== asynchronous gap ===========================
+  package:stream_channel                                                                                                  _GuaranteeSink.add
+  /var/folders/k2/8qbf3nrs7t1749d198rw0df40000gn/T/flutter_tools.GB8vXw/flutter_test_listener.i7XCDL/listener.dart 56:22  main.<fn>
+  
+  'package:flutter_test/src/binding.dart': Failed assertion: line 3080 pos 12: '!_expectingFrame': is not true.
+  dart:core                                                                                                               _AssertionError._throwNew
+  package:flutter_test/src/binding.dart 3080:12                                                                           LiveTestWidgetsFlutterBinding.postTest
+  ===== asynchronous gap ===========================
+  package:stream_channel                                                                                                  _GuaranteeSink.add
+  /var/folders/k2/8qbf3nrs7t1749d198rw0df40000gn/T/flutter_tools.GB8vXw/flutter_test_listener.i7XCDL/listener.dart 56:22  main.<fn>
+  
+05:00 +0 -1: Production component preview M01-fixed-text
+05:00 +0 -2: Production component preview M01-fixed-text [E]
+  'package:flutter_test/src/binding.dart': Failed assertion: line 3056 pos 12: '!inTest': is not true.
+  dart:core                                                                                                               _AssertionError._throwNew
+  package:flutter_test/src/binding.dart 3056:12                                                                           LiveTestWidgetsFlutterBinding.runTest
+  package:integration_test/integration_test.dart 237:17                                                                   IntegrationTestWidgetsFlutterBinding.runTest
+  package:flutter_test/src/widget_tester.dart 184:24                                                                      testWidgets.<fn>
+  ===== asynchronous gap ===========================
+  package:stream_channel                                                                                                  _GuaranteeSink.add
+  /var/folders/k2/8qbf3nrs7t1749d198rw0df40000gn/T/flutter_tools.GB8vXw/flutter_test_listener.i7XCDL/listener.dart 56:22  main.<fn>
+  
+  'package:flutter_test/src/binding.dart': Failed assertion: line 3080 pos 12: '!_expectingFrame': is not true.
+  dart:core                                                                                                               _AssertionError._throwNew
+  package:flutter_test/src/binding.dart 3080:12                                                                           LiveTestWidgetsFlutterBinding.postTest
+  ===== asynchronous gap ===========================
+  package:stream_channel                                                                                                  _GuaranteeSink.add
+  /var/folders/k2/8qbf3nrs7t1749d198rw0df40000gn/T/flutter_tools.GB8vXw/flutter_test_listener.i7XCDL/listener.dart 56:22  main.<fn>
+  
+05:00 +0 -2: Production component preview M01-keyboard-space
+05:00 +0 -3: Production component preview M01-keyboard-space [E]
+  'package:flutter_test/src/binding.dart': Failed assertion: line 3056 pos 12: '!inTest': is not true.
+  dart:core                                                                                                               _AssertionError._throwNew
+  package:flutter_test/src/binding.dart 3056:12                                                                           LiveTestWidgetsFlutterBinding.runTest
+  package:integration_test/integration_test.dart 237:17                                                                   IntegrationTestWidgetsFlutterBinding.runTest
+  package:flutter_test/src/widget_tester.dart 184:24                                                                      testWidgets.<fn>
+  ===== asynchronous gap ===========================
+  package:stream_channel                                                                                                  _GuaranteeSink.add
+  /var/folders/k2/8qbf3nrs7t1749d198rw0df40000gn/T/flutter_tools.GB8vXw/flutter_test_listener.i7XCDL/listener.dart 56:22  main.<fn>
+  
+  'package:flutter_test/src/binding.dart': Failed assertion: line 3080 pos 12: '!_expectingFrame': is not true.
+  dart:core                                                                                                               _AssertionError._throwNew
+  package:flutter_test/src/binding.dart 3080:12                                                                           LiveTestWidgetsFlutterBinding.postTest
+  ===== asynchronous gap ===========================
+  package:stream_channel                                                                                                  _GuaranteeSink.add
+  /var/folders/k2/8qbf3nrs7t1749d198rw0df40000gn/T/flutter_tools.GB8vXw/flutter_test_listener.i7XCDL/listener.dart 56:22  main.<fn>
+  
+05:00 +0 -3: Production component preview M03-dark-evidence
+05:00 +0 -4: Production component preview M03-dark-evidence [E]
+  'package:flutter_test/src/binding.dart': Failed assertion: line 3056 pos 12: '!inTest': is not true.
+  dart:core                                                                                                               _AssertionError._throwNew
+  package:flutter_test/src/binding.dart 3056:12                                                                           LiveTestWidgetsFlutterBinding.runTest
+  package:integration_test/integration_test.dart 237:17                                                                   IntegrationTestWidgetsFlutterBinding.runTest
+  package:flutter_test/src/widget_tester.dart 184:24                                                                      testWidgets.<fn>
+  ===== asynchronous gap ===========================
+  package:stream_channel                                                                                                  _GuaranteeSink.add
+  /var/folders/k2/8qbf3nrs7t1749d198rw0df40000gn/T/flutter_tools.GB8vXw/flutter_test_listener.i7XCDL/listener.dart 56:22  main.<fn>
+  
+  'package:flutter_test/src/binding.dart': Failed assertion: line 3080 pos 12: '!_expectingFrame': is not true.
+  dart:core                                                                                                               _AssertionError._throwNew
+  package:flutter_test/src/binding.dart 3080:12                                                                           LiveTestWidgetsFlutterBinding.postTest
+  ===== asynchronous gap ===========================
+  package:stream_channel                                                                                                  _GuaranteeSink.add
+  /var/folders/k2/8qbf3nrs7t1749d198rw0df40000gn/T/flutter_tools.GB8vXw/flutter_test_listener.i7XCDL/listener.dart 56:22  main.<fn>
+  
+05:00 +0 -4: Production component preview M01-landscape
+05:00 +0 -5: Production component preview M01-landscape [E]
+  'package:flutter_test/src/binding.dart': Failed assertion: line 3056 pos 12: '!inTest': is not true.
+  dart:core                                                                                                               _AssertionError._throwNew
+  package:flutter_test/src/binding.dart 3056:12                                                                           LiveTestWidgetsFlutterBinding.runTest
+  package:integration_test/integration_test.dart 237:17                                                                   IntegrationTestWidgetsFlutterBinding.runTest
+  package:flutter_test/src/widget_tester.dart 184:24                                                                      testWidgets.<fn>
+  ===== asynchronous gap ===========================
+  package:stream_channel                                                                                                  _GuaranteeSink.add
+  /var/folders/k2/8qbf3nrs7t1749d198rw0df40000gn/T/flutter_tools.GB8vXw/flutter_test_listener.i7XCDL/listener.dart 56:22  main.<fn>
+  
+  'package:flutter_test/src/binding.dart': Failed assertion: line 3080 pos 12: '!_expectingFrame': is not true.
+  dart:core                                                                                                               _AssertionError._throwNew
+  package:flutter_test/src/binding.dart 3080:12                                                                           LiveTestWidgetsFlutterBinding.postTest
+  ===== asynchronous gap ===========================
+  package:stream_channel                                                                                                  _GuaranteeSink.add
+  /var/folders/k2/8qbf3nrs7t1749d198rw0df40000gn/T/flutter_tools.GB8vXw/flutter_test_listener.i7XCDL/listener.dart 56:22  main.<fn>
+  
+05:00 +0 -5: (tearDownAll)
+05:00 +0 -5: Some tests failed.
+
+Failing tests:
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/integration_test/terminal_ai_workspace_acceptance_test.dart: Main AI timeline submits once and returns unchanged TUI grid
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/integration_test/terminal_ai_workspace_acceptance_test.dart: Production component preview M01-fixed-text
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/integration_test/terminal_ai_workspace_acceptance_test.dart: Production component preview M01-keyboard-space
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/integration_test/terminal_ai_workspace_acceptance_test.dart: Production component preview M01-landscape
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/integration_test/terminal_ai_workspace_acceptance_test.dart: Production component preview M03-dark-evidence

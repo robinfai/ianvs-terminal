@@ -1,0 +1,19 @@
+{
+  "implementation_commit": "1c95adcaab32fac64fb08142da7a0eb3b8620b5a",
+  "recorded_at": "2026-10-10T07:59:32.369910+00:00",
+  "record_kind": "derived safe follow-up summary",
+  "basis": "Root agent report of device availability check and mirror lock status; no new device or UI operation performed for this summary.",
+  "scope": "Follow-up after the historical C4 install/start/API connection observations; not a transfer or SSH success record.",
+  "user_authorization_received": true,
+  "device_paired": true,
+  "usb_transport_available": false,
+  "tunnel_available": false,
+  "mirror_requires_owner_unlock": true,
+  "transfer_started": false,
+  "credential_copied": false,
+  "ssh_configuration_saved": false,
+  "ssh_connection_test_succeeded": false,
+  "formal_mobile_cases_passed": [],
+  "waiting_for": "Restore USB device transport and owner unlock of iPhone Mirroring before continuing the already-authorized import.",
+  "privacy": "No host address, account name, credential data/path, unique device identifier, or private device log included."
+}

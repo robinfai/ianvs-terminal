@@ -1,0 +1,90 @@
+Composer option 1 — final verification, macOS 27.0 (26A428), arm64, zsh 5.9
+Log excerpts preserved from this run. Native font BEFORE failure is intentional regression evidence.
+
+[canonical Composer 76]
+Source: /private/tmp/composer-redesign-canonical-final.log
+00:03 +75: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/composer/composer_test.dart: compact light supports 2x text without overflow
+00:03 +76: All tests passed!
+
+[standalone Composer 76]
+Source: /private/tmp/composer-redesign-standalone-final.log
+00:03 +75: /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal_core/test/composer/composer_test.dart: compact light supports 2x text without overflow
+00:03 +76: All tests passed!
+
+[render 127 + golden 9 + layout 9]
+Source: /private/tmp/composer-redesign-evidence-final.log
+00:08 +145: /Users/robinfai/flutter_projects/ianvs-terminal/example/test/design/composer_redesign_capture_test.dart: (tearDownAll)
+00:08 +145: All tests passed!
+
+[static analysis]
+Source: /private/tmp/composer-redesign-analyze-final.log
+Analyzing composer, composer, composer, composer, terminal_composer, composer_preview.dart, composer_preview_data.dart, composer_redesign_capture_test.dart, composer_redesign_layout_test.dart, composer_visual_capture_test.dart, composer_acceptance_test.dart...
+No issues found!
+
+[native font before fix: expected failure]
+Source: /private/tmp/composer-redesign-native-font-before.log
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/integration_test/composer_acceptance_test.dart
+Building macOS application...
+✓ Built build/macos/Build/Products/Debug/Trail Development.app
+00:00 +0: Composer edits locally, accepts candidates, submits and recovers focus
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: a numeric value within <0.01> of <119.0400390625>
+  Actual: <32.7679443359375>
+   Which:  differs by <86.2720947265625>
+Native Composer command text must resolve to a monospace font
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/example/integration_test/composer_acceptance_test.dart:123:7)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/example/integration_test/composer_acceptance_test.dart line 123
+The test description was:
+  Composer edits locally, accepts candidates, submits and recovers focus
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:01 +0 -1: Composer edits locally, accepts candidates, submits and recovers focus [E]
+  Test failed. See exception logs above.
+  The test description was: Composer edits locally, accepts candidates, submits and recovers focus
+
+00:01 +0 -1: (tearDownAll)
+00:01 +0 -1: Some tests failed.
+
+Failing tests:
+  /Users/robinfai/flutter_projects/ianvs-terminal/example/integration_test/composer_acceptance_test.dart: Composer edits locally, accepts candidates, submits and recovers focus
+
+[native font fix and full application flow]
+Source: /private/tmp/composer-redesign-native-font-fixed.log
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/integration_test/composer_acceptance_test.dart
+Building macOS application...
+✓ Built build/macos/Build/Products/Debug/Trail Development.app
+00:00 +0: Composer edits locally, accepts candidates, submits and recovers focus
+00:05 +1: (tearDownAll)
+00:05 +1: All tests passed!
+
+[final Release and local signing]
+Source: /private/tmp/composer-redesign-release-final.log
+--prepared:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/ianvs_core.framework/Versions/Current/.
+--validated:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/ianvs_core.framework/Versions/Current/.
+--prepared:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/FlutterMacOS.framework/Versions/Current/.
+--validated:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/App.framework/Versions/Current/.
+--validated:/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/FlutterMacOS.framework/Versions/Current/.
+/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app: valid on disk
+/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app: satisfies its Designated Requirement
+Local macOS release signing verified: /Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Release/Trail.app
+
+[Release Flutter application artifact]
+example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/App.framework/Versions/A/App
+SHA-256: 8e72ca2d1606c5e5b81c6c6452209ebc8df1700c18ac9f279ce7b22fb71d1c5f
+
+[Generated mirror]
+dart run tools/sync_terminal_core.dart --check
+ianvs_terminal_core generated sources are current.

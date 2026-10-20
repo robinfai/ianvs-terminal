@@ -1,0 +1,25 @@
+{
+  "date": "2026-10-04",
+  "platform": "macOS 27.0.1",
+  "aiTestsPassed": 328,
+  "realToolFreeReviewsPassed": 3,
+  "build": "macOS debug succeeded",
+  "liveRecovery": "restart approval pending",
+  "sha256": {
+    "example/lib/features/ai/ai_approval.dart": "8bf3706c22dbc6b67668123e135606c15ce68feacf9dffc5747c60c0453dc633",
+    "example/lib/features/ai/terminal_ai_message.dart": "f8428fe74ebc6e073f3904ff07e62208f7b25ce57f250c114d7cf24ced992763",
+    "example/lib/features/ai/terminal_ai_workspace.dart": "faadd8c2dbbe4d08175617aa0ed47f58f612abc326c525167aec6565c53193e9",
+    "example/test/ai/ai_approval_test.dart": "389042818b8590e118ac763c474f4e5f792d4e03eb6edbfc75a14128ad9a1a94",
+    "example/test/ai/terminal_ai_citation_regression_test.dart": "9d9f4841c59e9f94aa6b6106adae5ba4e907ab1e87f64cf743e3f75400bebe54",
+    "example/test/ai/terminal_ai_evidence_navigation_test.dart": "693d881ec0bcf26ea014c8c0a2bec5ae340d5747a0a3ede11e27e599fde7d06b",
+    "example/test/ai/terminal_ai_message_test.dart": "fc0f605f87ad104b6ff75e6196e01758cc2d41148c21b5e70473e9e6c4ccb9cc",
+    "example/test/ai/terminal_ai_workspace_test.dart": "83a72f00f472a640c9e70f071ac55bf6effd6df3ffa76f0a4d6d8f360fa3886d",
+    "example/tool/approval_probe.dart": "6bdf1d9b7e5a3ced9e310938e618f9fc8fbd94e5d13e4dbc87e675fcaf29d69c",
+    "docs/ai/evidence/citation-sudo-20261004/01-before.log": "f426bc22cc397678fd2d542200604cb1a4be080e9726fed0da5ff7564346b13a",
+    "docs/ai/evidence/citation-sudo-20261004/02-citation-tests.log": "66f83c6365eb9413d2bfa79b0db892b27679fd0fc5499efd955ea8f948d89a54",
+    "docs/ai/evidence/citation-sudo-20261004/03-ai-regression.log": "ca433fdc36c85d285cc9300a2ccf67865dfd4db85b3248aeeeaf46e82cb6a208",
+    "docs/ai/evidence/citation-sudo-20261004/04-real-review.jsonl": "30e87a7f3026817e80145b60a32f73fe25dd59ac245b27b11928919b22f14f14",
+    "docs/ai/evidence/citation-sudo-20261004/05-build.log": "100b698b967c5fa585898f380f4f8da63ef70b95b6bc47bb1726b8c3ac74ef0d",
+    "docs/ai/evidence/citation-sudo-20261004/README.md": "9a3f5bb81ca49fe6fb7e4130bd53397bfda1e144f43fa05165b0901b50798f47"
+  }
+}

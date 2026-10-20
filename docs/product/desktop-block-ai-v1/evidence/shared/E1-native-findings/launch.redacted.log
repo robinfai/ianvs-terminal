@@ -1,0 +1,66 @@
+# SANITIZED DERIVATIVE — not original log bytes
+# Original SHA-256: a21504949f0b6ad03885190bf46194a5260259962db72eb0c732986f59688121
+# Original remains unchanged at build/desktop-prd-v1/iteration-1/native-e1-windows-1/launch.log
+# Removes complete local debug-service URL blocks (including wrapped lines) and replaces the local home prefix.
+# This does not change the historical source identity or execution result.
+
+{
+  "fixture_directory": "/private/tmp/trail-desktop-prd-e1-windows-1",
+  "working_directory": "<LOCAL_HOME>/flutter_projects/ianvs-terminal/example",
+  "command": [
+    "<LOCAL_HOME>/development/flutter/bin/flutter",
+    "run",
+    "--debug",
+    "--no-pub",
+    "-d",
+    "macos",
+    "-t",
+    "tool/desktop_prd_acceptance.dart",
+    "--dart-define=TRAIL_DESKTOP_PRD_DIRECTORY=/private/tmp/trail-desktop-prd-e1-windows-1",
+    "--dart-define=TRAIL_UI_NATIVE_KEYBOARD=true"
+  ],
+  "environment_keys": [
+    "HOME",
+    "LANG",
+    "LC_ALL",
+    "LC_CTYPE",
+    "LOGNAME",
+    "PATH",
+    "TERM",
+    "TMPDIR",
+    "USER"
+  ],
+  "fixture_only": [
+    "AI configuration",
+    "master key",
+    "profiles/layout",
+    "local shell home"
+  ],
+  "native_keyboard": true
+}
+Launching tool/desktop_prd_acceptance.dart on macOS in debug mode...
+Building macOS application...                                   
+✓ Built build/macos/Build/Products/Debug/Trail Development.app
+2026-10-10 16:20:55.255 Trail Development[68899:33791984] Running with merged UI and platform thread. Experimental.
+Failed to foreground app; open returned 1
+package:ianvs_design has `uses-material-design: true` set but the primary
+pubspec contains `uses-material-design: false`. If the application needs
+material icons, then `uses-material-design`  must be set to true.
+Syncing files to device macOS...                                   150ms
+
+Flutter run key commands.
+r Hot reload. 🔥🔥🔥
+R Hot restart.
+h List all available interactive commands.
+d Detach (terminate "flutter run" but leave application running).
+c Clear the screen
+q Quit (terminate the application on the device).
+
+A Dart VM Service on macOS is available at: <redacted local debug-service URL>
+The Flutter DevTools debugger and profiler on macOS is available at: <redacted local debug-service URL, including wrapped continuation>
+2026-10-10 16:22:47.930 Trail Development[68899:33791984] error messaging the mach port for IMKCFRunLoopWakeUpReliable
+2026-10-10 16:23:32.117 Trail Development[68899:33791984] Warning: Window move completed without beginning
+2026-10-10 16:25:44.659 Trail Development[68899:33791984] Warning: Window move completed without beginning
+2026-10-10 16:27:06.160 Trail Development[68899:33791984] TSM AdjustCapsLockLEDForKeyTransitionHandling - _ISSetPhysicalKeyboardCapsLockLED Inhibit
+
+Application finished.

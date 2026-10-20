@@ -5824,6 +5824,7 @@ void main() {
           'shell': 'zsh',
           'hostname': 'buildbox.local',
           'username': 'dev',
+          'integration_version': '2',
           'prompt_scrollback_offset': 17,
           'exit_code': 7,
           'extra': <String, Object?>{'kept': true},
@@ -5843,6 +5844,7 @@ void main() {
     expect(event.shell, 'zsh');
     expect(event.hostname, 'buildbox.local');
     expect(event.username, 'dev');
+    expect(event.integrationVersion, '2');
     expect(event.promptScrollbackOffset, 17);
     expect(event.exitCode, 7);
   });
@@ -9843,6 +9845,81 @@ void main() {
     },
   );
 
+  testWidgets(
+    'retained exit preserves native reads but denies input and closes explicitly',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      var preCloses = 0;
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+        beforeSessionCloseOnExitSignal: (_) {
+          preCloses++;
+          return const TerminalSessionPreCloseOutcome.allowClose();
+        },
+      );
+      addTearDown(runtime.dispose);
+      final events = <TerminalSessionEvent>[];
+      final subscription = terminalSessionEvents(runtime).listen(events.add);
+      addTearDown(subscription.cancel);
+      final id = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+        retainExitCodes: {255},
+      );
+      final viewport = runtime.viewportFor(id);
+      backend.enqueueEvent(
+        id,
+        PtyEvent(kind: 'exit', sessionId: id, payload: {'code': 255}),
+      );
+      runtime.sendInput(id, Uint8List(0));
+      await tester.pump();
+      expect(runtime.hasSession(id), true);
+      expect(runtime.isSessionRetainedAfterExit(id), true);
+      expect(identical(runtime.viewportFor(id), viewport), true);
+      expect(preCloses, 1);
+      expect(events.whereType<TerminalSessionExitEvent>(), hasLength(1));
+      expect(backend.closeCalls, isEmpty);
+      backend.enqueueEvent(
+        id,
+        PtyEvent(kind: 'exit', sessionId: id, payload: {'code': 255}),
+      );
+      runtime.refreshSession(id);
+      await tester.pump();
+      expect(preCloses, 1);
+      expect(events.whereType<TerminalSessionExitEvent>(), hasLength(1));
+      backend.writeCalls.clear();
+      backend.jsonRequests.clear();
+      backend.resizeCalls.clear();
+      // Reading retained evidence must not resize an already-closed SSH
+      // transport or reflow its original grid when the window changes.
+      expect(runtime.resizeSession(id, const Size(800, 600), 2), false);
+      expect(runtime.resizeSessionCells(id, cols: 120, rows: 50), false);
+      expect(backend.resizeCalls, isEmpty);
+      expect(runtime.trySendInput(id, Uint8List.fromList([13])), false);
+      expect(
+        runtime.composerRequest(id, 'composer.submit', {'text': 'pwd'}),
+        isNull,
+      );
+      runtime.commandBlocks(id, {'offset': 128, 'limit': 128});
+      runtime.composerRequest(id, 'composer.receipt', {
+        'submissionId': 'original',
+      });
+      expect(backend.writeCalls, isEmpty);
+      expect(backend.jsonRequests.map((r) => r['kind']), [
+        'terminal.command_blocks',
+        'composer.receipt',
+      ]);
+      runtime.closeSession(id);
+      expect(backend.closeCalls, [id]);
+      expect(runtime.hasSession(id), false);
+      expect(runtime.isSessionRetainedAfterExit(id), false);
+    },
+  );
+
   testWidgets('terminal runtime controller continues to handle exit events', (
     tester,
   ) async {
@@ -10883,6 +10960,111 @@ void main() {
   );
 
   testWidgets(
+    'OSC 5522 revoked pending paste sends no bytes and allocates no token',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      Completer<List<String>>? pendingMimeTypes;
+      var canSend = true;
+      var mimeTypeReads = 0;
+      var authorizations = 0;
+      var clipboardReads = 0;
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        listClipboardMimeTypes: () {
+          mimeTypeReads++;
+          return pendingMimeTypes?.future ??
+              Future.value(const <String>['text/plain']);
+        },
+        readMimeClipboard: (_) async {
+          clipboardReads++;
+          return <TerminalClipboardMimeItem>[
+            TerminalClipboardMimeItem(
+              mimeType: 'text/plain',
+              bytes: Uint8List.fromList(utf8.encode('authorized earlier')),
+            ),
+          ];
+        },
+        authorizeMimeClipboardAccessWithContext: (_) async {
+          authorizations++;
+          return TerminalClipboardAuthorization.denied;
+        },
+        monotonicNow: () => Duration.zero,
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final sessionId = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+
+      // Fill the token budget so an incorrectly allocated revoked token would
+      // evict the oldest real user authorization, even if no packet were sent.
+      for (var index = 0; index < 8; index++) {
+        expect(
+          await runtime.sendOsc5522PasteEvent(
+            sessionId,
+            canSend: () => canSend,
+          ),
+          isTrue,
+        );
+      }
+      final tokenPacket = backend.writeCalls
+          .map(ascii.decode)
+          .firstWhere((packet) => packet.contains(':status=OK:pw='));
+      final encodedToken = RegExp(
+        r':pw=([^\x1b]+)',
+      ).firstMatch(tokenPacket)!.group(1)!;
+      final oldestToken = utf8.decode(base64.decode(encodedToken));
+      backend.writeCalls.clear();
+
+      final mimeTypes = pendingMimeTypes = Completer<List<String>>();
+      final pendingPaste = runtime.sendOsc5522PasteEvent(
+        sessionId,
+        canSend: () => canSend,
+      );
+      expect(mimeTypeReads, 9);
+      canSend = false;
+      mimeTypes.complete(const ['text/plain', 'image/png']);
+      expect(await pendingPaste, isFalse);
+      expect(backend.writeCalls, isEmpty);
+
+      expect(
+        await runtime.sendOsc5522PasteEvent(sessionId, canSend: () => canSend),
+        isFalse,
+      );
+      expect(mimeTypeReads, 9, reason: 'Revocation also gates a new request');
+
+      backend.enqueueEvent(
+        sessionId,
+        PtyEvent(
+          kind: 'clipboard_mime_read_request',
+          sessionId: sessionId,
+          payload: <String, Object?>{
+            'location': 'clipboard',
+            'id': 'existing-token-still-valid',
+            'password': oldestToken,
+            'mimeTypes': const <String>['text/plain'],
+            'listOnly': false,
+          },
+        ),
+      );
+      runtime.sendInput(sessionId, Uint8List(0));
+      await tester.pump();
+      await tester.pump();
+      expect(authorizations, 0);
+      expect(clipboardReads, 1);
+      expect(
+        backend.writeCalls.map(ascii.decode).join(),
+        contains('type=read:status=DONE:id=existing-token-still-valid'),
+        reason: 'UI revocation does not suppress existing protocol replies',
+      );
+    },
+  );
+
+  testWidgets(
     'OSC 5522 paste event advertises MIME types and consumes its token once',
     (tester) async {
       final backend = _FakePtyBackend();
@@ -11552,6 +11734,9 @@ void main() {
     );
     await tester.pump();
     backend.writeCalls.clear();
+    final inputs = <TerminalSessionInputEvent>[];
+    final inputSubscription = runtime.inputEvents.listen(inputs.add);
+    addTearDown(inputSubscription.cancel);
     backend.enqueueEvent(
       sessionId,
       PtyEvent(
@@ -11602,6 +11787,8 @@ void main() {
       utf8.decode(backend.writeCalls.single),
       '\x1B]52;c;${base64.encode(utf8.encode('reply after detection'))}\x07',
     );
+    expect(inputs, hasLength(1));
+    expect(inputs.single.isProtocolInput, isTrue);
   });
 
   testWidgets(

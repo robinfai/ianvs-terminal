@@ -1,0 +1,18 @@
+{
+  "missing_anchors": [],
+  "viewports": [
+    {
+      "width": 1440,
+      "documentWidth": 1440,
+      "images": 16,
+      "loaded": 16
+    },
+    {
+      "width": 390,
+      "documentWidth": 390,
+      "images": 16,
+      "loaded": 16
+    }
+  ],
+  "scope": "document_render_not_product"
+}

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert' show utf8;
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:ui' show AppExitResponse;
+import 'dart:ui' show AppExitResponse, ViewFocusEvent, ViewFocusState;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -23,11 +23,22 @@ import '../../data/sync/local_first_sync.dart';
 import '../../platform/clipboard_bridge.dart';
 import '../../platform/terminal_graphic_image_actions.dart';
 import '../../ui/app_ui.dart';
+import '../ai/ai_models.dart' show AiActionKind;
+import '../ai/ai_settings.dart';
+import '../ai/ai_settings_dialog.dart';
+import '../ai/terminal_ai_connections.dart';
+import '../ai/terminal_ai_controller.dart';
+import '../ai/terminal_ai_observer.dart';
+import '../ai/terminal_ai_retained_timeline.dart';
+import '../ai/terminal_ai_runtime.dart';
+import '../ai/terminal_ai_workspace.dart';
+import '../ai/unified_terminal_timeline.dart';
 import '../config/local_terminal_config_bootstrap.dart';
 import '../config/local_terminal_config_models.dart';
 import '../config/shortcut_editor.dart';
 import '../policies/local_terminal_paste_decision.dart';
 import '../policies/local_terminal_policy_models.dart';
+import '../preferences/app_preferences_models.dart' show TerminalViewMode;
 import '../profiles/profile_editor.dart';
 import '../profiles/profile_models.dart';
 import '../profiles/profiles_sheet.dart';
@@ -51,6 +62,10 @@ import '../terminal/terminal.dart' as terminal;
 import '../terminal/terminal_input_controller.dart';
 import '../terminal/terminal_viewport.dart';
 import '../terminal/terminal_viewport_colors.dart';
+import '../terminal_composer/command_blocks_pane.dart';
+import '../terminal_composer/composer_pane.dart';
+import '../terminal_composer/terminal_mode.dart';
+import '../terminal_composer/terminal_mode_indicator.dart';
 import '../visual/local_terminal_diagnostics_exporter.dart';
 import '../visual/local_terminal_scrollback_exporter.dart';
 import '../visual/local_terminal_visual_models.dart';
@@ -66,27 +81,34 @@ import 'shell_acceptance.dart';
 import 'shell_action_registry.dart';
 import 'shell_action_runtime_bindings.dart';
 import 'shell_shortcut_bridge.dart';
+import 'widgets/desktop_session_status.dart';
+import 'widgets/mobile_disconnected_session_notice.dart';
+import 'widgets/mobile_session_list.dart';
 import 'window_bridge.dart';
 
 part 'shell_screen_chrome.dart';
-part 'shell_screen_window_title_bar.dart';
-part 'shell_screen_sidebar.dart';
+part 'shell_screen_close_protection.dart';
+part 'shell_screen_chrome_bar.dart';
+part 'shell_screen_chrome_approval.dart';
+part 'shell_screen_ai.dart';
+part 'shell_screen_ai_observer.dart';
 part 'shell_screen_chrome_empty_states.dart';
 part 'shell_screen_command_menu.dart';
 part 'shell_screen_instant_replay.dart';
 part 'shell_screen_mobile_input.dart';
 part 'shell_screen_mobile_navigation.dart';
 part 'shell_screen_models.dart';
+part 'shell_screen_preview_adapter.dart';
 part 'shell_screen_recording_library.dart';
 part 'shell_screen_replay_timeline.dart';
 part 'shell_screen_search.dart';
+part 'shell_screen_sftp.dart';
 part 'shell_screen_shared_buttons.dart';
 part 'shell_screen_sheets.dart';
-part 'shell_screen_sftp.dart';
+part 'shell_screen_sidebar.dart';
 part 'shell_screen_ssh_empty_state.dart';
 part 'shell_screen_state_clipboard.dart';
 part 'shell_screen_state_command_actions.dart';
-part 'shell_screen_state_triggers.dart';
 part 'shell_screen_state_events.dart';
 part 'shell_screen_state_folders.dart';
 part 'shell_screen_state_instant_replay.dart';
@@ -94,9 +116,12 @@ part 'shell_screen_state_profile_actions.dart';
 part 'shell_screen_state_recording.dart';
 part 'shell_screen_state_recording_library.dart';
 part 'shell_screen_state_search_completion.dart';
+part 'shell_screen_state_mobile_sessions.dart';
 part 'shell_screen_state_sessions.dart';
 part 'shell_screen_state_shortcuts_status.dart';
 part 'shell_screen_state_terminal_layout.dart';
+part 'shell_screen_state_triggers.dart';
+part 'shell_screen_window_title_bar.dart';
 
 typedef ShellFileDownloadWriter =
     Future<void> Function(String path, List<int> bytes);
@@ -181,8 +206,7 @@ final shellRecordingExportPickerProvider = Provider<ShellRecordingExportPicker>(
 class ShellScreen extends ConsumerStatefulWidget {
   const ShellScreen({this.activeDataApiDeployment, super.key});
 
-  static const double desktopChromeHeight =
-      _shellChromeTitleHeight + _shellChromeTabRailHeight;
+  static const double desktopChromeHeight = _shellChromeTitleHeight;
 
   final DataApiDeployment? activeDataApiDeployment;
 
@@ -221,6 +245,15 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   static const _osc1337MaxOutstandingAttentionRequests = 8;
 
   final Map<String, SelectionController> _selectionControllers = {};
+  final Map<String, ComposerPaneSession> _composerSessions = {};
+  final Map<String, TerminalAiController> _aiSessions = {};
+  final Map<String, CommandBlockReaderHostController> _readerControllers = {};
+  final Map<String, Future<String?>> _terminalReconnects = {};
+  final Set<String> _openAiSessions = {};
+  late final AiSettingsController _modeAiSettings;
+  final Map<String, String> _observedAiTargets = {};
+  final Map<String, int> _manualInputEpochs = {};
+  int _manualInputSerial = 0;
   final Map<String, SelectionResizeGuard> _selectionResizeGuards = {};
   final Map<String, FocusNode> _terminalFocusNodes = {};
   final FocusNode _searchFocusNode = FocusNode(debugLabel: 'shell-search');
@@ -271,6 +304,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   bool _isCommandMenuOpen = false;
   bool _isShellCapabilitiesOpen = false;
   bool _isDefaultsOpen = false;
+  bool _isMobileLlmSetupOpen = false;
   bool _isProfilesOpen = false;
   bool _remoteFallbackSnapshotLoadStarted = false;
   bool _remoteFallbackSwitching = false;
@@ -350,6 +384,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   List<LocalSessionRecordingEntry> _recordingEntries = const [];
   bool _recordingShelfOpen = false;
   bool _mobileConnectionsOpen = false;
+  bool _mobileSessionsOpen = false;
+  bool _clearingDisconnectedSessions = false;
+  final Set<String> _closingSessionIds = {};
   int _recordingOpenGeneration = 0;
   int _recordingPlaybackGeneration = 0;
   FocusNode? _recordingReturnFocus;
@@ -375,6 +412,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   @override
   void initState() {
     super.initState();
+    _modeAiSettings = ref.read(aiSettingsProvider);
+    _modeAiSettings.addListener(_handleLlmConfigurationChanged);
     final runtime = ref.read(referenceDemoModeProvider)
         ? null
         : ref.read(terminalRuntimeControllerProvider);
@@ -384,6 +423,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       sendInput: runtime == null ? (_, _) {} : runtime.sendInput,
     );
     _appLifecycleListener = AppLifecycleListener(
+      onStateChange: _synchronizeAiSessionsLifecycle,
       onPause: () => unawaited(
         ref.read(sessionControllerProvider.notifier).flushLayoutPersistence(),
       ),
@@ -424,6 +464,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   @override
   void dispose() {
+    _modeAiSettings.removeListener(_handleLlmConfigurationChanged);
     WindowBridge.setNativeMenuHandlers();
     _appLifecycleListener.dispose();
     unawaited(_osc72DragDropController.dispose());
@@ -444,26 +485,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     }
     _osc1337FireworksTimers.clear();
     unawaited(_cancelAllOsc1337AttentionRequests());
-    for (final guard in _selectionResizeGuards.values) {
-      guard.dispose();
-    }
-    _selectionResizeGuards.clear();
-    for (final selectionController in _selectionControllers.values) {
-      selectionController.dispose();
-    }
-    for (final entry in _tabColorViewportControllers.entries) {
-      final listener = _tabColorViewportListeners[entry.key];
-      if (listener != null) {
-        entry.value.removeListener(listener);
-      }
-    }
-    _tabColorViewportControllers.clear();
-    _tabColorViewportListeners.clear();
-    _lastTabColors.clear();
-    for (final focusNode in _terminalFocusNodes.values) {
-      focusNode.dispose();
-    }
-    _searchFocusNode.dispose();
+    _disposePresentationControllers();
 
     super.dispose();
   }
@@ -476,63 +498,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   // Callbacks outlive title-only updates, so read their display metadata
   // when invoked instead of capturing it from the last layout build.
   SessionState get _sessionState => ref.read(sessionControllerProvider);
-
-  void _handleSessionStateChanged(SessionState? previous, SessionState next) {
-    _syncPresentationState(next);
-    _publishAcceptanceSnapshot(next);
-    final newRuntimeError = _newRuntimeError(previous, next);
-    if (newRuntimeError != null) {
-      _runtimeErrorNoticeTimer?.cancel();
-      _runtimeErrorNotice = newRuntimeError;
-      _runtimeErrorNoticeTimer = Timer(_runtimeErrorNoticeDuration, () {
-        if (!mounted || _runtimeErrorNotice != newRuntimeError) {
-          return;
-        }
-        _mutateState(() {
-          _runtimeErrorNotice = null;
-          _runtimeErrorNoticeTimer = null;
-        });
-      });
-    }
-    if (!next.isReady && next.lastError != null) {
-      unawaited(_loadRemoteFallbackSnapshot());
-    }
-    final activeSessionId = next.activeSessionId;
-    final pendingMessage = activeSessionId == null
-        ? null
-        : _pendingZmodemTerminalMessages.remove(activeSessionId);
-    if (pendingMessage != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted &&
-            ref.read(sessionControllerProvider).activeSessionId ==
-                activeSessionId) {
-          _showShellSnackBar(pendingMessage);
-        }
-      });
-    }
-  }
-
-  ({String sessionId, TerminalPaneRuntimeErrorState error})? _newRuntimeError(
-    SessionState? previous,
-    SessionState next,
-  ) {
-    for (final tab in next.tabs) {
-      for (final pane in tab.effectivePanes) {
-        final error = pane.runtimeError;
-        if (error == null) {
-          continue;
-        }
-        final previousPane = previous?.tabs
-            .where((candidate) => candidate.containsSession(pane.sessionId))
-            .firstOrNull
-            ?.paneFor(pane.sessionId);
-        if (!identical(previousPane?.runtimeError, error)) {
-          return (sessionId: pane.sessionId, error: error);
-        }
-      }
-    }
-    return null;
-  }
 
   void _dismissRuntimeErrorNotice() {
     if (_runtimeErrorNotice == null) {
@@ -663,6 +628,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     final filename = event.recoverablePartialName ?? l10n.preservedZmodemFile;
     final confirmed = await showDialog<bool>(
       context: context,
+      animationStyle: appDialogAnimation(context),
       barrierDismissible: false,
       builder: (dialogContext) => AlertDialog(
         title: Text(dialogContext.l10n.permanentlyDiscardFileQuestion),
@@ -730,15 +696,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     final referenceDemoMode = ref.watch(referenceDemoModeProvider);
     final animationsEnabled = ref.watch(shellAnimationsEnabledProvider);
     final dataApiStartupWarning = ref.watch(dataApiStartupWarningProvider);
-    TerminalTab? activeTab;
-    if (activeSessionId != null) {
-      for (final tab in _sessionState.tabs) {
-        if (tab.containsSession(activeSessionId)) {
-          activeTab = tab;
-          break;
-        }
-      }
-    }
+    final activeTab = _tabForSession(_sessionState, activeSessionId);
     final displayedSessionId = _displayedSessionIdFor(
       sessionController,
       _sessionState,
@@ -798,11 +756,42 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       }
       final editor = focusedEditableTextForCurrentRoute();
       if (editor != null) {
-        return KeyEventResult.ignored;
+        final composer = editor.context
+            .findAncestorWidgetOfExactType<ComposerPane>();
+        final workspace = editor.context
+            .findAncestorWidgetOfExactType<TerminalAiWorkspace>();
+        final field = editor.context.findAncestorWidgetOfExactType<TextField>();
+        final unifiedInput =
+            workspace != null &&
+            workspace.active &&
+            (workspace.canInteract?.call() ?? true) &&
+            identical(workspace.controller, _aiSessions[activeSessionId]) &&
+            field?.key == const Key('ai-prompt');
+        final legacyInput =
+            composer != null &&
+            composer.active &&
+            composer.available &&
+            composer.session.sessionId == activeSessionId &&
+            identical(
+              editor.widget.controller,
+              composer.session.controller.editor,
+            ) &&
+            identical(editor.widget.focusNode, composer.session.editorFocus);
+        if (_shellModalInputBlocked ||
+            (!unifiedInput && !legacyInput) ||
+            !editor.textEditingValue.composing.isCollapsed) {
+          return KeyEventResult.ignored;
+        }
       }
       if (_shellModalInputBlocked) return KeyEventResult.handled;
+      if (_handleAiShortcut(event, activeSessionId)) {
+        return KeyEventResult.handled;
+      }
 
-      final shortcut = _shortcutActionFor(event);
+      final shortcut = _shortcutActionFor(
+        event,
+        composerFocused: editor != null,
+      );
       if (shortcut == null) {
         return KeyEventResult.ignored;
       }
@@ -1049,6 +1038,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 'Clear buffer requires an active session.',
               );
             }
+            final unavailable = _bufferClearUnavailableReason(activeSessionId);
+            if (unavailable != null) {
+              return ShellActionBindingResult.skipped(unavailable);
+            }
             final cleared = ref
                 .read(terminalRuntimeControllerProvider)
                 .clearBuffer(activeSessionId);
@@ -1204,6 +1197,16 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             instantReplaySession != null ||
             _selectedRecording != null ||
             _isSftpPanelOpen);
+    // Scaffold consumes body insets; read the keyboard above that boundary.
+    final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
+
+    final mobileTerminalControls = _mobileControlsFor(
+      sessionController,
+      activeSessionId,
+      palette,
+      keyboardVisible: keyboardVisible,
+      visible: !referenceDemoMode && !mobileHome,
+    );
 
     return Focus(
       canRequestFocus: false,
@@ -1221,6 +1224,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
               children: [
                 if (!mobileNavigation)
                   _ShellChromeBar(
+                    aiSessions: Map.of(_aiSessions),
+                    onRevealApproval: _revealApproval,
+                    aiAction: referenceDemoMode || activeSessionId == null
+                        ? null
+                        : _aiChromeAction(activeSessionId),
                     sidebarOpen: _sessionSidebarOpen,
                     sidebarWidth: sidebarWidth,
                     onOpenReplay: referenceDemoMode
@@ -1278,6 +1286,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   )
                 else if (!mobileDetail)
                   _MobileShellHeader(
+                    aiAction: mobileHome || activeSessionId == null
+                        ? null
+                        : _aiChromeAction(activeSessionId),
                     title: mobileHome
                         ? context.l10n.mobileConnections
                         : (activeTab?.title ?? context.l10n.terminal),
@@ -1291,12 +1302,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     onBack: mobileHome ? null : _showMobileConnections,
                     onSessions: mobileHome
                         ? null
-                        : () => unawaited(
-                            _showMobileSessions(
-                              sessionController,
-                              _sessionState,
-                            ),
-                          ),
+                        : () =>
+                              unawaited(_showMobileSessions(sessionController)),
                     onFiles:
                         !mobileHome &&
                             _sftpTargetFor(_sessionState, activeSessionId) !=
@@ -1309,6 +1316,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     onMore: () => unawaited(
                       _openCommandMenu(sessionController, _sessionState),
                     ),
+                    mode: mobileHome || activeSessionId == null
+                        ? null
+                        : _paneForSession(
+                            _sessionState,
+                            activeSessionId,
+                          )?.terminalMode,
                   ),
                 if (_sessionState.configurationWarnings.isNotEmpty)
                   _ShellConfigurationWarningsBanner(
@@ -1409,6 +1422,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                     position,
                                   ),
                               hasNewOutput: _tabHasNewOutput,
+                              aiSessions: Map.of(_aiSessions),
+                              onRevealApproval: _revealApproval,
                             ),
                           ),
                         ),
@@ -1418,7 +1433,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                             shelfOpen: _recordingShelfOpen,
                             onClose: _closeRecordingLibrary,
                             layout: AnimatedSwitcher(
-                              duration: animationsEnabled
+                              duration: _useAnimations(animationsEnabled)
                                   ? const Duration(milliseconds: 160)
                                   : Duration.zero,
                               switchInCurve: Curves.easeOutCubic,
@@ -1516,35 +1531,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                         activeSessionId == null ||
                                         activeTab == null
                                   ? launchPolicy.isSshOnly
-                                        ? _SshOnlyShellEmptyState(
-                                            key: const Key('shell-empty-state'),
-                                            palette: palette,
-                                            profiles: _sessionState.profiles,
-                                            sessions: mobileNavigation
-                                                ? _sessionState.tabs
-                                                : const [],
-                                            onResumeSession: (id) =>
-                                                _activateSession(
-                                                  sessionController,
-                                                  id,
-                                                ),
-                                            onManageProfiles: () =>
-                                                _openProfilesSheet(
-                                                  sessionController,
-                                                  _sessionState,
-                                                ),
-                                            onOpenProfile: (profile) =>
-                                                _createSession(
-                                                  sessionController,
-                                                  profile,
-                                                  returningToLayout: true,
-                                                ),
-                                            onCreateProfile: () => unawaited(
-                                              _openSshProfileCreator(
-                                                sessionController,
-                                                _sessionState,
-                                              ),
-                                            ),
+                                        ? _buildSshConnectionsHome(
+                                            sessionController,
+                                            palette,
+                                            mobileNavigation: mobileNavigation,
                                           )
                                         : _ShellEmptyState(
                                             key: const Key('shell-empty-state'),
@@ -1584,6 +1574,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                                 palette: palette,
                                                 onHostKeyEvent:
                                                     handleShellShortcut,
+                                                mobileControls:
+                                                    mobileTerminalControls,
                                               ),
                                             ),
                                           ],
@@ -1633,48 +1625,27 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                     ),
                   ),
                 ),
-                if (!referenceDemoMode &&
-                    defaultTargetPlatform == TargetPlatform.iOS &&
-                    !_recordingShelfOpen &&
-                    !_isSftpPanelOpen &&
-                    !_isSearchOpen &&
-                    !mobileHome &&
-                    _selectedRecording == null &&
-                    instantReplaySession == null &&
-                    activeSessionId != null)
-                  if (MediaQuery.viewInsetsOf(context).bottom == 0)
-                    _MobileTerminalToolbar(
-                      onKeyboard: () => _focusSession(activeSessionId),
-                      onSearch: _openSearch,
-                      onReplay: () => unawaited(_openRecordingLibrary()),
-                      onRecording:
-                          _sessionState.recordingBusySessionIds.contains(
-                            activeSessionId,
-                          )
-                          ? null
-                          : () => unawaited(
-                              _toggleActiveSessionRecording(
-                                sessionController,
-                                activeSessionId,
-                              ),
-                            ),
-                      recording: _sessionState.recordingSessionIds.contains(
-                        activeSessionId,
-                      ),
-                      pendingSave: _sessionState.recordingPendingSaveSessionIds
-                          .contains(activeSessionId),
-                    )
-                  else
-                    IosTerminalInputBar(
-                      key: const Key('ios-terminal-input-bar'),
-                      palette: palette,
-                      keyboardVisible:
-                          MediaQuery.viewInsetsOf(context).bottom > 0,
-                      onSendBytes: (bytes) =>
-                          _sendMobileTerminalBytes(activeSessionId, bytes),
-                      onDismissKeyboard: () =>
-                          _dismissMobileTerminalKeyboard(activeSessionId),
-                    ),
+                if (!mobileNavigation && !context.usesTouchControlDensity)
+                  DesktopSessionStatus(
+                    sessionId: activeSessionId,
+                    pane: activeTab?.paneFor(activeSessionId ?? ''),
+                    composer: _composerSessions[activeSessionId],
+                    ai: _aiSessions[activeSessionId],
+                    reader: _readerControllers[activeSessionId],
+                    aiVisible: _openAiSessions.contains(activeSessionId),
+                    observing: _observedAiTargets.containsKey(activeSessionId),
+                    readOnly:
+                        activeSessionId == null ||
+                        _isSessionReadOnly(activeSessionId),
+                    replaying:
+                        _selectedRecording != null ||
+                        instantReplaySession != null,
+                    onDetails: activeSessionId == null
+                        ? null
+                        : () => unawaited(
+                            _showShellCapabilities(activeSessionId),
+                          ),
+                  ),
               ],
             ),
           ),

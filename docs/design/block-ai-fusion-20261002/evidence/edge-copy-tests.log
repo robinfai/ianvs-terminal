@@ -1,0 +1,31 @@
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart
+00:00 +0: reader drags and copies across pages (phone false, reverse false, filtered false) (variant: TargetPlatform.macOS)
+00:00 +1: reader drags and copies across pages (phone false, reverse false, filtered true) (variant: TargetPlatform.macOS)
+00:00 +2: reader drags and copies across pages (phone false, reverse true, filtered false) (variant: TargetPlatform.macOS)
+00:00 +3: reader drags and copies across pages (phone false, reverse true, filtered true) (variant: TargetPlatform.macOS)
+00:00 +4: reader drags and copies across pages (phone true, reverse false, filtered false) (variant: TargetPlatform.iOS)
+00:00 +5: reader drags and copies across pages (phone true, reverse false, filtered true) (variant: TargetPlatform.iOS)
+00:01 +6: reader drags and copies across pages (phone true, reverse true, filtered false) (variant: TargetPlatform.iOS)
+00:01 +7: reader drags and copies across pages (phone true, reverse true, filtered true) (variant: TargetPlatform.iOS)
+00:01 +8: touch copy rejects output evicted before the menu opens (variant: TargetPlatform.iOS)
+00:01 +9: reader edge drag scrolls beyond its starting page (phone false, upward false, filtered false) (variant: TargetPlatform.macOS)
+00:01 +10: reader edge drag scrolls beyond its starting page (phone false, upward false, filtered true) (variant: TargetPlatform.macOS)
+00:02 +11: reader edge drag scrolls beyond its starting page (phone false, upward true, filtered false) (variant: TargetPlatform.macOS)
+00:03 +12: reader edge drag scrolls beyond its starting page (phone false, upward true, filtered true) (variant: TargetPlatform.macOS)
+00:03 +13: reader edge drag scrolls beyond its starting page (phone true, upward false, filtered false) (variant: TargetPlatform.iOS)
+00:03 +14: reader edge drag scrolls beyond its starting page (phone true, upward false, filtered true) (variant: TargetPlatform.iOS)
+00:04 +15: reader edge drag scrolls beyond its starting page (phone true, upward true, filtered false) (variant: TargetPlatform.iOS)
+00:04 +16: reader edge drag scrolls beyond its starting page (phone true, upward true, filtered true) (variant: TargetPlatform.iOS)
+00:04 +17: reader edge scroll stops on cancellation or disposal (phone false, unmount false) (variant: TargetPlatform.macOS)
+00:05 +18: reader edge scroll stops on cancellation or disposal (phone false, unmount true) (variant: TargetPlatform.macOS)
+00:05 +19: reader edge scroll stops on cancellation or disposal (phone true, unmount false) (variant: TargetPlatform.iOS)
+00:05 +20: reader edge scroll stops on cancellation or disposal (phone true, unmount true) (variant: TargetPlatform.iOS)
+00:05 +21: selecting running output pauses tail following until explicitly resumed (phone false) (variant: TargetPlatform.macOS)
+00:05 +22: selecting running output pauses tail following until explicitly resumed (phone true) (variant: TargetPlatform.iOS)
+00:05 +23: reader Option drag copies a rectangle across pages after horizontal scroll (variant: TargetPlatform.macOS)
+00:05 +24: reader keyboard copies selection across native pages
+00:05 +25: reader distinguishes whole output, filtered output and selection
+00:05 +26: copy does not replace clipboard with a partially evicted snapshot
+00:05 +27: stale selected rows never copy replacement history
+00:05 +28: column selections preserve wide characters and rectangle line breaks
+00:05 +29: All tests passed!

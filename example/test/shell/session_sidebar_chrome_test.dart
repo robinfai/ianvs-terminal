@@ -39,16 +39,20 @@ double _lineOpacity(WidgetTester tester) =>
 void _expectCenteredTitle(WidgetTester tester) {
   final toggle = tester.getCenter(find.byKey(_toggle));
   final gear = tester.getCenter(find.byKey(_gear));
-  final title = tester.getCenter(
-    find.byKey(const Key('shell-chrome-window-title')),
-  );
-  expect(
-    title.dx,
-    closeTo(
-      tester.getCenter(find.byKey(const Key('shell-chrome-title-surface'))).dx,
-      0.1,
-    ),
-  );
+  final titleFinder = find.byKey(const Key('shell-chrome-window-title'));
+  if (titleFinder.evaluate().isEmpty) {
+    final tabs = tester.getRect(find.byKey(const Key('shell-tab-strip')));
+    expect(tabs.center.dy, closeTo(gear.dy, 0.1));
+    expect(tabs.left, greaterThanOrEqualTo(118));
+    expect(tabs.right, lessThan(gear.dx));
+    return;
+  }
+  final title = tester.getCenter(titleFinder);
+  final left = tester.getRect(find.byKey(_toggle)).right;
+  final right = tester
+      .getRect(find.byKey(const Key('terminal-ai-open-1')))
+      .left;
+  expect(title.dx, closeTo((left + right) / 2, 0.1));
   expect(toggle.dy, gear.dy);
   expect(title.dy, closeTo(gear.dy, 0.1));
 }
@@ -95,7 +99,7 @@ void main() {
       expect(find.byKey(const Key('shell-toolbar-settings')), findsNothing);
       expect(find.byKey(const Key('shell-toolbar-search')), findsNothing);
       expect(find.byKey(const Key('shell-toolbar-replay')), findsNothing);
-      expect(tester.getRect(find.byKey(_gear)).right, 1188);
+      expect(tester.getRect(find.byKey(_gear)).right, lessThan(_width(tester)));
       _expectCenteredTitle(tester);
       await tester.drag(find.byKey(_handle), const Offset(100, 0));
       await tester.pumpAndSettle();
@@ -114,13 +118,23 @@ void main() {
         tester
             .getSize(find.byKey(const Key('shell-chrome-title-surface')))
             .width,
-        1200,
+        400,
       );
-      expect(nativeLayouts.last, {'sidebarWidth': 400.0});
+      expect(
+        (nativeLayouts.last! as Map<Object?, Object?>)['sidebarWidth'],
+        400.0,
+      );
+      expect(
+        (nativeLayouts.last! as Map<Object?, Object?>)['draggableRegions'],
+        isA<List<Object?>>(),
+      );
       await tester.tap(find.byKey(_toggle));
       await tester.pumpAndSettle();
       expect(find.byKey(_handle), findsNothing);
-      expect(nativeLayouts.last, {'sidebarWidth': null});
+      expect(
+        (nativeLayouts.last! as Map<Object?, Object?>)['sidebarWidth'],
+        isNull,
+      );
       await tester.tap(find.byKey(_toggle));
       await tester.pumpAndSettle();
       expect(_width(tester), 400);

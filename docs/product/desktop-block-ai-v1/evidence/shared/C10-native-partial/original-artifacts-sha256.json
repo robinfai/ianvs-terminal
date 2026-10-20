@@ -1,0 +1,100 @@
+{
+  "recorded_at": "2026-10-10T11:55:20.075186+00:00",
+  "files": [
+    {
+      "file": "accessibility-tree-failure-final.json",
+      "bytes": 1483,
+      "sha256": "678c62a653b96009e80912bbbd3c5656f5a27e5a69ba5df7d4b3c1b34c0dc802"
+    },
+    {
+      "file": "accessibility-tree-failure-final.png",
+      "bytes": 340403,
+      "sha256": "f91f7f08963e48e06628a52e5018eb1f91ffbd3f36f2684a6693309d070851af"
+    },
+    {
+      "file": "app-identity.json",
+      "bytes": 1367,
+      "sha256": "f68c7ffdb29371531a60f6db6175305500ed7baab75cbac888a166b91de3a7b1"
+    },
+    {
+      "file": "baseline.json",
+      "bytes": 1167,
+      "sha256": "262e7bfa8e4f74f90e1ec065a5308ad511d00921324f93a85f1a6e441a7922fa"
+    },
+    {
+      "file": "baseline.png",
+      "bytes": 188309,
+      "sha256": "59095dad2bb2b78277e9aea82d586f070350834498babd89aae920a2c806bb7f"
+    },
+    {
+      "file": "command-close-confirmation.json",
+      "bytes": 1391,
+      "sha256": "524c9543eb2fbc6e15f5fb04256c89a3db91628e7c04d2a2c8e3420eefcf63d2"
+    },
+    {
+      "file": "command-close-confirmation.png",
+      "bytes": 422079,
+      "sha256": "d0594980d97b85fc289cfba1cf3aef888b70706d5443077f69a6658a23d9c669"
+    },
+    {
+      "file": "command-draft-after-cancel.json",
+      "bytes": 1391,
+      "sha256": "7b74ca108c8fcb068484df57abfe85c59fd2a9e8617a727d0cd63ecedf1d09d7"
+    },
+    {
+      "file": "command-draft-after-cancel.png",
+      "bytes": 337665,
+      "sha256": "186da8b62c364b4794386f50eb9f7e298461d7275022d177ddcedfc4a35a879e"
+    },
+    {
+      "file": "launch.log",
+      "bytes": 3900,
+      "sha256": "f2f7add173293b1ba4243e6c1c5e08480a422a977b7fa3a36f0afec8d054daad"
+    },
+    {
+      "file": "manual-run.json",
+      "bytes": 1352,
+      "sha256": "b5c5a364c2e238cac31c97e0453d21b49324c298d27c6563ef70308214cd5d13"
+    },
+    {
+      "file": "native-window.mp4",
+      "bytes": 20104684,
+      "sha256": "28e8e7d44060b31d7ba518b2a12a18823b47d3abe93bed657a87a0e3e7166e9d"
+    },
+    {
+      "file": "operator-observations.json",
+      "bytes": 3660,
+      "sha256": "f4f2a46273f26f06588657d8337c41c86c86e5da9bb0f51b44b0fee88b427483"
+    },
+    {
+      "file": "recording.log",
+      "bytes": 439,
+      "sha256": "4190d816ecc39ce2eb9bf5d562a268411c935f2e66e4aabc3ca45d5ad00e1a6a"
+    },
+    {
+      "file": "source-identity.json",
+      "bytes": 1739,
+      "sha256": "0975afc8331215cb817a465b719d8a96caac2e4ff8d96a06b8baefb21fc90247"
+    },
+    {
+      "file": "survivor-after-command-cancel.json",
+      "bytes": 1480,
+      "sha256": "828f6e41b79737de2f27a90ce120c0b5b89893af4735fc4d8d5626ad4379182a"
+    },
+    {
+      "file": "survivor-after-command-cancel.png",
+      "bytes": 318163,
+      "sha256": "7b21dcf3dcde1c797bd597670827a6a03a8f044157c23ce0464fa26ca0a484a3"
+    },
+    {
+      "file": "three-tabs-survivor-draft.json",
+      "bytes": 1390,
+      "sha256": "190251a35ab2e94aa5a5d43db26ebad6ed2b1500739c7deb8c8f28718de1bb3c"
+    },
+    {
+      "file": "three-tabs-survivor-draft.png",
+      "bytes": 314489,
+      "sha256": "5645ea8121276c75547eb414a100616cb3d2a040321725534000f9a9927234ca"
+    }
+  ]
+}

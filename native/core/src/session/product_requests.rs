@@ -4,6 +4,32 @@ use std::path::Path;
 const MAX_SFTP_PATH_BYTES: usize = 4096;
 const MAX_LOCAL_TRANSFER_PATH_BYTES: usize = 4096;
 
+fn live_screen_snapshot(terminal: &Terminal) -> serde_json::Value {
+    let alternate = terminal.is_alt_screen_active();
+    let grid = if alternate {
+        terminal.alt_grid()
+    } else {
+        terminal.grid()
+    };
+    let (columns, rows) = terminal.size();
+    // Read the active buffer, independent of scrolling and folded blocks.
+    // Snapshot reads do not consume damage or mutate the user's viewport.
+    let lines: Vec<String> = (0..rows.min(512))
+        .filter_map(|row| grid.row(row))
+        .map(|line| {
+            par_term_emu_core_rust::terminal::cells_to_text(line)
+                .trim_end()
+                .to_owned()
+        })
+        .collect();
+    serde_json::json!({
+        "text": lines.join("\n"), "rows": rows, "columns": columns,
+        "alternateScreen": alternate,
+        "applicationCursor": terminal.application_cursor(),
+        "cursorRow": terminal.cursor().row, "cursorColumn": terminal.cursor().col,
+    })
+}
+
 pub(super) fn valid_sftp_path(path: &str) -> bool {
     !path.is_empty()
         && path.len() <= MAX_SFTP_PATH_BYTES
@@ -32,6 +58,30 @@ fn sftp_context(request: &serde_json::Value) -> Result<String, SessionError> {
     }
 }
 
+fn remote_composer_state(session: &TerminalSession) -> Option<serde_json::Value> {
+    session
+        .remote_composer
+        .lock()
+        .as_ref()
+        .and_then(|bridge| bridge.snapshot())
+}
+
+fn composer_receipt(session: &TerminalSession, state: &mut serde_json::Value) {
+    let receipt = match *session.composer_submission_remote.lock() {
+        Some(true) => session.remote_composer.lock().as_ref().map(|b| b.receipt()),
+        Some(false) => session
+            .composer_bridge
+            .lock()
+            .as_ref()
+            .map(|b| b.snapshot()),
+        None => None,
+    };
+    if let Some(receipt) = receipt {
+        state["submissionId"] = receipt["submissionId"].clone();
+        state["outcome"] = receipt["outcome"].clone();
+    }
+}
+
 pub fn request_session(
     session_id: u64,
     operation: &str,
@@ -42,6 +92,215 @@ pub fn request_session(
     }
 
     match operation {
+        "terminal.live_screen" => {
+            let session = STORE.get(session_id)?;
+            let state = session.state.lock();
+            request_json_response(live_screen_snapshot(&state.terminal))
+        }
+        "terminal.command_blocks" => {
+            let session = STORE.get(session_id)?;
+            let state = session.state.lock();
+            request_json_response(command_blocks::snapshot(&state.terminal, request))
+        }
+        "completion.query" => {
+            let session = STORE.get(session_id)?;
+            let Ok(query) =
+                serde_json::from_value::<ianvs_completion_core::CompletionQuery>(request.clone())
+            else {
+                return Ok(None);
+            };
+            if query.target_id != session_id.to_string() {
+                return Ok(None);
+            }
+            let aliases = if remote_composer_state(&session).is_some() {
+                vec![]
+            } else {
+                session
+                    .composer_bridge
+                    .lock()
+                    .as_ref()
+                    .map_or_else(Vec::new, |bridge| bridge.aliases())
+            };
+            let Ok(batch) = ianvs_completion_core::query_with_aliases(query, &aliases) else {
+                return Ok(None);
+            };
+            request_json_response(serde_json::to_value(batch).expect("completion serialization"))
+        }
+        "composer.state" => {
+            if !request.as_object().is_some_and(|o| o.is_empty()) {
+                return Ok(None);
+            }
+            let session = STORE.get(session_id)?;
+            let _composer_gate = session.composer_input_gate.lock();
+            if let Some(mut state) = remote_composer_state(&session) {
+                composer_receipt(&session, &mut state);
+                return request_json_response(state);
+            }
+            let bridge = session.composer_bridge.lock();
+            let mut value = bridge.as_ref().map_or_else(|| serde_json::json!({"state":"draft","lease":null,"cwd":"","dialect":"generic","submissionId":null,"outcome":"none"}), |b| b.snapshot());
+            value["contextId"] = serde_json::json!("root");
+            value["transport"] = serde_json::json!("local");
+            if bridge.as_ref().is_some_and(|b| b.take_wakeup()) {
+                session.write_non_zmodem_ordered(&[0], true, false)?;
+            }
+            drop(bridge);
+            composer_receipt(&session, &mut value);
+            request_json_response(value)
+        }
+        "completion.local_start" => {
+            let Ok(start) =
+                serde_json::from_value::<crate::completion_host::Start>(request.clone())
+            else {
+                return Ok(None);
+            };
+            if start.query.target_id != session_id.to_string() || start.query.validate().is_err() {
+                return Ok(None);
+            }
+            let session = STORE.get(session_id)?;
+            if remote_composer_state(&session).is_some() {
+                return request_json_response(serde_json::json!({"status":"denied"}));
+            }
+            let state = session
+                .composer_bridge
+                .lock()
+                .as_ref()
+                .map(|b| b.snapshot());
+            let state = state.as_ref();
+            if state.and_then(|s| s["state"].as_str()) != Some("ready")
+                || state.and_then(|s| s["lease"].as_str()) != Some(start.lease.as_str())
+            {
+                return request_json_response(serde_json::json!({"status":"denied"}));
+            }
+            let Some(cwd) = state
+                .and_then(|s| s["cwd"].as_str())
+                .filter(|s| !s.is_empty())
+            else {
+                return Ok(None);
+            };
+            let home = state
+                .and_then(|s| s["home"].as_str())
+                .filter(|path| path.starts_with('/'))
+                .map(std::path::PathBuf::from);
+            let response = session
+                .local_completions
+                .lock()
+                .start(start, cwd.into(), home);
+            request_json_response(response)
+        }
+        "completion.local_poll" | "completion.local_cancel" => {
+            let Ok(job) =
+                serde_json::from_value::<crate::completion_host::JobRequest>(request.clone())
+            else {
+                return Ok(None);
+            };
+            if job.job_id.len() > 20 || job.job_id.parse::<u64>().is_err() {
+                return Ok(None);
+            }
+            let session = STORE.get(session_id)?;
+            let response = if operation == "completion.local_cancel" {
+                session.local_completions.lock().cancel(&job.job_id)
+            } else {
+                let state = if remote_composer_state(&session).is_some() {
+                    None
+                } else {
+                    session
+                        .composer_bridge
+                        .lock()
+                        .as_ref()
+                        .map(|b| b.snapshot())
+                };
+                let lease = state
+                    .as_ref()
+                    .filter(|s| s["state"] == "ready")
+                    .and_then(|s| s["lease"].as_str());
+                session.local_completions.lock().poll(&job.job_id, lease)
+            };
+            request_json_response(response)
+        }
+        "composer.submit" => {
+            let Ok(submit) =
+                serde_json::from_value::<crate::composer_bridge::Submit>(request.clone())
+            else {
+                return Ok(None);
+            };
+            let session = STORE.get(session_id)?;
+            let _composer_gate = session.composer_input_gate.lock();
+            let remote = session.remote_composer.lock().clone();
+            if let Some(remote) =
+                remote.filter(|r| submit.lease.starts_with("remote.") || r.snapshot().is_some())
+            {
+                // A local `ssh` command can enter its child before the UI polls
+                // the acceptance receipt. Report that receipt without ever
+                // granting the parent's lease to the child.
+                if !submit.lease.starts_with("remote.") {
+                    if let Some(local) = session
+                        .composer_bridge
+                        .lock()
+                        .as_ref()
+                        .map(|b| b.snapshot())
+                        && local["submissionId"].as_str() == Some(&submit.submission_id)
+                    {
+                        return request_json_response(
+                            serde_json::json!({"outcome":local["outcome"]}),
+                        );
+                    }
+                    return request_json_response(serde_json::json!({"outcome":"rejected"}));
+                }
+                let (response, wire) = remote.submit(submit);
+                if let Some(wire) = wire {
+                    *session.composer_submission_remote.lock() = Some(true);
+                    if let Err(error) = session.write_non_zmodem_ordered(&wire, false, false) {
+                        remote.invalidate();
+                        return Err(error);
+                    }
+                }
+                return request_json_response(response);
+            }
+            let bridge = session.composer_bridge.lock();
+            let response = bridge.as_ref().map_or_else(
+                || serde_json::json!({"outcome":"rejected"}),
+                |b| b.submit(submit),
+            );
+            if response["outcome"] == "pending" {
+                *session.composer_submission_remote.lock() = Some(false);
+            }
+            request_json_response(response)
+        }
+        "composer.receipt" => {
+            let Some(id) = request["submissionId"].as_str().filter(|id| {
+                !id.is_empty()
+                    && id.len() <= 80
+                    && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+            }) else {
+                return Ok(None);
+            };
+            let session = STORE.get(session_id)?;
+            let local = session
+                .composer_bridge
+                .lock()
+                .as_ref()
+                .and_then(|b| b.receipt_for(id));
+            let remote = session
+                .remote_composer
+                .lock()
+                .as_ref()
+                .and_then(|b| b.receipt_for(id));
+            let outcome = local.or(remote).unwrap_or_else(|| "unknown".into());
+            let state = session.state.lock();
+            // Terminal metadata is evidence, not an input capability. A block
+            // reference also requires the independent adapter's acceptance.
+            let block = (outcome == "accepted")
+                .then(|| {
+                    state.terminal.get_zones().iter().find(|z| {
+                        z.zone_type == par_term_emu_core_rust::zone::ZoneType::Output
+                            && z.submission_id.as_deref() == Some(id)
+                    })
+                })
+                .flatten();
+            request_json_response(serde_json::json!({"submissionId":id, "outcome":outcome,
+                "blockId":block.map(command_blocks::identity),
+                "running":block.map(|z| z.is_open()), "exitCode":block.and_then(|z| z.exit_code)}))
+        }
         "ssh.sftp.list_directory_start" => {
             let Some(path) = request
                 .get("path")
@@ -598,5 +857,43 @@ pub fn request_session(
             }))
         }
         _ => Ok(None),
+    }
+}
+
+#[cfg(test)]
+mod live_screen_tests {
+    use super::*;
+
+    #[test]
+    fn live_screen_uses_active_buffer_and_preserves_primary() {
+        let mut terminal = Terminal::new(40, 6);
+        terminal.process(b"shell output\r\nready> ");
+        let before = live_screen_snapshot(&terminal);
+        terminal.process(b"\x1b[?1049h\x1b[?1h\x1b[2J\x1b[Hvim content\x1b[3;5H");
+        let screen = live_screen_snapshot(&terminal);
+        assert_eq!(screen["alternateScreen"], true);
+        assert_eq!(screen["applicationCursor"], true);
+        assert_eq!(screen["cursorRow"], 2);
+        assert_eq!(screen["cursorColumn"], 4);
+        assert!(screen["text"].as_str().unwrap().contains("vim content"));
+        assert!(!screen["text"].as_str().unwrap().contains("shell output"));
+        assert_eq!(screen, live_screen_snapshot(&terminal));
+        terminal.process(b"\x1b[?1049l\x1b[?1l");
+        assert_eq!(live_screen_snapshot(&terminal), before);
+    }
+
+    #[test]
+    fn live_screen_excludes_scrollback_and_observes_carriage_return_rewrites() {
+        let mut terminal = Terminal::new(24, 3);
+        for line in 0..20 {
+            terminal.process(format!("old-{line}\r\n").as_bytes());
+        }
+        terminal.process(b"working\rfinished\x1b[K");
+        let screen = live_screen_snapshot(&terminal);
+        let text = screen["text"].as_str().unwrap();
+        assert!(text.contains("finished"));
+        assert!(!text.contains("old-0\n"));
+        assert!(!text.contains("working"));
+        assert_eq!(screen["rows"], 3);
     }
 }

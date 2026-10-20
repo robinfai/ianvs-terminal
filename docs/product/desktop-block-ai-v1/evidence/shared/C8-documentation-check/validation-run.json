@@ -1,0 +1,37 @@
+{
+  "implementation_candidate": "19001573d9974c510e1e4cbcfeb01c94368ea157",
+  "scope": "Pending documentation/evidence working tree; no new product execution",
+  "manifest_sha256": "b6a2ec90eb5a2ebb778dcf4c16fce1639d0bd9b7a0c9a76dcd9f85cf6f87c118",
+  "runs": [
+    {
+      "name": "metadata",
+      "command": [
+        "python3",
+        "docs/product/desktop-block-ai-v1/scripts/validate_evidence.py",
+        "docs/product/desktop-block-ai-v1/evidence/manifest.json"
+      ],
+      "started_at": "2026-10-10T08:12:30.519545+00:00",
+      "ended_at": "2026-10-10T08:12:30.612596+00:00",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "log": "metadata.log",
+      "log_sha256": "97eea038102d2817785ff55052f267687cba26ccec11b23d99340e9ea5d66555"
+    },
+    {
+      "name": "final-gate",
+      "command": [
+        "python3",
+        "docs/product/desktop-block-ai-v1/scripts/validate_evidence.py",
+        "docs/product/desktop-block-ai-v1/evidence/manifest.json",
+        "--gate",
+        "final"
+      ],
+      "started_at": "2026-10-10T08:12:30.613066+00:00",
+      "ended_at": "2026-10-10T08:12:30.684774+00:00",
+      "exit_code": 1,
+      "expected_exit_code": 1,
+      "log": "final-gate.log",
+      "log_sha256": "e302f633cb6fb172740cfd2bcfe5fcfc3e026be93ce37352aebcaa672bd71998"
+    }
+  ]
+}

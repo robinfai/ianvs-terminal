@@ -4289,7 +4289,11 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get developmentMasterKeyStorageDescription =>
-      '开发版主密钥仅存储在此 Mac 的本机钥匙串中，不同步到 iCloud，也不与正式版共享。';
+      '开发版主密钥存储在仅当前用户可读写的本地文件中，不访问钥匙串，不同步到 iCloud，也不与正式版共享。';
+
+  @override
+  String get acceptanceDeviceOnlyMasterKeyStorageDescription =>
+      '验收版主密钥仅保存在此设备的钥匙串中，不同步到 iCloud、不与正式版共享。加密数据无法在其他设备上恢复。';
 
   @override
   String get syncLocalOnly => '数据保存在本机，API 同步为可选功能。';
@@ -4599,10 +4603,11 @@ class AppLocalizationsZh extends AppLocalizations {
   String get shellCapabilityOutputHelp => '报告明确的输出区域边界。当前复制命令输出使用相邻提示符位置。';
 
   @override
-  String get shellCapabilityVariables => '自定义 shell 变量';
+  String get shellCapabilityVariables => '自定义 Shell 变量（可选）';
 
   @override
-  String get shellCapabilityVariablesHelp => '接收允许的 IANVS_ 变量，用于会话元数据和已配置的查询。';
+  String get shellCapabilityVariablesHelp =>
+      '供脚本保存项目名等会话信息，并通过获准的变量查询读取。IANVS_ 是变量名前缀；不设置也不影响终端或 AI 功能。';
 
   @override
   String get shellCapabilityPending => '待确认';
@@ -4984,4 +4989,183 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get mobileExternalKeyboardHelp =>
       '连接外接键盘后可使用这些快捷键。点按组合键可修改，作用范围在录制时设置。';
+
+  @override
+  String get terminalModeNormal => '普通终端';
+
+  @override
+  String get terminalModeBlocks => 'Block + AI';
+
+  @override
+  String get terminalModeRecheck => '重新检查命令块支持情况';
+
+  @override
+  String get terminalModeSupportAvailable => '当前节点支持命令块。';
+
+  @override
+  String get preferredTerminalMode => '优先终端模式';
+
+  @override
+  String get terminalModePlatformDefault => '跟随平台默认';
+
+  @override
+  String get aiConfigurationLoading => '正在读取已保存的配置…';
+
+  @override
+  String get aiConfigurationUnreadable => '无法读取已保存的配置。终端功能仍可使用。';
+
+  @override
+  String get aiConfigurationMissing => '尚未配置。终端功能可以独立使用。';
+
+  @override
+  String get aiConfigurationSaved => '配置已保存。打开可编辑或测试连接。';
+
+  @override
+  String get preferredTerminalModeHelp =>
+      '用于新会话。移动端配置 LLM 后默认使用 Block + AI 融合模式，在同一输入框执行命令或向 AI 提问；可选择普通模式关闭此默认行为；未配置 LLM 时仅可使用普通模式。桌面默认使用普通终端。命令块仍需 Shell 支持，能力恢复后需手动切回。';
+
+  @override
+  String get blockUnavailableChecking => '正在检测 Shell 支持…';
+
+  @override
+  String get blockUnavailableShell => '当前 Shell 不支持命令块。';
+
+  @override
+  String get blockUnavailableRemote => '当前 SSH 节点尚未完成命令块协商。';
+
+  @override
+  String get blockUnavailableNested => '当前子 Shell 不支持命令块。';
+
+  @override
+  String get blockUnavailableInput => '终端正在处理 Shell 输入。';
+
+  @override
+  String get blockUnavailableFullScreen => '当前应用需要使用普通终端。';
+
+  @override
+  String get blockUnavailableRichOutput => '此会话包含需要普通终端展示的内容。';
+
+  @override
+  String get blockUnavailableUnattributed => '此会话包含命令块之外的输出。';
+
+  @override
+  String get blockUnavailableExited => '会话已结束。';
+
+  @override
+  String get blockUnavailableReadOnly => '当前会话为只读。';
+
+  @override
+  String get blockModeAvailableNotice => '命令块可用，右键此标签页切换。';
+
+  @override
+  String get blockModeRestoredNotice => '命令块已恢复可用，右键此标签页手动切回。';
+
+  @override
+  String get normalModeFallbackNotice => '已切换为普通终端，右键此标签页查看模式。';
+
+  @override
+  String get mobileBlocksAvailable => '命令块可用，可在会话选项中切换。';
+
+  @override
+  String get mobileBlocksRestored => '命令块已恢复可用，可在会话选项中手动切回。';
+
+  @override
+  String get mobileNormalFallback => '已切换为普通终端。';
+
+  @override
+  String get mobileSessionsTitle => '会话';
+
+  @override
+  String get mobileSessionsActive => '进行中';
+
+  @override
+  String get mobileSessionsDisconnected => '已断开';
+
+  @override
+  String get mobileSessionActive => '进行中';
+
+  @override
+  String get mobileSessionDisconnected => '已断开';
+
+  @override
+  String get mobileSessionViewOutput => '查看输出';
+
+  @override
+  String get mobileSessionReconnect => '重新连接';
+
+  @override
+  String get mobileSessionDisconnect => '断开连接';
+
+  @override
+  String get mobileSessionRemove => '移除记录';
+
+  @override
+  String get mobileSessionsClearDisconnected => '清理已断开';
+
+  @override
+  String get mobileSessionLocalHost => '本机';
+
+  @override
+  String get mobileSessionReconnected => '已重新连接 · 历史输出';
+
+  @override
+  String get mobileSessionOpenCurrent => '进入当前连接';
+
+  @override
+  String get mobileSessionReferencedByAi => 'AI 对话正在引用此记录，结束其当前会话后可移除。';
+
+  @override
+  String mobileSessionExitCode(int code) {
+    return '退出码 $code';
+  }
+
+  @override
+  String get mobileSessionDisconnectedTitle => '连接已断开';
+
+  @override
+  String get mobileSessionDisconnectedDetail => '输出已保留，可只读查看；移除记录或退出 App 后会清除。';
+
+  @override
+  String get mobileSessionReconnectedDetail => '你正在查看旧连接的输出，进入当前连接即可继续操作。';
+
+  @override
+  String get mobileSessionsClearPartial => '部分记录仍被 AI 对话引用，或有尚未保存的录制，已保留。';
+
+  @override
+  String get mobileSessionReconnectFailed => '重连未成功，原会话输出仍可查看。';
+
+  @override
+  String get mobileSessionsNoActive => '当前没有进行中的连接';
+
+  @override
+  String get blockUnavailableLlm => '移动端需先在设置中配置 LLM，才能使用 Block + AI。';
+
+  @override
+  String get mobileLlmWelcomeDetail =>
+      '可以直接使用普通终端，也可以配置 LLM，启用 Block + AI 融合模式，在同一工作区执行命令与使用 AI。配置后，新会话默认使用融合模式；可在设置中改为普通模式。连接信息仅保存在此设备。';
+
+  @override
+  String get mobileConfigureLlm => '配置 LLM';
+
+  @override
+  String get mobileLlmConfigured => '已配置 LLM · 编辑';
+
+  @override
+  String get mobileSkipLlm => '跳过，使用普通终端';
+
+  @override
+  String get shellCapabilityAwaitingEvent => '等待实际事件';
+
+  @override
+  String get shellCapabilityAwaitingEventHelp => '当前 Shell 已提供此能力，收到有效数据后确认激活。';
+
+  @override
+  String get shellCapabilityNotProvided => '尚未提供';
+
+  @override
+  String get shellCapabilityNotProvidedHelp =>
+      '当前 Shell 集成未提供此能力，等待不会自动启用；兼容集成仍可提供对应数据。';
+
+  @override
+  String get shellCapabilityProviderReady => '已提供实现';
 }

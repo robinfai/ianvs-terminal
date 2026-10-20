@@ -1,0 +1,1013 @@
+{
+  "scope": "Host widget rendering with substitute fonts; production widgets, in-memory fixtures, no real network/import/export operation. Six theme/platform/orientation variants.",
+  "files": [
+    {
+      "file": "final-host-iOS-dark-landscape-diagnostics.png",
+      "sha256": "60886ba17c677530610bea5744e786a97573ebdcc42f3065bf5ebed67cb90651",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-landscape-import-empty.png",
+      "sha256": "d81e3371d08d58daeeaf68393bd8149517ea05f43265adca353642c0153dc773",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-landscape-import-error.png",
+      "sha256": "c52a61f343cdc137d1c7391e7e01527b2eafaa1bfd59d41dc9b56d9c9f50f17b",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-landscape-import-list-bottom.png",
+      "sha256": "bd3a3f1be2408c4816dd588810c934846db0f9d1b4bd58b0f1c43b809ca37b90",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-landscape-import-list-middle.png",
+      "sha256": "c44f6ec2c641546cfa5d7c5bb29620cebdee78e7ee6acefdf860e59171a6c21e",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-landscape-import-list.png",
+      "sha256": "588a6b7ab63ab67f3c447edb6901a3a188c5d620d19532a498609f8416202513",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-landscape-import-menu.png",
+      "sha256": "377c55a8e1d3ab627c8dbcbaa770adc621088ba5ea0f648a05e03e7faa273329",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-landscape-profile-expanded-bottom.png",
+      "sha256": "e7b6fcd15beddcf20754a82eebce916945805cb853a87b0b5db285c1cb78c2f8",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-landscape-profile-expanded-fallback.png",
+      "sha256": "e3c17ba398c8212148922a933f52ff44acadd140785b553ccb0569f62e86c8d7",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-landscape-profile-expanded-middle.png",
+      "sha256": "cd981bfac80f23dab0fb2ab0f59195c85c26311b3b717cf6b01892af14dcaa2b",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-landscape-profile-expanded.png",
+      "sha256": "5794c72a79fa138400d3736312fe0f4df25ad042869386cc8566e4df099c3a3f",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-landscape-profile-invalid-bottom.png",
+      "sha256": "962b8a65a383fce64ef6f980e64e7a2eaf3d1bd8f68adfcb44c03fd48f1aa137",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-landscape-profile-invalid-middle.png",
+      "sha256": "a3d352aaed9dff22bfd27f4b425ba8013b6088dfd7e381b2d75cf9dcb3aa281f",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-landscape-profile-invalid.png",
+      "sha256": "ecab15ce3ffb479b00d82b7a93124fd46fbac2ac109e7a999c80ce0fc1757901",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-landscape-replay-details-bottom.png",
+      "sha256": "019bf9d3512e0ca4e896079344e4881cad3dfddd2988cbf31a6773fa21b4971c",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-landscape-replay-details-middle.png",
+      "sha256": "737791ae779940e3d5aa8eba209bd5072ec991810b42a49808d8e9ab28e43c1a",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-landscape-replay-details.png",
+      "sha256": "2e22f821b788daec657030a288c21a226c8006a830c97212eb851a045c77cd4a",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-landscape-settings-expanded-bottom.png",
+      "sha256": "ce9d2bbcfed1b06a995a88457ef1f56d549749bba7aab21c8f2e61610c9fc7e5",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-landscape-settings-expanded-middle.png",
+      "sha256": "d0b18d67c0dd8201bfee5d3f0b7811691e55f1383ffa43e0f141d667efb2fba8",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-landscape-settings-expanded.png",
+      "sha256": "a9ca453af6f7a0bc076c754411925a9418d0e61f466471e348ea85f3b440c26b",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-landscape-shell-home-empty.png",
+      "sha256": "0fcd19fe91691d588fa9b0109aa157f2b6b14d780b1a3f25cd265104ab96ae25",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-landscape-shell-home-error.png",
+      "sha256": "b79e5210ed571a384ae20c6ed27bd84a1ee69087e03b82d26b3324884b5d31df",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-landscape-ssh-jump-error-bottom.png",
+      "sha256": "0d9b8cdd317d5387ad506ddfcec2cd04aae8ed00dffdbb28b30f72d069a947e9",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-landscape-ssh-jump-error-middle.png",
+      "sha256": "09795a55cef5c88204c2ab8331ab96a8ce8dc0f3fb0dae0f228ae95950a0737d",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-landscape-ssh-jump-error.png",
+      "sha256": "b02a816cccf3b9d6ca7725304e1f82631ee12745f3de1246d6a1e8da0a54b336",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-portrait-diagnostics.png",
+      "sha256": "b05f2d15ddc6d0a736a77e8a973a470be6a6aa3fe919e5654acc9734e0b4f304",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-portrait-import-empty.png",
+      "sha256": "5d0ba36ac0455a263c8e7929d4e19e671fb105d7096f6a3920c721784fed2db9",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-portrait-import-error.png",
+      "sha256": "c95845ea15722c890e419c8a0014e24ba9c5e803f8065039d52b272af49ac0a6",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-portrait-import-list.png",
+      "sha256": "fdd7701bee91debdcf4e6fc9d30b14edd0160dd847a3027357df1e49af083729",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-portrait-import-menu.png",
+      "sha256": "7c5e68ff151f67cc3ceaa1e8240ce419c364da245f767e0923ac4e7f208cc0f2",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-portrait-profile-expanded-bottom.png",
+      "sha256": "f8692ce81449ef628e0f6d30dc8ed794499b2403f64d7f27509114646852993e",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-portrait-profile-expanded-fallback.png",
+      "sha256": "a1c2601c8f031ab310e18ad25cc01b5ef13c503f8cd5aa3bdd3498110ddd2a3f",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-portrait-profile-expanded-middle.png",
+      "sha256": "646e461575eba0637dc734061472cd5dad74f6a6960f89fba9fd595219712b29",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-portrait-profile-expanded.png",
+      "sha256": "1cbee72a0bd08f3282724e292bbd3f7098035ab87d0a8c2baffa5afd3f13e32a",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-portrait-profile-invalid.png",
+      "sha256": "7c15b79592a4b96aa5dabf4ec8226c6c37c8ed201cc36690058fef18971bfa90",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-portrait-replay-details.png",
+      "sha256": "332f99f9063ba3dc4938ec321a094ef6616ede8bf83d9edc4e3739c69ba3afa1",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-portrait-settings-expanded-bottom.png",
+      "sha256": "f4dc80e47a3cb291264ac4dd4e7816bfa2367d6998f728b0bd498c616acee405",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-portrait-settings-expanded-middle.png",
+      "sha256": "0e3bab099d0fd70c8a6d656ac7d78712d983149ffe0875ac63dbfba76b0f8433",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-portrait-settings-expanded.png",
+      "sha256": "6f3397513fb355316f4579f2603c5ee75607d25cf8c00854550cea71c5decdf9",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-portrait-shell-home-empty.png",
+      "sha256": "32aa737157ace75fde6d79ef65825fb2fc6ef4bc6c4a7a2ac3f7515c93ee8719",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-portrait-shell-home-error.png",
+      "sha256": "60147539dc9adef64b0fbaf529479090e7ba4c663817142d3fda3bd34012bcbf",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-portrait-ssh-jump-error-bottom.png",
+      "sha256": "cb6cbb56eb42629442accc46a9f76b79dfac07bfbf30877bd55d9c704243f332",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-portrait-ssh-jump-error-middle.png",
+      "sha256": "c39d30cee80c4d95dec18eb2d65165c73ef73715683781575f185893c11c4e93",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-dark-portrait-ssh-jump-error.png",
+      "sha256": "cb6cbb56eb42629442accc46a9f76b79dfac07bfbf30877bd55d9c704243f332",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-landscape-diagnostics.png",
+      "sha256": "c254ca3d24076cfc0c8eac84d8b10cec49a772a509914240b2d341844dcd90dc",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-landscape-import-empty.png",
+      "sha256": "795e0b0153bcfd3fd0c7f438ec305de8c8e8daaddf454a1cabb03572caa4b558",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-landscape-import-error.png",
+      "sha256": "96421c6b1ea235a938c0755142a7c87c227fdab07abd09fa5e53735303da05a3",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-landscape-import-list-bottom.png",
+      "sha256": "9c773cd2339b705d86ee0895d35b6779e6fa552e53900a4cb6b227ac309cd086",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-landscape-import-list-middle.png",
+      "sha256": "4167e4c24d137d6305c4095e99a83b7cc86075d88658c6dbe8931f40e8df8844",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-landscape-import-list.png",
+      "sha256": "61ba46deab757b966db41c382b35f6fff8cec01ba37c17bac84a336079f7cd70",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-landscape-import-menu.png",
+      "sha256": "2676962afc047e7446c3a78f728931eeed1a478aafc705188f80b7aaf641955b",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-landscape-profile-expanded-bottom.png",
+      "sha256": "a0d272c2ce55060b73b044c5d0cfb0bd0bae702b87e9f6f304cbd8b721c0d434",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-landscape-profile-expanded-fallback.png",
+      "sha256": "8045403c237bc406f11fc451ad1425452b363c112f90be5a7d1554a64cd502c5",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-landscape-profile-expanded-middle.png",
+      "sha256": "f6ce98534d0b635643fd1495e878d139d070b14a8024dc840f6c29845f33c8d7",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-landscape-profile-expanded.png",
+      "sha256": "59dcff78760ae51a66087aca4b427af4eee4339b15d2fe0578bae3d1f5bb592b",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-landscape-profile-invalid-bottom.png",
+      "sha256": "eb74b21240d6f783316010a4e309d8039c9da13c7c5136568e4024673c3be2ed",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-landscape-profile-invalid-middle.png",
+      "sha256": "63fab9817c603a93d779460cfc86f79e45a5a2969172a6badb4e03c18ae3b9f8",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-landscape-profile-invalid.png",
+      "sha256": "1cd258238d4a9e79eeb0062b5e2c50b54127fa2cad70f8df28c04d241ac01723",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-landscape-replay-details-bottom.png",
+      "sha256": "199eb9e61f8aac4794cc2d65eadcc0904e0aaceaaa3e37be0b7bba158c0ac07c",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-landscape-replay-details-middle.png",
+      "sha256": "ca2c5a98ae708603af0f6a6a4c3d145d96339b98a9c9f10f4865c9a405f61696",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-landscape-replay-details.png",
+      "sha256": "471dc300af62c4bfea5c5da6abea0e501ce99354bc7e4353ac5462c00758349c",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-landscape-settings-expanded-bottom.png",
+      "sha256": "260fa51f98893069b49b48eac95eb22937974125f26c31845d2cbdb0e8d24d88",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-landscape-settings-expanded-middle.png",
+      "sha256": "6a11e18139695291cebbda6a1d132869d2ba3ba72e8fe1b892246c3bfc4771d5",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-landscape-settings-expanded.png",
+      "sha256": "4b79010d7eaa4b80bdbd8c1190dd8ecc06b0fa694fc846a04bb6a7fd9c513206",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-landscape-shell-home-empty.png",
+      "sha256": "783d09bfdad764ae2a2d7e67600de0453f32dcc42ee0d277a65733fde4df6b90",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-landscape-shell-home-error.png",
+      "sha256": "f0ecd010723546b43dfafccfb9700043062a8a95f467b24c90635871d1453017",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-landscape-ssh-jump-error-bottom.png",
+      "sha256": "79296655eb613b141d547bdc56b16b9b698223df44b005a5d12e18d2636e7442",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-landscape-ssh-jump-error-middle.png",
+      "sha256": "d93b38670fa07593e67218f0df1edfb78cb0aaea66cf49ff67a318b6caefa517",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-landscape-ssh-jump-error.png",
+      "sha256": "5e3f83bbcff15b46c69777e0c55b145fa14d7f2f13be72f0d5ba0cd04ac4b4db",
+      "size": [
+        1748,
+        804
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-portrait-diagnostics.png",
+      "sha256": "ff8679b97297519b652031f16e6cb5252b768960c2eb758e21ef84f2fc0c510f",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-portrait-import-empty.png",
+      "sha256": "8877b94c6a70072fead57d95ddab332a4391cf4865dd71fc0fc0d8d117e0c43c",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-portrait-import-error.png",
+      "sha256": "dd054d61a29c75fdada8b58fc7e28bc4f305593a164ff943a277a28115442c59",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-portrait-import-list.png",
+      "sha256": "30bd7bec7c2ade65cc25b0b9b75dac463d43b476dd863d2824bfbb247c6d3fcc",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-portrait-import-menu.png",
+      "sha256": "f3f719bf893d4e073dea717db0cab85a253a44751645bfc1a7bbfec6ecb16c66",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-portrait-profile-expanded-bottom.png",
+      "sha256": "3dff09f155de9817cc681e984e0c73be4fc896c24dff94f746245cfe917f6787",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-portrait-profile-expanded-fallback.png",
+      "sha256": "457a439871bf86e94772ce80b4ec7a5c4e35209369d30c0c1190a1efae48929d",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-portrait-profile-expanded-middle.png",
+      "sha256": "b171230c437ad4ebb12ad3dde0ec1fcfc84fc12c81e57266aace4cd4cb04ce59",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-portrait-profile-expanded.png",
+      "sha256": "64fc951517b3464937fb7d93d5f4a8af301e545d682f8dd5ac9a1bc3c3f8fa09",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-portrait-profile-invalid.png",
+      "sha256": "f4ae0371725fb61ffd84a5794ed53452e33b1fd04dbb85ef51dde6d27e8a677d",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-portrait-replay-details.png",
+      "sha256": "eacfeec0e1ae78b39760bece0538f7a628f43304d8404563bb642277a2be3607",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-portrait-settings-expanded-bottom.png",
+      "sha256": "47af56f6544a08e335fa6dcbc9638382e9b220d061fec1f6bcc3979cc489a1a1",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-portrait-settings-expanded-middle.png",
+      "sha256": "3d30f71f9da3f908cca71aba3cc3f499b225c1089d08c2625b0726fa3733c864",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-portrait-settings-expanded.png",
+      "sha256": "820c78af5b11db98c446d7776e49c9a625376c1b5fe043daac1059fd04be91ae",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-portrait-shell-home-empty.png",
+      "sha256": "7a845d0af4c8b96504dcee75405ca8413cac299800605974dc649c5be4b33ae4",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-portrait-shell-home-error.png",
+      "sha256": "e3d6d64ec009ef572a3c200748db4cfb0df2aa2cf23b42aed437101eebbd5d38",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-portrait-ssh-jump-error-bottom.png",
+      "sha256": "d58953957d12f82a3603bb0bcff3fd716380e441e49aefa321c5727c41c2abbe",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-portrait-ssh-jump-error-middle.png",
+      "sha256": "6aff01a354b1330a8413c4d22fbb4c9190cd79b286d901f6434a826e702b5f83",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-iOS-light-portrait-ssh-jump-error.png",
+      "sha256": "d58953957d12f82a3603bb0bcff3fd716380e441e49aefa321c5727c41c2abbe",
+      "size": [
+        804,
+        1748
+      ]
+    },
+    {
+      "file": "final-host-macOS-dark-portrait-diagnostics.png",
+      "sha256": "9cc06e06430e721074a5fb78ea582888a663ffa2b2fd5bf5e3cc55bff5cde26e",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-dark-portrait-import-empty.png",
+      "sha256": "722fdf15c654e8970efa1e1d809a355442142791fc6e93372471814cac294eaa",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-dark-portrait-import-error.png",
+      "sha256": "c1c0ea85c7c7eee979d9bf7f4d0527a4b2fca8d8f3d352dd34996ebdd25f1ca5",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-dark-portrait-import-list.png",
+      "sha256": "54d3b59bd244210697c1e8c7b7f5360e54f34163ba5f68e9807441467afac665",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-dark-portrait-import-menu.png",
+      "sha256": "eac4c1a354672fddbe87f425b020c96161cd5d4015f4c6d486c00ef1f183e160",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-dark-portrait-profile-expanded-bottom.png",
+      "sha256": "cde46fc2ad8427be8604a5f7c5dbc7a6ca1c65bc2c49235a6500397b446c748e",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-dark-portrait-profile-expanded-fallback.png",
+      "sha256": "82aa0600921c2ae9aec4ad59d1027620ac38f212e755ed455e15e73993afc6cd",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-dark-portrait-profile-expanded-middle.png",
+      "sha256": "83ec1775bf4c4bd8e4ebd8512d0d6d12b34c013804dd511cb4803c98a6b01c20",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-dark-portrait-profile-expanded.png",
+      "sha256": "ec827a88cfd7cfb85c8f47024f2cd959d6657f1a6458010938df1b7a1767ea63",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-dark-portrait-profile-invalid.png",
+      "sha256": "24f08ad2e9987ea1fa1d4a56273273479c9db1664c944cdbac983c87237115e5",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-dark-portrait-replay-details.png",
+      "sha256": "40fcf467db6c806355b6365618f65acdf191718941de8241fc68646c23aa1f66",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-dark-portrait-settings-expanded-bottom.png",
+      "sha256": "2b19817120fe64a6171ab735658e54ab492300c858f3a4dbcc958fc25a8465f5",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-dark-portrait-settings-expanded-middle.png",
+      "sha256": "cc30ccd735f5c77132a9c775d48365cdcde0a804db1c4d057816f308d6114edc",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-dark-portrait-settings-expanded.png",
+      "sha256": "f60095d3d2b14a34a298a496c15f08dfc017c6859d603febed7bc3a02a7d2e72",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-dark-portrait-shell-home-empty.png",
+      "sha256": "0354f52c9bd3fdc1b4c6d813d2853f9b08f925b9361edba6241393acbddfac7e",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-dark-portrait-shell-home-error.png",
+      "sha256": "5210788e027ad627aef00895269ebc98f3167cc2edce21bff80966a8edb8e279",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-dark-portrait-ssh-jump-error-bottom.png",
+      "sha256": "ebb04ef76a638da9a77728681c2ad82bde1bf07fae376c93a7b6ff2cbbbb5f35",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-dark-portrait-ssh-jump-error-middle.png",
+      "sha256": "b73dbc73f4991fd33ffb7a8ba2dcb80ee848ff2bb85ecd76589e3fad715b3066",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-dark-portrait-ssh-jump-error.png",
+      "sha256": "ebb04ef76a638da9a77728681c2ad82bde1bf07fae376c93a7b6ff2cbbbb5f35",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-light-portrait-diagnostics.png",
+      "sha256": "72581e2f911baacb95f37d70af1c562b787f07fb906ccc57648aa86a4e2a9815",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-light-portrait-import-empty.png",
+      "sha256": "8cebe985dcb2d9c6598637a13bd7f857438ad10db616d5ebcb0efa8ad66e7803",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-light-portrait-import-error.png",
+      "sha256": "4b72c5791280fe04375e08b56c7238df1ae25cc8617a04dfe9ffaea6c259e35e",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-light-portrait-import-list.png",
+      "sha256": "5871ee55badab18a68c61a12082003b52977e6421af48ff042f2f59c1a334db8",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-light-portrait-import-menu.png",
+      "sha256": "d22d3d4e276fc4f3e6e856ee2a278d6919ad64919ea66491b954185ef0ccf8b3",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-light-portrait-profile-expanded-bottom.png",
+      "sha256": "a7c91e42cc39d9ff47008e0ba4222685488005acb53435e376b93190ba33ef13",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-light-portrait-profile-expanded-fallback.png",
+      "sha256": "48f2558f8dde30300884a8878243a4b19c7792e6225098418459be2a13891d8d",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-light-portrait-profile-expanded-middle.png",
+      "sha256": "8f5e6eb7ff64d58f789b3280f9241b104ef811dfc054f85656ee8ebc84f0811a",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-light-portrait-profile-expanded.png",
+      "sha256": "b76a408358c1401c58fe699f9d7d30778a3018ef9704087837d6b2a9a62e06da",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-light-portrait-profile-invalid.png",
+      "sha256": "719d47c50a24593be184a090be148a3af8cb2a96d2e111b1d3ab1de41e974890",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-light-portrait-replay-details.png",
+      "sha256": "cacb1cc434a895c26d738ad369a8acc520d98e575413996f093f7d6f20a415a5",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-light-portrait-settings-expanded-bottom.png",
+      "sha256": "960fbb885e6113c35e17bc923238de82ba3da58da519f6bcc14164ddc1edefa7",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-light-portrait-settings-expanded-middle.png",
+      "sha256": "e3b5315a04d08f91c22c9d806e6abfbd516bcfaec6466059313b7a1937c9bc30",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-light-portrait-settings-expanded.png",
+      "sha256": "aa009ffd03c4fae25020ff54dca576173d0609deaf3b07cff13f9478944bf9a1",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-light-portrait-shell-home-empty.png",
+      "sha256": "661753952da02d1f3723561eba27fe61cc012a08671418c951d56a163c0aeb4e",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-light-portrait-shell-home-error.png",
+      "sha256": "ecf4fe4123dd00ae85e1ec588a263537f4a03492a8b18f45ab83ddfa3a96e3b8",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-light-portrait-ssh-jump-error-bottom.png",
+      "sha256": "47d7255a8bc48ff63645861822e8fbe49480ff345c0fc380b4d94426030c5445",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-light-portrait-ssh-jump-error-middle.png",
+      "sha256": "dffa86b77fabb4322613421e9c2c84ddf19817dceaafa6fa08d0aa8b2a0ca7cd",
+      "size": [
+        2560,
+        1800
+      ]
+    },
+    {
+      "file": "final-host-macOS-light-portrait-ssh-jump-error.png",
+      "sha256": "47d7255a8bc48ff63645861822e8fbe49480ff345c0fc380b4d94426030c5445",
+      "size": [
+        2560,
+        1800
+      ]
+    }
+  ]
+}

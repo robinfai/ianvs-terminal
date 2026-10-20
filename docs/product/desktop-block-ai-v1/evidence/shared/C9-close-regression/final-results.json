@@ -1,0 +1,25 @@
+[
+  {
+    "log": "format-final.log",
+    "exitCode": 0,
+    "command": [
+      "/Users/robinfai/development/flutter/bin/dart",
+      "format",
+      "lib/features/shell/shell_screen_close_protection.dart",
+      "test/shell/shell_close_protection_test.dart"
+    ],
+    "finishedUtc": "2026-10-10T08:40:03.585040+00:00"
+  },
+  {
+    "log": "draft-file-final.log",
+    "exitCode": 1,
+    "command": [
+      "/Users/robinfai/development/flutter/bin/flutter",
+      "test",
+      "test/shell/shell_close_protection_test.dart",
+      "--reporter",
+      "expanded"
+    ],
+    "finishedUtc": "2026-10-10T08:40:18.082356+00:00"
+  }
+]

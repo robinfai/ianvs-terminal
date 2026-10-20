@@ -1,3 +1,6 @@
+mod command_inventory;
+mod completion_host;
+mod composer_bridge;
 pub mod ffi;
 pub mod frame_diff_proto;
 pub mod graphic_asset_proto;
@@ -6,6 +9,7 @@ pub mod model;
 pub mod platform;
 pub mod proto;
 pub mod pty;
+mod remote_composer;
 pub mod runtime_contract;
 pub mod session;
 pub mod session_config;

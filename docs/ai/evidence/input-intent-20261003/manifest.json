@@ -1,0 +1,40 @@
+{
+  "date": "2026-10-03",
+  "branch": "composer",
+  "host": "macOS 27.0.1",
+  "passed": true,
+  "aiTests": 254,
+  "composerTests": 138,
+  "nativeRemoteUnitTests": 4,
+  "sshConfigurations": 6,
+  "nativeUiTests": 1,
+  "visualStates": 8,
+  "standaloneDartSmoke": true,
+  "modelReproducible": true,
+  "modelTrainingFixtures": 334,
+  "benchmark": {
+    "samples": 1000,
+    "p50Microseconds": 30,
+    "p95Microseconds": 604,
+    "p99Microseconds": 694,
+    "maxMicroseconds": 947
+  },
+  "phoneValidation": "fixed-font widget screenshots; no physical iPhone",
+  "scope": "local intent routing, session evidence, draft overrides and existing PTY submission; regression fixtures are not a blind model accuracy benchmark",
+  "sourceSha256": {
+    "packages/ianvs_terminal/lib/src/composer/input_intent.dart": "c9da89126fd89b94f8662dbd47f2741132d9ce8eb336da55f0f30a522babe273",
+    "packages/ianvs_terminal/lib/src/composer/input_intent_weights.dart": "548163713dd710c426306f06ff442d11d6464edcc956b20014541aa91e1600e2",
+    "packages/ianvs_terminal/lib/src/composer/terminal_composer_view.dart": "9a9e0a97799e5555208e8fb8d0a0c8f5c2d2382838605136d7fd5a456859f758",
+    "packages/ianvs_terminal/lib/src/composer/terminal_composer_controller.dart": "696d0e111ca7051b4e33eda54d28763704bd08ea73e95e76f2d384d27685717f",
+    "example/lib/features/ai/ai_models.dart": "fa084439ffb210373bbb13695b81696b56e14c33b778870a9a67026d68b31fe6",
+    "example/lib/features/ai/terminal_ai_controller.dart": "52d8739be7cdfd29ad385a22ddedb89005592f063d5ea77a8a49c3ab907b5951",
+    "example/lib/features/ai/terminal_ai_workspace.dart": "97b5af9735593ed9b17eb991cb733e7a7890d3e80ed874656fa0b7edc954fd6b",
+    "example/lib/features/ai/terminal_ai_runtime.dart": "c04538ac06ba64bb360649398e01ec9cf14ed7680f2b3d664ac9d5dad28e95bc",
+    "example/lib/features/terminal_composer/composer_pane.dart": "8678081268838909ef8d3d2cce3f96d452cd3411492b6a4c99440d5aba2af0ff",
+    "native/core/src/composer_bridge.rs": "511d4fb2fc178cb1b62fabbc5ecc1124283d3e170702cab5f4d3b46a6cd300f1",
+    "native/core/src/remote_composer.rs": "b7abfa2e8e00b4e1082aa9d4c6e95b5ba8fca83a1e5ac538b15e3e05234d8f4b",
+    "native/core/src/remote_composer/bash.sh": "4a9ddddb07e51f33073086f44e285624395acff1ba0d092a315de036810e153a",
+    "native/core/src/remote_composer/zsh.sh": "2c64f9848efca4f71bcfebfc39428b693a3af7f697fa6f9524218c55960531b2",
+    "tools/input_intent/train.py": "85ab98be21ec99009b93ddd6d41da15a6111d58ea4602415df1594aa809fe8a3"
+  }
+}

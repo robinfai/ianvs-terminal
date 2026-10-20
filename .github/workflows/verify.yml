@@ -304,6 +304,14 @@ jobs:
       - name: Verify macOS integration, packaging, signature and native tests
         run: ./tools/verify_macos_app.sh
 
+      - name: Preserve macOS native test diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: macos-native-test-results
+          path: build/macos-native-results/
+          retention-days: 7
+
   ios-terminal:
     name: iOS simulator and device (macos-26)
     runs-on: macos-26

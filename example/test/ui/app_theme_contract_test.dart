@@ -33,16 +33,36 @@ void main() {
         final tokens = theme.extension<AppThemeTokens>()!;
         final design = theme.extension<IanvsTokens>()!;
         expect(theme.extension<IanvsTypography>(), isNotNull);
-        expect(theme.textTheme, shared.textTheme);
-        expect(
-          theme.inputDecorationTheme,
-          platform == TargetPlatform.macOS
-              ? shared.inputDecorationTheme.copyWith(
-                  hoverColor: theme.inputDecorationTheme.hoverColor,
-                  focusedBorder: theme.inputDecorationTheme.focusedBorder,
-                )
-              : shared.inputDecorationTheme,
-        );
+        if (platform == TargetPlatform.macOS) {
+          expect(theme.textTheme, shared.textTheme);
+          expect(
+            theme.inputDecorationTheme,
+            shared.inputDecorationTheme.copyWith(
+              hoverColor: theme.inputDecorationTheme.hoverColor,
+              focusedBorder: theme.inputDecorationTheme.focusedBorder,
+            ),
+          );
+        } else {
+          // Trail's reading hierarchy customizes headings and small labels;
+          // body fonts, editing metrics and target sizes remain shared.
+          expect(theme.textTheme.bodyMedium, shared.textTheme.bodyMedium);
+          expect(theme.textTheme.bodyLarge, shared.textTheme.bodyLarge);
+          expect(theme.textTheme.bodySmall, shared.textTheme.bodySmall);
+          expect(theme.textTheme.titleMedium?.fontSize, 16);
+          expect(theme.textTheme.labelSmall?.fontSize, 12);
+          expect(
+            theme.inputDecorationTheme.contentPadding,
+            shared.inputDecorationTheme.contentPadding,
+          );
+          expect(
+            theme.inputDecorationTheme.constraints,
+            shared.inputDecorationTheme.constraints,
+          );
+          expect(
+            theme.inputDecorationTheme.helperStyle,
+            shared.inputDecorationTheme.helperStyle,
+          );
+        }
         expect(
           theme.filledButtonTheme.style?.minimumSize?.resolve({}),
           shared.filledButtonTheme.style?.minimumSize?.resolve({}),
@@ -90,7 +110,7 @@ void main() {
     expect(theme.extension<IanvsTokens>()!.isCompactTouch, isTrue);
     expect(theme.textTheme.bodyMedium?.fontSize, 16);
     expect(theme.textTheme.bodySmall?.fontSize, 13);
-    expect(theme.textTheme.labelSmall?.fontSize, 13);
+    expect(theme.textTheme.labelSmall?.fontSize, 12);
     expect(theme.textTheme.bodyMedium?.fontFamily, 'CupertinoSystemText');
     expect(
       theme.inputDecorationTheme.prefixIconConstraints,
@@ -112,6 +132,111 @@ void main() {
       const Size(44, 44),
     );
   });
+
+  test(
+    'high contrast distinguishes boundaries and focus without resizing text',
+    () {
+      for (final brightness in Brightness.values) {
+        for (final platform in [TargetPlatform.macOS, TargetPlatform.iOS]) {
+          final normal = buildIanvsTerminalTheme(
+            brightness,
+            platform: platform,
+          );
+          final theme = buildIanvsTerminalTheme(
+            brightness,
+            platform: platform,
+            highContrast: true,
+          );
+          final tokens = theme.extension<AppThemeTokens>()!;
+          final surfaces = [
+            tokens.canvas,
+            tokens.chrome,
+            tokens.panel,
+            tokens.panelElevated,
+          ];
+          final focus = theme.inputDecorationTheme.focusedBorder!.borderSide;
+          for (final surface in surfaces) {
+            for (final boundary in [
+              tokens.border,
+              tokens.borderStrong,
+              focus.color,
+            ]) {
+              expect(
+                contrastRatio(boundary, surface),
+                greaterThanOrEqualTo(3),
+                reason: '$brightness / $platform / $boundary on $surface',
+              );
+            }
+            for (final text in [
+              tokens.textPrimary,
+              tokens.textMuted,
+              tokens.textSubtle,
+            ]) {
+              expect(contrastRatio(text, surface), greaterThanOrEqualTo(4.5));
+            }
+          }
+          expect(
+            tokens.border,
+            isNot(normal.extension<AppThemeTokens>()!.border),
+          );
+          expect(
+            focus.width,
+            greaterThan(
+              theme.inputDecorationTheme.enabledBorder!.borderSide.width,
+            ),
+          );
+          final button = theme.outlinedButtonTheme.style!;
+          expect(
+            button.side!.resolve({WidgetState.focused})!.width,
+            greaterThan(button.side!.resolve({})!.width),
+          );
+          expect(
+            theme
+                .dropdownMenuTheme
+                .inputDecorationTheme!
+                .enabledBorder!
+                .borderSide
+                .width,
+            greaterThan(
+              normal
+                  .dropdownMenuTheme
+                  .inputDecorationTheme!
+                  .enabledBorder!
+                  .borderSide
+                  .width,
+            ),
+          );
+          for (final shape in [
+            theme.dialogTheme.shape,
+            theme.popupMenuTheme.shape,
+          ]) {
+            final outlined = shape! as OutlinedBorder;
+            expect(outlined.side.width, greaterThanOrEqualTo(1.5));
+            expect(
+              contrastRatio(outlined.side.color, tokens.panelElevated),
+              greaterThanOrEqualTo(3),
+            );
+          }
+          expect(
+            theme.textTheme.bodyMedium!.fontSize,
+            normal.textTheme.bodyMedium!.fontSize,
+          );
+          expect(
+            theme.textTheme.bodySmall!.fontSize,
+            normal.textTheme.bodySmall!.fontSize,
+          );
+          expect(
+            theme.textTheme.labelSmall!.fontSize,
+            normal.textTheme.labelSmall!.fontSize,
+          );
+          expect(
+            tokens.controls.regular,
+            normal.extension<AppThemeTokens>()!.controls.regular,
+          );
+        }
+      }
+    },
+  );
 
   testWidgets(
     'terminal color bridge follows the app theme and keeps interaction overrides',

@@ -4,6 +4,61 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal_core/ianvs_terminal_core.dart';
 
 void main() {
+  for (final autofocus in [null, true]) {
+    testWidgets(
+      'read-only viewport host focus override $autofocus keeps IME closed',
+      (tester) async {
+        final calls = <LogicalKeyboardKey>[];
+        final runtime = TerminalRuntimeController(
+          backend: _NoopPtyBackend(),
+          copyToClipboard: (_) async {},
+          readClipboard: () async => '',
+          enableSessionPolling: false,
+        );
+        final viewport = TerminalViewportController();
+        final selection = SelectionController();
+        final focus = FocusNode();
+        addTearDown(runtime.dispose);
+        addTearDown(viewport.dispose);
+        addTearDown(selection.dispose);
+        addTearDown(focus.dispose);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: TerminalViewport(
+              controller: viewport,
+              selectionController: selection,
+              inputController: TerminalInputController(
+                sessionId: 'disconnected',
+                runtime: runtime,
+                readSelection: () => '',
+                copySelection: (_) async {},
+                readClipboard: () async => '',
+              ),
+              focusNode: focus,
+              readOnly: true,
+              autofocus: autofocus,
+              onScrollLines: (_) {},
+              onScrollToOffset: (_) {},
+              onHostKeyEvent: (event) {
+                calls.add(event.logicalKey);
+                return KeyEventResult.handled;
+              },
+            ),
+          ),
+        );
+        await tester.pump();
+        expect(focus.hasFocus, autofocus == true);
+        expect(tester.testTextInput.hasAnyClients, false);
+        if (autofocus == true) {
+          await tester.sendKeyEvent(LogicalKeyboardKey.digit1);
+          expect(calls, contains(LogicalKeyboardKey.digit1));
+          expect(tester.testTextInput.hasAnyClients, false);
+        }
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+    );
+  }
+
   testWidgets(
     'terminal handles command-q before an unhandled event bubbles to the host',
     (tester) async {

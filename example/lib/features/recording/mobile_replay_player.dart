@@ -160,6 +160,7 @@ class _MobileReplayPlayerState extends State<MobileReplayPlayer>
                       ],
                     ),
                     SwitchListTile.adaptive(
+                      activeTrackColor: Theme.of(context).colorScheme.primary,
                       key: const Key('mobile-replay-skip-idle'),
                       contentPadding: EdgeInsets.zero,
                       title: Text(l10n.mobileSkipIdle),

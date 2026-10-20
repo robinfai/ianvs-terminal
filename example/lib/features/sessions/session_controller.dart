@@ -25,6 +25,7 @@ import '../pty/pty.dart';
 import '../recording/local_session_recording_repository.dart';
 import '../ssh/ssh_feature_access.dart';
 import '../terminal/terminal.dart' hide TerminalEmulation;
+import '../terminal_composer/terminal_mode.dart';
 import 'session_bootstrap.dart';
 import 'session_ports.dart';
 import 'session_shutdown.dart';
@@ -517,7 +518,7 @@ class SessionController extends Notifier<SessionState> {
   Future<void> _layoutSaveChain = Future<void>.value();
   bool _isShuttingDown = false;
   bool _terminalConfigRepairAvailable = false;
-  ({String profileId, String message})? _lastSshExitFailure;
+  ({String sessionId, String profileId, String message})? _lastSshExitFailure;
 
   TerminalAppPreferencesDocument get _appPreferences =>
       _appPreferencesDocument.value;
@@ -911,6 +912,7 @@ class SessionController extends Notifier<SessionState> {
       configurationWarnings: preparation.configurationWarnings
           .where((warning) => runtimeProfileIds.contains(warning.profileId))
           .toList(growable: false),
+      preferredTerminalMode: _appPreferences.appearance.preferredTerminalMode,
       themeMode: _appPreferences.appearance.themeMode,
       languageMode: _appPreferences.appearance.languageMode,
       terminalViewportPadding:
@@ -1175,9 +1177,9 @@ class SessionController extends Notifier<SessionState> {
         );
   }
 
-  void createSession(TerminalProfile profile) {
+  String? createSession(TerminalProfile profile) {
     if (_isShuttingDown || ref.read(sessionDemoFixtureProvider) != null) {
-      return;
+      return null;
     }
     _ensureRuntimeSubscription();
     final environmentOverrides = ref.read(sessionEnvironmentOverridesProvider);
@@ -1187,7 +1189,7 @@ class SessionController extends Notifier<SessionState> {
     );
     final sessionId = _createRuntimeSession(launchProfile);
     if (sessionId == null) {
-      return;
+      return null;
     }
     _clearMatchingSshExitFailureForRetry(profile);
     final descriptor = _relaunchSpecForLaunch(
@@ -1209,6 +1211,39 @@ class SessionController extends Notifier<SessionState> {
     );
     _syncRuntimeSessionActivation();
     _setWindowTitle(launchProfile.name);
+    return sessionId;
+  }
+
+  /// A failed SSH endpoint stays available for read-only evidence. The new
+  /// connection has its own native identity and negotiates capabilities anew.
+  String? reconnectSession(String sessionId, {TerminalProfile? editedProfile}) {
+    final pane = _paneForSession(sessionId);
+    final profile = pane?.profileSnapshot;
+    if (pane?.isExited != true ||
+        profile?.isSsh != true ||
+        !_runtime.isSessionRetainedAfterExit(sessionId)) {
+      return null;
+    }
+    if (editedProfile != null &&
+        (!editedProfile.isSsh || editedProfile.id != profile!.id)) {
+      return null;
+    }
+    final existing = state.liveReconnectionFor(sessionId);
+    if (existing != null) {
+      activateSession(existing);
+      return existing;
+    }
+    final latest = state.latestReconnectionFor(sessionId);
+    if (latest != sessionId) {
+      return reconnectSession(latest, editedProfile: editedProfile);
+    }
+    final next = createSession(editedProfile ?? profile!);
+    if (next != null) {
+      state = state.copyWith(
+        reconnectionTargets: {...state.reconnectionTargets, sessionId: next},
+      );
+    }
+    return next;
   }
 
   void splitActiveSession(TerminalProfile profile, TerminalSplitAxis axis) {
@@ -1350,6 +1385,7 @@ class SessionController extends Notifier<SessionState> {
           // platforms retain the package's deny-by-default behavior.
           dragDropEnabled: Platform.isMacOS,
         ),
+        retainExitCodes: launchProfile.isSsh ? const {255} : const {},
       );
     } on Object catch (error) {
       final detail = _boundedShellMetadata(error.toString(), 240);
@@ -1624,6 +1660,7 @@ class SessionController extends Notifier<SessionState> {
       isExited: sourcePane.isExited,
       exitCode: sourcePane.exitCode,
       shellIntegration: sourcePane.shellIntegration,
+      terminalMode: sourcePane.terminalMode,
       oscBadge: sourcePane.oscBadge,
       tabStatus: sourcePane.tabStatus,
       progress: sourcePane.progress,
@@ -1671,6 +1708,7 @@ class SessionController extends Notifier<SessionState> {
           : nextActiveSessionId,
       splitAxis: sourceTab.splitAxis,
       shellIntegration: replacementRoot.shellIntegration,
+      terminalMode: replacementRoot.terminalMode,
       oscBadge: replacementRoot.oscBadge,
       tabStatus: replacementRoot.tabStatus,
       progress: replacementRoot.progress,
@@ -2908,11 +2946,15 @@ class SessionController extends Notifier<SessionState> {
     _recordingDroppedSemanticCounts.remove(sessionId);
   }
 
-  Future<bool> closeSession(String sessionId) async {
+  Future<bool> closeSession(
+    String sessionId, {
+    bool Function()? canClose,
+  }) async {
     if (_isShuttingDown) {
       return false;
     }
     if (ref.read(sessionDemoFixtureProvider) != null) {
+      if (canClose != null && !canClose()) return false;
       _removeSessionState(sessionId);
       return true;
     }
@@ -2952,6 +2994,12 @@ class SessionController extends Notifier<SessionState> {
       );
       return false;
     }
+    // UI confirmation may predate asynchronous recording finalization. Check
+    // its exact target and risk snapshot immediately before native close.
+    if (canClose != null && !canClose()) {
+      await _resumeRecordingsAfterRejectedClose(recordingsToResume);
+      return false;
+    }
     if (_isShuttingDown || !_runtime.tryCloseSession(sessionId)) {
       final resumed = await _resumeRecordingsAfterRejectedClose(
         recordingsToResume,
@@ -2988,7 +3036,10 @@ class SessionController extends Notifier<SessionState> {
     );
   }
 
-  Future<bool> closeTab(String tabSessionId) async {
+  Future<bool> closeTab(
+    String tabSessionId, {
+    bool Function()? canClose,
+  }) async {
     if (_isShuttingDown) {
       return false;
     }
@@ -3059,10 +3110,20 @@ class SessionController extends Notifier<SessionState> {
       );
       return false;
     }
+    // A new pane or changed task must not inherit an earlier tab-wide
+    // confirmation. This remains synchronous with the native close loop.
+    if (canClose != null && !canClose()) {
+      await _resumeRecordingsAfterRejectedClose(recordingsToResume);
+      return false;
+    }
     final demoFixture = ref.read(sessionDemoFixtureProvider);
     if (demoFixture == null) {
       final closedPaneIds = <String>[];
-      for (final pane in closingTab.effectivePanes) {
+      final closingPanes = {
+        for (final pane in closingTab.effectivePanes) pane.sessionId: pane,
+      };
+      for (final id in state.sessionIdsInCloseOrder(closingPanes.keys)) {
+        final pane = closingPanes[id]!;
         if (_isShuttingDown) {
           return false;
         }
@@ -3345,7 +3406,9 @@ class SessionController extends Notifier<SessionState> {
       return;
     }
     _runtime.resizeSession(sessionId, viewportSize, devicePixelRatio);
-    _applyFrame(sessionId, _runtime.viewportFor(sessionId).frame);
+    // Exit may release the viewport during resize's native event refresh.
+    final viewport = _runtime.existingViewportFor(sessionId);
+    if (viewport != null) _applyFrame(sessionId, viewport.frame);
   }
 
   TerminalUiEffectContext? _handleRuntimeEffect(TerminalBusinessEffect effect) {
@@ -3382,6 +3445,15 @@ class SessionController extends Notifier<SessionState> {
     if (!ref.mounted) {
       return;
     }
+    // UI effects defer the next business signal to a microtask. Native exit
+    // can therefore release a viewport before earlier shell hooks are reduced.
+    // Skip those obsolete observations; always reduce the exit itself so pane,
+    // active-session and connection-list state converge even after release.
+    if (event is! TerminalSessionExitEvent &&
+        event is! TerminalSessionBackendErrorEvent &&
+        _runtime.existingViewportFor(event.sessionId) == null) {
+      return;
+    }
     switch (event) {
       case TerminalSessionSshAuthPromptEvent():
         // ShellScreen owns the secure modal prompt and native response.
@@ -3401,10 +3473,27 @@ class SessionController extends Notifier<SessionState> {
             exitClaim: exitClaim,
           ),
         );
-        _removeSessionState(event.sessionId, runtimeAlreadyClosed: true);
+        if (_runtime.isSessionRetainedAfterExit(event.sessionId)) {
+          final pane = _paneForSession(event.sessionId);
+          if (pane != null) {
+            _replaceSessionPane(
+              event.sessionId,
+              pane.copyWith(
+                isExited: true,
+                exitCode: event.exitCode,
+                terminalMode: const TerminalModeState(
+                  unavailableReason: BlockUnavailableReason.exited,
+                ),
+              ),
+            );
+          }
+        } else {
+          _removeSessionState(event.sessionId, runtimeAlreadyClosed: true);
+        }
         if (sshExitError != null) {
           if (failedProfileId != null) {
             _lastSshExitFailure = (
+              sessionId: event.sessionId,
               profileId: failedProfileId,
               message: sshExitError,
             );
@@ -3576,6 +3665,15 @@ class SessionController extends Notifier<SessionState> {
     state = state.copyWith(lastError: null);
   }
 
+  void _clearRemovedSshExitFailure(String sessionId) {
+    final failure = _lastSshExitFailure;
+    if (failure?.sessionId != sessionId) return;
+    _lastSshExitFailure = null;
+    if (state.lastError == failure!.message) {
+      state = state.copyWith(lastError: null);
+    }
+  }
+
   TerminalProfile? _profileForPane(TerminalPane? pane) {
     if (pane == null) {
       return null;
@@ -3699,6 +3797,8 @@ class SessionController extends Notifier<SessionState> {
                                   'registered',
                                   'unavailable',
                                   'unverified',
+                                  'provided',
+                                  'not_provided',
                                 }.contains(value) =>
                               value,
                             _ => 'unknown',
@@ -4651,6 +4751,9 @@ class SessionController extends Notifier<SessionState> {
           hostname: hostname ?? current.hostname,
           username: username ?? current.username,
           shell: shell ?? current.shell,
+          integrationVersion:
+              _boundedShellMetadata(event.integrationVersion, 32) ??
+              current.integrationVersion,
           lastCommand: command ?? current.lastCommand,
           lastExitCode: event.exitCode ?? current.lastExitCode,
           recentCommands: nextCommands,
@@ -5236,6 +5339,7 @@ class SessionController extends Notifier<SessionState> {
       _syncRuntimeSessionActivation();
     }
 
+    _clearRemovedSshExitFailure(sessionId);
     final demoFixture = ref.read(sessionDemoFixtureProvider);
     if (demoFixture != null) {
       _demoViewports.remove(sessionId)?.dispose();
@@ -5299,6 +5403,9 @@ class SessionController extends Notifier<SessionState> {
       tabs: nextTabs,
       activeSessionId: nextActiveSessionId,
     );
+    for (final pane in closingTab.effectivePanes) {
+      _clearRemovedSshExitFailure(pane.sessionId);
+    }
     _syncRuntimeSessionActivation();
   }
 
@@ -5458,6 +5565,7 @@ class SessionController extends Notifier<SessionState> {
         defaultProfileId: _effectiveDefaultProfileIdFor(profiles),
         configuredDefaultProfileId: _configuredDefaultProfileIdForUi(),
         configurationWarnings: preparation.configurationWarnings,
+        preferredTerminalMode: _appPreferences.appearance.preferredTerminalMode,
         themeMode: _appPreferences.appearance.themeMode,
         languageMode: _appPreferences.appearance.languageMode,
         terminalViewportPadding:
@@ -5515,6 +5623,31 @@ class SessionController extends Notifier<SessionState> {
     state = state.copyWith(
       defaultProfileId: _effectiveDefaultProfileIdFor(state.profiles),
       configuredDefaultProfileId: _configuredDefaultProfileIdForUi(),
+    );
+  }
+
+  void updateTerminalMode(String sessionId, TerminalModeState mode) {
+    final pane = _paneForSession(sessionId);
+    if (pane == null || pane.terminalMode == mode) return;
+    _replaceSessionPane(sessionId, pane.copyWith(terminalMode: mode));
+  }
+
+  TerminalViewMode? get preferredTerminalModeOverride =>
+      _appPreferences.appearance.preferredTerminalModeOverride;
+
+  Future<void> setPreferredTerminalMode(TerminalViewMode? mode) async {
+    _appPreferences = _appPreferences.copyWith(
+      appearance: _appPreferences.appearance.copyWith(
+        preferredTerminalMode: mode,
+        resetPreferredTerminalMode: mode == null,
+      ),
+    );
+    await _savePreferences(
+      localConfigUpdater: (config) =>
+          config.copyWith(appearance: _appPreferences.appearance),
+    );
+    state = state.copyWith(
+      preferredTerminalMode: _appPreferences.appearance.preferredTerminalMode,
     );
   }
 

@@ -1,0 +1,27 @@
+Native test harness follow-up, 2026-10-13
+
+Production UI source remains cfe42099; no AppDelegate or release application code changes.
+Remote run 38360207790 passed 7 of 8 jobs. macOS attempt 1 failed
+ testDartTimedOutReplyCancelsQuitWithoutWaitingForNativeFallback;
+attempt 2 failed testTimedOutPendingShutdownCancelsQuitAndAFutureQuitCanRetry.
+The old gate omitted xcresult artifacts, so the exact assertion/crash cause was
+not recoverable. Scheduling sensitivity is a hypothesis, not an established cause.
+
+Before changes, the first failing test passed 20 same-process repetitions and
+8 cold-process repetitions locally. The full 35-test suite also passed 8 cold
+repetitions. Local reproduction of the CI failure was unsuccessful.
+
+The harness now allows five seconds for host callback scheduling (formerly one)
+and returns after a missed callback, preventing later test phases consuming stale
+callbacks. All ordering, cancellation, retry and result assertions remain.
+The application's ten-second timeout remains unchanged; quit tests inject their
+own scheduler and manually fire timeout callbacks.
+
+The macOS gate now prints xcresult summary and uploads the result bundle for seven
+days on either success or failure. The original xcodebuild failure exit is retained.
+No CI gate, signing check or security requirement is removed.
+
+After changes: all 35 native cases passed 8 cold-process iterations (280 runs),
+macOS 27.0.1 arm64; no skipped/failed cases or runtime warnings in xcresult summary.
+Documentation contract: 20 passed. Shell syntax and git diff checks passed.
+Remote verification of this follow-up must be read from the latest PR checks.

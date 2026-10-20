@@ -34,11 +34,9 @@ void main() {
       );
       final second = TerminalPane(
         sessionId: 'live-2',
-        title: 'Exited runtime',
+        title: 'Second runtime',
         profileId: profile.id,
         profileSnapshot: profile,
-        isExited: true,
-        exitCode: 9,
       );
       final paneLayout = TerminalPaneLayoutNode.split(
         id: 'split-live',
@@ -83,6 +81,218 @@ void main() {
       expect(encoded, isNot(contains('exitCode')));
       expect(encoded, isNot(contains('recordingPath')));
       expect(encoded, isNot(contains('"command"')));
+    });
+
+    test('captures only live panes and collapses empty split branches', () {
+      final profile = defaultTerminalProfile();
+      final diagnostic = _pane('exited-root', profile, isExited: true);
+      final first = _pane('live-first', profile);
+      final second = _pane('live-second', profile);
+      final tree = TerminalPaneLayoutNode.split(
+        id: 'outer-split',
+        splitAxis: TerminalSplitAxis.vertical,
+        first: TerminalPaneLayoutNode.split(
+          id: 'exited-split',
+          splitAxis: TerminalSplitAxis.horizontal,
+          first: TerminalPaneLayoutNode.leaf(diagnostic),
+          second: TerminalPaneLayoutNode.leaf(
+            _pane('exited-sibling', profile, isExited: true),
+          ),
+        ),
+        second: TerminalPaneLayoutNode.split(
+          id: 'surviving-split',
+          splitAxis: TerminalSplitAxis.horizontal,
+          ratio: 0.71,
+          first: TerminalPaneLayoutNode.leaf(first),
+          second: TerminalPaneLayoutNode.split(
+            id: 'mixed-split',
+            splitAxis: TerminalSplitAxis.vertical,
+            first: TerminalPaneLayoutNode.leaf(
+              _pane('exited-active', profile, isExited: true),
+            ),
+            second: TerminalPaneLayoutNode.leaf(second),
+          ),
+        ),
+      );
+      final tab = _tab(tree, activePaneId: 'exited-active');
+      final state = _state(
+        profiles: [profile],
+        tabs: [tab],
+        activeSessionId: 'exited-active',
+      );
+
+      final captured = LocalSessionLayoutCodec.capture(state);
+      final saved = TerminalLayout.fromJson(
+        jsonDecode(jsonEncode(captured.toJson())) as Map<String, dynamic>,
+      );
+      final launchCwds = <String?>[];
+      final restored = LocalSessionLayoutCodec.restore(
+        saved,
+        relaunch: (spec) {
+          launchCwds.add(spec.cwd);
+          return _pane('new-${launchCwds.length}', profile);
+        },
+      );
+
+      expect(captured.activeTabId, tab.sessionId);
+      final savedTab = saved.tabs.single;
+      expect(savedTab.activePaneId, first.sessionId);
+      expect(savedTab.root.id, 'surviving-split');
+      expect(savedTab.root.direction, TerminalPaneSplitDirection.right);
+      expect(savedTab.root.ratio, 0.71);
+      expect(savedTab.root.leafPaneIds, [first.sessionId, second.sessionId]);
+      expect(launchCwds, ['/live-first', '/live-second']);
+      expect(restored.activeSessionId, 'new-1');
+      expect(restored.failures, isEmpty);
+
+      // Saving must not dispose or replace diagnostic panes referenced by AI.
+      expect(state.tabs.single, same(tab));
+      expect(state.tabs.single.paneFor(diagnostic.sessionId), same(diagnostic));
+      expect(state.tabs.single.effectivePanes, hasLength(5));
+      expect(state.activeSessionId, 'exited-active');
+    });
+
+    test('preserves active live pane when its exited sibling is removed', () {
+      final profile = defaultTerminalProfile();
+      final live = _pane('active-live', profile).copyWith(
+        runtimeError: const TerminalPaneRuntimeErrorState(
+          operation: 'resize',
+          message: 'A transient resize failure does not exit the session.',
+        ),
+      );
+      final tab = _tab(
+        TerminalPaneLayoutNode.split(
+          id: 'split',
+          splitAxis: TerminalSplitAxis.horizontal,
+          first: TerminalPaneLayoutNode.leaf(
+            _pane('exited', profile, isExited: true),
+          ),
+          second: TerminalPaneLayoutNode.leaf(live),
+        ),
+        activePaneId: live.sessionId,
+      );
+
+      final layout = LocalSessionLayoutCodec.capture(
+        _state(
+          profiles: [profile],
+          tabs: [tab],
+          activeSessionId: live.sessionId,
+        ),
+      );
+
+      expect(layout.activeTabId, tab.sessionId);
+      expect(layout.tabs.single.root.isLeaf, isTrue);
+      expect(layout.tabs.single.root.id, live.sessionId);
+      expect(layout.tabs.single.activePaneId, live.sessionId);
+    });
+
+    test('drops exited tabs and selects a surviving tab for restore', () {
+      final profile = defaultTerminalProfile();
+      final first = _tab(TerminalPaneLayoutNode.leaf(_pane('first', profile)));
+      final last = _tab(TerminalPaneLayoutNode.leaf(_pane('last', profile)));
+      final exited = TerminalTab(
+        sessionId: 'exited-tab',
+        title: 'Retained diagnostic output',
+        profileId: profile.id,
+        isExited: true,
+        exitCode: 255,
+      );
+
+      final layout = LocalSessionLayoutCodec.capture(
+        _state(
+          profiles: [profile],
+          tabs: [first, exited, last],
+          activeSessionId: exited.sessionId,
+        ),
+      );
+
+      expect(layout.tabs.map((tab) => tab.id), [
+        first.sessionId,
+        last.sessionId,
+      ]);
+      expect(layout.activeTabId, last.sessionId);
+      expect(layout.activeTab!.activePaneId, last.activeSessionId);
+      final restored = LocalSessionLayoutCodec.restore(
+        TerminalLayout.fromJson(layout.toJson()),
+        relaunch: (spec) => _pane('new${spec.cwd}', profile),
+      );
+      expect(restored.activeSessionId, 'new/last');
+      expect(restored.tabs, hasLength(2));
+    });
+
+    test('an all-exited layout cannot relaunch diagnostic sessions', () {
+      final profile = defaultTerminalProfile();
+      final state = _state(
+        profiles: [profile],
+        tabs: [
+          TerminalTab(
+            sessionId: 'diagnostic',
+            title: 'Connection refused',
+            profileId: profile.id,
+            isExited: true,
+            exitCode: 255,
+          ),
+        ],
+        activeSessionId: 'diagnostic',
+      );
+
+      final layout = LocalSessionLayoutCodec.capture(state);
+      final encoded = layout.toJson();
+      final restored = LocalSessionLayoutCodec.restore(
+        TerminalLayout.fromJson(encoded),
+        relaunch: (_) => fail('Exited diagnostics must not be relaunched.'),
+      );
+
+      expect(layout.tabs, isEmpty);
+      expect(layout.activeTabId, isNull);
+      expect(encoded['schemaVersion'], 1);
+      expect(encoded['tabs'], isEmpty);
+      expect(encoded['activeTabId'], isNull);
+      expect(restored.tabs, isEmpty);
+      expect(restored.activeSessionId, isNull);
+      expect(restored.failures, isEmpty);
+      expect(state.tabs.single.isExited, isTrue);
+      expect(state.activeSessionId, 'diagnostic');
+    });
+
+    test('restores existing v1 layouts without runtime lifecycle fields', () {
+      final profile = defaultTerminalProfile();
+      final layout = TerminalLayout.fromJson({
+        'schemaVersion': 1,
+        'contract': 'ianvs-terminal-layout-v1',
+        'activeTabId': 'saved-tab',
+        'tabs': [
+          {
+            'id': 'saved-tab',
+            'activePaneId': 'saved-pane',
+            'root': {
+              'id': 'saved-pane',
+              'type': 'leaf',
+              'relaunchSpec': {
+                'schemaVersion': 1,
+                'contract': 'ianvs-terminal-relaunch-spec-v1',
+                'profileId': profile.id,
+                'cwd': '/saved-working-directory',
+              },
+            },
+          },
+        ],
+      });
+      final launches = <TerminalRelaunchSpec>[];
+
+      final restored = LocalSessionLayoutCodec.restore(
+        layout,
+        relaunch: (spec) {
+          launches.add(spec);
+          return _pane('fresh-session', profile);
+        },
+      );
+
+      expect(launches, hasLength(1));
+      expect(launches.single.profileId, profile.id);
+      expect(launches.single.cwd, '/saved-working-directory');
+      expect(restored.activeSessionId, 'fresh-session');
+      expect(restored.failures, isEmpty);
     });
 
     test('restores topology with newly relaunched session ids', () {
@@ -191,6 +401,34 @@ void main() {
       expect(restored.activeSessionId, 'new-good');
     });
   });
+}
+
+TerminalPane _pane(
+  String id,
+  TerminalProfile profile, {
+  bool isExited = false,
+}) {
+  return TerminalPane(
+    sessionId: id,
+    title: id,
+    profileId: profile.id,
+    profileSnapshot: profile,
+    isExited: isExited,
+    shellIntegration: TerminalShellIntegrationSnapshot(
+      currentDirectory: '/$id',
+    ),
+  );
+}
+
+TerminalTab _tab(TerminalPaneLayoutNode tree, {String? activePaneId}) {
+  final root = tree.panes.first;
+  return TerminalTab(
+    sessionId: root.sessionId,
+    title: root.title,
+    profileId: root.profileId,
+    paneLayout: tree,
+    activePaneSessionId: activePaneId,
+  );
 }
 
 SessionState _state({

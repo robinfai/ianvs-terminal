@@ -10,7 +10,7 @@ current UI. Update a baseline only when an intentional UI change has been
 reviewed. The capture suites target macOS rendering with fixed font assets;
 follow the platform requirements in each test.
 
-All six capture suites share `../visual_capture_fonts.dart`, which loads Roboto
+The capture suites share `../visual_capture_fonts.dart`, which loads Roboto
 (regular, medium, bold, italic and bold italic) and Material Icons from the
 pinned Flutter SDK, Noto Sans SC from `../fonts/`, and JetBrains Mono from the
 repository's native screenshot renderer. See `../fonts/README.md` for the CJK
@@ -23,8 +23,14 @@ Sans SC supplies Chinese glyphs; JetBrains Mono also supplies shortcut symbols
 missing from Roboto and Noto Sans SC. The fixtures do not use the production
 terminal's system-font fallback chain. Production themes remain unchanged.
 
-Each reviewed OS baseline contains 44 PNGs covering 42 capture tests. Run all
-suites and the comparator contract tests with `flutter test test/design`.
+Both OS directories contain the current fixtures. The macOS 26 expectations
+were reviewed from CI run 38148482678 (macOS 26.6.2, Flutter 3.44.2): nine
+missing Composer captures, six shell/chrome captures, and five settings
+captures reflecting the preferred terminal mode control. The profile-menu
+capture differs only at the visible edge of that new section below the menu.
+No comparator tolerance was widened. See the [PR 12 repair record](../../../../docs/product/mobile-block-ai-v1/results/PR12_REPAIR_2026-10-12.md)
+for the artifact identity and validation. Run all suites and comparator contract tests
+with `flutter test test/design`.
 Use Flutter 3.44.2 (Dart 3.12.2) for these baselines; CI pins the same SDK and
 engine. The package's minimum supported SDK is a separate compatibility floor.
 CI runs visual comparisons before the longer repository gate and records the
@@ -66,3 +72,25 @@ reviewed candidates, since several fixtures share a filename.
 
 Design-review screenshots, logs and videos belong in `build/`, not `docs/` or
 this baseline directory.
+
+## PR 12 mainline preparation (2026-10-20)
+
+The six macOS 26 shell/layout baselines were reviewed from CI run 39137267977
+(head b33bd616): app-surfaces/current/{01-desktop-shell,02-command-palette,
+03-profiles-sheet}.png and terminal-layout-review-20260916/implementation-
+{dark,light,narrow}.png. Every changed pixel is confined to the bottom status
+bar: the Shell status and details action moved from the middle to the right.
+The user reviewed the before/current/diff comparison and requested that the
+current UI become the baseline. The original CI testImage PNGs are used without
+resizing or retouching. Comparator tolerances are unchanged.
+
+Mainline reconciliation retains the current PR's single-row tab chrome and
+sidebar layout, including AI actions, close/Cmd-number slots and native mouse
+routing. It incorporates main's SSH-directory grouping, explicit job-control
+suppression for cleanup subshells, and Xcode architecture verification support.
+
+The same six macOS 27 fixtures were rendered locally on macOS 27.0.1 after
+reconciliation. Initial rendering used Flutter 3.44.8; final comparison uses
+the pinned Flutter 3.44.2 SDK as well. Their pixel differences have the same
+status-bar-only bounds as the macOS 26 review; the current local PNGs update
+only macos-27. Each OS keeps its own original rendering.

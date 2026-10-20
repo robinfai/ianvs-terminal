@@ -1,0 +1,67 @@
+{
+  "target": "user-specified ssh cloud",
+  "shell": "Bash 4.4.20",
+  "before": [
+    [],
+    []
+  ],
+  "afterLocalSshWrapper": [
+    [
+      {
+        "id": "1790745212591-5",
+        "command": "ls",
+        "exitCode": 0,
+        "running": false,
+        "outputLines": 10
+      }
+    ],
+    [
+      {
+        "id": "1790745212591-5",
+        "command": "ls",
+        "exitCode": 0,
+        "running": false,
+        "outputLines": 10
+      },
+      {
+        "id": "1790745212681-8",
+        "command": "ls",
+        "exitCode": 0,
+        "running": false,
+        "outputLines": 10
+      }
+    ]
+  ],
+  "afterNativeSsh": [
+    [
+      {
+        "id": "1790745522828-2",
+        "command": "ls",
+        "exitCode": 0,
+        "running": false,
+        "outputLines": 10
+      }
+    ],
+    [
+      {
+        "id": "1790745522828-2",
+        "command": "ls",
+        "exitCode": 0,
+        "running": false,
+        "outputLines": 10
+      },
+      {
+        "id": "1790745522881-5",
+        "command": "ls",
+        "exitCode": 0,
+        "running": false,
+        "outputLines": 10
+      }
+    ]
+  ],
+  "macosCloudUiPassed": true,
+  "fixtures": {
+    "bash-preexec-0.5.0": "6ef95f16012bdfec0ab6ee853e8892d51eee295c8639944f9b983b3d40e0e9f7",
+    "bash-preexec-0.7.0": "33de4e70ee84981d46e7d8a0e3105f1dd9affc9c4178594446cd96e7ef3b2752"
+  }
+}

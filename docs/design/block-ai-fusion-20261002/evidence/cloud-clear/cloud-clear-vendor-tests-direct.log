@@ -1,0 +1,57 @@
+   Compiling par-term-emu-core-rust v0.41.1 (/Users/robinfai/flutter_projects/ianvs-terminal/native/vendor/par-term-emu-core-rust)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.49s
+     Running unittests src/lib.rs (native/vendor/par-term-emu-core-rust/target/debug/deps/par_term_emu_core_rust-d8db537830ba8b65)
+
+running 49 tests
+test ansi_utils::tests::test_generate_clear_screen ... ok
+test ansi_utils::tests::test_generate_clear_line ... ok
+test grid::tests::zone_tests::test_grid_clear_zones ... ok
+test grid::tests::test_clear_row ... ok
+test grid::tests::test_clear_line_left ... ok
+test grid::tests::test_clear_line_operations ... ok
+test grid::tests::test_clear_screen_above ... ok
+test grid::tests::test_clear_screen_operations ... ok
+test grid::tests::test_grid_clear ... ok
+test terminal::clipboard::tests::test_set_clipboard_none_clears ... ok
+test terminal::clipboard::tests::test_clear_clipboard_history ... ok
+test terminal::clipboard::tests::test_clear_clipboard_sync_events ... ok
+test terminal::clipboard::tests::test_clear_all_clipboard_history ... ok
+test sixel::tests::test_sixel_parser_sparse_transparent_data_preserves_clear_band_rows ... ok
+test sixel::tests::test_sixel_parser_transparent_background_keeps_unpainted_pixels_clear ... ok
+test terminal::multiplexing::tests::test_clear_pane_state ... ok
+test pty_session::tests::test_set_and_clear_output_callback ... ok
+test terminal::osc_stream::tests::osc1337_clear_scrollback_is_bounded_metadata_not_a_host_action ... ok
+test terminal::sequences::dcs::tests::test_dcs_hook_clears_previous_state ... ok
+test terminal::graphics::tests::test_clear_graphics ... ok
+test terminal::sequences::esc::tests::test_acs_reset_clears_charset_state ... ok
+test terminal::sequences::osc::iterm::tests::clear_scrollback_preserves_the_wrapped_cursor_line_at_the_top ... ok
+test terminal::sequences::osc::iterm::tests::clear_captured_output_is_an_exact_session_event_without_grid_mutation ... ok
+test terminal::osc_stream::tests::ris_preserves_policy_and_diagnostics_but_clears_in_flight_osc ... ok
+test terminal::sequences::osc::iterm::tests::clear_scrollback_preserves_hard_broken_rows_from_the_latest_prompt_mark ... ok
+test terminal::sequences::osc::iterm::tests::clear_scrollback_from_alternate_screen_clears_primary_history ... ok
+test terminal::sequences::osc::shell::tests::clear_scrollback_invalidates_zones_and_emits_evictions ... ok
+test terminal::sequences::osc::shell::tests::clear_scrollback_evictions_reach_subscription_filter ... ok
+test terminal::sequences::osc::iterm::tests::block_inputs_are_bounded_and_clear_buffer_discards_marks ... ok
+test terminal::sequences::osc::iterm::tests::inline_buttons_reject_invalid_payloads_and_clear_transient_alt_marks ... ok
+test terminal::sequences::osc::iterm::tests::clear_scrollback_clears_visible_buffer_history_and_saved_layout_state ... ok
+test terminal::sequences::osc::iterm::tests::inline_button_ids_do_not_reuse_after_clear_or_ris ... ok
+test terminal::sequences::osc::sized_text::tests::osc66_edit_controls_clear_splits_and_shift_complete_single_line_blocks ... ok
+test terminal::sequences::osc::sized_text::tests::osc66_snapshot_restores_blocks_and_ris_clears_them ... ok
+test terminal::snapshot_manager::tests::test_clear ... ok
+test terminal::sequences::osc::tab_status::tests::parses_set_clear_partial_and_escaped_status ... ok
+test terminal::sequences::csi::tests::ris_clears_title_channels_modes_and_stack ... ok
+test terminal::event::tests::ris_emits_terminal_reset_without_reusing_screen_cleared ... ok
+test tmux_control::tests::test_clear_buffer ... ok
+test terminal::write::tests::test_write_char_pending_wrap_clears_on_cr ... ok
+test terminal::write::tests::test_write_char_pending_wrap_clears_on_lf ... ok
+test terminal::write::tests::test_write_char_pending_wrap_clears_on_tab ... ok
+test terminal::write::tests::test_write_char_pending_wrap_clears_on_backspace ... ok
+test terminal::sequences::osc::tests::test_remote_host_localhost_clears_hostname ... ok
+test terminal::sequences::osc::tests::test_zones_cleared_on_reset ... ok
+test terminal::sequences::osc::pointer::tests::osc22_keeps_screen_local_stacks_and_ris_clears_both ... ok
+test terminal::sequences::osc::tests::test_clear_badge_format ... ok
+test terminal::sequences::osc::shell::tests::osc133_aid_stack_survives_snapshot_and_ris_clears_it ... ok
+test terminal::sequences::osc::iterm::tests::clear_scrollback_accepts_bel_st_and_every_byte_split ... ok
+
+test result: ok. 49 passed; 0 failed; 0 ignored; 0 measured; 1693 filtered out; finished in 0.01s
+

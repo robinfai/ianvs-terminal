@@ -175,6 +175,8 @@ class _SessionSidebar extends ConsumerStatefulWidget {
     required this.onNew,
     required this.onContextMenu,
     required this.hasNewOutput,
+    required this.aiSessions,
+    required this.onRevealApproval,
   });
 
   final bool visible;
@@ -184,6 +186,8 @@ class _SessionSidebar extends ConsumerStatefulWidget {
   final VoidCallback? onNew;
   final void Function(TerminalTab, Offset) onContextMenu;
   final bool Function(TerminalTab) hasNewOutput;
+  final Map<String, TerminalAiController> aiSessions;
+  final ValueChanged<String> onRevealApproval;
 
   @override
   ConsumerState<_SessionSidebar> createState() => _SessionSidebarState();
@@ -395,9 +399,7 @@ class _SessionSidebarState extends ConsumerState<_SessionSidebar> {
     }) {
       final selected = tab.containsSession(widget.activeSessionId ?? '');
       final sessionText = rowText?.copyWith(
-        color: selected
-            ? palette.shellChrome.tabTextPrimary
-            : palette.shellChrome.tabTextMuted,
+        color: selected ? palette.accent : colors.onSurfaceVariant,
       );
       final started = tab.activePane.shellIntegration.commandStartedAt;
       rows.add(
@@ -419,8 +421,8 @@ class _SessionSidebarState extends ConsumerState<_SessionSidebar> {
                 minLeadingWidth: 18,
                 horizontalTitleGap: palette.spacing.sm,
                 selected: selected,
-                selectedColor: palette.shellChrome.tabTextPrimary,
-                selectedTileColor: palette.shellChrome.tabActiveBackground,
+                selectedColor: palette.accent,
+                selectedTileColor: palette.selected,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(palette.spacing.sm),
                 ),
@@ -441,8 +443,8 @@ class _SessionSidebarState extends ConsumerState<_SessionSidebar> {
                         Icons.terminal,
                         size: 16,
                         color: selected
-                            ? palette.shellChrome.tabTextPrimary
-                            : palette.shellChrome.tabTextMuted,
+                            ? palette.accent
+                            : colors.onSurfaceVariant,
                       ),
                 title: Tooltip(
                   message: '${tab.activePane.title}\n${directory(tab)}',
@@ -458,6 +460,7 @@ class _SessionSidebarState extends ConsumerState<_SessionSidebar> {
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    _ShellApprovalBadge(tab: tab),
                     if (elapsed && started != null)
                       Text(
                         sessionSidebarElapsed(
@@ -631,49 +634,57 @@ class _SessionSidebarState extends ConsumerState<_SessionSidebar> {
         }
       }
     }
-    return Material(
-      key: const Key('session-sidebar'),
-      color: palette.shellChrome.rail,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            key: const Key('session-sidebar-header'),
-            padding: EdgeInsets.symmetric(
-              horizontal: palette.spacing.sm * 2,
-              vertical: palette.spacing.xs,
-            ),
-            child: SizedBox(
-              height: 32,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(l10n.sessionSidebarTitle, style: rowText),
+    return ListenableBuilder(
+      listenable: Listenable.merge(widget.aiSessions.values),
+      builder: (_, _) => _ShellApprovalScope(
+        controllers: widget.aiSessions,
+        onReveal: widget.onRevealApproval,
+        child: Material(
+          key: const Key('session-sidebar'),
+          color: colors.surfaceContainerLow,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                key: const Key('session-sidebar-header'),
+                padding: EdgeInsets.symmetric(
+                  horizontal: palette.spacing.sm * 2,
+                  vertical: palette.spacing.xs,
+                ),
+                child: SizedBox(
+                  height: 32,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(l10n.sessionSidebarTitle, style: rowText),
+                      ),
+                      _ShellApprovalBadge.sidebar(tabs: tabs),
+                      _buildChromeIconButton(
+                        key: const Key('session-sidebar-new'),
+                        tooltip: l10n.newTab,
+                        onPressed: widget.onNew,
+                        iconSize: 18,
+                        hoverBackgroundColor: colors.surfaceContainerHighest,
+                        icon: const Icon(Icons.add),
+                      ),
+                    ],
                   ),
-                  _buildChromeIconButton(
-                    key: const Key('session-sidebar-new'),
-                    tooltip: l10n.newTab,
-                    onPressed: widget.onNew,
-                    iconSize: 18,
-                    hoverBackgroundColor: colors.surfaceContainerHighest,
-                    icon: const Icon(Icons.add),
-                  ),
-                ],
+                ),
               ),
-            ),
+              Expanded(
+                child: rows.isEmpty
+                    ? Center(child: Text(l10n.sessionSidebarEmpty))
+                    : ListView.builder(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: palette.spacing.sm + palette.spacing.xs,
+                        ),
+                        itemCount: rows.length,
+                        itemBuilder: (context, index) => rows[index],
+                      ),
+              ),
+            ],
           ),
-          Expanded(
-            child: rows.isEmpty
-                ? Center(child: Text(l10n.sessionSidebarEmpty))
-                : ListView.builder(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: palette.spacing.sm + palette.spacing.xs,
-                    ),
-                    itemCount: rows.length,
-                    itemBuilder: (context, index) => rows[index],
-                  ),
-          ),
-        ],
+        ),
       ),
     );
   }

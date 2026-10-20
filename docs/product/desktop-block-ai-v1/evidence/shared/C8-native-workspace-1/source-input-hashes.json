@@ -1,0 +1,537 @@
+{
+  "implementation_commit": "19001573d9974c510e1e4cbcfeb01c94368ea157",
+  "source_clean": true,
+  "scope": "Tracked lockfiles/package definitions, font/theme files, generated Dart bridge inputs and integration drivers. Complemented by full make verify native mirror checks and actual app/native binary hashes; not a complete dependency closure for reuse.",
+  "files": [
+    {
+      "path": "docs/design/ai-message-review-20261004/renders/M06-short-touch-theme.png",
+      "sha256": "48dad2688e8ed0e469416a104720d38338b898496839973335c5d18278e6d551",
+      "bytes": 31711
+    },
+    {
+      "path": "docs/design/block-ai-fusion-20261002/evidence/imagegen-current/components/M06-short-touch-theme.png",
+      "sha256": "48dad2688e8ed0e469416a104720d38338b898496839973335c5d18278e6d551",
+      "bytes": 31711
+    },
+    {
+      "path": "docs/design/block-ai-fusion-20261002/evidence/model-scenes/model-font-analyze.log",
+      "sha256": "036a03e645503309ebbb59af7ed549bab08e9e0820739c8d869bf48c40287a70",
+      "bytes": 96
+    },
+    {
+      "path": "docs/design/block-ai-fusion-20261002/evidence/model-scenes/model-font-app.log",
+      "sha256": "ae0fe4436fc9202891cc3aca9c7c3d97933d690745423ff24f1692260e3cde0c",
+      "bytes": 150939
+    },
+    {
+      "path": "docs/design/block-ai-fusion-20261002/evidence/model-scenes/model-font-native.log",
+      "sha256": "5756bfec46d12858d741757384b5713ba2a9de5026ab55625bb8f5babcd6f018",
+      "bytes": 822
+    },
+    {
+      "path": "docs/design/block-ai-fusion-20261002/evidence/model-scenes/model-font-real.log",
+      "sha256": "5f2e4ed48a25cf1f7ece4fe9534849d15b3b57bac4246de8c4ec8c3fff897af9",
+      "bytes": 604
+    },
+    {
+      "path": "docs/design/block-ai-fusion-20261002/evidence/streaming-timeline/streaming-workspace-fonts.log",
+      "sha256": "ff1e7bd5fb0ec5ac8f9778568f44ae0b30cc66d9ceb3da691e8804d3fbc5c205",
+      "bytes": 4006
+    },
+    {
+      "path": "docs/design/block-ai-fusion-20261002/evidence/target-after/M06-short-touch-theme.png",
+      "sha256": "48dad2688e8ed0e469416a104720d38338b898496839973335c5d18278e6d551",
+      "bytes": 31711
+    },
+    {
+      "path": "docs/protocols/xterm_osc50_font_ops.md",
+      "sha256": "d55297f7db363522ff2cbdf22ebd9d10791996a45bf603e97eee9ee95b1bd5bd",
+      "bytes": 3212
+    },
+    {
+      "path": "example/assets/fonts/LICENSE-MaterialIcons.txt",
+      "sha256": "be698262aecd042c0de6f886cc0af622f8def446462026992cc530275d8a9e74",
+      "bytes": 18531
+    },
+    {
+      "path": "example/assets/fonts/LICENSE-MaterialSymbols.txt",
+      "sha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd",
+      "bytes": 11357
+    },
+    {
+      "path": "example/assets/fonts/README.md",
+      "sha256": "fee22ebee8d65ad4cfac3333dc898417d221fff7b880b1dd728fef349496979c",
+      "bytes": 1498
+    },
+    {
+      "path": "example/assets/fonts/TrailLightIcons.ttf",
+      "sha256": "8cd24eebd6113ca8f9ca732dc73315c427582424d348dd299b2d58bffb2f0c79",
+      "bytes": 457072
+    },
+    {
+      "path": "example/assets/fonts/TrailLightIcons.ttf.fallbacks.txt",
+      "sha256": "c44b06ce4d9123e939855e13da3e5e0b0fba3fc3ead9878815e1c0b42b4046c6",
+      "bytes": 5930
+    },
+    {
+      "path": "example/integration_test/command_block_reader_position_test.dart",
+      "sha256": "fae9a239c2602ea140439a0b092908cff0c836419cc120e7e54fbb2906a043ae",
+      "bytes": 2945
+    },
+    {
+      "path": "example/integration_test/command_block_reader_tools_acceptance_test.dart",
+      "sha256": "e7271b68fffa028d308bb45cfb7de2fee8c9ddd5063708655a6d7a91d74b6e4c",
+      "bytes": 7723
+    },
+    {
+      "path": "example/integration_test/composer_acceptance_test.dart",
+      "sha256": "4cf01fcd5b2209d64f0b1e1bab2f910f356056a9ce457d53c47371a6ca9f0a93",
+      "bytes": 38299
+    },
+    {
+      "path": "example/integration_test/ianvs_terminal_smoke_test.dart",
+      "sha256": "50432631e61e6322770a1e7a824b8ee7f05557f0f25d17c41839224a12c36aae",
+      "bytes": 10273
+    },
+    {
+      "path": "example/integration_test/input_intent_acceptance_test.dart",
+      "sha256": "f371bdd63bf7f53a9daf77e218f1821dba5c51cc873915861414083d955b9a10",
+      "bytes": 21896
+    },
+    {
+      "path": "example/integration_test/ios_design_review_test.dart",
+      "sha256": "5ebef127d2beff4c678f8897db3a51a9ca2fc7ace138a2c7928bbf6f60b5f940",
+      "bytes": 17265
+    },
+    {
+      "path": "example/integration_test/ios_local_first_startup_acceptance_test.dart",
+      "sha256": "9a701275010ddb881616eb2880ec739c855d389fecb00ec98a282d6996975e3f",
+      "bytes": 4282
+    },
+    {
+      "path": "example/integration_test/ios_mobile_layout_review_test.dart",
+      "sha256": "40ac7c14f964719d820b0541440000b1e14996815d774c79eb0a8639b5d2be3c",
+      "bytes": 5151
+    },
+    {
+      "path": "example/integration_test/ios_sandbox_shell_acceptance_test.dart",
+      "sha256": "c5ee84e838ac97d4745858fa957fb086752b5ed9837640444abf77b9a111865b",
+      "bytes": 2320
+    },
+    {
+      "path": "example/integration_test/k9s_acceptance_fixture.dart",
+      "sha256": "42a833712a7b72196643d92e010a4770bf17f40f83e2beeec48f2f28140c4670",
+      "bytes": 7817
+    },
+    {
+      "path": "example/integration_test/macos_development_environment_test.dart",
+      "sha256": "a169d9f7cb6a4422458de9ba1f91689d556c1b1698519ec1379384cf09b4648f",
+      "bytes": 3145
+    },
+    {
+      "path": "example/integration_test/macos_keychain_profile_secret_test.dart",
+      "sha256": "ce33b8656a455f8be7d85b33508f529f3ab056f8259fde54bc34eae2da6cb2c2",
+      "bytes": 1506
+    },
+    {
+      "path": "example/integration_test/mobile_blocks_acceptance_test.dart",
+      "sha256": "9ae4e8dd9e0cad7f8284358e0df5bd314fab3777ca1ebec8ddd8f187f37f3408",
+      "bytes": 19649
+    },
+    {
+      "path": "example/integration_test/mobile_prd_acceptance_test.dart",
+      "sha256": "37ff68de5a686951a38696a71fcdd1099bf750a3a3540455a741fc73445e48e4",
+      "bytes": 13868
+    },
+    {
+      "path": "example/integration_test/real_pty_acceptance_test.dart",
+      "sha256": "3f031151fe33f0826041c7b49c29544803d95e48cbf2e9bc5d02043447941289",
+      "bytes": 122412
+    },
+    {
+      "path": "example/integration_test/remote_data_api_sync_acceptance_test.dart",
+      "sha256": "739b22e6cb5669d74e2e6b4e60ec0d332723e8d0103e4a657a47a541edc55e8a",
+      "bytes": 13255
+    },
+    {
+      "path": "example/integration_test/sftp_right_panel_acceptance_test.dart",
+      "sha256": "acecfed7465e10b6a250f50b33a84051044c51d83b2e0640addccdc364343987",
+      "bytes": 33048
+    },
+    {
+      "path": "example/integration_test/ssh_composer_acceptance_test.dart",
+      "sha256": "470625765912c3d305f0ecc621ca67352c8cdb3db8be576f5d62f2a1302c8c9e",
+      "bytes": 16365
+    },
+    {
+      "path": "example/integration_test/ssh_disconnect_acceptance.dart",
+      "sha256": "b58f6ded1a891d505cbc00916f3fa655d4c310a98cd0a14948a5dba97134922d",
+      "bytes": 23165
+    },
+    {
+      "path": "example/integration_test/terminal_ai_acceptance_test.dart",
+      "sha256": "deb4f072046815d47fd71fc0a3ac886e27df206f124b75142d0484825b83bd4c",
+      "bytes": 13577
+    },
+    {
+      "path": "example/integration_test/terminal_ai_accessibility_acceptance_test.dart",
+      "sha256": "208615bbbb5b853b6790a6af026fa79a8eafa55039bde8b996712001e13ea658",
+      "bytes": 8903
+    },
+    {
+      "path": "example/integration_test/terminal_ai_acp_design_test.dart",
+      "sha256": "d78fd1f9fba8905444f6690fd318d510a539625e412237a637b8a37477eae7ab",
+      "bytes": 11242
+    },
+    {
+      "path": "example/integration_test/terminal_ai_evidence_eviction_test.dart",
+      "sha256": "41a412f7e2eda18514ea4b318948f9c51c5294c0fac555bbc00a8597b1e174d6",
+      "bytes": 9900
+    },
+    {
+      "path": "example/integration_test/terminal_ai_k9s_acceptance_test.dart",
+      "sha256": "9db0c11af23e1e6c15d898e0652ebf6b36b0f7b384851f64703baa5a7ba6c7e8",
+      "bytes": 18224
+    },
+    {
+      "path": "example/integration_test/terminal_ai_model_gateway.dart",
+      "sha256": "0a908690cc1ff014550be3d1c45af3230ae584bc96c1429294eabe7539b2f274",
+      "bytes": 3904
+    },
+    {
+      "path": "example/integration_test/terminal_ai_model_scenarios_test.dart",
+      "sha256": "f5ff7a6dbfca068276f3150bf854a30bf1ebf6360d3f30de592a0ce242c962d6",
+      "bytes": 22167
+    },
+    {
+      "path": "example/integration_test/terminal_ai_proxy_acceptance_test.dart",
+      "sha256": "aec6b4073f4c6527b0bf84a39faeed13393037b9c652c5f4b03c785e47c631e0",
+      "bytes": 10966
+    },
+    {
+      "path": "example/integration_test/terminal_ai_stream_acceptance.dart",
+      "sha256": "b9490c0a8c81f482e053a127923efbefcdd5f7c5e73f4ea4cecd3fa071a65e1a",
+      "bytes": 8084
+    },
+    {
+      "path": "example/integration_test/terminal_ai_workspace_acceptance_test.dart",
+      "sha256": "197197bdd5494916a510bc7b69089db12f956c7c54c2c26f77e4b18de1f520c7",
+      "bytes": 66888
+    },
+    {
+      "path": "example/integration_test/terminal_render_profile_test.dart",
+      "sha256": "634c007e4393723eca4eebe02605daa35fa176e971b01a0edc46ef801b1b227f",
+      "bytes": 17679
+    },
+    {
+      "path": "example/integration_test/terminal_transport_profile_test.dart",
+      "sha256": "17ec1c61a68b1e78cfda9d629ec98adc75ce399f1df4a5e2205033846cb79ab2",
+      "bytes": 12160
+    },
+    {
+      "path": "example/integration_test/vttest_gui_test.dart",
+      "sha256": "a9fd136065311299146457cea29210134f99dace35ae33656191375f55b7ba78",
+      "bytes": 8596
+    },
+    {
+      "path": "example/lib/features/visual/local_terminal_theme_repository.dart",
+      "sha256": "7dff2a9640e5f5a787653f0e2b62281a54f287e080b2582570bd1dc4be8c6e2d",
+      "bytes": 4936
+    },
+    {
+      "path": "example/lib/ui/foundation/app_theme.dart",
+      "sha256": "dbc7c85db85d02a44be0635961b47d24d6dd213df2dadda56f90852cdfd1e3f7",
+      "bytes": 4971
+    },
+    {
+      "path": "example/lib/ui/foundation/app_theme_tokens.dart",
+      "sha256": "67274851bc1ecbdde9d709592bac8fea1c99f7b25cb8c77638e56936f1929abc",
+      "bytes": 16571
+    },
+    {
+      "path": "example/lib/ui/foundation/terminal_theme_presets.dart",
+      "sha256": "c750d5335e19db64c011efea4009054a71d77df27cf0d431aa0c1c52752239c0",
+      "bytes": 6199
+    },
+    {
+      "path": "example/pubspec.yaml",
+      "sha256": "e1ebe320c3e25860bbfc22e98d3977d100740b5897b54d657e40eccf06681302",
+      "bytes": 4353
+    },
+    {
+      "path": "example/test/app/app_theme_mode_test.dart",
+      "sha256": "a111b48d1dd94729dd14923f337c6e38fc025ddb6e082afbebaa6a4321949b10",
+      "bytes": 6317
+    },
+    {
+      "path": "example/test/design/fonts/NotoSansSC-Regular.otf",
+      "sha256": "faa6c9df652116dde789d351359f3d7e5d2285a2b2a1f04a2d7244df706d5ea9",
+      "bytes": 8331336
+    },
+    {
+      "path": "example/test/design/fonts/OFL.txt",
+      "sha256": "6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2",
+      "bytes": 4301
+    },
+    {
+      "path": "example/test/design/fonts/README.md",
+      "sha256": "524767ba851cb61d60851e1d85695f78230368694abb321ce94c6f6d46cf8b61",
+      "bytes": 1009
+    },
+    {
+      "path": "example/test/design/visual_capture_fonts.dart",
+      "sha256": "772564fac6d12d956108782b8c797818b45b1c990ec6ef57f468b6df441c2992",
+      "bytes": 8002
+    },
+    {
+      "path": "example/test/ui/app_theme_contract_test.dart",
+      "sha256": "41c60152eb9d5e82d73ddb4f7c7aca3715d2a0f21befbadeeb3adbf60ce4e3bc",
+      "bytes": 10402
+    },
+    {
+      "path": "example/test/ui/terminal_preview_theme_test.dart",
+      "sha256": "858694f317a0b18a6757224ea42e2d2a39d0525d9dfc6797717dd11eda396fa4",
+      "bytes": 3504
+    },
+    {
+      "path": "example/test/visual/local_terminal_theme_repository_test.dart",
+      "sha256": "3cad52a13e5fa97dfec7cf34c065d3f2f3f96db15a10f0b586427ea16b82dff7",
+      "bytes": 11562
+    },
+    {
+      "path": "native/completion_core/Cargo.lock",
+      "sha256": "780fb2184baa8433f8fced0d6ec4b94fcfbc7fd40321fbcecb2fa1bda0bd9a2d",
+      "bytes": 2908
+    },
+    {
+      "path": "native/completion_core/Cargo.toml",
+      "sha256": "70e9be1f5910fdd40c0797c577cac266a69e1335a62d2155399017e686198995",
+      "bytes": 208
+    },
+    {
+      "path": "native/core/Cargo.lock",
+      "sha256": "1971bbd066841672d56804ff3ae62806379ff366237fbc1e3f6537711a4ae618",
+      "bytes": 98317
+    },
+    {
+      "path": "native/core/Cargo.toml",
+      "sha256": "e16c36728971a2bd1b9fd3dd1a9bc6896dac598cd40b9267fe4002d0c826ccdf",
+      "bytes": 1921
+    },
+    {
+      "path": "native/vendor/par-term-emu-core-rust/Cargo.lock",
+      "sha256": "eea91262a2fff918dd4b6d5942fad27b0c0b1533bb9cb0eecde424ed2d280352",
+      "bytes": 110378
+    },
+    {
+      "path": "native/vendor/par-term-emu-core-rust/Cargo.toml",
+      "sha256": "33b8ec262b82d40daec5ca9f890a4c705ac709458f645d31c2513649622cbc70",
+      "bytes": 5441
+    },
+    {
+      "path": "native/vendor/par-term-emu-core-rust/docs/FONTS.md",
+      "sha256": "ce95a22ebe188a2f1897a588fb1ac78c84307a365b9f336d75f85ede4e16a331",
+      "bytes": 13966
+    },
+    {
+      "path": "native/vendor/par-term-emu-core-rust/src/screenshot/font_cache.rs",
+      "sha256": "77cc2d3e9f8dee59449593ab9ef9dd1035c47f11ed28c96d1e17d6ebcd328831",
+      "bytes": 34947
+    },
+    {
+      "path": "native/vendor/par-term-emu-core-rust/src/terminal/sequences/osc/font.rs",
+      "sha256": "681fc0d4ca7c8cbbe9197bcde2777ef294abd9a87cd44145e920d7b94a8fc7d1",
+      "bytes": 8303
+    },
+    {
+      "path": "native/vendor/par-term-emu-core-rust/theme.css",
+      "sha256": "8661c6abf2b245fe05377f40265e6faed6c93168f04706532abdafa08a53cc0f",
+      "bytes": 1041
+    },
+    {
+      "path": "native/vendor/par-term-emu-core-rust/web_term/theme.css",
+      "sha256": "8661c6abf2b245fe05377f40265e6faed6c93168f04706532abdafa08a53cc0f",
+      "bytes": 1041
+    },
+    {
+      "path": "native/vendor/zmodem2/Cargo.lock",
+      "sha256": "cce465ab9fe72fccf21ecf0b69c0ad461226d5b151c19cac8046872404e88d73",
+      "bytes": 11375
+    },
+    {
+      "path": "native/vendor/zmodem2/Cargo.toml",
+      "sha256": "d0e679fdfec91d54c1248917011877337125c9d17fef1dbf4d03b667ed58ef9a",
+      "bytes": 1403
+    },
+    {
+      "path": "output/search-review-20260925/apple-system-fonts/dark-zh-filter.png",
+      "sha256": "391b150b07b18cfb8da082cf0faf9838f330aa15579034c37f175bb9c9fc54b2",
+      "bytes": 55530
+    },
+    {
+      "path": "output/search-review-20260925/apple-system-fonts/dark-zh-input.png",
+      "sha256": "4097f83f895c4eebc7a64cfb8cfae08e3feb0975f93d880f0dbccd288d8704bf",
+      "bytes": 29654
+    },
+    {
+      "path": "output/search-review-20260925/apple-system-fonts/dark-zh-scope.png",
+      "sha256": "b459b67e93939ce99b005b0b7f7d3bd3fb83fb627e3f462755ed24e174f789c4",
+      "bytes": 47348
+    },
+    {
+      "path": "output/search-review-20260925/apple-system-fonts/light-en-filter.png",
+      "sha256": "6010f70d0fe74297b25423d7521793d0e9f270853cbc4ff9455f9289741a65f9",
+      "bytes": 66582
+    },
+    {
+      "path": "output/search-review-20260925/apple-system-fonts/light-en-input.png",
+      "sha256": "8e893cc804bbdc12d684f746295226cf36c2413488999553d44c56f410c6f70a",
+      "bytes": 26645
+    },
+    {
+      "path": "output/search-review-20260925/apple-system-fonts/light-en-scope.png",
+      "sha256": "b7e9eee2e03ee44141918283b8c512d4679cc827b6530a739fd31038a4a98620",
+      "bytes": 42795
+    },
+    {
+      "path": "output/search-review-20260925/apple-system-fonts/light-zh-filter.png",
+      "sha256": "05a8c55b6d5dfa6e77924c3de5c4e054faeec48da97aeba361d6bdf07f3f5fd7",
+      "bytes": 54026
+    },
+    {
+      "path": "output/search-review-20260925/apple-system-fonts/light-zh-input.png",
+      "sha256": "2de258c8830b727f4f350e697d6126436c4b26072168072ac1b5c59eeb5e57f1",
+      "bytes": 27300
+    },
+    {
+      "path": "output/search-review-20260925/apple-system-fonts/light-zh-scope.png",
+      "sha256": "60e9e27f1494bf88e23452282ca96229059f14d8679cc8da3d695bc070682f90",
+      "bytes": 45566
+    },
+    {
+      "path": "output/search-review-20260925/apple-system-fonts/narrow-scaled-filter.png",
+      "sha256": "41996a410df84f4e0c605ac8335bcd01749d826be21c93a66ca7fc51b3c97c9a",
+      "bytes": 76958
+    },
+    {
+      "path": "output/search-review-20260925/apple-system-fonts/narrow-scaled-input.png",
+      "sha256": "a04c1896ae6568e6714661f455d2ba9444a958455ccaa7f193263dc8359c4ba5",
+      "bytes": 32597
+    },
+    {
+      "path": "output/search-review-20260925/apple-system-fonts/narrow-scaled-no-matches.png",
+      "sha256": "9201c9240a86b3ab17eb9200c6cf7745cd95c9f21b8d4dfea1cf88eab6a9eb2d",
+      "bytes": 39211
+    },
+    {
+      "path": "output/search-review-20260925/apple-system-fonts/narrow-scaled-scope.png",
+      "sha256": "d9000d9fc5f059de36a02d644bc74fac13db185ba64f15832385a51f120ed21a",
+      "bytes": 59845
+    },
+    {
+      "path": "output/search-review-20260925/apple-system-fonts/regex-error.png",
+      "sha256": "cead7fef4f52594e54caa5c7c269b7b1fd261aca8b483501baab3802d1a8525e",
+      "bytes": 38288
+    },
+    {
+      "path": "output/search-review-20260925/apple-system-fonts/regex-selected.png",
+      "sha256": "7a3aab22bafb5c2b8b7538a161ce0fb6b1b647577d85b932209cb1d462c546ee",
+      "bytes": 53858
+    },
+    {
+      "path": "packages/ianvs_pty/pubspec.yaml",
+      "sha256": "8345356e0df0571b66041fee0c513a40d76989ea7a31d4e6da0e862ac85cb80f",
+      "bytes": 205
+    },
+    {
+      "path": "packages/ianvs_terminal/lib/src/composer/composer_theme.dart",
+      "sha256": "5eec72b1c9bc17b6f2f7b83f6e5e7e3e16544cab1acb6600093dbec59d3b97cb",
+      "bytes": 14128
+    },
+    {
+      "path": "packages/ianvs_terminal/pubspec.yaml",
+      "sha256": "c46396bd7c5e9f41f20e04ed6ae1d81f52ef1cb5e3c1aab65de9e19aaa49ecb1",
+      "bytes": 330
+    },
+    {
+      "path": "packages/ianvs_terminal/test/composer/composer_theme_test.dart",
+      "sha256": "78c9fd39d4eb4f9180bb54acb9180e60b4fe94835d0e5fc1ca6ec9256b4bc85c",
+      "bytes": 6350
+    },
+    {
+      "path": "packages/ianvs_terminal_core/lib/src/composer/composer_theme.dart",
+      "sha256": "5eec72b1c9bc17b6f2f7b83f6e5e7e3e16544cab1acb6600093dbec59d3b97cb",
+      "bytes": 14128
+    },
+    {
+      "path": "packages/ianvs_terminal_core/native/completion_core/Cargo.lock",
+      "sha256": "780fb2184baa8433f8fced0d6ec4b94fcfbc7fd40321fbcecb2fa1bda0bd9a2d",
+      "bytes": 2908
+    },
+    {
+      "path": "packages/ianvs_terminal_core/native/completion_core/Cargo.toml",
+      "sha256": "70e9be1f5910fdd40c0797c577cac266a69e1335a62d2155399017e686198995",
+      "bytes": 208
+    },
+    {
+      "path": "packages/ianvs_terminal_core/native/core/Cargo.lock",
+      "sha256": "1971bbd066841672d56804ff3ae62806379ff366237fbc1e3f6537711a4ae618",
+      "bytes": 98317
+    },
+    {
+      "path": "packages/ianvs_terminal_core/native/core/Cargo.toml",
+      "sha256": "e16c36728971a2bd1b9fd3dd1a9bc6896dac598cd40b9267fe4002d0c826ccdf",
+      "bytes": 1921
+    },
+    {
+      "path": "packages/ianvs_terminal_core/native/vendor/par-term-emu-core-rust/Cargo.lock",
+      "sha256": "eea91262a2fff918dd4b6d5942fad27b0c0b1533bb9cb0eecde424ed2d280352",
+      "bytes": 110378
+    },
+    {
+      "path": "packages/ianvs_terminal_core/native/vendor/par-term-emu-core-rust/Cargo.toml",
+      "sha256": "33b8ec262b82d40daec5ca9f890a4c705ac709458f645d31c2513649622cbc70",
+      "bytes": 5441
+    },
+    {
+      "path": "packages/ianvs_terminal_core/native/vendor/par-term-emu-core-rust/src/screenshot/font_cache.rs",
+      "sha256": "77cc2d3e9f8dee59449593ab9ef9dd1035c47f11ed28c96d1e17d6ebcd328831",
+      "bytes": 34947
+    },
+    {
+      "path": "packages/ianvs_terminal_core/native/vendor/par-term-emu-core-rust/src/terminal/sequences/osc/font.rs",
+      "sha256": "681fc0d4ca7c8cbbe9197bcde2777ef294abd9a87cd44145e920d7b94a8fc7d1",
+      "bytes": 8303
+    },
+    {
+      "path": "packages/ianvs_terminal_core/native/vendor/zmodem2/Cargo.lock",
+      "sha256": "cce465ab9fe72fccf21ecf0b69c0ad461226d5b151c19cac8046872404e88d73",
+      "bytes": 11375
+    },
+    {
+      "path": "packages/ianvs_terminal_core/native/vendor/zmodem2/Cargo.toml",
+      "sha256": "d0e679fdfec91d54c1248917011877337125c9d17fef1dbf4d03b667ed58ef9a",
+      "bytes": 1403
+    },
+    {
+      "path": "packages/ianvs_terminal_core/pubspec.yaml",
+      "sha256": "5f1f9444408c1df166051fce9695a7e6cb571181f2602286ad628fa1d478a0a5",
+      "bytes": 688
+    },
+    {
+      "path": "packages/ianvs_terminal_core/test/composer/composer_theme_test.dart",
+      "sha256": "0734a6a58813f2f0fdd5985cff6ced5b03dbdc769da8b60dba39418baec63d24",
+      "bytes": 6365
+    },
+    {
+      "path": "pubspec.lock",
+      "sha256": "5aefc9958c3f342578d95d1b64f4cf378329f23534e41331752d2d9eb2ba4529",
+      "bytes": 26130
+    },
+    {
+      "path": "pubspec.yaml",
+      "sha256": "0ca13ddb31280db32afe867b59d5dc8a4ac64d24c243a841b932ea71b1b3e269",
+      "bytes": 286
+    }
+  ]
+}

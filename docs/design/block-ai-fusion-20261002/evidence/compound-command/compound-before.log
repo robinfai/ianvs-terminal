@@ -1,0 +1,33 @@
+OpenSSH Composer: zsh-emacs
+PASS zsh-emacs
+OpenSSH Composer: zsh-vi
+PASS zsh-vi
+OpenSSH Composer: zsh-emacs-local-ssh
+PASS zsh-emacs-local-ssh
+OpenSSH Composer: bash-emacs
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+     Running tests/remote_composer_ssh_test.rs (native/core/target/debug/deps/remote_composer_ssh_test-442d122354809749)
+
+running 1 test
+
+thread 'remote_composer_ssh_negotiation_and_multihop' panicked at tests/remote_composer_ssh_test.rs:87:9:
+missing completed block: {"alternateScreen":false,"blocks":[{"columns":120,"command":"ls","commandMatch":false,"contextId":"root","cursorColumn":0,"cursorLine":0,"cwd":"/tmp/ianvs-composer-ssh-z3xgnny1/home","evicted":false,"exitCode":0,"finishedAt":1790966364001,"hyperlinks":[],"id":"1790966363994-2","lines":[{"index":0,"source_end_row":3,"source_row":3,"style_runs":[{"background":null,"blink":false,"bold":false,"dim":false,"end":120,"foreground":null,"inverse":false,"italic":false,"start":0,"underline":false}],"text":"block-fixture.txt","wrapped":false}],"matchingLines":1,"nextOffset":null,"offset":0,"running":false,"startedAt":1790966363994,"submissionId":"list-0","totalLines":1},{"columns":120,"command":"ls","commandMatch":false,"contextId":"root","cursorColumn":0,"cursorLine":0,"cwd":"/tmp/ianvs-composer-ssh-z3xgnny1/home","evicted":false,"exitCode":0,"finishedAt":1790966364056,"hyperlinks":[],"id":"1790966364049-5","lines":[{"index":0,"source_end_row":5,"source_row":5,"style_runs":[{"background":null,"blink":false,"bold":false,"dim":false,"end":120,"foreground":null,"inverse":false,"italic":false,"start":0,"underline":false}],"text":"block-fixture.txt","wrapped":false}],"matchingLines":1,"nextOffset":null,"offset":0,"running":false,"startedAt":1790966364049,"submissionId":"list-1","totalLines":1},{"columns":120,"command":"export COMPOSER_SSH_VALUE=parent","commandMatch":false,"contextId":"root","cursorColumn":0,"cursorLine":0,"cwd":"/tmp/ianvs-composer-ssh-z3xgnny1/home","evicted":false,"exitCode":0,"finishedAt":1790966364103,"hyperlinks":[],"id":"1790966364098-8","lines":[{"index":0,"source_end_row":8,"source_row":8,"style_runs":[{"background":null,"blink":false,"bold":false,"dim":false,"end":120,"foreground":null,"inverse":false,"italic":false,"start":0,"underline":false}],"text":"SSH_UNICODE_中文_😀","wrapped":false}],"matchingLines":1,"nextOffset":null,"offset":0,"running":false,"startedAt":1790966364098,"submissionId":"parent","totalLines":1}],"omittedBlocks":0}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test remote_composer_ssh_negotiation_and_multihop ... FAILED
+
+failures:
+
+failures:
+    remote_composer_ssh_negotiation_and_multihop
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.29s
+
+error: test failed, to rerun pass `--test remote_composer_ssh_test`
+
+Traceback (most recent call last):
+  File "/Users/robinfai/flutter_projects/ianvs-terminal/tools/ssh_boundary_lab/composer.py", line 151, in <module>
+    main()
+    ~~~~^^
+  File "/Users/robinfai/flutter_projects/ianvs-terminal/tools/ssh_boundary_lab/composer.py", line 117, in main
+    raise RuntimeError(f'{name} failed')
+RuntimeError: bash-emacs failed

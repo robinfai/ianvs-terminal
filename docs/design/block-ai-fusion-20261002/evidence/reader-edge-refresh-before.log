@@ -1,0 +1,308 @@
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart
+00:00 +0: reader drags and copies across pages (phone false, reverse false, filtered false) (variant: TargetPlatform.macOS)
+00:00 +1: reader drags and copies across pages (phone false, reverse false, filtered true) (variant: TargetPlatform.macOS)
+00:00 +2: reader drags and copies across pages (phone false, reverse true, filtered false) (variant: TargetPlatform.macOS)
+00:00 +3: reader drags and copies across pages (phone false, reverse true, filtered true) (variant: TargetPlatform.macOS)
+00:00 +4: reader drags and copies across pages (phone true, reverse false, filtered false) (variant: TargetPlatform.iOS)
+00:00 +5: reader drags and copies across pages (phone true, reverse false, filtered true) (variant: TargetPlatform.iOS)
+00:01 +6: reader drags and copies across pages (phone true, reverse true, filtered false) (variant: TargetPlatform.iOS)
+00:01 +7: reader drags and copies across pages (phone true, reverse true, filtered true) (variant: TargetPlatform.iOS)
+00:01 +8: touch copy rejects output evicted before the menu opens (variant: TargetPlatform.iOS)
+00:01 +9: reader edge drag scrolls beyond its starting page (phone false, upward false, filtered false) (variant: TargetPlatform.macOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: null
+  Actual: FlutterError:<setState() or markNeedsBuild() called during build.
+          This _CommandBlockReader widget cannot be marked as needing to build because the framework
+is already in the process of building widgets. A widget can be marked as needing to be built during
+the build phase only if one of its ancestors is currently building. This exception is allowed
+because the framework builds parent widgets before children, which means a dirty descendant will
+always be built. Otherwise, the framework might not visit this widget during this build phase.
+          The widget on which setState() or markNeedsBuild() was called was:
+            StatefulElement#68bbc(DEFUNCT)
+          The widget which was currently being built when the offending call was made was:
+            StatefulElement#ab637(DEFUNCT)>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart:389:13)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart line 389
+The test description was:
+  reader edge drag scrolls beyond its starting page (phone false, upward false, filtered false)
+  (variant: TargetPlatform.macOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:02 +9 -1: reader edge drag scrolls beyond its starting page (phone false, upward false, filtered false) (variant: TargetPlatform.macOS) [E]
+  Test failed. See exception logs above.
+  The test description was: reader edge drag scrolls beyond its starting page (phone false, upward false, filtered false) (variant: TargetPlatform.macOS)
+  
+00:02 +9 -1: reader edge drag scrolls beyond its starting page (phone false, upward false, filtered true) (variant: TargetPlatform.macOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: null
+  Actual: FlutterError:<setState() or markNeedsBuild() called during build.
+          This _CommandBlockReader widget cannot be marked as needing to build because the framework
+is already in the process of building widgets. A widget can be marked as needing to be built during
+the build phase only if one of its ancestors is currently building. This exception is allowed
+because the framework builds parent widgets before children, which means a dirty descendant will
+always be built. Otherwise, the framework might not visit this widget during this build phase.
+          The widget on which setState() or markNeedsBuild() was called was:
+            StatefulElement#0569e(DEFUNCT)
+          The widget which was currently being built when the offending call was made was:
+            StatefulElement#b7d9a(DEFUNCT)>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart:389:13)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart line 389
+The test description was:
+  reader edge drag scrolls beyond its starting page (phone false, upward false, filtered true)
+  (variant: TargetPlatform.macOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:03 +9 -2: reader edge drag scrolls beyond its starting page (phone false, upward false, filtered true) (variant: TargetPlatform.macOS) [E]
+  Test failed. See exception logs above.
+  The test description was: reader edge drag scrolls beyond its starting page (phone false, upward false, filtered true) (variant: TargetPlatform.macOS)
+  
+00:03 +9 -2: reader edge drag scrolls beyond its starting page (phone false, upward true, filtered false) (variant: TargetPlatform.macOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: null
+  Actual: FlutterError:<setState() or markNeedsBuild() called during build.
+          This _CommandBlockReader widget cannot be marked as needing to build because the framework
+is already in the process of building widgets. A widget can be marked as needing to be built during
+the build phase only if one of its ancestors is currently building. This exception is allowed
+because the framework builds parent widgets before children, which means a dirty descendant will
+always be built. Otherwise, the framework might not visit this widget during this build phase.
+          The widget on which setState() or markNeedsBuild() was called was:
+            StatefulElement#ec9c0(DEFUNCT)
+          The widget which was currently being built when the offending call was made was:
+            StatefulElement#369b5(DEFUNCT)>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart:389:13)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart line 389
+The test description was:
+  reader edge drag scrolls beyond its starting page (phone false, upward true, filtered false)
+  (variant: TargetPlatform.macOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:03 +9 -3: reader edge drag scrolls beyond its starting page (phone false, upward true, filtered false) (variant: TargetPlatform.macOS) [E]
+  Test failed. See exception logs above.
+  The test description was: reader edge drag scrolls beyond its starting page (phone false, upward true, filtered false) (variant: TargetPlatform.macOS)
+  
+00:03 +9 -3: reader edge drag scrolls beyond its starting page (phone false, upward true, filtered true) (variant: TargetPlatform.macOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: null
+  Actual: FlutterError:<setState() or markNeedsBuild() called during build.
+          This _CommandBlockReader widget cannot be marked as needing to build because the framework
+is already in the process of building widgets. A widget can be marked as needing to be built during
+the build phase only if one of its ancestors is currently building. This exception is allowed
+because the framework builds parent widgets before children, which means a dirty descendant will
+always be built. Otherwise, the framework might not visit this widget during this build phase.
+          The widget on which setState() or markNeedsBuild() was called was:
+            StatefulElement#a403c(DEFUNCT)
+          The widget which was currently being built when the offending call was made was:
+            StatefulElement#702e8(DEFUNCT)>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart:389:13)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart line 389
+The test description was:
+  reader edge drag scrolls beyond its starting page (phone false, upward true, filtered true)
+  (variant: TargetPlatform.macOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:04 +9 -4: reader edge drag scrolls beyond its starting page (phone false, upward true, filtered true) (variant: TargetPlatform.macOS) [E]
+  Test failed. See exception logs above.
+  The test description was: reader edge drag scrolls beyond its starting page (phone false, upward true, filtered true) (variant: TargetPlatform.macOS)
+  
+00:04 +9 -4: reader edge drag scrolls beyond its starting page (phone true, upward false, filtered false) (variant: TargetPlatform.iOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: null
+  Actual: FlutterError:<setState() or markNeedsBuild() called during build.
+          This _CommandBlockReader widget cannot be marked as needing to build because the framework
+is already in the process of building widgets. A widget can be marked as needing to be built during
+the build phase only if one of its ancestors is currently building. This exception is allowed
+because the framework builds parent widgets before children, which means a dirty descendant will
+always be built. Otherwise, the framework might not visit this widget during this build phase.
+          The widget on which setState() or markNeedsBuild() was called was:
+            StatefulElement#81ff0(DEFUNCT)
+          The widget which was currently being built when the offending call was made was:
+            StatefulElement#8956e(DEFUNCT)>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart:389:13)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart line 389
+The test description was:
+  reader edge drag scrolls beyond its starting page (phone true, upward false, filtered false)
+  (variant: TargetPlatform.iOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:04 +9 -5: reader edge drag scrolls beyond its starting page (phone true, upward false, filtered false) (variant: TargetPlatform.iOS) [E]
+  Test failed. See exception logs above.
+  The test description was: reader edge drag scrolls beyond its starting page (phone true, upward false, filtered false) (variant: TargetPlatform.iOS)
+  
+00:04 +9 -5: reader edge drag scrolls beyond its starting page (phone true, upward false, filtered true) (variant: TargetPlatform.iOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: null
+  Actual: FlutterError:<setState() or markNeedsBuild() called during build.
+          This _CommandBlockReader widget cannot be marked as needing to build because the framework
+is already in the process of building widgets. A widget can be marked as needing to be built during
+the build phase only if one of its ancestors is currently building. This exception is allowed
+because the framework builds parent widgets before children, which means a dirty descendant will
+always be built. Otherwise, the framework might not visit this widget during this build phase.
+          The widget on which setState() or markNeedsBuild() was called was:
+            StatefulElement#997ec(DEFUNCT)
+          The widget which was currently being built when the offending call was made was:
+            StatefulElement#c06d7(DEFUNCT)>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart:389:13)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart line 389
+The test description was:
+  reader edge drag scrolls beyond its starting page (phone true, upward false, filtered true)
+  (variant: TargetPlatform.iOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:05 +9 -6: reader edge drag scrolls beyond its starting page (phone true, upward false, filtered true) (variant: TargetPlatform.iOS) [E]
+  Test failed. See exception logs above.
+  The test description was: reader edge drag scrolls beyond its starting page (phone true, upward false, filtered true) (variant: TargetPlatform.iOS)
+  
+00:05 +9 -6: reader edge drag scrolls beyond its starting page (phone true, upward true, filtered false) (variant: TargetPlatform.iOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: null
+  Actual: FlutterError:<setState() or markNeedsBuild() called during build.
+          This _CommandBlockReader widget cannot be marked as needing to build because the framework
+is already in the process of building widgets. A widget can be marked as needing to be built during
+the build phase only if one of its ancestors is currently building. This exception is allowed
+because the framework builds parent widgets before children, which means a dirty descendant will
+always be built. Otherwise, the framework might not visit this widget during this build phase.
+          The widget on which setState() or markNeedsBuild() was called was:
+            StatefulElement#5f134(DEFUNCT)
+          The widget which was currently being built when the offending call was made was:
+            StatefulElement#c116a(DEFUNCT)>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart:389:13)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart line 389
+The test description was:
+  reader edge drag scrolls beyond its starting page (phone true, upward true, filtered false)
+  (variant: TargetPlatform.iOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:05 +9 -7: reader edge drag scrolls beyond its starting page (phone true, upward true, filtered false) (variant: TargetPlatform.iOS) [E]
+  Test failed. See exception logs above.
+  The test description was: reader edge drag scrolls beyond its starting page (phone true, upward true, filtered false) (variant: TargetPlatform.iOS)
+  
+00:05 +9 -7: reader edge drag scrolls beyond its starting page (phone true, upward true, filtered true) (variant: TargetPlatform.iOS)
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+The following TestFailure was thrown running a test:
+Expected: null
+  Actual: FlutterError:<setState() or markNeedsBuild() called during build.
+          This _CommandBlockReader widget cannot be marked as needing to build because the framework
+is already in the process of building widgets. A widget can be marked as needing to be built during
+the build phase only if one of its ancestors is currently building. This exception is allowed
+because the framework builds parent widgets before children, which means a dirty descendant will
+always be built. Otherwise, the framework might not visit this widget during this build phase.
+          The widget on which setState() or markNeedsBuild() was called was:
+            StatefulElement#247ac(DEFUNCT)
+          The widget which was currently being built when the offending call was made was:
+            StatefulElement#3f1f1(DEFUNCT)>
+
+When the exception was thrown, this was the stack:
+#4      main.<anonymous closure> (file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart:389:13)
+<asynchronous suspension>
+#5      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#6      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+<asynchronous suspension>
+(elided one frame from package:stack_trace)
+
+This was caught by the test expectation on the following line:
+  file:///Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart line 389
+The test description was:
+  reader edge drag scrolls beyond its starting page (phone true, upward true, filtered true)
+  (variant: TargetPlatform.iOS)
+════════════════════════════════════════════════════════════════════════════════════════════════════
+00:05 +9 -8: reader edge drag scrolls beyond its starting page (phone true, upward true, filtered true) (variant: TargetPlatform.iOS) [E]
+  Test failed. See exception logs above.
+  The test description was: reader edge drag scrolls beyond its starting page (phone true, upward true, filtered true) (variant: TargetPlatform.iOS)
+  
+00:05 +9 -8: reader edge scroll stops on cancellation or disposal (phone false, unmount false) (variant: TargetPlatform.macOS)
+00:05 +10 -8: reader edge scroll stops on cancellation or disposal (phone false, unmount true) (variant: TargetPlatform.macOS)
+00:05 +11 -8: reader edge scroll stops on cancellation or disposal (phone true, unmount false) (variant: TargetPlatform.iOS)
+00:05 +12 -8: reader edge scroll stops on cancellation or disposal (phone true, unmount true) (variant: TargetPlatform.iOS)
+00:05 +13 -8: reader Option drag copies a rectangle across pages after horizontal scroll (variant: TargetPlatform.macOS)
+00:05 +14 -8: reader keyboard copies selection across native pages
+00:05 +15 -8: reader distinguishes whole output, filtered output and selection
+00:05 +16 -8: copy does not replace clipboard with a partially evicted snapshot
+00:06 +17 -8: stale selected rows never copy replacement history
+00:06 +18 -8: column selections preserve wide characters and rectangle line breaks
+00:06 +19 -8: Some tests failed.
+
+Failing tests:
+  /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader edge drag scrolls beyond its starting page (phone false, upward false, filtered false) (variant: TargetPlatform.macOS)
+  /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader edge drag scrolls beyond its starting page (phone false, upward false, filtered true) (variant: TargetPlatform.macOS)
+  /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader edge drag scrolls beyond its starting page (phone false, upward true, filtered false) (variant: TargetPlatform.macOS)
+  /Users/robinfai/flutter_projects/ianvs-terminal/packages/ianvs_terminal/test/terminal/command_block_copy_test.dart: reader edge drag scrolls beyond its starting page (phone false, upward true, filtered true) (variant: TargetPlatform.macOS)
+  ... and 4 more

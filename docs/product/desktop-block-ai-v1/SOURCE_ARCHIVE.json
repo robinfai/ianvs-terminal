@@ -1,0 +1,12 @@
+{
+  "archive_name": "ianvs-terminal-desktop-prd-v1.zip",
+  "archive_sha256": "928eb20382120d67d2ca940324fdcd1b696028c0b11bc6abfaca466e3031bb75",
+  "source_version": "1.0",
+  "imported_revision": "1.1",
+  "imported_at": "2026-10-10",
+  "source_baseline_commit": "763dc166bb1e56d6d50ed3379b57f366c9ca06b7",
+  "implementation_start_commit": "79db5115d1e6c69ac62116f19fdfb2b102724df5",
+  "source_checksums": "SOURCE_SHA256SUMS.txt",
+  "revision_contract": "16_REVISION_1_1.md",
+  "product_acceptance": "not_run"
+}

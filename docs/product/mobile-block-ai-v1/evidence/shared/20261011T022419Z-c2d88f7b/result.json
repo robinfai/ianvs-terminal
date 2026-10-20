@@ -1,0 +1,152 @@
+{
+  "implementation_commit": "c2d88f7b82d43ce23a4859dfdbfaa1817fe0fdbc",
+  "device": "physical-iphone-01",
+  "model": "iPhone 17",
+  "os": "27.0.1 (previous connected-device record; not re-read this run)",
+  "bundle_id": "work.ianvs.trail.mobileprd",
+  "build_mode": "profile",
+  "binary_sha256": "a4ac8a04dc3c34d4fd39d79cb1640b17bbe6291e8570eaac5123abe03649fbda",
+  "identity_basis": "Installed signed build recorded earlier; launched Trail PRD icon this run. On-device binary hash not read.",
+  "status": "failed",
+  "scope": "bounded compact mobile controls acceptance; not all 48 PRD cases",
+  "artifacts": [
+    {
+      "path": "evidence/shared/20261011T022419Z-c2d88f7b/01-empty-mirroring.png",
+      "sha256": "7d829f13fcf6082a3c1186b4ee351e17ae957c93fd17633b2f1468df23ef3a5d",
+      "captured_at": "2026-10-11T02:24:19.195904+00:00",
+      "captured_at_source": "file mtime immediately after CUA screenshot",
+      "pixel_size": [
+        768,
+        1694
+      ],
+      "modified": false,
+      "capture_method": "CUA iPhone Mirroring full window, includes Mac frame and pointer",
+      "physical_device": true,
+      "phone_native_resolution": false,
+      "counts_as_required_raw_phone_screenshot": false,
+      "format": "jpeg",
+      "metadata_verified_by": "sips decoder; original bytes and SHA-256 unchanged"
+    },
+    {
+      "path": "evidence/shared/20261011T022419Z-c2d88f7b/02-focused-mirroring.png",
+      "sha256": "fa4c0fb0edf274aaa081b1a3c1060e84203d7aec48f99e6649634c79fbbabbee",
+      "captured_at": "2026-10-11T02:24:50.001313+00:00",
+      "captured_at_source": "file mtime immediately after CUA screenshot",
+      "pixel_size": [
+        768,
+        1694
+      ],
+      "modified": false,
+      "capture_method": "CUA iPhone Mirroring full window, includes Mac frame and pointer",
+      "physical_device": true,
+      "phone_native_resolution": false,
+      "counts_as_required_raw_phone_screenshot": false,
+      "format": "jpeg",
+      "metadata_verified_by": "sips decoder; original bytes and SHA-256 unchanged"
+    },
+    {
+      "path": "evidence/shared/20261011T022419Z-c2d88f7b/03-multiline-saved-mirroring.png",
+      "sha256": "49319ce3eeaeb2f1b6a02ab279b7c891a550001a3449614e529e2834bd3b4fa5",
+      "captured_at": "2026-10-11T02:25:09.000514+00:00",
+      "captured_at_source": "file mtime immediately after CUA screenshot",
+      "pixel_size": [
+        768,
+        1694
+      ],
+      "modified": false,
+      "capture_method": "CUA iPhone Mirroring full window, includes Mac frame and pointer",
+      "physical_device": true,
+      "phone_native_resolution": false,
+      "counts_as_required_raw_phone_screenshot": false,
+      "format": "jpeg",
+      "metadata_verified_by": "sips decoder; original bytes and SHA-256 unchanged"
+    },
+    {
+      "path": "evidence/shared/20261011T022419Z-c2d88f7b/04-cancel-retains-mirroring.png",
+      "sha256": "7f43550c5fa37e8e4c622ea8deb3d18687837ebf5ec7e6cb4d9e76667f6c61c5",
+      "captured_at": "2026-10-11T02:25:19.707229+00:00",
+      "captured_at_source": "file mtime immediately after CUA screenshot",
+      "pixel_size": [
+        768,
+        1694
+      ],
+      "modified": false,
+      "capture_method": "CUA iPhone Mirroring full window, includes Mac frame and pointer",
+      "physical_device": true,
+      "phone_native_resolution": false,
+      "counts_as_required_raw_phone_screenshot": false,
+      "format": "jpeg",
+      "metadata_verified_by": "sips decoder; original bytes and SHA-256 unchanged"
+    },
+    {
+      "path": "evidence/shared/20261011T022419Z-c2d88f7b/05-task-menu-mirroring.png",
+      "sha256": "8ecb7db8f5369c25b5811d464373e9bfd5526c413cda76b155e9bfe458f40b73",
+      "captured_at": "2026-10-11T02:25:26.418928+00:00",
+      "captured_at_source": "file mtime immediately after CUA screenshot",
+      "pixel_size": [
+        768,
+        1694
+      ],
+      "modified": false,
+      "capture_method": "CUA iPhone Mirroring full window, includes Mac frame and pointer",
+      "physical_device": true,
+      "phone_native_resolution": false,
+      "counts_as_required_raw_phone_screenshot": false,
+      "format": "jpeg",
+      "metadata_verified_by": "sips decoder; original bytes and SHA-256 unchanged"
+    },
+    {
+      "path": "evidence/shared/20261011T022419Z-c2d88f7b/06-exit-blank-mirroring.png",
+      "sha256": "3246f2c4abdf88a71cff825225d19ab3297de4e34fc86021394d506ed9b6e61a",
+      "captured_at": "2026-10-11T02:26:28.279118+00:00",
+      "captured_at_source": "file mtime immediately after CUA screenshot",
+      "pixel_size": [
+        768,
+        1694
+      ],
+      "modified": false,
+      "capture_method": "CUA iPhone Mirroring full window, includes Mac frame and pointer",
+      "physical_device": true,
+      "phone_native_resolution": false,
+      "counts_as_required_raw_phone_screenshot": false,
+      "format": "jpeg",
+      "metadata_verified_by": "sips decoder; original bytes and SHA-256 unchanged"
+    },
+    {
+      "path": "evidence/shared/20261011T022419Z-c2d88f7b/07-reentered-blank-mirroring.png",
+      "sha256": "71c2bcb0c9fd589755f739759092f6765f5eed0548a9479c6a6ce7cf214ce6f6",
+      "captured_at": "2026-10-11T02:27:08.135380+00:00",
+      "captured_at_source": "file mtime immediately after CUA screenshot",
+      "pixel_size": [
+        768,
+        1694
+      ],
+      "modified": false,
+      "capture_method": "CUA iPhone Mirroring full window, includes Mac frame and pointer",
+      "physical_device": true,
+      "phone_native_resolution": false,
+      "counts_as_required_raw_phone_screenshot": false,
+      "format": "jpeg",
+      "metadata_verified_by": "sips decoder; original bytes and SHA-256 unchanged"
+    }
+  ],
+  "observations": [
+    "Empty editor compact and task menu visible",
+    "ASCII draft entered; expanded editor Return adds second line; Done retains both lines",
+    "Appending CANCELLED in expanded editor then Cancel retains original draft",
+    "Task menu and details sheet reachable",
+    "Closing pane warns of draft loss; cancelled",
+    "Read-only terminal shows idle prompt; explicit takeover opens manual Composer",
+    "Executed exit via manual Composer; content becomes persistently blank",
+    "AI toggle changes top label but body remains blank; menu works; connection list incorrectly remains ongoing; reenter remains blank"
+  ],
+  "input_incident": "CUA multiline typeText treated newline as hardware Enter; Unicode characters lost and punctuation-only prompt submitted. Reply completed, no proposal or execution observed. Native counters unavailable; do not claim zero writes by counter.",
+  "limitations": [
+    "No continuous recording",
+    "Mirroring captures are auxiliary full-window images, not native device PNGs",
+    "Native software keyboard/Chinese IME, landscape, dark mode, unknown receipt and reconnect preservation not completed",
+    "Formal 48-case manifest statuses remain unchanged",
+    "P1 blank content blocks recovery acceptance; root cause not determined",
+    "Existing 58pt composer vs <=56pt automated failure remains open"
+  ]
+}

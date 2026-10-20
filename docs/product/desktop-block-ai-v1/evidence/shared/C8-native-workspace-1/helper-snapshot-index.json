@@ -1,0 +1,25 @@
+{
+  "implementation_commit": "19001573d9974c510e1e4cbcfeb01c94368ea157",
+  "files": [
+    {
+      "source": "tmp/desktop_prd_capture/run_native.py",
+      "snapshot": "run_native.py.txt",
+      "sha256": "218aec61b9fd3775624085e931d559f9cf80c709899452ff9b83d081a8998ec5"
+    },
+    {
+      "source": "tmp/desktop_prd_capture/window_inventory.swift",
+      "snapshot": "window_inventory.swift.txt",
+      "sha256": "f3177aac1dfc6ae137f360aeb4ce3e604a01079f8971797d1898560dceeccdfe"
+    },
+    {
+      "source": "tmp/desktop_prd_capture/record_window.swift",
+      "snapshot": "record_window.swift.txt",
+      "sha256": "2a6a5699ff899826b5961f328675f828fc2f36521b23e82dd00d8886bf08f72a"
+    },
+    {
+      "source": "tmp/desktop_prd_capture/run_verify.py",
+      "snapshot": "run_verify.py.txt",
+      "sha256": "85b52b3aa38337f80e64b310b0e9c41c6f722fdf3702afa257ed572cc778dbfe"
+    }
+  ]
+}

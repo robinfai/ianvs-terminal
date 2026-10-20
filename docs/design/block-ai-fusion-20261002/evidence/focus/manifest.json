@@ -1,0 +1,25 @@
+{
+  "artifact_sha256": {
+    "focus-before.log": "5331d0d0e858e5e93e7157962d1a3aff90abf3dcf450f2f0d1847d037d7ee5a4",
+    "focus-after.log": "f220a37410a9d429307f162b6c2c119a8ee5445691293c124de486e6cc879576",
+    "focus-app.log": "8ed55f86d85fb3c4d76a9d00aec25a3f82b6c291dfec13a0af817ba74a7dc4a3",
+    "focus-native.log": "8529999feb7ff512cf4692d7a65673323c148c46a77b68642777464dcec5b470",
+    "focus-analyze.log": "2589e85e4db0a68c0577a12f7c36e0bcaea76553f115b5f6a87f19b8c4953b79",
+    "focus-mirror.log": "79ea62ba85fd4366e859c4e3b3c6cd1cab711eb9ccbd38df713e6530698f52a1",
+    "result.json": "d633fc66a6c2190f441834b4ca0907c65d45d9e0df9de668107522c0c3f11aab",
+    "D05-native-block-evidence.png": "b7fbb62098c807bd00b2a08557d028c7f2ce6992b637427d130fc327621d2d52",
+    "D05-follow-up-without-refocusing.png": "328198caf81322ca05c2f6d1d4b53a04768798edd624a6f57006801615a6f0de",
+    "D08-original-output-reader.png": "eec6bd2de95812f33e509083335f50fec63636230ba0d17f46ab4b9f588a5dc1",
+    "D08-native-reader-reopened.png": "9606bc03512d5c46ea932c8e39e9369338e54afb46a5cc009b09eba13d821c13",
+    "D12-vim-review-overlay.png": "6a69b9b0b507d58130edaa8309febd66a533a1a6fcbd3b667ea0f75e0d2f9c83",
+    "D12-vim-return-normal.png": "e634e22f4339df4dab2b88ea22f5c5dc6aefa533bc31257e2f222c2f2cc646c1",
+    "M02-full-review.png": "0d32b1ff22c80f497200df864e4abd38bf1ad7196d2b0f565060bc9ad4b97307",
+    "M02-landscape-review.png": "ebd41407f2d094d53962d975b361cbdd17726178eaa84cb2bb40d742ac9ebfd7"
+  },
+  "source_sha256": {
+    "example/lib/features/ai/terminal_ai_workspace.dart": "fa50a3c9059432ad1e1eb15d098603e30d8618f9904be46441c8c994e8218f57",
+    "example/test/ai/terminal_ai_focus_test.dart": "65f64388b101a8e19904df570198272a3257792a242f5c88b260a54f9d34d160",
+    "example/integration_test/terminal_ai_workspace_acceptance_test.dart": "74315e58af538d98b6ee90ba49748962eeca9627bd6d9589e55613d18d2dada9"
+  },
+  "scope": "Focus restoration: actual macOS local PTY with deterministic HTTP fixture; fixed-font mobile widget checks, no physical iPhone."
+}

@@ -1,0 +1,205 @@
+{
+  "created_at": "2026-10-10T09:15:48.046288+00:00",
+  "source_commit": "d13e0c02c5f5921927c3f7855fd3aadce6559b64",
+  "code_equivalent_candidate": "19001573d9974c510e1e4cbcfeb01c94368ea157",
+  "purpose": "E1 native failure discovery before C9; no formal case passed",
+  "input": "CUA native OS events, not physical human keypresses; no controller injection",
+  "review_scope": "Six screenshots, 131 roughly one-second video samples plus all 88 source frames around two close transitions and 10 key-frame PNGs; video-review.json contains exact coverage/limits. No continuous player/full-pixel claim.",
+  "privacy": "Isolated fixture screen and public test token only in this selected evidence. Metadata contains developer account absolute paths; not anonymous. No phone/private credential files copied. Raw launch.log is retained locally; the public launch.redacted.log explicitly removes expired loopback debug-service authentication URLs and the home-path prefix, preserving the original SHA in launch-log-redaction.json.",
+  "files": [
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-e1-windows-1/app-identity.json",
+      "destination": "app-identity.json",
+      "sha256": "55f6ac187a0112bac5d90062cf07ff0145ae1eb936a38253e98a93aa2e84d9f1",
+      "bytes": 1367,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-e1-windows-1/binary-input-hashes-supplement.json",
+      "destination": "binary-input-hashes-supplement.json",
+      "sha256": "5b718f5fba52c4a70ede310154e20409076b618aca2d44b6dfe48eb4a20fa7e0",
+      "bytes": 847,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-e1-windows-1/draft-close-before-recording.json",
+      "destination": "draft-close-before-recording.json",
+      "sha256": "35b4a58aeb57c5baef0bfc9fea838247b4215d3933838b3476727b956024dfee",
+      "bytes": 777,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-e1-windows-1/draft-close-before-recording.log",
+      "destination": "draft-close-before-recording.log",
+      "sha256": "41a6764732b56c7566b215a5655cb28ce72091e45b99b8857280941e915e72d5",
+      "bytes": 308,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-e1-windows-1/draft-close-before.mp4",
+      "destination": "draft-close-before.mp4",
+      "sha256": "e5d6d58e94e77828c2fd78b770a99e1639e998b2dfaecd52b294fb2f192debf6",
+      "bytes": 4511722,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-e1-windows-1/manual-run.json",
+      "destination": "manual-run.json",
+      "sha256": "400da6a7e472e7ebbb69306b53335b556b6b5f3688d10d2a19c310bd02c3c001",
+      "bytes": 1886,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-e1-windows-1/model-requests.jsonl",
+      "destination": "model-requests.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-e1-windows-1/model-responses.jsonl",
+      "destination": "model-responses.jsonl",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-e1-windows-1/model-server.json",
+      "destination": "model-server.json",
+      "sha256": "39e480517d5d60c1f58798e82886c827ce0358d35d54134072f7cde4a2bfcafd",
+      "bytes": 981,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-e1-windows-1/reproduction-notes.json",
+      "destination": "reproduction-notes.json",
+      "sha256": "99dd0a73145829a64918c396a85e578be91ec09affec48618b3f7b57dd85e4b1",
+      "bytes": 1664,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-e1-windows-1/visual-review.log",
+      "destination": "visual-review.log",
+      "sha256": "fc7173d67bdff53ad7b86a1e25e7a9796ea7a42c46f10de6a0099ed23baee69e",
+      "bytes": 6791,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-e1-windows-1/ai-draft-before-close.png",
+      "destination": "ai-draft-before-close.png",
+      "sha256": "7561181a1cdf45b5d97e039a338fb6aa1dd3005734d2f7b935d6ee093e242080",
+      "bytes": 275766,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-e1-windows-1/ai-draft-before-close.json",
+      "destination": "ai-draft-before-close.json",
+      "sha256": "4375084487b1656cda3ce72b25c8fe5141aa37064272e9ea6bf46eb629608769",
+      "bytes": 1163,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-e1-windows-1/ai-draft-after-close-no-confirmation.png",
+      "destination": "ai-draft-after-close-no-confirmation.png",
+      "sha256": "392bd95a9e3905463676d0a6274a9cdaeeaf67778509e3b592a21ad4adeda057",
+      "bytes": 189041,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-e1-windows-1/ai-draft-after-close-no-confirmation.json",
+      "destination": "ai-draft-after-close-no-confirmation.json",
+      "sha256": "3f8ee55708411b8a41d2fbc7f685d12daf118f5f106a45a1d94f96cdade26e48",
+      "bytes": 1178,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-e1-windows-1/composer-draft-before-close.png",
+      "destination": "composer-draft-before-close.png",
+      "sha256": "e889f93df724550d0fe20263623391b93d83fd72295fac058f58535a8389da4f",
+      "bytes": 257592,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-e1-windows-1/composer-draft-before-close.json",
+      "destination": "composer-draft-before-close.json",
+      "sha256": "0b48d22fdf54a2f679740fc42a3d6823b801212a71bd46a0eeda45aa6227e803",
+      "bytes": 1169,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-e1-windows-1/composer-draft-after-close-no-confirmation.png",
+      "destination": "composer-draft-after-close-no-confirmation.png",
+      "sha256": "b80afb0343ab901aca26ec3b004e0b52a6d5da79a5ae1df93a7171c64f8d076f",
+      "bytes": 188783,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-e1-windows-1/composer-draft-after-close-no-confirmation.json",
+      "destination": "composer-draft-after-close-no-confirmation.json",
+      "sha256": "4830be731be50beaf112c2024deabb5984995f63cc9d45d9aa8536b70735293a",
+      "bytes": 1184,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-e1-windows-1/secondary-click-before.png",
+      "destination": "secondary-click-before.png",
+      "sha256": "16f9e23504ebc7eef96ba22b7ecb872cda40373cac8dfc3dbca560764da45cf4",
+      "bytes": 286749,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-e1-windows-1/secondary-click-before.json",
+      "destination": "secondary-click-before.json",
+      "sha256": "328112b9d8f8493cebf11a8614b176514cfb1e7270e7671517bf0355e31d6ce8",
+      "bytes": 1284,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-e1-windows-1/secondary-click-after-target-switched.png",
+      "destination": "secondary-click-after-target-switched.png",
+      "sha256": "27b73c421b4e73181eb8eff0b359000b685f3731e5492d26c13b6081fa2d1d56",
+      "bytes": 287031,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-e1-windows-1/secondary-click-after-target-switched.json",
+      "destination": "secondary-click-after-target-switched.json",
+      "sha256": "090bc306f155280c5223094e5119d515f304b17df5b2e92104b9b9cd48378dc0",
+      "bytes": 1299,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-e1-windows-1/review-video/video-review.json",
+      "destination": "video-review.json",
+      "sha256": "6d89a130b2cbee488b3e9b724d075e22c7b0acc1efcbeea6decd61f8109adf59",
+      "bytes": 16842,
+      "copy_mode": "original bytes"
+    },
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-e1-windows-1/launch.log",
+      "destination": "launch.redacted.log",
+      "sha256": "fdb337ccb4133e17c78237814face6ca6231a1119b8558f0e7d464dd66e2aa82",
+      "bytes": 2798,
+      "copy_mode": "sanitized derivative; see launch-log-redaction.json",
+      "original_sha256": "a21504949f0b6ad03885190bf46194a5260259962db72eb0c732986f59688121"
+    },
+    {
+      "source": "tmp/desktop_prd_capture/c9-followup-staging/evidence/shared/E1-native-findings/launch-log-redaction.json",
+      "destination": "launch-log-redaction.json",
+      "sha256": "8ece6f24389f19740b51de9121d7ef98c273212e6e97e2a29867c574aa172c17",
+      "bytes": 1049,
+      "copy_mode": "derived provenance generated in staging"
+    }
+  ],
+  "private_originals": [
+    {
+      "source": "build/desktop-prd-v1/iteration-1/native-e1-windows-1/launch.log",
+      "destination": null,
+      "sha256": "a21504949f0b6ad03885190bf46194a5260259962db72eb0c732986f59688121",
+      "bytes": 2470,
+      "copy_mode": "original bytes",
+      "reason": "Original retained locally; public copy replaced by explicitly named sanitized derivative, with original hash unchanged."
+    }
+  ],
+  "public_log_redaction_updated_at": "2026-10-10T12:09:01.971356+00:00"
+}

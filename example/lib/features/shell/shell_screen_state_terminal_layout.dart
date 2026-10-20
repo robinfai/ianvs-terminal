@@ -220,6 +220,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
     required String activeSessionId,
     required AppThemeTokens palette,
     required KeyEventResult Function(KeyEvent event) onHostKeyEvent,
+    Widget? mobileControls,
   }) {
     final zoomedPaneSessionId = _zoomedPaneSessionId;
     final zoomedPane = zoomedPaneSessionId == null
@@ -252,6 +253,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
           palette: palette,
           terminalBackground: terminalBackground,
           onHostKeyEvent: onHostKeyEvent,
+          mobileControls: mobileControls,
         ),
       ),
     );
@@ -267,6 +269,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
     required AppThemeTokens palette,
     required Color terminalBackground,
     required KeyEventResult Function(KeyEvent event) onHostKeyEvent,
+    Widget? mobileControls,
   }) {
     if (node.isLeaf) {
       final pane = node.pane!;
@@ -279,6 +282,9 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
         isActive: pane.sessionId == activeSessionId,
         palette: palette,
         onHostKeyEvent: onHostKeyEvent,
+        mobileControls: pane.sessionId == activeSessionId
+            ? mobileControls
+            : null,
       );
     }
 
@@ -294,6 +300,20 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                 ? constraints.maxWidth
                 : constraints.maxHeight) -
             _ShellScreenState._paneDividerDragThickness;
+        double ratioForDelta(double primaryDelta) {
+          if (availablePrimarySize <= 0 || !availablePrimarySize.isFinite) {
+            return node.ratio;
+          }
+          final constrained = _constrainedPaneSplitRatio(
+            sessionController,
+            node,
+            node.ratio + (primaryDelta / availablePrimarySize),
+          );
+          // Read the same model clamp that resizePaneSplit applies, so spoken
+          // next values and boundary actions match the committed layout.
+          return node.resizeSplit(node.id, constrained).ratio;
+        }
+
         return Flex(
           direction: direction,
           children: [
@@ -309,6 +329,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                 palette: palette,
                 terminalBackground: terminalBackground,
                 onHostKeyEvent: onHostKeyEvent,
+                mobileControls: mobileControls,
               ),
             ),
             _PaneDividerHandle(
@@ -319,18 +340,11 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
               thickness: _ShellScreenState._paneDividerDragThickness,
               terminalBackground: terminalBackground,
               palette: palette,
+              ratio: node.ratio,
+              increasedRatio: ratioForDelta(_PaneDividerHandle.keyboardStep),
+              decreasedRatio: ratioForDelta(-_PaneDividerHandle.keyboardStep),
               onDragUpdate: (primaryDelta) {
-                if (availablePrimarySize <= 0 ||
-                    !availablePrimarySize.isFinite) {
-                  return;
-                }
-                final nextRatio =
-                    node.ratio + (primaryDelta / availablePrimarySize);
-                final constrainedRatio = _constrainedPaneSplitRatio(
-                  sessionController,
-                  node,
-                  nextRatio,
-                );
+                final constrainedRatio = ratioForDelta(primaryDelta);
                 if ((constrainedRatio - node.ratio).abs() < 0.0001) {
                   return;
                 }
@@ -353,11 +367,55 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                 palette: palette,
                 terminalBackground: terminalBackground,
                 onHostKeyEvent: onHostKeyEvent,
+                mobileControls: mobileControls,
               ),
             ),
           ],
         );
       },
+    );
+  }
+
+  Widget _unavailableTerminalPane(
+    BuildContext context,
+    SessionController sessionController,
+    TerminalPane pane,
+    AppThemeTokens palette,
+    bool isActive,
+  ) {
+    // A task's text and recovery controls do not depend on a native viewport.
+    if (_openAiSessions.contains(pane.sessionId)) {
+      return _aiOverlay(
+        pane.sessionId,
+        palette,
+        targetLabel: pane.title,
+        paneContext: context,
+        active: isActive,
+      );
+    }
+    final chinese = Localizations.localeOf(context).languageCode == 'zh';
+    return Center(
+      key: Key('terminal-unavailable-${pane.sessionId}'),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(chinese ? '终端会话已不可用' : 'Terminal session unavailable'),
+            const SizedBox(height: 12),
+            TextButton(
+              key: Key('terminal-unavailable-ai-${pane.sessionId}'),
+              onPressed: () => _openAi(pane.sessionId),
+              child: Text(chinese ? '查看 AI 任务' : 'View AI task'),
+            ),
+            TextButton(
+              onPressed: () =>
+                  unawaited(sessionController.closeSession(pane.sessionId)),
+              child: Text(chinese ? '关闭会话' : 'Close session'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -370,11 +428,18 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
     required bool isActive,
     required AppThemeTokens palette,
     required KeyEventResult Function(KeyEvent event) onHostKeyEvent,
+    Widget? mobileControls,
   }) {
     final sessionId = pane.sessionId;
     final viewportController = sessionController.existingViewportFor(sessionId);
     if (viewportController == null) {
-      return const SizedBox.shrink();
+      return _unavailableTerminalPane(
+        context,
+        sessionController,
+        pane,
+        palette,
+        isActive,
+      );
     }
     final graphicsCache = sessionController.graphicsCacheFor(sessionId);
     final focusNode = _focusNodeFor(sessionId);
@@ -384,13 +449,49 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
     );
     final profile = _profileForPane(pane, sessionState.profiles);
     final terminalConfig = profile?.toSessionConfig();
-    final sessionReadOnly = _isSessionReadOnly(sessionId);
+    final sessionReadOnly = pane.isExited || _isSessionReadOnly(sessionId);
+    final readerController = _readerFor(sessionId);
+    final inputEpoch = _manualInputEpochs.putIfAbsent(
+      sessionId,
+      () => ++_manualInputSerial,
+    );
     final baseTerminalFont =
         terminalConfig?.display.font ?? const terminal.TerminalFontConfig();
     final effectiveTerminalFont = defaultTargetPlatform == TargetPlatform.iOS
         ? _mobileFontFor(sessionId, baseTerminalFont)
         : baseTerminalFont;
     final terminalColors = _terminalColorsForProfile(context, profile);
+    // Capture the container while the element is active. Input callbacks must
+    // read current ownership without an ancestor lookup during teardown.
+    final inputOwnerContainer = ProviderScope.containerOf(
+      context,
+      listen: false,
+    );
+    // Focus loss is a system report for the previous pane, which may already
+    // be inactive. It still loses permission with every explicit revocation.
+    // These callbacks also run during viewport teardown, without looking up
+    // ancestors from the deactivated ShellScreen element.
+    bool inputRevoked() =>
+        !mounted ||
+        sessionReadOnly ||
+        inputEpoch != _manualInputEpoch(sessionId) ||
+        readerController.blocksInput ||
+        _readOnlySessionIds.contains(sessionId) ||
+        _openAiSessions.contains(sessionId);
+
+    void activateForPointer(PointerDownEvent event) {
+      // Inspecting another pane must not transfer its input ownership. This
+      // runs before the native viewport emits the press, not in its ancestor
+      // Listener after the event has already reached the input sink.
+      if (mounted &&
+          event.buttons != 0 &&
+          (event.buttons & kSecondaryMouseButton) == 0 &&
+          inputOwnerContainer.read(sessionControllerProvider).activeSessionId !=
+              sessionId) {
+        _activateSession(sessionController, sessionId);
+      }
+    }
+
     final inputController = TerminalInputController(
       sessionId: sessionId,
       runtime: ref.read(terminalRuntimeControllerProvider),
@@ -404,11 +505,27 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
       ),
       copySelection: (text) => ClipboardBridge.copyWithFeedback(context, text),
       readClipboard: ClipboardBridge.paste,
-      // TerminalViewport can emit a final focus-loss report while its element
-      // is being unmounted. Capture the build-time value so that teardown does
-      // not ask Riverpod for an ancestor after ShellScreen is deactivated.
-      readOnly: () => sessionReadOnly,
+      readOnly: () =>
+          inputRevoked() ||
+          inputOwnerContainer.read(sessionControllerProvider).activeSessionId !=
+              sessionId,
+      readOnlyFocusLoss: inputRevoked,
     );
+    final composerSession = !sessionReadOnly
+        ? _composerFor(sessionId)
+        : _composerSessions[sessionId];
+    _composerSessions[sessionId]?.updateEnvironment(
+      pane,
+      readOnly: sessionReadOnly,
+    );
+    if (isActive &&
+        !_mobileConnectionsOpen &&
+        composerSession?.enabled == true &&
+        !_openAiSessions.contains(sessionId)) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _ensureUnifiedWorkspace(sessionId),
+      );
+    }
     final annotations = _annotationsForSession(sessionId);
 
     final terminalViewportPadding = _terminalViewportPaddingFor(sessionState);
@@ -442,16 +559,26 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
       ),
     );
     final hasHoveredLink = _hoveredTerminalLinkSessionId == sessionId;
-    return LayoutBuilder(
+    final paneView = LayoutBuilder(
       key: _paneDropTargetKey(activeTab.sessionId, sessionId),
       builder: (context, constraints) {
         if (!identical(
           sessionController.existingViewportFor(sessionId),
           viewportController,
         )) {
-          return const SizedBox.shrink();
+          return _unavailableTerminalPane(
+            context,
+            sessionController,
+            pane,
+            palette,
+            isActive,
+          );
         }
         final dropTarget = _dropTargetForPane(sessionId);
+        final compactDisconnected =
+            pane.isExited &&
+            context.usesMobileNavigation &&
+            constraints.maxHeight < 280;
         final paneHeader = showsPaneHeader
             ? Consumer(
                 builder: (context, ref, _) {
@@ -558,333 +685,651 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
         return Listener(
           key: Key('shell-pane-$sessionId'),
           onPointerDown: (event) {
-            if (!isActive && event.buttons != 0) {
-              _activateSession(sessionController, sessionId);
-            }
+            activateForPointer(event);
             final frame = viewportController.frame;
             final shouldMiddlePaste =
+                !_openAiSessions.contains(sessionId) &&
                 frame.modes.mouseMode == 'off' &&
                 (event.buttons & kMiddleMouseButton) != 0;
-            if (shouldMiddlePaste) {
+            if (shouldMiddlePaste &&
+                !(_composerSessions[sessionId]?.enabled ?? false)) {
               unawaited(_pasteToSession(sessionId));
             }
           },
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              border: Border.all(
-                color: isActive
-                    ? palette.focusRing.withValues(alpha: 0.78)
-                    : Colors.transparent,
-                width: 1.5,
-              ),
-            ),
-            child: Column(
+          child: ColoredBox(
+            color: palette.panel,
+            child: Stack(
               children: [
-                ?paneHeader,
-                Expanded(
-                  child: LayoutBuilder(
-                    builder: (context, terminalConstraints) {
-                      final viewportSize = _terminalContentSizeFor(
-                        terminalConstraints,
-                        terminalViewportPadding,
-                      );
-                      final scheduledSize = _scheduledViewportSizes[sessionId];
-                      if (scheduledSize != viewportSize) {
-                        _scheduledViewportSizes[sessionId] = viewportSize;
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (mounted) {
-                            _mutateState(() {});
-                            _scheduleViewportResize(
-                              sessionController,
-                              sessionId,
-                              viewportSize,
-                              MediaQuery.devicePixelRatioOf(context),
-                              immediate: !_committedViewportSizes.containsKey(
-                                sessionId,
-                              ),
-                            );
-                          }
-                        });
-                      }
-                      final attentionBurst = _osc1337AttentionBurstFor(
-                        context: context,
-                        sessionId: sessionId,
-                        viewportController: viewportController,
-                        viewportSize: terminalConstraints.biggest,
-                        contentPadding: terminalViewportPadding,
-                        palette: palette,
-                      );
-                      return Stack(
+                // AI covers this layout without changing the PTY's viewport.
+                // Only real window/keyboard metrics may resize the terminal.
+                ExcludeFocus(
+                  excluding: _openAiSessions.contains(sessionId),
+                  child: ExcludeSemantics(
+                    excluding: _openAiSessions.contains(sessionId),
+                    child: IgnorePointer(
+                      ignoring: _openAiSessions.contains(sessionId),
+                      child: Column(
                         children: [
-                          Positioned.fill(
-                            child: TerminalViewport(
-                              key: _terminalViewportKey(
-                                activeTab.sessionId,
-                                sessionId,
+                          ?paneHeader,
+                          if (pane.isExited && context.usesMobileNavigation)
+                            ConstrainedBox(
+                              constraints: BoxConstraints(
+                                maxHeight:
+                                    constraints.maxHeight *
+                                    (compactDisconnected ? .7 : .45),
                               ),
-                              focusNode: focusNode,
-                              controller: viewportController,
-                              selectionController: selectionController,
-                              inputController: inputController,
-                              onPasteClipboard: () =>
-                                  _pasteToSession(sessionId),
-                              contentPadding: terminalViewportPadding,
-                              onMeasuredCellSizeChanged: (cellSize) {
-                                if (!mounted) {
-                                  return;
-                                }
-                                if (_measuredTerminalCellSizes[sessionId] !=
-                                    cellSize) {
-                                  _mutateState(() {
-                                    _measuredTerminalCellSizes[sessionId] =
-                                        cellSize;
+                              child: SingleChildScrollView(
+                                child: MobileDisconnectedSessionNotice(
+                                  key: Key(
+                                    'mobile-disconnected-notice-$sessionId',
+                                  ),
+                                  sessionId: sessionId,
+                                  compact: compactDisconnected,
+                                  exitCode: pane.exitCode,
+                                  reconnected:
+                                      sessionState.liveReconnectionFor(
+                                        sessionId,
+                                      ) !=
+                                      null,
+                                  onReconnect:
+                                      pane.profileSnapshot?.isSsh == true
+                                      ? () => unawaited(
+                                          _reconnectMobileSession(sessionId),
+                                        )
+                                      : null,
+                                ),
+                              ),
+                            ),
+                          Expanded(
+                            child: LayoutBuilder(
+                              builder: (context, terminalConstraints) {
+                                final viewportSize = _terminalContentSizeFor(
+                                  terminalConstraints,
+                                  terminalViewportPadding,
+                                );
+                                final devicePixelRatio =
+                                    MediaQuery.devicePixelRatioOf(context);
+                                final scheduledSize =
+                                    _scheduledViewportSizes[sessionId];
+                                bool metricsAreCurrent() =>
+                                    mounted &&
+                                    _scheduledViewportSizes[sessionId] ==
+                                        viewportSize &&
+                                    _terminalViewportDevicePixelRatios[sessionId] ==
+                                        devicePixelRatio;
+                                if (scheduledSize != viewportSize ||
+                                    _terminalViewportDevicePixelRatios[sessionId] !=
+                                        devicePixelRatio) {
+                                  _scheduledViewportSizes[sessionId] =
+                                      viewportSize;
+                                  _terminalViewportDevicePixelRatios[sessionId] =
+                                      devicePixelRatio;
+                                  WidgetsBinding.instance.addPostFrameCallback((
+                                    _,
+                                  ) {
+                                    if (metricsAreCurrent()) {
+                                      _mutateState(() {});
+                                      _scheduleViewportResize(
+                                        sessionController,
+                                        sessionId,
+                                        viewportSize,
+                                        devicePixelRatio,
+                                        immediate: !_committedViewportSizes
+                                            .containsKey(sessionId),
+                                      );
+                                    }
                                   });
                                 }
-                                _scheduleViewportResize(
-                                  sessionController,
-                                  sessionId,
-                                  viewportSize,
-                                  MediaQuery.devicePixelRatioOf(context),
-                                  immediate: true,
+                                final attentionBurst =
+                                    _osc1337AttentionBurstFor(
+                                      context: context,
+                                      sessionId: sessionId,
+                                      viewportController: viewportController,
+                                      viewportSize: terminalConstraints.biggest,
+                                      contentPadding: terminalViewportPadding,
+                                      palette: palette,
+                                    );
+                                void measureCell(Size cellSize) {
+                                  if (!metricsAreCurrent()) {
+                                    return;
+                                  }
+                                  if (_measuredTerminalCellSizes[sessionId] !=
+                                      cellSize) {
+                                    _mutateState(() {
+                                      _measuredTerminalCellSizes[sessionId] =
+                                          cellSize;
+                                    });
+                                  }
+                                  _scheduleViewportResize(
+                                    sessionController,
+                                    sessionId,
+                                    viewportSize,
+                                    devicePixelRatio,
+                                    immediate: true,
+                                  );
+                                }
+
+                                Widget
+                                buildNativeViewport() => TerminalViewport(
+                                  key: _terminalViewportKey(
+                                    activeTab.sessionId,
+                                    sessionId,
+                                  ),
+                                  focusNode: focusNode,
+                                  controller: viewportController,
+                                  selectionController: selectionController,
+                                  inputController: inputController,
+                                  readOnly: sessionReadOnly,
+                                  onPasteClipboard: () =>
+                                      _pasteToSession(sessionId),
+                                  contentPadding: terminalViewportPadding,
+                                  onMeasuredCellSizeChanged: measureCell,
+                                  colors: terminalColors,
+                                  useFrameDefaultColors: false,
+                                  font: effectiveTerminalFont,
+                                  onScaleStart:
+                                      defaultTargetPlatform ==
+                                          TargetPlatform.iOS
+                                      ? (details) => _startMobileTerminalPinch(
+                                          sessionId,
+                                          details,
+                                        )
+                                      : null,
+                                  onScaleUpdate:
+                                      defaultTargetPlatform ==
+                                          TargetPlatform.iOS
+                                      ? (details) => _updateMobileTerminalPinch(
+                                          sessionId,
+                                          details,
+                                        )
+                                      : null,
+                                  onScaleEnd:
+                                      defaultTargetPlatform ==
+                                          TargetPlatform.iOS
+                                      ? (details) => _endMobileTerminalPinch(
+                                          sessionId,
+                                          details,
+                                        )
+                                      : null,
+                                  cursor:
+                                      terminalConfig?.display.cursor ??
+                                      const terminal.TerminalCursorConfig(),
+                                  copyOnSelect:
+                                      _clipboardConfig.copyOnSelect ||
+                                      (terminalConfig
+                                              ?.interaction
+                                              .copyOnSelect ??
+                                          false),
+                                  altClickMovesCursor:
+                                      terminalConfig
+                                          ?.interaction
+                                          .altClickMovesCursor ??
+                                      true,
+                                  optionDragMode:
+                                      terminalConfig
+                                          ?.interaction
+                                          .optionDragMode ??
+                                      terminal
+                                          .TerminalOptionDragMode
+                                          .blockSelection,
+                                  searchMatches: _isSearchOpen
+                                      ? _searchMatchesForSession(sessionId)
+                                      : const <terminal.TerminalSearchMatch>[],
+                                  activeSearchMatchIndex: _isSearchOpen
+                                      ? _activeSearchMatchIndexForSession(
+                                          sessionId,
+                                        )
+                                      : -1,
+                                  searchHighlightStyle:
+                                      terminal.TerminalSearchHighlightStyle(
+                                        activeFill: palette.accent.withValues(
+                                          alpha: 0.34,
+                                        ),
+                                        inactiveFill: palette.warning
+                                            .withValues(alpha: 0.22),
+                                        activeBorder: palette.accent.withValues(
+                                          alpha: 0.82,
+                                        ),
+                                        radius: 3,
+                                      ),
+                                  graphicsCache: graphicsCache,
+                                  onSaveGraphicImage: _saveTerminalGraphicImage,
+                                  onCopyGraphicImage: _copyTerminalGraphicImage,
+                                  benchmarkEventSink: ref.watch(
+                                    terminalGraphicsTraceSinkProvider,
+                                  ),
+                                  graphicsDiagnosticSessionId: sessionId,
+                                  onHostKeyEvent: onHostKeyEvent,
+                                  onPointerDown: activateForPointer,
+                                  onScrollLines: (delta) {
+                                    ref
+                                        .read(terminalRuntimeControllerProvider)
+                                        .scrollViewport(sessionId, delta);
+                                  },
+                                  onScrollToOffset: (offset) {
+                                    ref
+                                        .read(terminalRuntimeControllerProvider)
+                                        .scrollViewportTo(sessionId, offset);
+                                  },
+                                  onToggleBlock: (block) {
+                                    selectionController.clear();
+                                    ref
+                                        .read(terminalRuntimeControllerProvider)
+                                        .setBlockFolded(
+                                          sessionId,
+                                          block.id,
+                                          folded: !block.folded,
+                                        );
+                                  },
+                                  onDismissBlockRender: (block) {
+                                    selectionController.clear();
+                                    ref
+                                        .read(terminalRuntimeControllerProvider)
+                                        .setBlockRendered(
+                                          sessionId,
+                                          block.id,
+                                          rendered: false,
+                                        );
+                                  },
+                                  onActivateInlineButton: (button) {
+                                    if (!isActive ||
+                                        _openAiSessions.contains(sessionId) ||
+                                        (button.kind ==
+                                                terminal
+                                                    .TerminalInlineButtonKind
+                                                    .custom &&
+                                            sessionReadOnly)) {
+                                      return;
+                                    }
+                                    final activation = ref
+                                        .read(terminalRuntimeControllerProvider)
+                                        .activateItermButton(
+                                          sessionId,
+                                          button.id,
+                                        );
+                                    final text = activation.text;
+                                    if (activation.activated &&
+                                        activation.kind ==
+                                            terminal
+                                                .TerminalInlineButtonKind
+                                                .copy &&
+                                        text != null) {
+                                      unawaited(ClipboardBridge.copy(text));
+                                    }
+                                  },
+                                  inlineButtonEnabled: (button) {
+                                    return isActive &&
+                                        (button.kind ==
+                                                terminal
+                                                    .TerminalInlineButtonKind
+                                                    .copy ||
+                                            !sessionReadOnly);
+                                  },
+                                  onOpenLinkTarget: (target) => unawaited(
+                                    _openTerminalLinkTarget(sessionId, target),
+                                  ),
+                                  onLinkHoverChanged: (target) =>
+                                      _handleTerminalLinkHover(
+                                        sessionId,
+                                        target,
+                                      ),
+                                  onLinkContextMenu: (target) =>
+                                      _handleTerminalLinkContextMenu(
+                                        sessionId,
+                                        target,
+                                      ),
+                                );
+                                return Stack(
+                                  children: [
+                                    Positioned.fill(
+                                      child: composerSession == null
+                                          ? buildNativeViewport()
+                                          : CommandBlocksPane(
+                                              key: ValueKey(
+                                                'blocks-pane-$sessionId',
+                                              ),
+                                              session: composerSession,
+                                              presentationVisible:
+                                                  !_openAiSessions.contains(
+                                                    sessionId,
+                                                  ),
+                                              viewport: viewportController,
+                                              input: inputController,
+                                              terminalFocus: focusNode,
+                                              active: isActive,
+                                              onAskAi: (block) => _openAi(
+                                                sessionId,
+                                                block: block,
+                                              ),
+                                              onAttachBlocks: (blocks) =>
+                                                  _openAi(
+                                                    sessionId,
+                                                    blocks: blocks,
+                                                  ),
+                                              onAttachRange: (block) => _openAi(
+                                                sessionId,
+                                                range: block,
+                                              ),
+                                              font: effectiveTerminalFont,
+                                              onMeasuredCellSizeChanged:
+                                                  measureCell,
+                                              onOpenLinkTarget: (target) =>
+                                                  unawaited(
+                                                    _openTerminalLinkTarget(
+                                                      sessionId,
+                                                      target,
+                                                    ),
+                                                  ),
+                                              child: buildNativeViewport(),
+                                            ),
+                                    ),
+                                    if (!isActive && !hasHoveredLink)
+                                      Positioned.fill(
+                                        child: IgnorePointer(
+                                          child: ColoredBox(
+                                            key: Key(
+                                              'shell-pane-dim-$sessionId',
+                                            ),
+                                            color: palette.inactiveScrim,
+                                          ),
+                                        ),
+                                      ),
+                                    ?attentionBurst,
+                                    if (isActive && _isSearchOpen)
+                                      Positioned(
+                                        top: _ShellScreenState
+                                            ._terminalOverlayPadding
+                                            .top,
+                                        left: _ShellScreenState
+                                            ._terminalOverlayPadding
+                                            .left,
+                                        right: _ShellScreenState
+                                            ._terminalOverlayPadding
+                                            .right,
+                                        child: Align(
+                                          alignment: Alignment.topRight,
+                                          child: _TerminalSearchBar(
+                                            query: _searchQuery,
+                                            matches: _searchHits.length,
+                                            activeIndex: _activeSearchIndex,
+                                            searchScope: _searchScope,
+                                            searchMode: _searchMode,
+                                            errorText: _searchErrorText,
+                                            palette: palette,
+                                            focusNode: _searchFocusNode,
+                                            focusRequestSerial:
+                                                _searchFocusRequestSerial,
+                                            onChanged: _searchScrollback,
+                                            onClear: _clearSearch,
+                                            onScopeChanged: _setSearchScope,
+                                            onModeChanged: _setSearchMode,
+                                            onPrevious: () =>
+                                                _moveSearchMatch(1),
+                                            onNext: () => _moveSearchMatch(-1),
+                                            onClose: _closeSearch,
+                                          ),
+                                        ),
+                                      ),
+
+                                    if (isActive && annotations.isNotEmpty)
+                                      Positioned(
+                                        left: _ShellScreenState
+                                            ._terminalOverlayPadding
+                                            .left,
+                                        bottom: _ShellScreenState
+                                            ._terminalOverlayPadding
+                                            .bottom,
+                                        child: _TerminalAnnotationBadge(
+                                          key: Key(
+                                            'terminal-annotation-badge-$sessionId',
+                                          ),
+                                          count: annotations.length,
+                                          palette: palette,
+                                          onTap: () => _showShellSnackBar(
+                                            annotations
+                                                .map((entry) => entry.note)
+                                                .join('\n'),
+                                          ),
+                                        ),
+                                      ),
+                                    if (isActive && _showLayoutCue)
+                                      Positioned(
+                                        top: _ShellScreenState
+                                            ._terminalOverlayPadding
+                                            .top,
+                                        right: _ShellScreenState
+                                            ._terminalOverlayPadding
+                                            .right,
+                                        child: IgnorePointer(
+                                          child: _ShellLayoutCue(
+                                            title: _layoutCueTitle,
+                                            palette: palette,
+                                          ),
+                                        ),
+                                      ),
+                                    // Split-pane focus stays in the terminal area;
+                                    // no colored rail extends beside the composer.
+                                    if (isActive && showsPaneHeader)
+                                      Positioned.fill(
+                                        child: IgnorePointer(
+                                          child: DecoratedBox(
+                                            decoration: BoxDecoration(
+                                              border: Border.all(
+                                                color: palette.focusRing
+                                                    .withValues(alpha: 0.78),
+                                                width: 1.5,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    if (dropTarget != null)
+                                      Positioned.fill(
+                                        child: IgnorePointer(
+                                          child: _TerminalPaneDropOverlay(
+                                            target: dropTarget,
+                                            palette: palette,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 );
                               },
-                              colors: terminalColors,
-                              useFrameDefaultColors: false,
-                              font: effectiveTerminalFont,
-                              onScaleStart:
-                                  defaultTargetPlatform == TargetPlatform.iOS
-                                  ? (details) => _startMobileTerminalPinch(
-                                      sessionId,
-                                      details,
-                                    )
-                                  : null,
-                              onScaleUpdate:
-                                  defaultTargetPlatform == TargetPlatform.iOS
-                                  ? (details) => _updateMobileTerminalPinch(
-                                      sessionId,
-                                      details,
-                                    )
-                                  : null,
-                              onScaleEnd:
-                                  defaultTargetPlatform == TargetPlatform.iOS
-                                  ? (details) => _endMobileTerminalPinch(
-                                      sessionId,
-                                      details,
-                                    )
-                                  : null,
-                              cursor:
-                                  terminalConfig?.display.cursor ??
-                                  const terminal.TerminalCursorConfig(),
-                              copyOnSelect:
-                                  _clipboardConfig.copyOnSelect ||
-                                  (terminalConfig?.interaction.copyOnSelect ??
-                                      false),
-                              altClickMovesCursor:
-                                  terminalConfig
-                                      ?.interaction
-                                      .altClickMovesCursor ??
-                                  true,
-                              optionDragMode:
-                                  terminalConfig?.interaction.optionDragMode ??
-                                  terminal
-                                      .TerminalOptionDragMode
-                                      .blockSelection,
-                              searchMatches: _isSearchOpen
-                                  ? _searchMatchesForSession(sessionId)
-                                  : const <terminal.TerminalSearchMatch>[],
-                              activeSearchMatchIndex: _isSearchOpen
-                                  ? _activeSearchMatchIndexForSession(sessionId)
-                                  : -1,
-                              searchHighlightStyle:
-                                  terminal.TerminalSearchHighlightStyle(
-                                    activeFill: palette.accent.withValues(
-                                      alpha: 0.34,
-                                    ),
-                                    inactiveFill: palette.warning.withValues(
-                                      alpha: 0.22,
-                                    ),
-                                    activeBorder: palette.accent.withValues(
-                                      alpha: 0.82,
-                                    ),
-                                    radius: 3,
-                                  ),
-                              graphicsCache: graphicsCache,
-                              onSaveGraphicImage: _saveTerminalGraphicImage,
-                              onCopyGraphicImage: _copyTerminalGraphicImage,
-                              benchmarkEventSink: ref.watch(
-                                terminalGraphicsTraceSinkProvider,
-                              ),
-                              graphicsDiagnosticSessionId: sessionId,
-                              onHostKeyEvent: onHostKeyEvent,
-                              onScrollLines: (delta) {
-                                ref
-                                    .read(terminalRuntimeControllerProvider)
-                                    .scrollViewport(sessionId, delta);
-                              },
-                              onScrollToOffset: (offset) {
-                                ref
-                                    .read(terminalRuntimeControllerProvider)
-                                    .scrollViewportTo(sessionId, offset);
-                              },
-                              onToggleBlock: (block) {
-                                selectionController.clear();
-                                ref
-                                    .read(terminalRuntimeControllerProvider)
-                                    .setBlockFolded(
-                                      sessionId,
-                                      block.id,
-                                      folded: !block.folded,
-                                    );
-                              },
-                              onDismissBlockRender: (block) {
-                                selectionController.clear();
-                                ref
-                                    .read(terminalRuntimeControllerProvider)
-                                    .setBlockRendered(
-                                      sessionId,
-                                      block.id,
-                                      rendered: false,
-                                    );
-                              },
-                              onActivateInlineButton: (button) {
-                                if (!isActive ||
-                                    (button.kind ==
-                                            terminal
-                                                .TerminalInlineButtonKind
-                                                .custom &&
-                                        _isSessionReadOnly(sessionId))) {
-                                  return;
-                                }
-                                final activation = ref
-                                    .read(terminalRuntimeControllerProvider)
-                                    .activateItermButton(sessionId, button.id);
-                                final text = activation.text;
-                                if (activation.activated &&
-                                    activation.kind ==
-                                        terminal
-                                            .TerminalInlineButtonKind
-                                            .copy &&
-                                    text != null) {
-                                  unawaited(ClipboardBridge.copy(text));
-                                }
-                              },
-                              inlineButtonEnabled: (button) {
-                                return isActive &&
-                                    (button.kind ==
-                                            terminal
-                                                .TerminalInlineButtonKind
-                                                .copy ||
-                                        !_isSessionReadOnly(sessionId));
-                              },
-                              onOpenLinkTarget: (target) => unawaited(
-                                _openTerminalLinkTarget(sessionId, target),
-                              ),
-                              onLinkHoverChanged: (target) =>
-                                  _handleTerminalLinkHover(sessionId, target),
-                              onLinkContextMenu: (target) =>
-                                  _handleTerminalLinkContextMenu(
-                                    sessionId,
-                                    target,
-                                  ),
                             ),
                           ),
-                          if (!isActive && !hasHoveredLink)
-                            Positioned.fill(
-                              child: IgnorePointer(
-                                child: ColoredBox(
-                                  key: Key('shell-pane-dim-$sessionId'),
-                                  color: palette.inactiveScrim,
+                          if (composerSession != null)
+                            Offstage(
+                              offstage: _openAiSessions.contains(sessionId),
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxHeight: constraints.maxHeight * .65,
+                                ),
+                                // The Composer uses the pane's actual height to
+                                // select its inline or scrollable short layout.
+                                // An outer scroll view would remove that bound.
+                                child: Actions(
+                                  actions: {
+                                    EditableTextTapOutsideIntent:
+                                        _PaneComposerTapOutsideAction(),
+                                  },
+                                  child: ComposerPane(
+                                    key: ValueKey('composer-$sessionId'),
+                                    session: composerSession,
+                                    targetLabel: pane.title,
+                                    active:
+                                        isActive &&
+                                        !_manualInputBlocked(sessionId),
+                                    available:
+                                        !pane.isExited && !sessionReadOnly,
+                                    onAskAi: (prompt) =>
+                                        _openAi(sessionId, prompt: prompt),
+                                    onOpenAi: () => _openAi(sessionId),
+                                    onTerminalFocus: focusNode.requestFocus,
+                                    terminalFocus: focusNode,
+                                  ),
                                 ),
                               ),
                             ),
-                          ?attentionBurst,
-                          if (isActive && _isSearchOpen)
-                            Positioned(
-                              top:
-                                  _ShellScreenState._terminalOverlayPadding.top,
-                              left: _ShellScreenState
-                                  ._terminalOverlayPadding
-                                  .left,
-                              right: _ShellScreenState
-                                  ._terminalOverlayPadding
-                                  .right,
-                              child: Align(
-                                alignment: Alignment.topRight,
-                                child: _TerminalSearchBar(
-                                  query: _searchQuery,
-                                  matches: _searchHits.length,
-                                  activeIndex: _activeSearchIndex,
-                                  searchScope: _searchScope,
-                                  searchMode: _searchMode,
-                                  errorText: _searchErrorText,
-                                  palette: palette,
-                                  focusNode: _searchFocusNode,
-                                  focusRequestSerial: _searchFocusRequestSerial,
-                                  onChanged: _searchScrollback,
-                                  onClear: _clearSearch,
-                                  onScopeChanged: _setSearchScope,
-                                  onModeChanged: _setSearchMode,
-                                  onPrevious: () => _moveSearchMatch(1),
-                                  onNext: () => _moveSearchMatch(-1),
-                                  onClose: _closeSearch,
-                                ),
-                              ),
-                            ),
-
-                          if (isActive && annotations.isNotEmpty)
-                            Positioned(
-                              left: _ShellScreenState
-                                  ._terminalOverlayPadding
-                                  .left,
-                              bottom: _ShellScreenState
-                                  ._terminalOverlayPadding
-                                  .bottom,
-                              child: _TerminalAnnotationBadge(
-                                key: Key(
-                                  'terminal-annotation-badge-$sessionId',
-                                ),
-                                count: annotations.length,
-                                palette: palette,
-                                onTap: () => _showShellSnackBar(
-                                  annotations
-                                      .map((entry) => entry.note)
-                                      .join('\n'),
-                                ),
-                              ),
-                            ),
-                          if (isActive && _showLayoutCue)
-                            Positioned(
-                              top:
-                                  _ShellScreenState._terminalOverlayPadding.top,
-                              right: _ShellScreenState
-                                  ._terminalOverlayPadding
-                                  .right,
-                              child: IgnorePointer(
-                                child: _ShellLayoutCue(
-                                  title: _layoutCueTitle,
-                                  palette: palette,
-                                ),
-                              ),
-                            ),
-                          if (dropTarget != null)
-                            Positioned.fill(
-                              child: IgnorePointer(
-                                child: _TerminalPaneDropOverlay(
-                                  target: dropTarget,
-                                  palette: palette,
-                                ),
-                              ),
-                            ),
+                          if (!compactDisconnected) ?mobileControls,
                         ],
-                      );
-                    },
+                      ),
+                    ),
                   ),
                 ),
+                if (isActive || _openAiSessions.contains(sessionId))
+                  Positioned.fill(
+                    child: _aiOverlay(
+                      sessionId,
+                      palette,
+                      paneContext: context,
+                      targetLabel: pane.title,
+                      active: isActive && !readerController.blocksInput,
+                      font: effectiveTerminalFont,
+                      colors: terminalColors,
+                      fullScreenTerminal:
+                          composerSession?.fullScreen == true ||
+                          viewportController.frame.modes.alternateScreen,
+                      onShowEvidence: composerSession == null
+                          ? null
+                          : (reference) {
+                              composerSession.blocks.refresh();
+                              unawaited(
+                                showAiEvidenceReader(
+                                  context,
+                                  controller: composerSession.blocks,
+                                  reference: reference,
+                                  sourceSessionId: sessionId,
+                                  sourceLabel: pane.title,
+                                  font: effectiveTerminalFont,
+                                  onAttachRange: (block) =>
+                                      _openAi(sessionId, range: block),
+                                  onOpenLinkTarget: (target) => unawaited(
+                                    _openTerminalLinkTarget(sessionId, target),
+                                  ),
+                                ).then((command) {
+                                  if (command != null && mounted) {
+                                    _reinputAiCommand(sessionId, command);
+                                  }
+                                }),
+                              );
+                            },
+                      timelineBuilder:
+                          composerSession != null &&
+                              (composerSession.enabled || pane.isExited) &&
+                              !viewportController.frame.modes.alternateScreen &&
+                              viewportController.frame.modes.mouseMode == 'off'
+                          ? (items, scroll, followTail) {
+                              Widget buildTimeline(
+                                List<terminal.CommandBlockTimelineItem> merged,
+                              ) {
+                                final action = _humanRunningAction(sessionId);
+                                final taskId = _aiFor(sessionId).taskId;
+                                final epoch = _manualInputEpoch(sessionId);
+                                final humanEpoch = _aiFor(
+                                  sessionId,
+                                ).humanInputEpoch;
+                                final live =
+                                    action != null &&
+                                    _humanBlockInputAllowed(
+                                      sessionId,
+                                      taskId,
+                                      action,
+                                      epoch,
+                                    );
+                                final commandInput = !live
+                                    ? null
+                                    : TerminalInputController(
+                                        sessionId: sessionId,
+                                        runtime: ref.read(
+                                          terminalRuntimeControllerProvider,
+                                        ),
+                                        readFrame: () =>
+                                            viewportController.frame,
+                                        emulation:
+                                            terminalConfig?.emulation ??
+                                            terminal.TerminalEmulation.xterm256,
+                                        readSelection: () => '',
+                                        copySelection: (text) =>
+                                            ClipboardBridge.copyWithFeedback(
+                                              context,
+                                              text,
+                                            ),
+                                        readClipboard: ClipboardBridge.paste,
+                                        readOnly: () =>
+                                            _aiFor(sessionId).humanInputEpoch !=
+                                                humanEpoch ||
+                                            !_humanBlockInputAllowed(
+                                              sessionId,
+                                              taskId,
+                                              action,
+                                              epoch,
+                                            ),
+                                      );
+                                return terminal.TerminalCommandBlocksView(
+                                  controller: composerSession.blocks,
+                                  timeline: merged,
+                                  scrollController: scroll,
+                                  followTail: followTail,
+                                  showToolbar: false,
+                                  liveInput: commandInput,
+                                  liveFocus: live
+                                      ? composerSession.runningFocus
+                                      : null,
+                                  liveFocusSource: composerSession.draftFocus,
+                                  liveModes: viewportController.frame.modes,
+                                  onReturnToInput:
+                                      composerSession.draftFocus.requestFocus,
+                                  chinese:
+                                      Localizations.localeOf(
+                                        context,
+                                      ).languageCode ==
+                                      'zh',
+                                  font: effectiveTerminalFont,
+                                  onAskAi: (block) =>
+                                      _openAi(sessionId, block: block),
+                                  onAttachBlocks: (blocks) =>
+                                      _openAi(sessionId, blocks: blocks),
+                                  onAttachRange: (block) =>
+                                      _openAi(sessionId, range: block),
+                                  onOpenLinkTarget: (target) => unawaited(
+                                    _openTerminalLinkTarget(sessionId, target),
+                                  ),
+                                  onReinput: (command) =>
+                                      _reinputAiCommand(sessionId, command),
+                                );
+                              }
+
+                              return UnifiedTerminalTimeline(
+                                controller: composerSession.blocks,
+                                taskId: _aiFor(sessionId).taskId,
+                                sourceSessionId: sessionId,
+                                items: items,
+                                builder: buildTimeline,
+                              );
+                            }
+                          : null,
+                    ),
+                  ),
               ],
             ),
           ),
         );
       },
+    );
+    return CommandBlockReaderHost(
+      key: ValueKey('reader-host-$sessionId'),
+      controller: readerController,
+      sourceLabel: pane.title,
+      sourceDetails: sessionId,
+      active: isActive,
+      enabled:
+          defaultTargetPlatform != TargetPlatform.iOS &&
+          defaultTargetPlatform != TargetPlatform.android,
+      geometryChanges: viewportController,
+      geometryIsFixed: () =>
+          viewportController.frame.modes.alternateScreen ||
+          composerSession?.fullScreen == true,
+      child: paneView,
     );
   }
 
@@ -984,7 +1429,10 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
     TerminalSplitAxis axis,
   ) {
     if (node.isLeaf) {
-      final frame = sessionController.viewportFor(node.pane!.sessionId).frame;
+      final frame = sessionController
+          .existingViewportFor(node.pane!.sessionId)
+          ?.frame;
+      if (frame == null) return 0;
       return axis == TerminalSplitAxis.horizontal
           ? frame.viewportCols
           : frame.viewportRows;
@@ -1090,6 +1538,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
     );
     final action = await showMenu<_TerminalLinkMenuAction>(
       context: context,
+      popUpAnimationStyle: appDialogAnimation(context),
       position: position,
       items: [
         PopupMenuItem(
@@ -1188,6 +1637,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
         : null;
     final result = await showDialog<bool>(
       context: context,
+      animationStyle: appDialogAnimation(context),
       builder: (context) {
         return AlertDialog(
           title: Text(context.l10n.openLocalFileLinkQuestion),
@@ -2038,6 +2488,27 @@ class _TerminalPaneHeaderIndicatorStrip extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+// EditableText's default desktop outside action also unfocuses on secondary
+// clicks. Preserve the current editor while inspecting another pane; a menu
+// may still take focus explicitly and primary clicks retain platform behavior.
+class _PaneComposerTapOutsideAction
+    extends Action<EditableTextTapOutsideIntent> {
+  @override
+  Object? invoke(EditableTextTapOutsideIntent intent) {
+    final desktop = switch (defaultTargetPlatform) {
+      TargetPlatform.macOS ||
+      TargetPlatform.linux ||
+      TargetPlatform.windows => true,
+      _ => false,
+    };
+    if (desktop &&
+        (intent.pointerDownEvent.buttons & kSecondaryMouseButton) != 0) {
+      return null;
+    }
+    return callingAction?.invoke(intent);
   }
 }
 

@@ -1,0 +1,54 @@
+{
+  "implementation_candidate": "2d18e608c2a1149a093451b5246cb370de0167c3",
+  "scope": "Pending C10 documentation/evidence working tree; no product execution. Formal manifest remains historical C8 and is not promoted by metadata validation.",
+  "manifest_sha256": "b6a2ec90eb5a2ebb778dcf4c16fce1639d0bd9b7a0c9a76dcd9f85cf6f87c118",
+  "runs": [
+    {
+      "name": "metadata",
+      "command": [
+        "python3",
+        "docs/product/desktop-block-ai-v1/scripts/validate_evidence.py",
+        "docs/product/desktop-block-ai-v1/evidence/manifest.json"
+      ],
+      "started_at": "2026-10-10T12:10:27.593592+00:00",
+      "ended_at": "2026-10-10T12:10:27.658440+00:00",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "log": "metadata.log",
+      "log_sha256": "97eea038102d2817785ff55052f267687cba26ccec11b23d99340e9ea5d66555"
+    },
+    {
+      "name": "final-gate",
+      "command": [
+        "python3",
+        "docs/product/desktop-block-ai-v1/scripts/validate_evidence.py",
+        "docs/product/desktop-block-ai-v1/evidence/manifest.json",
+        "--gate",
+        "final"
+      ],
+      "started_at": "2026-10-10T12:10:27.658601+00:00",
+      "ended_at": "2026-10-10T12:10:27.720053+00:00",
+      "exit_code": 1,
+      "expected_exit_code": 1,
+      "log": "final-gate.log",
+      "log_sha256": "e302f633cb6fb172740cfd2bcfe5fcfc3e026be93ce37352aebcaa672bd71998"
+    },
+    {
+      "name": "docs-contract",
+      "command": [
+        "/Users/robinfai/development/flutter/bin/dart",
+        "test",
+        "test/docs_contract_test.dart",
+        "--reporter",
+        "expanded"
+      ],
+      "started_at": "2026-10-10T12:10:27.720245+00:00",
+      "ended_at": "2026-10-10T12:10:35.137786+00:00",
+      "exit_code": 0,
+      "expected_exit_code": 0,
+      "log": "docs-contract.log",
+      "log_sha256": "86d36e954652d7d539733825e9e7196a772f86305176021fb9f241be17d01e14"
+    }
+  ],
+  "unexpected_result": false
+}

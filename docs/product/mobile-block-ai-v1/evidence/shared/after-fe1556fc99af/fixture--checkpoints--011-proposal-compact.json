@@ -1,0 +1,27 @@
+{
+  "name": "proposal-compact",
+  "captured_at": "2026-10-08T15:18:59.746445+00:00",
+  "method": "simctl_raw_png",
+  "physical": false,
+  "file": "checkpoints/011-proposal-compact.png",
+  "sha256": "e0120d6ec3d961b1aa61044dab1dd99c03a049c3a744ec8565505f1684e2a167",
+  "width": 1206,
+  "height": 2622,
+  "metadata": {
+    "run_id": "20261008T151739Z-821ccd25",
+    "capture_method": "native_screenshot",
+    "input_method": "Flutter EditableText client; not native IME",
+    "viewport_width": 402.0,
+    "viewport_height": 874.0,
+    "dpr": 3.0,
+    "locale": "zh",
+    "theme": "light",
+    "keyboard_inset": 0.0,
+    "capture_phase": "after",
+    "source_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+    "source_tree_clean": true
+  },
+  "capture_phase": "after",
+  "source_commit": "fe1556fc99af6ecca45caf7780604c9f8e541bd9",
+  "source_tree_clean": true
+}

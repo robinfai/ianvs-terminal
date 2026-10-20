@@ -1,0 +1,50 @@
+{
+  "app_pid": 77686,
+  "main_window_id": 31265,
+  "initial_window": {
+    "active_pids": [
+      77686
+    ],
+    "frontmost_pid": 77686,
+    "pids": [
+      77686
+    ],
+    "screen_capture_authorized": true,
+    "windows": [
+      {
+        "bounds": {
+          "Height": 1084,
+          "Width": 1728,
+          "X": 0,
+          "Y": 33
+        },
+        "pid": 77686,
+        "window_id": 31265
+      }
+    ]
+  },
+  "recorded_at": "2026-10-10T09:41:48.491639+00:00",
+  "app_path": "/Users/robinfai/flutter_projects/ianvs-terminal/example/build/macos/Build/Products/Debug/Trail Development.app",
+  "binaries": [
+    {
+      "path": "Contents/MacOS/Trail Development",
+      "sha256": "a3a54231dbfd718e27ea2b5888e1ccd7f1012c3c7d00883e06911ba74faecbe3",
+      "bytes": 40800
+    },
+    {
+      "path": "Contents/Frameworks/App.framework/Versions/A/App",
+      "sha256": "fe7d4b821099c2a08ef212c0ad76fadb902feb79f266835d30262fd9194ac262",
+      "bytes": 16800
+    },
+    {
+      "path": "Contents/Frameworks/App.framework/Versions/A/Resources/flutter_assets/kernel_blob.bin",
+      "sha256": "1fcab3039a087f92b974e73f82f00a64978e38aa63491b978458742cf216b39b",
+      "bytes": 95906232
+    },
+    {
+      "path": "Contents/Resources/ianvs-api",
+      "sha256": "e294490147bd99ec5231170a1e8542691b1bf714ed92905ea8b92f77b1e5cace",
+      "bytes": 16426192
+    }
+  ]
+}

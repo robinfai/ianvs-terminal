@@ -253,7 +253,8 @@ extension _ShellScreenStateInstantReplay on _ShellScreenState {
 
   Future<void> _seedInstantReplayFrame(String sessionId) async {
     final sessionController = ref.read(sessionControllerProvider.notifier);
-    final frame = sessionController.viewportFor(sessionId).frame;
+    final frame = sessionController.existingViewportFor(sessionId)?.frame;
+    if (frame == null) return;
     final windowMetrics = await WindowBridge.metrics();
     if (!mounted) {
       return;
@@ -352,6 +353,7 @@ extension _ShellScreenStateInstantReplay on _ShellScreenState {
   Future<void> _confirmClearInstantReplayHistory(String sessionId) async {
     final confirmed = await showDialog<bool>(
       context: context,
+      animationStyle: appDialogAnimation(context),
       builder: (dialogContext) => AlertDialog(
         title: Text(dialogContext.l10n.clearRecentReplayHistoryQuestion),
         content: Text(dialogContext.l10n.clearRecentReplayHistoryWarning),

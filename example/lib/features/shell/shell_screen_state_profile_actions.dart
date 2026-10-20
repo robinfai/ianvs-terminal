@@ -65,6 +65,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     final capturedAt = _remoteFallbackCapturedAt(snapshot);
     final confirmed = await showDialog<bool>(
       context: context,
+      animationStyle: appDialogAnimation(context),
       builder: (dialogContext) => AlertDialog(
         key: const Key('remote-fallback-confirmation'),
         title: Text(dialogContext.l10n.remoteFallbackTitle),
@@ -103,6 +104,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
       });
       await showDialog<void>(
         context: context,
+        animationStyle: appDialogAnimation(context),
         builder: (dialogContext) => AlertDialog(
           key: const Key('remote-fallback-complete'),
           title: Text(dialogContext.l10n.remoteFallbackCompleteTitle),
@@ -164,7 +166,9 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     await releaseTerminalInputForModal();
     if (!mounted) return;
     final activeSessionIdBeforeOpen = sessionState.activeSessionId;
-    final animationsEnabled = ref.read(shellAnimationsEnabledProvider);
+    final animationsEnabled = _useAnimations(
+      ref.read(shellAnimationsEnabledProvider),
+    );
     final result = await showModalBottomSheet<NewSessionSelection>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -334,6 +338,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     final l10n = context.l10n;
     final confirmed = await showDialog<bool>(
       context: context,
+      animationStyle: appDialogAnimation(context),
       builder: (dialogContext) => AlertDialog(
         key: const Key('terminal-config-repair-dialog'),
         title: Text(l10n.repairTerminalSettingsTitle),
@@ -422,10 +427,14 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     final activeSessionIdBeforeOpen = sessionState.activeSessionId;
     Widget buildDefaults(BuildContext dialogContext) {
       return DefaultsAndAppearanceDialog(
+        aiSettings: ref.read(aiSettingsProvider),
         profiles: sessionState.profiles,
         configuredDefaultProfileId: sessionState.configuredDefaultProfileId,
         effectiveDefaultProfileId: sessionState.defaultProfileId,
         themeMode: sessionState.themeMode,
+        preferredTerminalMode: ref
+            .read(sessionControllerProvider.notifier)
+            .preferredTerminalModeOverride,
         languageMode: sessionState.languageMode,
         terminalViewportPadding: sessionState.terminalViewportPadding,
         restoreLayout: _notificationLocalConfig.layout.restoreLayout,
@@ -474,6 +483,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
           )
         : DialogRoute<DefaultsAndAppearanceSelection>(
             context: context,
+            animationStyle: appDialogAnimation(context),
             barrierColor: Colors.black.withValues(alpha: 0.34),
             barrierDismissible: true,
             barrierLabel: 'Close defaults',
@@ -513,6 +523,12 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
             selection.configuredDefaultProfileId!,
           );
         }
+      }
+      if (selection.preferredTerminalMode !=
+          sessionController.preferredTerminalModeOverride) {
+        await sessionController.setPreferredTerminalMode(
+          selection.preferredTerminalMode,
+        );
       }
       if (selection.themeMode != stateBeforeSave.themeMode) {
         await sessionController.setThemeMode(selection.themeMode);
@@ -733,7 +749,9 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     _publishAcceptanceSnapshot(sessionState);
 
     final activeSessionIdBeforeOpen = sessionState.activeSessionId;
-    final animationsEnabled = ref.read(shellAnimationsEnabledProvider);
+    final animationsEnabled = _useAnimations(
+      ref.read(shellAnimationsEnabledProvider),
+    );
     final result = await showModalBottomSheet<ProfilesSheetResult>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -774,6 +792,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         if (profile.isSsh) {
           final editResult = await showDialog<SshProfileEditorResult>(
             context: context,
+            animationStyle: appDialogAnimation(context),
             useSafeArea: !context.usesMobileNavigation,
             builder: (dialogContext) => SshProfileEditorDialog(
               initialValue: profile,
@@ -785,6 +804,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         } else {
           edited = await showDialog<TerminalProfile>(
             context: context,
+            animationStyle: appDialogAnimation(context),
             builder: (dialogContext) => ProfileEditorDialog(
               initialValue: profile,
               saveWhenPristine: false,
@@ -808,6 +828,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
       case DeleteProfileResult(:final profile):
         final confirmed = await showDialog<bool>(
           context: context,
+          animationStyle: appDialogAnimation(context),
           builder: (dialogContext) => AlertDialog(
             title: Text(dialogContext.l10n.deleteProfileQuestion),
             content: Text(
@@ -864,6 +885,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         final edited = connectionType == NewProfileConnectionType.sshSession
             ? (await showDialog<SshProfileEditorResult>(
                 context: context,
+                animationStyle: appDialogAnimation(context),
                 useSafeArea: !context.usesMobileNavigation,
                 builder: (dialogContext) => SshProfileEditorDialog(
                   initialValue: template,
@@ -872,6 +894,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
               ))?.profile
             : await showDialog<TerminalProfile>(
                 context: context,
+                animationStyle: appDialogAnimation(context),
                 builder: (dialogContext) => ProfileEditorDialog(
                   title: dialogContext.l10n.newProfile,
                   initialValue: template,
@@ -971,6 +994,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     final destination = _activeProfilePersistenceLabel();
     return await showDialog<bool>(
           context: context,
+          animationStyle: appDialogAnimation(context),
           barrierDismissible: false,
           builder: (dialogContext) => AlertDialog(
             key: const Key('profile-save-failure-dialog'),

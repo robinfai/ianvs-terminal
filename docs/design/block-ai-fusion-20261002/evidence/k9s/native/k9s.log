@@ -1,0 +1,14 @@
+[2m2026-10-03T07:45:40+08:00[0m [92mINF[0m 🐶 K9s starting up...
+[2m2026-10-03T07:45:40+08:00[0m [93mWRN[0m Fail to locate metrics-server [2merror=[0m"No metrics api group metrics.k8s.io found on cluster"
+[2m2026-10-03T07:45:40+08:00[0m [92mINF[0m ✅ Kubernetes connectivity OK
+Log file created at: 2026/10/03 07:45:43
+Running on machine: BINGHUILUO-MC5
+Binary: Built with gc go1.25.3 for darwin/arm64
+Log line format: [IWEF]mmdd hh:mm:ss.uuuuuu threadid file:line] msg
+[2m2026-10-03T07:45:44+08:00[0m [92mINF[0m 🐶 K9s starting up...
+[2m2026-10-03T07:45:44+08:00[0m [93mWRN[0m Fail to locate metrics-server [2merror=[0m"No metrics api group metrics.k8s.io found on cluster"
+[2m2026-10-03T07:45:44+08:00[0m [92mINF[0m ✅ Kubernetes connectivity OK
+Log file created at: 2026/10/03 07:45:45
+Running on machine: BINGHUILUO-MC5
+Binary: Built with gc go1.25.3 for darwin/arm64
+Log line format: [IWEF]mmdd hh:mm:ss.uuuuuu threadid file:line] msg

@@ -23,6 +23,8 @@ pub struct PtyRuntime {
     pub writer: Box<dyn Write + Send>,
     pub child: Box<dyn portable_pty::Child + Send + Sync>,
     pub child_pid: Option<u32>,
+    pub(crate) composer_bridge: Option<std::sync::Arc<crate::composer_bridge::ComposerBridge>>,
+    pub(crate) remote_composer: Option<std::sync::Arc<crate::remote_composer::RemoteComposer>>,
     pub(crate) shell_integration: ShellIntegrationPlanStatus,
     pub(crate) shell_integration_proxy: Option<ShellIntegrationProxy>,
     pub(crate) ssh_auth: Option<crate::ssh::SshAuthClient>,
@@ -72,11 +74,15 @@ fn duplicate_reader_poll_handle(raw_fd: Option<RawFd>) -> anyhow::Result<fs::Fil
 
 pub(crate) struct ShellIntegrationProxy {
     path: PathBuf,
+    composer: Option<std::sync::Arc<crate::composer_bridge::ComposerBridge>>,
 }
 
 impl ShellIntegrationProxy {
     fn new(path: PathBuf) -> Self {
-        Self { path }
+        Self {
+            path,
+            composer: None,
+        }
     }
 
     fn path(&self) -> &Path {
@@ -224,7 +230,7 @@ pub fn spawn_terminal_transport(
             } else {
                 ShellIntegrationPlanStatus::remote_auto()
             };
-            let runtime = crate::ssh::spawn_ssh_with_shell_integration(
+            let (runtime, composer) = crate::ssh::spawn_ssh_with_shell_integration(
                 profile.connection.clone(),
                 rows,
                 cols,
@@ -238,6 +244,8 @@ pub fn spawn_terminal_transport(
                 writer: runtime.writer,
                 child: runtime.child,
                 child_pid: None,
+                composer_bridge: None,
+                remote_composer: Some(composer),
                 shell_integration,
                 shell_integration_proxy: None,
                 ssh_auth: Some(runtime.auth),
@@ -309,18 +317,18 @@ where
     #[cfg(not(unix))]
     let mut reader_poll_handle = None;
     let writer = pair.master.take_writer()?;
-    let (reader, writer, ssh_sftp) =
+    let (reader, writer, ssh_sftp, remote_composer) =
         if profile.shell_integration.enabled && plan.shell_integration.status == "enabled" {
             reader_poll_handle = None;
-            let (reader, writer, sftp) = crate::shell_bootstrap::wrap_local(
+            let (reader, writer, sftp, composer) = crate::shell_bootstrap::wrap_local(
                 reader,
                 writer,
                 bootstrap_nonce,
                 profile.shell_integration.ssh_wrapper,
             )?;
-            (reader, writer, Some(sftp))
+            (reader, writer, Some(sftp), Some(composer))
         } else {
-            (reader, writer, None)
+            (reader, writer, None, None)
         };
     let child = child_guard.take();
 
@@ -331,10 +339,15 @@ where
         writer,
         child,
         child_pid,
+        composer_bridge: plan
+            .shell_integration_proxy
+            .as_ref()
+            .and_then(|p| p.composer.clone()),
         shell_integration: plan.shell_integration,
         shell_integration_proxy: plan.shell_integration_proxy,
         ssh_auth: None,
         ssh_sftp,
+        remote_composer,
     })
 }
 
@@ -572,7 +585,17 @@ fn create_shell_integration_proxy(
     profile: &TerminalProfile,
     _program: &str,
 ) -> std::io::Result<ShellIntegrationProxy> {
-    let proxy = create_shell_integration_proxy_in(kind, &std::env::temp_dir())?;
+    let mut proxy = create_shell_integration_proxy_in(kind, &std::env::temp_dir())?;
+    if cfg!(target_os = "macos")
+        && kind == ShellIntegrationKind::Zsh
+        && let Ok((bridge, script)) = crate::composer_bridge::ComposerBridge::create(proxy.path())
+    {
+        fs::OpenOptions::new()
+            .append(true)
+            .open(proxy.path().join(".zshrc"))?
+            .write_all(script.as_bytes())?;
+        proxy.composer = Some(bridge);
+    }
     if let Some(nonce) = profile.launch.env.get("IANVS_BOOTSTRAP_TOKEN") {
         let file = match kind {
             ShellIntegrationKind::Bash => ".bashrc",
@@ -765,6 +788,14 @@ __ianvs_install_shell_hooks() {
   __ianvs_emit_shell_hook() {
     emulate -L zsh
     local __ianvs_json="$1"
+    if [[ "$1" == *'"hook":"preexec"'* && -n ${__ianvs_pending_submission:-} ]]; then
+      if [[ -n ${__ianvs_pending_command+x} ]]; then
+        __ianvs_last_command=$__ianvs_pending_command
+        __ianvs_json="{\"hook\":\"preexec\",\"command\":\"$(__ianvs_json_escape "$__ianvs_pending_command")\",\"shell\":\"zsh\"}"
+      fi
+      __ianvs_json="${__ianvs_json%\}},\"submission_id\":\"$__ianvs_pending_submission\"}"
+      unset __ianvs_pending_submission __ianvs_pending_command
+    fi
     local __ianvs_hex
     __ianvs_hex=$(builtin printf '%s' "$__ianvs_json" | command od -An -tx1 -v 2>/dev/null | command tr -d ' \n' 2>/dev/null) || return 0
     [[ -n "$__ianvs_hex" ]] || return 0
@@ -826,6 +857,16 @@ __ianvs_install_shell_hooks() {
     __ianvs_emit_preexec_hook "${1:-}"
   }
 
+  ianvs_set_user_var() {
+    [[ $# == 2 && "$1" == IANVS_* && "$1" != *[!a-zA-Z0-9_]* && ${#1} -le 80 && ${#2} -le 512 ]] || return 2
+    local __ianvs_name="$(__ianvs_json_escape "$1")"
+    local __ianvs_value="$(__ianvs_json_escape "$2")"
+    __ianvs_emit_shell_hook "{\"hook\":\"user_variable\",\"name\":\"$__ianvs_name\",\"value\":\"$__ianvs_value\"}"
+  }
+
+  __ianvs_host=$(__ianvs_json_escape "$(command hostname 2>/dev/null)")
+  __ianvs_user=$(__ianvs_json_escape "$(command id -un 2>/dev/null)")
+
   __ianvs_precmd() {
     local __ianvs_status=$?
     __ianvs_trim_startup_prompt_newline
@@ -838,7 +879,7 @@ __ianvs_install_shell_hooks() {
     fi
     __ianvs_emit_shell_hook '{"hook":"precmd","shell":"zsh"}'
     local __ianvs_pwd="$(__ianvs_json_escape "${PWD:-}")"
-    __ianvs_emit_shell_hook "{\"hook\":\"precmd.pwd\",\"pwd\":\"$__ianvs_pwd\",\"shell\":\"zsh\"}"
+    __ianvs_emit_shell_hook "{\"hook\":\"precmd.pwd\",\"pwd\":\"$__ianvs_pwd\",\"shell\":\"zsh\",\"hostname\":\"$__ianvs_host\",\"username\":\"$__ianvs_user\",\"integration_version\":\"2\"}"
     return $__ianvs_status
   }
 
@@ -870,6 +911,14 @@ __ianvs_json_escape() {
 
 __ianvs_emit_shell_hook() {
   local __ianvs_json="$1"
+  if [[ "$1" == *'"hook":"preexec"'* && -n ${__ianvs_pending_submission:-} ]]; then
+    if [[ -n ${__ianvs_pending_command+x} ]]; then
+      __ianvs_last_command=$__ianvs_pending_command
+      __ianvs_json="{\"hook\":\"preexec\",\"command\":\"$(__ianvs_json_escape "$__ianvs_pending_command")\",\"shell\":\"bash\"}"
+    fi
+    __ianvs_json="${__ianvs_json%\}},\"submission_id\":\"$__ianvs_pending_submission\"}"
+    unset __ianvs_pending_submission __ianvs_pending_command
+  fi
   local __ianvs_hex
   __ianvs_hex=$(printf '%s' "$__ianvs_json" | command od -An -tx1 -v 2>/dev/null | command tr -d ' \n' 2>/dev/null) || return 0
   [[ -n "$__ianvs_hex" ]] || return 0
@@ -881,7 +930,20 @@ __ianvs_install_shell_hooks() {
   [[ -z "${__IANVS_SHELL_INTEGRATION_LOADED:-}" ]] || return 0
   command -v od >/dev/null 2>&1 || return 0
   command -v tr >/dev/null 2>&1 || return 0
-  [[ -z "${__ianvs_existing_debug_trap:-}" ]] || return 0
+  __ianvs_bash_hook_backend=debug
+  if [[ -n "${bash_preexec_imported:-${__bp_imported:-}}" && "${PROMPT_COMMAND[*]}" == *__bp_* ]] &&
+     declare -F __bp_preexec_invoke_exec >/dev/null &&
+     declare -F __bp_precmd_invoke_cmd >/dev/null &&
+     declare -F __bp_interactive_mode >/dev/null; then
+    [[ -z "${__ianvs_existing_debug_trap:-}" ||
+       "$__ianvs_existing_debug_trap" == 'trap -- '\''__bp_preexec_invoke_exec "$_"'\'' DEBUG' ]] || return 0
+    # bash-preexec may install its DEBUG trap at the first prompt, after rc
+    # loading. Join its public callback arrays instead of wrapping that deferred
+    # installer in our own PROMPT_COMMAND (which loses its trap and callbacks).
+    __ianvs_bash_hook_backend=bash-preexec
+  else
+    [[ -z "${__ianvs_existing_debug_trap:-}" ]] || return 0
+  fi
 
   __IANVS_SHELL_INTEGRATION_LOADED=1
   __ianvs_command_active=0
@@ -918,7 +980,10 @@ __ianvs_install_shell_hooks() {
     [[ "${__ianvs_inside_prompt:-0}" == "1" ]] && return 0
     [[ "${__ianvs_command_active:-0}" == "1" ]] && return 0
 
-    local __ianvs_command="${BASH_COMMAND:-}"
+    # Older bash-preexec releases also invoke callbacks for bind -x dispatch.
+    # The Composer adapter rearms interactive mode after its private keybinds.
+    [[ ${READLINE_LINE+x} != x ]] || return 0
+    local __ianvs_command="${1:-${BASH_COMMAND:-}}"
     [[ -n "$__ianvs_command" ]] || return 0
     case "$__ianvs_command" in __ianvs_*|__iv_*|unset\ __ianvs_*|unset\ -f\ __iv_*) return 0 ;; esac
 
@@ -929,10 +994,51 @@ __ianvs_install_shell_hooks() {
     return 0
   }
 
+  # Some older bash-preexec versions guard their precmd entry with `declare -F`.
+  # That successful test overwrites $? before the dispatcher can save it.
+  # Wrap only this exact leading guard, keeping all user prompt commands intact.
+  __ianvs_restore_prompt_status() { return "$1"; }
+  __ianvs_bash_preexec_precmd() {
+    local __ianvs_status=$?
+    if declare -F __bp_precmd_invoke_cmd >/dev/null; then
+      __ianvs_restore_prompt_status "$__ianvs_status"
+      __bp_precmd_invoke_cmd
+    fi
+  }
+  __ianvs_repair_bash_preexec_prompt() {
+    local __ianvs_guard='if declare -F __bp_precmd_invoke_cmd &>/dev/null; then __bp_precmd_invoke_cmd; fi;'
+    if [[ "$(declare -p PROMPT_COMMAND 2>/dev/null)" == declare\ -a* ]]; then
+      local __ianvs_index
+      for __ianvs_index in "${!PROMPT_COMMAND[@]}"; do
+        if [[ "${PROMPT_COMMAND[$__ianvs_index]}" == "$__ianvs_guard"* ]]; then
+          PROMPT_COMMAND[$__ianvs_index]="__ianvs_bash_preexec_precmd;${PROMPT_COMMAND[$__ianvs_index]#"$__ianvs_guard"}"
+        fi
+        break
+      done
+    elif [[ "${PROMPT_COMMAND:-}" == "$__ianvs_guard"* ]]; then
+      PROMPT_COMMAND="__ianvs_bash_preexec_precmd;${PROMPT_COMMAND#"$__ianvs_guard"}"
+    fi
+  }
+
+  ianvs_set_user_var() {
+    [[ $# == 2 && "$1" == IANVS_* && "$1" != *[!a-zA-Z0-9_]* && ${#1} -le 80 && ${#2} -le 512 ]] || return 2
+    local __ianvs_name="$(__ianvs_json_escape "$1")"
+    local __ianvs_value="$(__ianvs_json_escape "$2")"
+    __ianvs_emit_shell_hook "{\"hook\":\"user_variable\",\"name\":\"$__ianvs_name\",\"value\":\"$__ianvs_value\"}"
+  }
+
+  __ianvs_host=$(__ianvs_json_escape "$(command hostname 2>/dev/null)")
+  __ianvs_user=$(__ianvs_json_escape "$(command id -un 2>/dev/null)")
+
   __ianvs_prompt_command() {
     local __ianvs_status=$?
     __ianvs_inside_prompt=1
-    __ianvs_run_original_prompt_command "$__ianvs_status" || true
+    if [[ "$__ianvs_bash_hook_backend" == bash-preexec ]]; then
+      __ianvs_repair_bash_preexec_prompt
+    fi
+    if [[ "$__ianvs_bash_hook_backend" != bash-preexec ]]; then
+      __ianvs_run_original_prompt_command "$__ianvs_status" || true
+    fi
     if [[ "${__ianvs_command_active:-0}" == "1" ]]; then
       local __ianvs_escaped_command="$(__ianvs_json_escape "${__ianvs_last_command:-}")"
       __ianvs_emit_shell_hook "{\"hook\":\"command_finished\",\"command\":\"$__ianvs_escaped_command\",\"exit_code\":$__ianvs_status,\"shell\":\"bash\"}"
@@ -941,16 +1047,22 @@ __ianvs_install_shell_hooks() {
     fi
     __ianvs_emit_shell_hook '{"hook":"precmd","shell":"bash"}'
     local __ianvs_pwd="$(__ianvs_json_escape "${PWD:-}")"
-    __ianvs_emit_shell_hook "{\"hook\":\"precmd.pwd\",\"pwd\":\"$__ianvs_pwd\",\"shell\":\"bash\"}"
+    __ianvs_emit_shell_hook "{\"hook\":\"precmd.pwd\",\"pwd\":\"$__ianvs_pwd\",\"shell\":\"bash\",\"hostname\":\"$__ianvs_host\",\"username\":\"$__ianvs_user\",\"integration_version\":\"2\"}"
     __ianvs_inside_prompt=0
     return "$__ianvs_status"
   }
 
-  trap '__ianvs_preexec' DEBUG
-  if [[ "${__ianvs_original_prompt_command_is_array:-0}" == "1" ]]; then
-    PROMPT_COMMAND=(__ianvs_prompt_command)
+  if [[ "$__ianvs_bash_hook_backend" == bash-preexec ]]; then
+    [[ " ${preexec_functions[*]} " == *' __ianvs_preexec '* ]] || preexec_functions+=(__ianvs_preexec)
+    [[ " ${precmd_functions[*]} " == *' __ianvs_prompt_command '* ]] || precmd_functions+=(__ianvs_prompt_command)
+    __ianvs_repair_bash_preexec_prompt
   else
-    PROMPT_COMMAND=__ianvs_prompt_command
+    trap '__ianvs_preexec' DEBUG
+    if [[ "${__ianvs_original_prompt_command_is_array:-0}" == "1" ]]; then
+      PROMPT_COMMAND=(__ianvs_prompt_command)
+    else
+      PROMPT_COMMAND=__ianvs_prompt_command
+    fi
   fi
 }
 
@@ -1008,10 +1120,22 @@ if test -n "$IANVS_SHELL_INTEGRATION"; and not set -q __IANVS_SHELL_INTEGRATION_
     end
   end
 
+  function ianvs_set_user_var
+    test (count $argv) -eq 2; or return 2
+    string match -qr '^IANVS_[a-zA-Z0-9_]*$' -- "$argv[1]"; or return 2
+    test (string length -- "$argv[1]") -le 80; or return 2
+    test (string length -- "$argv[2]") -le 512; or return 2
+    set -l __ianvs_name (__ianvs_json_escape "$argv[1]")
+    set -l __ianvs_value (__ianvs_json_escape "$argv[2]")
+    __ianvs_emit_shell_hook "{\"hook\":\"user_variable\",\"name\":\"$__ianvs_name\",\"value\":\"$__ianvs_value\"}"
+  end
+  set -g __ianvs_host (__ianvs_json_escape (command hostname 2>/dev/null))
+  set -g __ianvs_user (__ianvs_json_escape (command id -un 2>/dev/null))
+
   function __ianvs_prompt --on-event fish_prompt
     __ianvs_emit_shell_hook '{"hook":"precmd","shell":"fish"}'
     set -l __ianvs_pwd (__ianvs_json_escape "$PWD")
-    __ianvs_emit_shell_hook "{\"hook\":\"precmd.pwd\",\"pwd\":\"$__ianvs_pwd\",\"shell\":\"fish\"}"
+    __ianvs_emit_shell_hook "{\"hook\":\"precmd.pwd\",\"pwd\":\"$__ianvs_pwd\",\"shell\":\"fish\",\"hostname\":\"$__ianvs_host\",\"username\":\"$__ianvs_user\",\"integration_version\":\"2\"}"
   end
 end
 "#;

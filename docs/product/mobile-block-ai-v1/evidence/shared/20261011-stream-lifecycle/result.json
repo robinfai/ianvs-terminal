@@ -1,0 +1,171 @@
+{
+  "status": "passed",
+  "scope": "Two native macOS integration tests only; not phone/real-provider/full-PRD acceptance",
+  "base_commit": "0abfaceee9e797d99750dc4ec1dd4418a6cfd198",
+  "branch": "codex/composer-stream-lifecycle-20261011",
+  "source_tree_clean_during_test": false,
+  "source_sha256": {
+    "example/integration_test/ai_streaming_acceptance_test.dart": "fd7d01ec2b117b569ff36df23badf16015084d92cf3b7699ec0a2c92c6d48ad7",
+    "example/integration_test/composer_acceptance_test.dart": "b655fbb044929a07bb91ef8dbe515f74ecb074d86ef4a1d5f79db90fdf452774",
+    "example/lib/features/ai/ai_api_client.dart": "105bf1595c3ce06faf034b0e43826fc5248beaa21f588e4545d09dc5c252082e",
+    "example/lib/features/ai/ai_request_indicator.dart": "3ea4988c01e0c0044ec91876ead662c6586870e96b05871fd4a1c8bb36c4b304",
+    "example/lib/features/ai/ai_response_stream.dart": "047a5c3169da245e7dba20fd70722a9d4fed13f5ec4edfa42382b413d6fc4a38",
+    "example/lib/features/ai/ai_strings.dart": "5719412a127ab4e4ebad50d734736d2cab14c53a06ff128557e2181cb112e8b9",
+    "example/lib/features/ai/terminal_ai_controller.dart": "ed3d81dc73a95cc55234859370eb9b51ca1b995544c8d2a93f872d992cb4bde7",
+    "example/lib/features/ai/terminal_ai_panel.dart": "f5d44fe2051572231466c8855ec1cc8db7ea26ddd7a105c920a93b6814f586fa",
+    "example/lib/features/ai/terminal_ai_workspace.dart": "1dffde96b3f195fe28babda8c4fd017dff0f28793c9ec11b1da96f0363bcdc45",
+    "example/lib/features/ai/terminal_ai_workspace_mobile.dart": "12eb4c259b9c016a94e01476f2db55a6398a34815b36879c44165b362a437728",
+    "example/lib/features/sessions/session_controller.dart": "9b9a9959dae63ed38e4b7cb9cf836488187601def9d52d9de1e03cf54f64baf2",
+    "example/lib/features/shell/shell_screen_ai.dart": "9bc2da2f3bc5ff542dc48f4a55f54ad69be69ba7066391f54ee14fd454df9ba5",
+    "example/lib/features/shell/shell_screen_ai_observer.dart": "3cc1f307587e00c27726b8f1e2660532c4036d943aa7c9aa239bb4203e72453f",
+    "example/lib/features/shell/shell_screen_close_protection.dart": "a99a4d9150a65724b500b872d7611a4fcbc6585d7c74cf71cf9bdec47084e677",
+    "example/lib/features/shell/shell_screen_state_clipboard.dart": "4e7d4e49b7337356d879d6e84ee5020546fc44a3f6eca655f8422641daace372",
+    "example/lib/features/shell/shell_screen_state_instant_replay.dart": "eac4bd629041f090dbd5066aabf04b7f7b0b0f677da7b3e4453e6c5c6c630f55",
+    "example/lib/features/shell/shell_screen_state_search_completion.dart": "ac82e4145e3cc94e5b23db27382f706cb2b4ccd61f099896ea6738d842612181",
+    "example/lib/features/shell/shell_screen_state_sessions.dart": "59bbed17b12c38f2b98f28e4b590a2f5b3a16eda570ab9f230784f6930578386",
+    "example/lib/features/shell/shell_screen_state_shortcuts_status.dart": "1d5e102789aadd8c7a71fe39acf9c4b591887cecd701ec69cc8298a6eadea6d9",
+    "example/lib/features/shell/shell_screen_state_terminal_layout.dart": "c7afbb6148a5efabc224f6c1748a0309f3f5034bc0043faaa2ac85e0e207eab5",
+    "example/test/ai/ai_api_stream_test.dart": "d17210eb28110d50c2cf6fa3cad1e66caab6602e657495d159ec279687f35451",
+    "example/test/ai/mobile_prd_shell_submission_test.dart": "ae558182111fb3cc9569ebdef64e4b348f9e97b3149d2165221a65ddfbe311b2",
+    "example/test/ai/terminal_ai_compact_mobile_test.dart": "7d3a4ea3fa935c66ee670e824e57d0bc4269e77cdbdf409eeea2310b7fd68cce",
+    "example/test/ai/terminal_ai_stream_test.dart": "89042da419f8ee41c0d8f5010fcfe8fca50f96124f137ec3b48c9eff0cf97a78",
+    "example/test/shell/shell_close_protection_test.dart": "dc0571a2d7c41563b422283dbcb62f72688face0e9df0cefa13bb77e75bc6450",
+    "example/test/shell/terminal_modes_test.dart": "15e11b059acd76ddd43b9daaf2bf574c30c866cfc13f4ac0b365811c4b4c4258"
+  },
+  "environment": {
+    "flutter": "3.44.8",
+    "dart": "3.12.2",
+    "macos": "27.0.1 (26A434)"
+  },
+  "fixtures": {
+    "stream": "Real loopback HTTP/SSE + production AiApiClient/controller/workspace; fake terminal; iOS theme in a macOS-sized window",
+    "exit": "Full app, native PTY and real zsh; exit submitted through human Composer"
+  },
+  "artifacts": [
+    {
+      "path": "normal-exit-no-stale-pane.png",
+      "sha256": "ac57e9a83d0af907e7eb3e0360fe7efd478732571d8e024f07e449f2e88e75d4",
+      "format": "png",
+      "pixel_size": [
+        3456,
+        2168
+      ],
+      "captured_at": "2026-10-11T14:41:32.002634+00:00",
+      "captured_at_source": "output file mtime",
+      "capture_method": "Flutter RenderRepaintBoundary.toImage(pixelRatio: 2) in native macOS integration runner",
+      "modified": false,
+      "physical_device": false,
+      "counts_as_required_raw_phone_screenshot": false
+    },
+    {
+      "path": "01-compact.png",
+      "sha256": "ac5a266403bf6e4984a92b3398036ddc9e714a01ff17e4cb412f0117575bb1d0",
+      "format": "png",
+      "pixel_size": [
+        3456,
+        2168
+      ],
+      "captured_at": "2026-10-11T14:43:00.637739+00:00",
+      "captured_at_source": "output file mtime",
+      "capture_method": "Flutter RenderRepaintBoundary.toImage(pixelRatio: 2) in native macOS integration runner",
+      "modified": false,
+      "physical_device": false,
+      "counts_as_required_raw_phone_screenshot": false
+    },
+    {
+      "path": "02-first-token.png",
+      "sha256": "404a6fe3b68512e96b402c1b81f6dafafbb7d61b09d8729de8b31f8bae08d2ca",
+      "format": "png",
+      "pixel_size": [
+        3456,
+        2168
+      ],
+      "captured_at": "2026-10-11T14:43:02.597005+00:00",
+      "captured_at_source": "output file mtime",
+      "capture_method": "Flutter RenderRepaintBoundary.toImage(pixelRatio: 2) in native macOS integration runner",
+      "modified": false,
+      "physical_device": false,
+      "counts_as_required_raw_phone_screenshot": false
+    },
+    {
+      "path": "03-generating.png",
+      "sha256": "3a6f1399a044c207d6f1cb9108b239cad65beefd0caf0d1f40386e61fa646c24",
+      "format": "png",
+      "pixel_size": [
+        3456,
+        2168
+      ],
+      "captured_at": "2026-10-11T14:43:03.029975+00:00",
+      "captured_at_source": "output file mtime",
+      "capture_method": "Flutter RenderRepaintBoundary.toImage(pixelRatio: 2) in native macOS integration runner",
+      "modified": false,
+      "physical_device": false,
+      "counts_as_required_raw_phone_screenshot": false
+    },
+    {
+      "path": "04-approval.png",
+      "sha256": "586e2b70ddecf35b5a17e99eff63868a8f9072ba0a7195f8dbfe349d526eb2cb",
+      "format": "png",
+      "pixel_size": [
+        3456,
+        2168
+      ],
+      "captured_at": "2026-10-11T14:43:03.799237+00:00",
+      "captured_at_source": "output file mtime",
+      "capture_method": "Flutter RenderRepaintBoundary.toImage(pixelRatio: 2) in native macOS integration runner",
+      "modified": false,
+      "physical_device": false,
+      "counts_as_required_raw_phone_screenshot": false
+    },
+    {
+      "path": "05-cancelled.png",
+      "sha256": "b289dd3deb1d36d308a578b67b5857bf9b2144a1ccf53044abfd609b45c84125",
+      "format": "png",
+      "pixel_size": [
+        3456,
+        2168
+      ],
+      "captured_at": "2026-10-11T14:43:05.934080+00:00",
+      "captured_at_source": "output file mtime",
+      "capture_method": "Flutter RenderRepaintBoundary.toImage(pixelRatio: 2) in native macOS integration runner",
+      "modified": false,
+      "physical_device": false,
+      "counts_as_required_raw_phone_screenshot": false
+    },
+    {
+      "path": "06-completed.png",
+      "sha256": "14e41d160fd15bbec485a2a473c9db6f1fbcc9bcf25cf947a5965cafa21121f3",
+      "format": "png",
+      "pixel_size": [
+        3456,
+        2168
+      ],
+      "captured_at": "2026-10-11T14:43:07.987666+00:00",
+      "captured_at_source": "output file mtime",
+      "capture_method": "Flutter RenderRepaintBoundary.toImage(pixelRatio: 2) in native macOS integration runner",
+      "modified": false,
+      "physical_device": false,
+      "counts_as_required_raw_phone_screenshot": false
+    },
+    {
+      "path": "07-failed.png",
+      "sha256": "f434810803299962b14820be44fe75a8f51e6c889b7cf925fcf88677a43ae536",
+      "format": "png",
+      "pixel_size": [
+        3456,
+        2168
+      ],
+      "captured_at": "2026-10-11T14:43:09.851789+00:00",
+      "captured_at_source": "output file mtime",
+      "capture_method": "Flutter RenderRepaintBoundary.toImage(pixelRatio: 2) in native macOS integration runner",
+      "modified": false,
+      "physical_device": false,
+      "counts_as_required_raw_phone_screenshot": false
+    }
+  ],
+  "limitations": [
+    "No native iPhone/iPad capture, software keyboard, Chinese system IME, real provider request or continuous video in this run",
+    "Widget captures do not prove physical display dimensions or independent terminal write counts",
+    "Only the eight listed checkpoints were visually inspected; formal 48-case PRD manifest remains unchanged"
+  ]
+}

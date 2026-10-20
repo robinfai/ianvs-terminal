@@ -1,0 +1,103 @@
+{
+  "platform": "iOS 26.3.1 simulator",
+  "device": "iPhone 17 Pro",
+  "dpr": 3,
+  "images": [
+    {
+      "file": "portrait-29-ai-dark-menu-editing.png",
+      "width": 1206,
+      "height": 2622,
+      "sha256": "df5601d6285864b8c7bc0dfd6d77a44e6bbf71f900a55b87ae31a24abf95cc59"
+    },
+    {
+      "file": "portrait-29-ai-light-menu-editing.png",
+      "width": 1206,
+      "height": 2622,
+      "sha256": "582dea027f6c320796c628b5a49eeadf05b3c0c1d36523ba436808ce1d1042e9"
+    },
+    {
+      "file": "portrait-29-block-dark-menu-editing.png",
+      "width": 1206,
+      "height": 2622,
+      "sha256": "96c9da8353a18b8453e010cb8bacdc468b21493892e8b8009073d0ea9e813eb3"
+    },
+    {
+      "file": "portrait-29-block-light-menu-editing.png",
+      "width": 1206,
+      "height": 2622,
+      "sha256": "3c56d394ae63ad4ae6f140771d308090b3fc8bd40b139e97dd4b94af0bd5e874"
+    },
+    {
+      "file": "portrait-30-ai-dark-menu-dismissed.png",
+      "width": 1206,
+      "height": 2622,
+      "sha256": "fa26bb6c63e1d8626f98bda9bb6f56896a0d0dd2e5336b3ec73472cab7b8a91e"
+    },
+    {
+      "file": "portrait-30-ai-light-menu-dismissed.png",
+      "width": 1206,
+      "height": 2622,
+      "sha256": "0229ff766e86ee606d13a25fd861d26baf1331faa9b4020e90dc0f823a89e6c4"
+    },
+    {
+      "file": "portrait-30-block-dark-menu-dismissed.png",
+      "width": 1206,
+      "height": 2622,
+      "sha256": "08a415cacbdfcc6c94e6a069442153ea57d3b47f6b76daf3141145fc681092f6"
+    },
+    {
+      "file": "portrait-30-block-light-menu-dismissed.png",
+      "width": 1206,
+      "height": 2622,
+      "sha256": "b750e980beb2f38886adc40a8a23eef860fa10f0fb39c7a4819b3b850c6623e7"
+    },
+    {
+      "file": "landscape-29-ai-dark-menu-editing.png",
+      "width": 2622,
+      "height": 1206,
+      "sha256": "96480b45ddd808c09d51292cba91c5432cf244bb400ef7b5251ba338c527dca4"
+    },
+    {
+      "file": "landscape-29-ai-light-menu-editing.png",
+      "width": 2622,
+      "height": 1206,
+      "sha256": "66890b719b6844b41a443f0fda2fb59c6f671f8be4b7695bf2d2472150c9e25f"
+    },
+    {
+      "file": "landscape-29-block-dark-menu-editing.png",
+      "width": 2622,
+      "height": 1206,
+      "sha256": "d90143197ea98eea984934dc5fbfd638bc4b590a1b8ffb3fc72867bd30880916"
+    },
+    {
+      "file": "landscape-29-block-light-menu-editing.png",
+      "width": 2622,
+      "height": 1206,
+      "sha256": "84de5bbcf80203e93cdc8781be18e7ee85187e12e0df5b7b3b52f733eb417595"
+    },
+    {
+      "file": "landscape-30-ai-dark-menu-dismissed.png",
+      "width": 2622,
+      "height": 1206,
+      "sha256": "ac11500d6d00ed2909d00feacb6c7018a8a6c7d7f3d109ccc7966f94fbbdbf9b"
+    },
+    {
+      "file": "landscape-30-ai-light-menu-dismissed.png",
+      "width": 2622,
+      "height": 1206,
+      "sha256": "551e98dd6bd3a8657207c41d57d3ed6de569bdbe7c40625a2bc6e2527306ff62"
+    },
+    {
+      "file": "landscape-30-block-dark-menu-dismissed.png",
+      "width": 2622,
+      "height": 1206,
+      "sha256": "02335a0ad19e81be9d37a326a0ae274097f7239653851fd519a0d4fac1842f41"
+    },
+    {
+      "file": "landscape-30-block-light-menu-dismissed.png",
+      "width": 2622,
+      "height": 1206,
+      "sha256": "31ed1a188a030bf7ec61f5f2166ef77c7eb9272ec23f65a082ab57a1bf7e421f"
+    }
+  ]
+}
