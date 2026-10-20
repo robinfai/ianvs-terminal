@@ -33,7 +33,9 @@ python3 "$root/tools/verify_macos_native_library.py" \
 # Every embedded executable must support both advertised architectures.
 while IFS= read -r -d '' binary; do
   if file -b "$binary" | grep -q 'Mach-O'; then
-    lipo -verify_arch arm64 x86_64 "$binary"
+    for architecture in arm64 x86_64; do
+      lipo "$binary" -verify_arch "$architecture"
+    done
   fi
 done < <(find "$app" -type f -print0)
 archive="$RELEASE_OUTPUT/Trail-$RELEASE_VERSION-macOS-universal.zip"

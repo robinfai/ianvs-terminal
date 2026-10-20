@@ -68,7 +68,10 @@ function ssh {
     # Live masters/SFTP channels own their lifetime. A non-interactive subshell
     # launches delayed cleanup, outside the user's job table (no [1] PID / Done).
     if ! command rmdir "$__iv_dir" 2>/dev/null; then
-      ( (command sleep 65; command rmdir "$__iv_dir" 2>/dev/null) </dev/null >/dev/null 2>&1 & ) </dev/null >/dev/null 2>&1
+      (
+        set +m
+        (command sleep 65; command rmdir "$__iv_dir" 2>/dev/null) &
+      ) </dev/null >/dev/null 2>&1
     fi
   fi
   return "$__iv_status"

@@ -72,3 +72,19 @@ reviewed candidates, since several fixtures share a filename.
 
 Design-review screenshots, logs and videos belong in `build/`, not `docs/` or
 this baseline directory.
+
+## PR 12 mainline preparation (2026-10-20)
+
+The six macOS 26 shell/layout baselines were reviewed from CI run 39137267977
+(head b33bd616): app-surfaces/current/{01-desktop-shell,02-command-palette,
+03-profiles-sheet}.png and terminal-layout-review-20260916/implementation-
+{dark,light,narrow}.png. Every changed pixel is confined to the bottom status
+bar: the Shell status and details action moved from the middle to the right.
+The user reviewed the before/current/diff comparison and requested that the
+current UI become the baseline. The original CI testImage PNGs are used without
+resizing or retouching. Comparator tolerances are unchanged.
+
+Mainline reconciliation retains the current PR's single-row tab chrome and
+sidebar layout, including AI actions, close/Cmd-number slots and native mouse
+routing. It incorporates main's SSH-directory grouping, explicit job-control
+suppression for cleanup subshells, and Xcode architecture verification support.

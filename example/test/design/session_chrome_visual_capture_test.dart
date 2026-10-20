@@ -34,7 +34,7 @@ Future<void> _capture(WidgetTester tester, String name) async {
     final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
     image.dispose();
     final directory = Directory(
-      '../output/design/trail-implementation-20260926',
+      '../output/design/trail-implementation-20260928',
     );
     await directory.create(recursive: true);
     await File(
@@ -50,7 +50,7 @@ void main() {
     (tester) async {
       await tester.runAsync(loadVisualCaptureFonts);
       tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = const Size(864, 1084);
+      tester.view.physicalSize = const Size(1200, 760);
       addTearDown(tester.view.resetDevicePixelRatio);
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.platformDispatcher.clearAllTestValues);
@@ -163,6 +163,14 @@ void main() {
       await tester.tap(find.byKey(const Key('shell-toggle-sidebar')));
       await tester.pumpAndSettle();
       await _capture(tester, 'sidebar-light');
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      await tester.pumpAndSettle();
+      await _capture(tester, 'sidebar-dark');
+      await tester.tap(find.byKey(const Key('shell-toggle-sidebar')));
+      await tester.pumpAndSettle();
+      await _capture(tester, 'top-tabs-dark');
+      await tester.tap(find.byKey(const Key('shell-toggle-sidebar')));
+      await tester.pumpAndSettle();
       final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await mouse.addPointer(location: const Offset(700, 100));
       await mouse.moveTo(

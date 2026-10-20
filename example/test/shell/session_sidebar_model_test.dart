@@ -3,6 +3,96 @@ import 'package:app/features/shell/session_sidebar_model.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  group('directory identity', () {
+    String directory(TerminalShellIntegrationSnapshot metadata) =>
+        sessionSidebarDirectory(
+          TerminalPane(
+            sessionId: 'session',
+            title: 'shell',
+            profileId: 'default',
+            shellIntegration: metadata,
+          ),
+          localHostname: 'my-mac',
+          localHome: '/Users/me',
+          unknownDirectory: 'Unknown directory',
+        );
+
+    const direct = TerminalShellIntegrationSnapshot(
+      hostname: 'VM-4-2-ubuntu',
+      username: 'lighthouse',
+      currentDirectory: '/home/lighthouse',
+      connectionChain: [
+        ShellConnectionHop(
+          kind: ShellConnectionHopKind.sshShell,
+          host: '192.0.2.1',
+          user: 'lighthouse',
+          port: 22,
+        ),
+      ],
+    );
+
+    test('direct SSH and resolved SSH wrapper hook share identity', () {
+      final nested = direct.copyWith(
+        // The wrapper reports ssh -G cloud's resolved endpoint, not the alias.
+        sshHost: '192.0.2.1',
+        sshUser: 'lighthouse',
+        sshPort: 22,
+        connectionChain: [],
+        hostname: 'different-shell-name',
+        username: 'different-shell-user',
+      );
+      expect(directory(direct), 'lighthouse@192.0.2.1:/home/lighthouse');
+      expect(directory(nested), directory(direct));
+      expect(
+        directory(nested.copyWith(hostname: null, username: null)),
+        directory(direct),
+      );
+    });
+
+    test('different hosts, users and directories stay separate', () {
+      for (final other in [
+        direct.copyWith(sshHost: '192.0.2.2'),
+        direct.copyWith(sshUser: 'root'),
+        direct.copyWith(currentDirectory: '/work'),
+        direct.copyWith(sshPort: 2222),
+      ]) {
+        expect(directory(other), isNot(directory(direct)));
+      }
+    });
+
+    test('shell identity is only used without SSH connection metadata', () {
+      expect(
+        directory(direct.copyWith(hostname: null, username: null)),
+        'lighthouse@192.0.2.1:/home/lighthouse',
+      );
+      expect(
+        directory(direct.copyWith(connectionChain: [])),
+        'lighthouse@vm-4-2-ubuntu:/home/lighthouse',
+      );
+    });
+
+    test('local home stays abbreviated and remote home is not abbreviated', () {
+      for (final host in [null, 'my-mac', 'my-mac.local', 'localhost']) {
+        expect(
+          directory(
+            TerminalShellIntegrationSnapshot(
+              hostname: host,
+              currentDirectory: '/Users/me/work',
+            ),
+          ),
+          '~/work',
+        );
+      }
+      expect(
+        directory(direct.copyWith(currentDirectory: '/Users/me/work')),
+        'lighthouse@192.0.2.1:/Users/me/work',
+      );
+      expect(
+        directory(TerminalShellIntegrationSnapshot.empty),
+        'Unknown directory',
+      );
+    });
+  });
   final now = DateTime(2026, 9, 15);
   test(
     'elapsed time uses readable units at minute, hour and day boundaries',

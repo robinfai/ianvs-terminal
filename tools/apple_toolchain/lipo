@@ -1,0 +1,25 @@
+#!/bin/bash
+set -euo pipefail
+
+# Flutter SDKs before flutter/flutter#188625 verify all Darwin slices at once.
+# Xcode 27 rejects that form even when every slice exists. Keep this adapter
+# local to Flutter Prepare/Assemble and preserve the selected Xcode/toolchain.
+LIPO_BIN="$(/usr/bin/xcrun --find lipo)"
+
+if [[ $# -gt 3 && "$2" == "-verify_arch" ]]; then
+  # Only adapt `lipo INPUT -verify_arch ARCH...`; leave other option forms to
+  # the real tool, including any future upstream command-line changes.
+  for argument in "${@:3}"; do
+    if [[ "$argument" == -* ]]; then
+      exec "$LIPO_BIN" "$@"
+    fi
+  done
+  input="$1"
+  shift 2
+  for architecture in "$@"; do
+    "$LIPO_BIN" "$input" -verify_arch "$architecture"
+  done
+  exit 0
+fi
+
+exec "$LIPO_BIN" "$@"
