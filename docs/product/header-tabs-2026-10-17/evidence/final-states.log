@@ -1,7 +1,0 @@
-package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
-00:00 +0: loading /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/shell/header_tabs_polish_test.dart
-00:00 +0: header tabs dark 871.0 share Cmd and close slot (variant: TargetPlatform.macOS)
-00:01 +1: header tabs dark 640.0 share Cmd and close slot (variant: TargetPlatform.macOS)
-00:02 +2: header tabs light 871.0 share Cmd and close slot (variant: TargetPlatform.macOS)
-00:03 +3: header tabs light 640.0 share Cmd and close slot (variant: TargetPlatform.macOS)
-00:04 +4: All tests passed!

@@ -26,4 +26,6 @@
 - macOS 生产入口 Release 构建通过，产物为 `example/build/macos/Build/Products/Release/Trail.app`。
 - 本轮未覆盖其他操作系统的原生运行，也未替换当前运行的 Trail。
 
-日志见 [evidence](evidence)。
+日志见 [evidence](https://github.com/robinfai/ianvs-terminal/tree/cbebe0244b554f99084100e9bda465d8f87ac83f/docs/product/shell-support-check-2026-10-17/evidence)。
+
+历史验收原件保留在[固定提交目录](https://github.com/robinfai/ianvs-terminal/tree/cbebe0244b554f99084100e9bda465d8f87ac83f/docs/product/shell-support-check-2026-10-17)。运行日志和临时产物已按文档归档规则移出当前 `docs/`；此处结果仅对应文中记录的构建与环境。

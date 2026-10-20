@@ -52,3 +52,5 @@ macOS 27.0.1，1728 × 1084 逻辑像素生产窗口，四个标签恢复后用�
 最终保留生产版在第二个标签的 Block + AI 页面，独立诊断副本已退出。此次没有发送命令或 AI 请求。四个标签恢复不代表原 Shell 进程未中断。
 
 PR 保持 Draft / OPEN，不合并。
+
+历史验收原件保留在[固定提交目录](https://github.com/robinfai/ianvs-terminal/tree/cbebe0244b554f99084100e9bda465d8f87ac83f/docs/product/chrome-mouse-routing-2026-10-18)。运行日志和临时产物已按文档归档规则移出当前 `docs/`；此处结果仅对应文中记录的构建与环境。

@@ -32,7 +32,7 @@
 | 浅色 640 × 400，文字比例 2.0 | [原图](screenshots/desktop-unified-light-640-scale-2.0.png) |
 | macOS 原生命令与 AI 回复 | [原图](screenshots/native-unified-dark.png) |
 
-[871 项回归](evidence/regressions.log) · [布局复核](evidence/visual.log) · [原生集成](evidence/native.log) · [静态分析](evidence/analyze.log) · [格式](evidence/format.log) · [Core 同步](evidence/core-sync.log) · [正式构建](evidence/production-build.log) · [源码哈希](source-sha256.json)
+[871 项回归](https://github.com/robinfai/ianvs-terminal/blob/cbebe0244b554f99084100e9bda465d8f87ac83f/docs/product/desktop-unified-workspace-2026-10-17/evidence/regressions.log) · [布局复核](https://github.com/robinfai/ianvs-terminal/blob/cbebe0244b554f99084100e9bda465d8f87ac83f/docs/product/desktop-unified-workspace-2026-10-17/evidence/visual.log) · [原生集成](https://github.com/robinfai/ianvs-terminal/blob/cbebe0244b554f99084100e9bda465d8f87ac83f/docs/product/desktop-unified-workspace-2026-10-17/evidence/native.log) · [静态分析](https://github.com/robinfai/ianvs-terminal/blob/cbebe0244b554f99084100e9bda465d8f87ac83f/docs/product/desktop-unified-workspace-2026-10-17/evidence/analyze.log) · [格式](https://github.com/robinfai/ianvs-terminal/blob/cbebe0244b554f99084100e9bda465d8f87ac83f/docs/product/desktop-unified-workspace-2026-10-17/evidence/format.log) · [Core 同步](https://github.com/robinfai/ianvs-terminal/blob/cbebe0244b554f99084100e9bda465d8f87ac83f/docs/product/desktop-unified-workspace-2026-10-17/evidence/core-sync.log) · [正式构建](https://github.com/robinfai/ianvs-terminal/blob/cbebe0244b554f99084100e9bda465d8f87ac83f/docs/product/desktop-unified-workspace-2026-10-17/evidence/production-build.log) · [源码哈希](source-sha256.json)
 
 ```sh
 # 在 example/ 中运行
@@ -40,3 +40,5 @@ flutter test --no-pub test/ai test/terminal_composer test/shell/terminal_modes_t
 flutter test --no-pub integration_test/desktop_unified_workspace_test.dart -d macos
 flutter build macos --release --no-pub -t lib/main.dart
 ```
+
+历史验收原件保留在[固定提交目录](https://github.com/robinfai/ianvs-terminal/tree/cbebe0244b554f99084100e9bda465d8f87ac83f/docs/product/desktop-unified-workspace-2026-10-17)。运行日志和临时产物已按文档归档规则移出当前 `docs/`；此处结果仅对应文中记录的构建与环境。

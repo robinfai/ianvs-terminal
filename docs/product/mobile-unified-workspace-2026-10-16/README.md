@@ -28,10 +28,12 @@
 | 浅色横屏 | [原图](screenshots/unified-collapsed-light-landscape.png) | 56.0 |
 | 深色横屏 | [原图](screenshots/unified-collapsed-dark-landscape.png) | 56.0 |
 
-[测量数据](evidence/native-metrics.json) · [原生运行记录](evidence/native-test.log) · [相关回归](evidence/regressions.log) · [静态分析](evidence/analyze.log) · [构建](evidence/production-build.log) · [来源文件哈希](source-sha256.json)
+[测量数据](https://github.com/robinfai/ianvs-terminal/blob/cbebe0244b554f99084100e9bda465d8f87ac83f/docs/product/mobile-unified-workspace-2026-10-16/evidence/native-metrics.json) · [原生运行记录](https://github.com/robinfai/ianvs-terminal/blob/cbebe0244b554f99084100e9bda465d8f87ac83f/docs/product/mobile-unified-workspace-2026-10-16/evidence/native-test.log) · [相关回归](https://github.com/robinfai/ianvs-terminal/blob/cbebe0244b554f99084100e9bda465d8f87ac83f/docs/product/mobile-unified-workspace-2026-10-16/evidence/regressions.log) · [静态分析](https://github.com/robinfai/ianvs-terminal/blob/cbebe0244b554f99084100e9bda465d8f87ac83f/docs/product/mobile-unified-workspace-2026-10-16/evidence/analyze.log) · [构建](https://github.com/robinfai/ianvs-terminal/blob/cbebe0244b554f99084100e9bda465d8f87ac83f/docs/product/mobile-unified-workspace-2026-10-16/evidence/production-build.log) · [来源文件哈希](source-sha256.json)
 
 ```sh
 # 在 example/ 运行；模拟器 ID 使用本任务的专用设备。
 flutter test --no-pub test/ai test/terminal_composer test/shell/mobile_terminal_modes_test.dart test/startup/app_startup_host_test.dart test/shell/mobile_sessions_lifecycle_test.dart test/ui/phone_text_scale_policy_test.dart
 TRAIL_REVIEW_SCREENSHOTS=../build/mobile-unified-native flutter drive --no-pub --driver=test_driver/ios_design_review.dart --target=integration_test/ios_unified_workspace_test.dart -d C5C8CE03-EBEE-4F71-A327-5F208D20B49C
 ```
+
+历史验收原件保留在[固定提交目录](https://github.com/robinfai/ianvs-terminal/tree/cbebe0244b554f99084100e9bda465d8f87ac83f/docs/product/mobile-unified-workspace-2026-10-16)。运行日志和临时产物已按文档归档规则移出当前 `docs/`；此处结果仅对应文中记录的构建与环境。

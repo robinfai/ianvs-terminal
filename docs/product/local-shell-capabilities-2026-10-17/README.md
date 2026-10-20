@@ -21,13 +21,13 @@
 
 | 验证 | 结果 | 证据 |
 | --- | --- | --- |
-| 真实 PTY 与解析边界 | **5/5** | [native.log](native.log) |
-| Shell 初始化、冲突、嵌套切换 | **19 通过，1 项环境依赖跳过** | [bootstrap.log](bootstrap.log) |
-| 原 Composer 路径/命令补全、原始输入、单次提交与嵌套 Shell | **8/8** | [composer.log](composer.log) |
-| 会话模型、控制器、能力界面、关闭与录制生命周期 | **197/197** | [sessions.log](sessions.log) |
-| 终端运行时事件解析与传递 | **232/232** | [runtime.log](runtime.log) |
-| macOS 原生 App 能力页 | **1/1** | [app-native.log](app-native.log) |
-| 应用/终端包静态分析、变更格式、diff、core 镜像 | **通过** | [checks.log](checks.log) |
+| 真实 PTY 与解析边界 | **5/5** | [native.log](https://github.com/robinfai/ianvs-terminal/blob/cbebe0244b554f99084100e9bda465d8f87ac83f/docs/product/local-shell-capabilities-2026-10-17/native.log) |
+| Shell 初始化、冲突、嵌套切换 | **19 通过，1 项环境依赖跳过** | [bootstrap.log](https://github.com/robinfai/ianvs-terminal/blob/cbebe0244b554f99084100e9bda465d8f87ac83f/docs/product/local-shell-capabilities-2026-10-17/bootstrap.log) |
+| 原 Composer 路径/命令补全、原始输入、单次提交与嵌套 Shell | **8/8** | [composer.log](https://github.com/robinfai/ianvs-terminal/blob/cbebe0244b554f99084100e9bda465d8f87ac83f/docs/product/local-shell-capabilities-2026-10-17/composer.log) |
+| 会话模型、控制器、能力界面、关闭与录制生命周期 | **197/197** | [sessions.log](https://github.com/robinfai/ianvs-terminal/blob/cbebe0244b554f99084100e9bda465d8f87ac83f/docs/product/local-shell-capabilities-2026-10-17/sessions.log) |
+| 终端运行时事件解析与传递 | **232/232** | [runtime.log](https://github.com/robinfai/ianvs-terminal/blob/cbebe0244b554f99084100e9bda465d8f87ac83f/docs/product/local-shell-capabilities-2026-10-17/runtime.log) |
+| macOS 原生 App 能力页 | **1/1** | [app-native.log](https://github.com/robinfai/ianvs-terminal/blob/cbebe0244b554f99084100e9bda465d8f87ac83f/docs/product/local-shell-capabilities-2026-10-17/app-native.log) |
+| 应用/终端包静态分析、变更格式、diff、core 镜像 | **通过** | [checks.log](https://github.com/robinfai/ianvs-terminal/blob/cbebe0244b554f99084100e9bda465d8f87ac83f/docs/product/local-shell-capabilities-2026-10-17/checks.log) |
 
 原生 App 通过真实 zsh 及应用 SessionController 验证：
 
@@ -53,3 +53,5 @@ Rust PTY 验证对上述四种 Shell 比较实际 hostname / id 返回值，检�
 - 未新增 iOS、Windows、Linux 原生运行结果，也未覆盖其他受支持 macOS 主版本。支持范围不等于验证范围。
 - 11→12→13 是纯净 fixture 的实际结果。用户配置冲突、系统身份命令不可用或事件尚未发生时，不承诺固定计数。
 - 原生 Flutter runner 报告未能将测试窗口切至前台，但测试 App 成功运行、事件断言完成，截图来自该 App 的 Flutter 渲染结果。
+
+历史验收原件保留在[固定提交目录](https://github.com/robinfai/ianvs-terminal/tree/cbebe0244b554f99084100e9bda465d8f87ac83f/docs/product/local-shell-capabilities-2026-10-17)。运行日志和临时产物已按文档归档规则移出当前 `docs/`；此处结果仅对应文中记录的构建与环境。

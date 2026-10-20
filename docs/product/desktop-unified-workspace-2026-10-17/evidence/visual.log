@@ -1,9 +1,0 @@
-package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
-00:00 +0: loading /Users/robinfai/.codex/worktrees/pr12-phone-acceptance/ianvs-terminal/example/test/shell/mobile_terminal_modes_test.dart
-00:00 +0: (setUpAll)
-00:00 +0: desktop unified keyboard and layout Brightness.dark Size(1200.0, 800.0) scale 1.0
-00:02 +1: desktop unified keyboard and layout Brightness.dark Size(640.0, 400.0) scale 2.0
-00:03 +2: desktop unified keyboard and layout Brightness.light Size(1200.0, 800.0) scale 1.0
-00:04 +3: desktop unified keyboard and layout Brightness.light Size(640.0, 400.0) scale 2.0
-00:05 +4: (tearDownAll)
-00:05 +4: All tests passed!

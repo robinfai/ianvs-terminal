@@ -26,11 +26,11 @@ iOS / Android 首次安装的欢迎页提供「配置 LLM」和「跳过，使�
 
 | 浅色竖屏 | 深色竖屏 |
 | --- | --- |
-| ![浅色竖屏](evidence/iOS-light-portrait-startup-onboarding.png) | ![深色竖屏](evidence/iOS-dark-portrait-startup-onboarding.png) |
+| ![浅色竖屏](https://github.com/robinfai/ianvs-terminal/blob/cbebe0244b554f99084100e9bda465d8f87ac83f/docs/product/mobile-llm-onboarding-2026-10-16/evidence/iOS-light-portrait-startup-onboarding.png) | ![深色竖屏](https://github.com/robinfai/ianvs-terminal/blob/cbebe0244b554f99084100e9bda465d8f87ac83f/docs/product/mobile-llm-onboarding-2026-10-16/evidence/iOS-dark-portrait-startup-onboarding.png) |
 
-![浅色横屏](evidence/iOS-light-landscape-startup-onboarding.png)
+![浅色横屏](https://github.com/robinfai/ianvs-terminal/blob/cbebe0244b554f99084100e9bda465d8f87ac83f/docs/product/mobile-llm-onboarding-2026-10-16/evidence/iOS-light-landscape-startup-onboarding.png)
 
-![深色横屏](evidence/iOS-dark-landscape-startup-onboarding.png)
+![深色横屏](https://github.com/robinfai/ianvs-terminal/blob/cbebe0244b554f99084100e9bda465d8f87ac83f/docs/product/mobile-llm-onboarding-2026-10-16/evidence/iOS-dark-landscape-startup-onboarding.png)
 
 ## 复跑
 
@@ -43,4 +43,6 @@ flutter analyze --no-pub
 flutter build ios --simulator --debug --no-pub -t lib/main.dart
 ```
 
-日志及源码 SHA-256 均见 [evidence](evidence)。PR 保持 Draft，不合并。
+日志及源码 SHA-256 均见 [evidence](https://github.com/robinfai/ianvs-terminal/tree/cbebe0244b554f99084100e9bda465d8f87ac83f/docs/product/mobile-llm-onboarding-2026-10-16/evidence)。PR 保持 Draft，不合并。
+
+历史验收原件保留在[固定提交目录](https://github.com/robinfai/ianvs-terminal/tree/cbebe0244b554f99084100e9bda465d8f87ac83f/docs/product/mobile-llm-onboarding-2026-10-16)。运行日志和临时产物已按文档归档规则移出当前 `docs/`；此处结果仅对应文中记录的构建与环境。

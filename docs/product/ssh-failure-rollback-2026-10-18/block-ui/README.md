@@ -33,3 +33,5 @@ python3 tools/ssh_boundary_lab/rollback.py --flutter-ui --flutter /path/to/flutt
 ## 交付
 
 保持 PR Draft / OPEN，不合并。生产入口签名 Release 构建与完整签名校验通过，待安装包已准备。本轮没有重启用户当前生产 Trail 或打断其 SSH 会话；安装状态在 PR 描述中单独列明。
+
+历史验收原件保留在[固定提交目录](https://github.com/robinfai/ianvs-terminal/tree/cbebe0244b554f99084100e9bda465d8f87ac83f/docs/product/ssh-failure-rollback-2026-10-18/block-ui)。运行日志和临时产物已按文档归档规则移出当前 `docs/`；此处结果仅对应文中记录的构建与环境。

@@ -1,4 +1,0 @@
-Profile-signed macOS Release build passed.
-codesign --verify --deep --strict passed.
-UUID: B1851545-D76B-54BD-277A-5290E348A6CF (x86_64) example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/App.framework/App
-UUID: B4485C2E-5B70-902E-38E6-CC8D07A9A306 (arm64) example/build/macos/Build/Products/Release/Trail.app/Contents/Frameworks/App.framework/App

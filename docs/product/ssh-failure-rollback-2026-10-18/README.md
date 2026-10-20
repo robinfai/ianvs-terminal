@@ -52,3 +52,5 @@ python3 tools/ssh_boundary_lab/rollback.py --output build/ssh-rollback
 ## Block 界面后续修复
 
 父上下文恢复不代表界面恢复。后续用户在 Block 中复现了模式遗留，根因、修复与真实原生 UI 验收见 [Block 工作区恢复](block-ui/README.md)。
+
+历史验收原件保留在[固定提交目录](https://github.com/robinfai/ianvs-terminal/tree/cbebe0244b554f99084100e9bda465d8f87ac83f/docs/product/ssh-failure-rollback-2026-10-18)。运行日志和临时产物已按文档归档规则移出当前 `docs/`；此处结果仅对应文中记录的构建与环境。

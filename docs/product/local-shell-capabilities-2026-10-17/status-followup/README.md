@@ -14,3 +14,5 @@
 ![窄窗口深色](status-520-dark.png)
 ![360 双倍文字浅色](status-360-light.png)
 ![360 双倍文字深色](status-360-dark.png)
+
+历史验收原件保留在[固定提交目录](https://github.com/robinfai/ianvs-terminal/tree/cbebe0244b554f99084100e9bda465d8f87ac83f/docs/product/local-shell-capabilities-2026-10-17/status-followup)。运行日志和临时产物已按文档归档规则移出当前 `docs/`；此处结果仅对应文中记录的构建与环境。
