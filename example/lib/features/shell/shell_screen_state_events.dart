@@ -118,9 +118,12 @@ extension _ShellScreenStateEvents on _ShellScreenState {
   }
 
   Future<void> _handleNativeSelectAllMenu() async {
-    focusedEditableTextForCurrentRoute()?.selectAll(
-      SelectionChangedCause.toolbar,
-    );
+    final editor = focusedEditableTextForCurrentRoute();
+    if (editor != null) {
+      editor.selectAll(SelectionChangedCause.toolbar);
+      return;
+    }
+    _selectAllTerminalOutput();
   }
 
   Future<void> _handleNativeFindMenu(NativeFindAction action) async {

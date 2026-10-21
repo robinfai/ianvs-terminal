@@ -1,6 +1,40 @@
 part of 'shell_screen.dart';
 
 extension _ShellScreenStateClipboard on _ShellScreenState {
+  bool _selectAllTerminalOutput() {
+    if (_shellModalInputBlocked) return false;
+    final sessions = ref.read(sessionControllerProvider);
+    final sessionId = sessions.activeSessionId;
+    if (sessionId == null || _terminalFocusNodes[sessionId]?.hasFocus != true) {
+      return false;
+    }
+    final frame = ref
+        .read(sessionControllerProvider.notifier)
+        .existingViewportFor(sessionId)
+        ?.frame;
+    if (frame == null || frame.viewportRows <= 0 || frame.viewportCols <= 0) {
+      return false;
+    }
+    // globalBottomRow also covers source rows hidden by collapsed blocks.
+    // It can exceed retained history after eviction; selection_text clamps the
+    // range to the retained buffer. Alternate screens have no scrollback.
+    final endRow = frame.modes.alternateScreen
+        ? frame.viewportRows - 1
+        : frame.globalBottomRow ??
+              frame.scrollbackMaxOffset + frame.viewportRows - 1;
+    _selectionControllers
+        .putIfAbsent(sessionId, SelectionController.new)
+        .setSelection(
+          terminal.TerminalSelection(
+            startRow: 0,
+            startCol: 0,
+            endRow: endRow,
+            endCol: frame.viewportCols,
+          ),
+        );
+    return true;
+  }
+
   Future<void> _copySelection(
     SessionController sessionController,
     String sessionId,
@@ -177,7 +211,6 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
 
   Future<bool> _confirmPaste(LocalTerminalPasteDecision decision) async {
     final lineCount = _lineCountForPasteConfirmation(decision.text);
-    final preview = _pasteConfirmationPreview(decision.text);
     final confirmed = await showDialog<bool>(
       context: context,
       animationStyle: appDialogAnimation(context),
@@ -185,50 +218,39 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
         return AlertDialog(
           key: const Key('paste-confirmation-dialog'),
           title: Text(dialogContext.l10n.confirmPaste),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                dialogContext.l10n.pasteCharacterLineCount(
-                  decision.text.length,
-                  lineCount,
+          content: SizedBox(
+            width: 560,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  dialogContext.l10n.pasteCharacterLineCount(
+                    decision.text.length,
+                    lineCount,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                dialogContext.l10n.preview,
-                style: Theme.of(
-                  dialogContext,
-                ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 6),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 140),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: Theme.of(dialogContext)
-                        .colorScheme
-                        .surfaceContainerHighest
-                        .withValues(alpha: 0.55),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: Theme.of(dialogContext).colorScheme.outlineVariant,
-                    ),
+                const SizedBox(height: 12),
+                Text(
+                  dialogContext.l10n.preview,
+                  style: Theme.of(dialogContext).textTheme.labelMedium
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 6),
+                SizedBox(
+                  height: math.min(
+                    320,
+                    MediaQuery.sizeOf(dialogContext).height * 0.4,
                   ),
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(10),
-                    child: Text(
-                      preview,
+                    child: TerminalCodePreview(
                       key: const Key('paste-confirmation-preview'),
-                      style: Theme.of(
-                        dialogContext,
-                      ).textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
+                      text: decision.text,
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -244,21 +266,6 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
       },
     );
     return confirmed ?? false;
-  }
-
-  String _pasteConfirmationPreview(String text) {
-    const maxLines = 6;
-    const maxCharacters = 240;
-    final normalized = text.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
-    final lines = normalized.split('\n');
-    final previewLines = lines.take(maxLines).toList();
-    var preview = previewLines.join('\n');
-    var truncated = lines.length > maxLines;
-    if (preview.length > maxCharacters) {
-      preview = preview.substring(0, maxCharacters).trimRight();
-      truncated = true;
-    }
-    return truncated ? '$preview\n...' : preview;
   }
 
   int _lineCountForPasteConfirmation(String text) {

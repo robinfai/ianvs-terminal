@@ -200,3 +200,23 @@ class TerminalAiMessage extends StatelessWidget {
     );
   }
 }
+
+/// Renders literal text with the same selectable code block as AI messages.
+/// A longer fence keeps pasted Markdown fences inside the code block.
+class TerminalCodePreview extends StatelessWidget {
+  const TerminalCodePreview({required this.text, super.key});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    var fenceLength = 3;
+    for (final match in RegExp('`+').allMatches(text)) {
+      if (match.group(0)!.length >= fenceLength) {
+        fenceLength = match.group(0)!.length + 1;
+      }
+    }
+    final fence = '`' * fenceLength;
+    return TerminalAiMessage(text: '$fence\n$text\n$fence');
+  }
+}

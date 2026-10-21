@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:app/features/ai/terminal_ai_message.dart';
 import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/config/local_terminal_config_repository.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
@@ -5218,7 +5219,13 @@ void main() {
   testWidgets('native paste confirms multiline text before sending', (
     tester,
   ) async {
-    const clipboardText = 'one\ntwo';
+    final clipboardText = [
+      '```sh',
+      '# literal code, not Markdown',
+      'echo ${'long-path/' * 40}',
+      for (var i = 0; i < 20; i++) 'echo line $i',
+      '```',
+    ].join('\n');
     final fakeBindings = FakePtyBackend();
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
       SystemChannels.platform,
@@ -5249,6 +5256,15 @@ void main() {
 
     expect(find.byKey(const Key('paste-confirmation-dialog')), findsOneWidget);
     expect(fakeBindings.writes, isEmpty);
+    expect(
+      tester
+          .widget<TerminalCodePreview>(
+            find.byKey(const Key('paste-confirmation-preview')),
+          )
+          .text,
+      clipboardText,
+    );
+    expect(tester.takeException(), isNull);
 
     await tester.tap(find.widgetWithText(FilledButton, 'Paste'));
     await tester.pump();
@@ -5758,6 +5774,136 @@ void main() {
       );
       expect(fakeBindings.writes, isEmpty);
       expect(clipboardReads, 2);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  for (final viaMenu in [false, true]) {
+    for (final scenario in [
+      'output',
+      'history',
+      'collapsed history',
+      'alternate',
+    ]) {
+      testWidgets(
+        '${viaMenu ? 'native' : 'command-a'} select all terminal $scenario',
+        (tester) async {
+          final fakeBindings = FakePtyBackend();
+          await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+          final alternate = scenario == 'alternate';
+          final history = scenario.contains('history');
+          final collapsed = scenario == 'collapsed history';
+          final lines = List.generate(
+            collapsed
+                ? 7
+                : history
+                ? 5
+                : 2,
+            (index) => 'line $index',
+          );
+          final start = history ? 1 : 0;
+          Map<String, Object?> frame(int first, int count) => {
+            'rows': [
+              for (var i = 0; i < count; i++)
+                {'index': i, 'text': lines[first + i]},
+            ],
+            'cursor': {'row': 1, 'col': 0, 'visible': true},
+            'viewport_rows': count,
+            'viewport_cols': 80,
+            'viewport_start_row': first,
+            'dirty_ranges': [
+              {'start': 0, 'end': count},
+            ],
+            'scrollback_offset': history ? 2 : 0,
+            'scrollback_max_offset': history ? 3 : 0,
+            'modes': {'alternate_screen': alternate},
+          };
+          final visible = frame(start, 2);
+          // Source history may be longer than the projected/folded scrollbar.
+          // Alternate screens must ignore any primary-buffer history metadata.
+          if (collapsed || alternate) {
+            visible['global_bottom_row'] = alternate ? 99 : lines.length - 1;
+          }
+          fakeBindings.setFrame(1, visible);
+          fakeBindings.selectionFrames['1'] = frame(0, lines.length);
+          final container = ProviderScope.containerOf(
+            tester.element(find.byType(ShellScreen)),
+          );
+          container.read(terminalRuntimeControllerProvider).refreshSession('1');
+          await tester.pump();
+          await tester.tap(find.byType(TerminalViewport));
+          await tester.pump();
+          final viewport = tester.widget<TerminalViewport>(
+            find.byType(TerminalViewport),
+          );
+          fakeBindings.writes.clear();
+          if (viaMenu) {
+            await _invokeNativeWindowBridge(
+              tester,
+              const MethodCall('nativeSelectAll'),
+            );
+          } else {
+            await _sendMetaShortcut(tester, LogicalKeyboardKey.keyA);
+          }
+          final selection = viewport.selectionController.selection!;
+          expect(selection.startRow, 0);
+          expect(selection.startCol, 0);
+          expect(selection.endRow, lines.length - 1);
+          expect(selection.endCol, 80);
+          expect(viewport.selectionController.isBlockSelection, isFalse);
+          expect(fakeBindings.writes, isEmpty);
+
+          String? copied;
+          tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            SystemChannels.platform,
+            (call) async {
+              if (call.method == 'Clipboard.setData') {
+                copied = (call.arguments as Map)['text'] as String;
+              }
+              return null;
+            },
+          );
+          addTearDown(
+            () => tester.binding.defaultBinaryMessenger
+                .setMockMethodCallHandler(SystemChannels.platform, null),
+          );
+          await _sendMetaShortcut(tester, LogicalKeyboardKey.keyC);
+          expect(copied, lines.join('\n'));
+          expect(fakeBindings.selectionTextCalls.last[1], {
+            'start_row': 0,
+            'start_col': 0,
+            'end_row': lines.length - 1,
+            'end_col': 80,
+            'block': false,
+          });
+          expect(fakeBindings.writes, isEmpty);
+        },
+        variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+      );
+    }
+  }
+
+  testWidgets(
+    'control-a retains shell beginning-of-line behavior',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+      final viewport = tester.widget<TerminalViewport>(
+        find.byType(TerminalViewport),
+      );
+      final before = viewport.selectionController.selection;
+      fakeBindings.writes.clear();
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyA);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.keyA);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pump();
+      expect(fakeBindings.writes, [
+        [0x01],
+      ]);
+      expect(viewport.selectionController.selection, same(before));
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );

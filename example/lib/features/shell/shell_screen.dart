@@ -28,6 +28,7 @@ import '../ai/ai_settings.dart';
 import '../ai/ai_settings_dialog.dart';
 import '../ai/terminal_ai_connections.dart';
 import '../ai/terminal_ai_controller.dart';
+import '../ai/terminal_ai_message.dart' show TerminalCodePreview;
 import '../ai/terminal_ai_observer.dart';
 import '../ai/terminal_ai_retained_timeline.dart';
 import '../ai/terminal_ai_runtime.dart';
@@ -784,6 +785,16 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         }
       }
       if (_shellModalInputBlocked) return KeyEventResult.handled;
+      if (editor == null &&
+          _usesMetaShortcuts &&
+          HardwareKeyboard.instance.isMetaPressed &&
+          !HardwareKeyboard.instance.isControlPressed &&
+          !HardwareKeyboard.instance.isShiftPressed &&
+          !HardwareKeyboard.instance.isAltPressed &&
+          event.logicalKey == LogicalKeyboardKey.keyA &&
+          _selectAllTerminalOutput()) {
+        return KeyEventResult.handled;
+      }
       if (_handleAiShortcut(event, activeSessionId)) {
         return KeyEventResult.handled;
       }

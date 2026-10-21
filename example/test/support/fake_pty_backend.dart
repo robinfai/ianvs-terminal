@@ -33,6 +33,9 @@ class FakePtyBackend
   final List<List<int>> scrollToCalls = <List<int>>[];
   final List<List<Object?>> searchCalls = <List<Object?>>[];
   final List<List<Object?>> selectionTextCalls = <List<Object?>>[];
+  // Optional full retained buffer, separate from the visible viewport.
+  final Map<String, Map<String, Object?>> selectionFrames = {};
+
   final List<Map<String, Object?>> jsonRequests = <Map<String, Object?>>[];
   final Map<int, Map<String, Object?>> inlineButtonActivationResponses =
       <int, Map<String, Object?>>{};
@@ -338,7 +341,7 @@ class FakePtyBackend
       'block': request['block'] == true,
     };
     selectionTextCalls.add([_numericSessionId(sessionId), nativeRequest]);
-    final frame = _frames[sessionId];
+    final frame = selectionFrames[sessionId] ?? _frames[sessionId];
     if (frame == null) {
       return null;
     }
