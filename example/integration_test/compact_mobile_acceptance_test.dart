@@ -47,17 +47,18 @@ void main() {
         final prompt = find.byKey(const Key('ai-prompt'));
         await tester.tap(prompt);
         await tester.pump(const Duration(milliseconds: 150));
-        await tester.enterText(prompt, '中文\n第二行');
+        await tester.enterText(prompt, '中文\n第二行\n第三行\n第四行\n第五行\n第六行 🧭');
         final input = tester.widget<TextField>(prompt).controller!;
         input.selection = const TextSelection(baseOffset: 0, extentOffset: 2);
         final value = input.value;
         await tester.pumpAndSettle();
-        expect(tester.widget<TextField>(prompt).maxLines, 4);
+        expect(tester.widget<TextField>(prompt).maxLines, 5);
         await tester.tap(find.byKey(const Key('ai-dismiss-keyboard')));
         await tester.pumpAndSettle();
         final composer = find.byKey(const Key('ai-mobile-composer'));
         final height = tester.getSize(composer).height;
         expect(height, lessThanOrEqualTo(56));
+        expect(tester.widget<TextField>(prompt).maxLines, 1);
         expect(tester.widget<TextField>(prompt).focusNode!.hasFocus, isFalse);
         expect(tester.widget<TextField>(prompt).controller, same(input));
         expect(input.value, value);
@@ -70,7 +71,7 @@ void main() {
         );
         await tester.tap(prompt);
         await tester.pumpAndSettle();
-        expect(tester.widget<TextField>(prompt).maxLines, 4);
+        expect(tester.widget<TextField>(prompt).maxLines, 5);
         expect(input.text, value.text);
         expect(tester.takeException(), isNull);
       },
