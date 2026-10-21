@@ -19,7 +19,14 @@ case "$VERIFY_FLUTTER_TERMINAL_SKIP_DESIGN_TESTS" in
   0|1) ;;
   *) echo "VERIFY_FLUTTER_TERMINAL_SKIP_DESIGN_TESTS must be 0 or 1" >&2; exit 64 ;;
 esac
-TIMEFORMAT='CI phase duration: %3R seconds'
+# Bash 3.2 can exit before the `time` keyword reports an errexit failure.
+# Call only inside a phase subshell: its EXIT trap logs both success/failure
+# without changing the parent shell's traps or suppressing `set -e`.
+ci_begin_phase() {
+  echo "CI phase: $1"
+  CI_PHASE_STARTED=$SECONDS
+  trap 'ci_phase_status=$?; printf "CI phase duration: %s seconds\n" "$((SECONDS - CI_PHASE_STARTED))" >&2; exit "$ci_phase_status"' EXIT
+}
 
 if ! command -v rustup >/dev/null 2>&1 || \
   ! rustup target list --installed | grep -Fqx -- 'thumbv7em-none-eabihf' >/dev/null; then
@@ -35,8 +42,8 @@ dart run "$ROOT_DIR/tools/sync_terminal_core.dart" --check
 python3 "$ROOT_DIR/tools/validate_osc_protocol_corpus.py"
 python3 "$ROOT_DIR/tools/osc_semantic_probe.py" --self-test
 
-echo "CI phase: Rust completion core"
-time (
+(
+  ci_begin_phase "Rust completion core"
   cd "$ROOT_DIR/native/completion_core"
   cargo fmt --check
   cargo clippy --locked --all-targets -- -D warnings
@@ -46,16 +53,16 @@ if [ "$(uname -s)" = "Darwin" ]; then
   python3 "$ROOT_DIR/tools/composer/run_shell_matrix.py" --required --shell zsh
 fi
 
-echo "CI phase: Go backend"
-time (
+(
+  ci_begin_phase "Go backend"
   cd "$BACKEND_DIR"
   test -z "$(gofmt -l .)"
   go vet ./...
   go test -race ./...
 )
 
-echo "CI phase: Vendored terminal core"
-time (
+(
+  ci_begin_phase "Vendored terminal core"
   cd "$VENDORED_TERMINAL_CORE_DIR"
   cargo fmt --check
   # Preserve the upstream release snapshot without rewriting hundreds of
@@ -66,8 +73,8 @@ time (
   cargo test --locked -- --test-threads=1
 )
 
-echo "CI phase: Vendored ZMODEM"
-time (
+(
+  ci_begin_phase "Vendored ZMODEM"
   cd "$VENDORED_ZMODEM_DIR"
   cargo fmt --check
   cargo clippy --locked --all-targets --all-features -- -D warnings
@@ -78,8 +85,8 @@ time (
   cargo test --locked --no-default-features --lib
 )
 
-echo "CI phase: Rust application core"
-time (
+(
+  ci_begin_phase "Rust application core"
   cd "$CORE_DIR"
   cargo fmt --check
   cargo clippy --locked --all-targets -- -D warnings
@@ -90,16 +97,16 @@ time (
 
 # The standalone pub.dev artifact mirrors the canonical ABI and must remain
 # independently buildable from its packaged source tree.
-echo "CI phase: Packaged ABI contracts"
-time (
+(
+  ci_begin_phase "Packaged ABI contracts"
   cd "$TERMINAL_CORE_DIR/native/core"
   cargo test --locked \
     --test ffi_abi_manifest_test \
     --test session_architecture_test
 )
 
-echo "CI phase: Dart formatting and analysis"
-time (
+(
+  ci_begin_phase "Dart formatting and analysis"
   cd "$ROOT_DIR"
   # Match the source scope of `make format-check`, including repository tools.
   # Ignored scratch probes and old staged checkouts are not product sources.
@@ -109,27 +116,27 @@ time (
   dart analyze --fatal-infos
 )
 
-echo "CI phase: Dart PTY tests"
-time (
+(
+  ci_begin_phase "Dart PTY tests"
   cd "$PTY_DIR"
   dart test
 )
 
-echo "CI phase: Flutter terminal package tests"
-time (
+(
+  ci_begin_phase "Flutter terminal package tests"
   cd "$TERMINAL_DIR"
   flutter test
 )
 
-echo "CI phase: Standalone terminal core tests"
-time (
+(
+  ci_begin_phase "Standalone terminal core tests"
   cd "$TERMINAL_CORE_DIR"
   flutter analyze --fatal-infos
   flutter test
 )
 
-echo "CI phase: Repository contract tests"
-time (
+(
+  ci_begin_phase "Repository contract tests"
   cd "$ROOT_DIR"
   dart test test/docs_contract_test.dart
   dart test test/runtime_documentation_contract_test.dart
@@ -142,8 +149,8 @@ time (
     test/openapi_document_test.dart
 )
 
-echo "CI phase: Performance smoke"
-time (
+(
+  ci_begin_phase "Performance smoke"
   cd "$ROOT_DIR"
   dart run tools/bench/runner/bench_runner.dart --config tools/bench/configs/bench_ci_smoke.yaml
   if [ "$VERIFY_FLUTTER_TERMINAL_RUN_NIGHTLY_BENCH" = "1" ]; then
@@ -167,8 +174,8 @@ if grep -RFnw -- "AppPreferencesRepository" "$ROOT_DIR/example/lib" | \
   exit 1
 fi
 
-echo "CI phase: Example tests"
-time (
+(
+  ci_begin_phase "Example tests"
   cd "$EXAMPLE_DIR"
   EXAMPLE_CI_TEST_TARGETS=()
   while IFS= read -r test_target; do
