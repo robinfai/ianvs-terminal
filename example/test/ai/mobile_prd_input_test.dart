@@ -91,6 +91,7 @@ void main() {
       Size size = const Size(390, 844),
       Brightness brightness = Brightness.light,
       Locale locale = const Locale('en'),
+      bool compactMobile = false,
     }) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = size;
@@ -98,6 +99,7 @@ void main() {
       await tester.pumpApp(
         TerminalAiWorkspace(
           controller: controller,
+          compactMobile: compactMobile,
           targetLabel: 'ops@staging.example.test',
           onClose: () => takeovers++,
           onObserveTerminal: () => observations++,
@@ -115,6 +117,91 @@ void main() {
               find.byKey(Key(expanded ? 'composer-draft-editor' : 'ai-prompt')),
             )
             .controller!;
+
+    for (final compact in [false, true]) {
+      testWidgets('mobile draft grows to five lines: compact=$compact', (
+        tester,
+      ) async {
+        await mount(tester, compactMobile: compact);
+        final field = find.byKey(const Key('ai-prompt'));
+        expect(tester.widget<TextField>(field).maxLines, 5);
+        final singleHeight = tester.getSize(field).height;
+        input(tester).text = 'one\ntwo\nthree\nfour\nfive';
+        await tester.pumpAndSettle();
+        final fiveHeight = tester.getSize(field).height;
+        expect(fiveHeight, greaterThan(singleHeight));
+        input(tester).text += '\nsix\nseven';
+        await tester.pumpAndSettle();
+        expect(tester.getSize(field).height, fiveHeight);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+      });
+    }
+
+    testWidgets(
+      'expanded draft supports voice without submitting or saving early',
+      (tester) async {
+        const channel = MethodChannel('app/voice_input');
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, (call) async {
+              if (call.method == 'start') return 'voice draft';
+              return null;
+            });
+        addTearDown(() {
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+              .setMockMethodCallHandler(channel, null);
+        });
+        await mount(tester);
+        await tester.tap(find.byKey(const Key('ai-expand-draft')));
+        await tester.pumpAndSettle();
+        final field = find.byKey(const Key('composer-draft-editor'));
+        expect(tester.widget<TextField>(field).focusNode!.hasFocus, isTrue);
+        await tester.tap(find.byKey(const Key('composer-draft-hide-keyboard')));
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<TextField>(field).decoration?.hintText,
+          'Tap to type, hold to speak…',
+        );
+        await tester.longPress(field);
+        await tester.pumpAndSettle();
+        expect(input(tester, expanded: true).text, 'voice draft');
+        expect(api.requests, isEmpty);
+        expect(terminal.writes, isEmpty);
+        await tester.tap(find.byKey(const Key('composer-draft-done')));
+        await tester.pumpAndSettle();
+        expect(input(tester).text, 'voice draft');
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
+
+    testWidgets('iOS placeholder and hold dictate into an unsent draft', (
+      tester,
+    ) async {
+      const channel = MethodChannel('app/voice_input');
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            if (call.method == 'start') return '解释当前终端';
+            return null;
+          });
+      addTearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null);
+      });
+      await mount(tester, locale: const Locale('zh'));
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('ai-prompt')))
+            .decoration
+            ?.hintText,
+        '轻点输入，长按说话…',
+      );
+      await tester.longPress(find.byKey(const Key('ai-prompt')));
+      await tester.pumpAndSettle();
+      expect(input(tester).text, '解释当前终端');
+      expect(api.requests, isEmpty);
+      expect(terminal.writes, isEmpty);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
 
     testWidgets(
       'software Return and composing hardware Enter do not submit a task',

@@ -74,6 +74,9 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
     if (c.targetChanged) {
       return t('Target changed · draft only', '目标已变化，可先写草稿…');
     }
+    if (Theme.of(context).platform == TargetPlatform.iOS && !_focus.hasFocus) {
+      return t('Tap to type, hold to speak…', '轻点输入，长按说话…');
+    }
     return _commandIntent
         ? t('Enter a command…', '输入命令…')
         : t('Ask AI…', '向 AI 提问…');
@@ -609,7 +612,7 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
           _focus.hasFocus ||
           !_input.value.composing.isCollapsed ||
           _draftEditorOpen;
-      // Draft contents survive reading mode; only active editing expands it.
+      // Keep long drafts readable even when the keyboard is dismissed.
       final hasDraft = _input.text.isNotEmpty || c.attachments.isNotEmpty;
       final keyboard = View.of(context).viewInsets.bottom > 0;
       final blocked =
@@ -686,7 +689,7 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
                         ),
                         Expanded(
                           child: _prompt(
-                            maxLines: short || !editing ? 1 : 4,
+                            maxLines: short ? 1 : 5,
                             hintText: _mobileDraftHint,
                             dense: true,
                           ),

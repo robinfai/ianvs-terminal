@@ -15,6 +15,7 @@ import 'ai_models.dart';
 import 'ai_request_indicator.dart';
 import 'ai_settings_dialog.dart';
 import 'ai_strings.dart';
+import 'ios_voice_input.dart';
 import 'terminal_ai_controller.dart';
 import 'terminal_ai_message.dart';
 import 'terminal_ai_target_notice.dart';
@@ -628,6 +629,20 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
         targetLabel: '${widget.targetLabel} · ${owner.context?.cwd ?? ''}',
         chinese: zh,
         textStyle: Theme.of(context).textTheme.bodyLarge,
+        editorHint: Theme.of(context).platform == TargetPlatform.iOS
+            ? (focused) => focused
+                  ? t('Unsent draft', '尚未发送的草稿')
+                  : t('Tap to type, hold to speak…', '轻点输入，长按说话…')
+            : null,
+        editorWrapper: Theme.of(context).platform == TargetPlatform.iOS
+            ? (controller, focusNode, enabled, child) => IosVoiceInput(
+                controller: controller,
+                focusNode: focusNode,
+                enabled: enabled,
+                chinese: zh,
+                child: child,
+              )
+            : null,
         canChooseCommand: () =>
             !owner.busy &&
             owner.pending == null &&
@@ -2130,7 +2145,26 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
           },
         );
 
-  Widget _prompt({
+  Widget _prompt({int maxLines = 4, String? hintText, bool dense = false}) {
+    final ios = Theme.of(context).platform == TargetPlatform.iOS;
+    final field = _promptContent(
+      maxLines: maxLines,
+      hintText: hintText ?? (ios ? _mobileDraftHint : null),
+      dense: dense,
+    );
+    if (!ios) return field;
+    return IosVoiceInput(
+      key: ValueKey((c.taskId, c.context?.sessionId)),
+      controller: _input,
+      focusNode: _focus,
+      enabled:
+          _paneInteractive && !c.followUpEnded && !_humanCommandOwnsTerminal,
+      chinese: zh,
+      child: field,
+    );
+  }
+
+  Widget _promptContent({
     int maxLines = 4,
     String? hintText,
     bool dense = false,
@@ -2672,7 +2706,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
         short: short,
         singleRow: singleRow,
         tiny: tiny,
-        maxLines: bounds.maxHeight < 280 ? 1 : 4,
+        maxLines: bounds.maxHeight < 280 ? 1 : (_mobile ? 5 : 4),
       );
       final items = <CommandBlockTimelineItem>[];
       final renderedBlocks = <String>{};
