@@ -1,0 +1,29 @@
+name: Cache Rust dependencies
+description: Cargo dependencies only; never cache signed apps or test results.
+inputs:
+  workspaces:
+    description: Cargo workspace paths relative to the repository root
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Identify Apple toolchain
+      id: toolchain
+      shell: bash
+      run: |
+        set -euo pipefail
+        xcode_key="$(xcodebuild -version | shasum -a 256 | awk '{print $1}')"
+        echo "xcode=$xcode_key" >> "$GITHUB_OUTPUT"
+    - name: Restore and save dependency cache
+      uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      with:
+        prefix-key: ianvs-ci-v1
+        key: ${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.xcode }}
+        workspaces: ${{ inputs.workspaces }}
+        # Retain the action's compiler/manifest/lockfile hashes and per-job isolation.
+        add-job-id-key: true
+        add-rust-environment-hash-key: true
+        env-vars: CARGO CC CFLAGS CXX CMAKE RUST SDKROOT MACOSX_DEPLOYMENT_TARGET IPHONEOS_DEPLOYMENT_TARGET
+        cache-bin: false
+        cache-workspace-crates: false
+        cache-on-failure: true
