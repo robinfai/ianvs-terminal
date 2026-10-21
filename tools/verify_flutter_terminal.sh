@@ -12,6 +12,14 @@ EXAMPLE_DIR="$ROOT_DIR/example"
 BACKEND_DIR="$ROOT_DIR/backend"
 VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION="${VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION:-0}"
 VERIFY_FLUTTER_TERMINAL_RUN_NIGHTLY_BENCH="${VERIFY_FLUTTER_TERMINAL_RUN_NIGHTLY_BENCH:-0}"
+# CI sets this only after the separate visual-baseline gate succeeds.
+# A normal local invocation still discovers and runs every design test.
+VERIFY_FLUTTER_TERMINAL_SKIP_DESIGN_TESTS="${VERIFY_FLUTTER_TERMINAL_SKIP_DESIGN_TESTS:-0}"
+case "$VERIFY_FLUTTER_TERMINAL_SKIP_DESIGN_TESTS" in
+  0|1) ;;
+  *) echo "VERIFY_FLUTTER_TERMINAL_SKIP_DESIGN_TESTS must be 0 or 1" >&2; exit 64 ;;
+esac
+TIMEFORMAT='CI phase duration: %3R seconds'
 
 if ! command -v rustup >/dev/null 2>&1 || \
   ! rustup target list --installed | grep -Fqx -- 'thumbv7em-none-eabihf' >/dev/null; then
@@ -27,7 +35,8 @@ dart run "$ROOT_DIR/tools/sync_terminal_core.dart" --check
 python3 "$ROOT_DIR/tools/validate_osc_protocol_corpus.py"
 python3 "$ROOT_DIR/tools/osc_semantic_probe.py" --self-test
 
-(
+echo "CI phase: Rust completion core"
+time (
   cd "$ROOT_DIR/native/completion_core"
   cargo fmt --check
   cargo clippy --locked --all-targets -- -D warnings
@@ -37,14 +46,16 @@ if [ "$(uname -s)" = "Darwin" ]; then
   python3 "$ROOT_DIR/tools/composer/run_shell_matrix.py" --required --shell zsh
 fi
 
-(
+echo "CI phase: Go backend"
+time (
   cd "$BACKEND_DIR"
   test -z "$(gofmt -l .)"
   go vet ./...
   go test -race ./...
 )
 
-(
+echo "CI phase: Vendored terminal core"
+time (
   cd "$VENDORED_TERMINAL_CORE_DIR"
   cargo fmt --check
   # Preserve the upstream release snapshot without rewriting hundreds of
@@ -55,7 +66,8 @@ fi
   cargo test --locked -- --test-threads=1
 )
 
-(
+echo "CI phase: Vendored ZMODEM"
+time (
   cd "$VENDORED_ZMODEM_DIR"
   cargo fmt --check
   cargo clippy --locked --all-targets --all-features -- -D warnings
@@ -66,7 +78,8 @@ fi
   cargo test --locked --no-default-features --lib
 )
 
-(
+echo "CI phase: Rust application core"
+time (
   cd "$CORE_DIR"
   cargo fmt --check
   cargo clippy --locked --all-targets -- -D warnings
@@ -77,14 +90,16 @@ fi
 
 # The standalone pub.dev artifact mirrors the canonical ABI and must remain
 # independently buildable from its packaged source tree.
-(
+echo "CI phase: Packaged ABI contracts"
+time (
   cd "$TERMINAL_CORE_DIR/native/core"
   cargo test --locked \
     --test ffi_abi_manifest_test \
     --test session_architecture_test
 )
 
-(
+echo "CI phase: Dart formatting and analysis"
+time (
   cd "$ROOT_DIR"
   # Match the source scope of `make format-check`, including repository tools.
   # Ignored scratch probes and old staged checkouts are not product sources.
@@ -94,23 +109,27 @@ fi
   dart analyze --fatal-infos
 )
 
-(
+echo "CI phase: Dart PTY tests"
+time (
   cd "$PTY_DIR"
   dart test
 )
 
-(
+echo "CI phase: Flutter terminal package tests"
+time (
   cd "$TERMINAL_DIR"
   flutter test
 )
 
-(
+echo "CI phase: Standalone terminal core tests"
+time (
   cd "$TERMINAL_CORE_DIR"
   flutter analyze --fatal-infos
   flutter test
 )
 
-(
+echo "CI phase: Repository contract tests"
+time (
   cd "$ROOT_DIR"
   dart test test/docs_contract_test.dart
   dart test test/runtime_documentation_contract_test.dart
@@ -123,7 +142,8 @@ fi
     test/openapi_document_test.dart
 )
 
-(
+echo "CI phase: Performance smoke"
+time (
   cd "$ROOT_DIR"
   dart run tools/bench/runner/bench_runner.dart --config tools/bench/configs/bench_ci_smoke.yaml
   if [ "$VERIFY_FLUTTER_TERMINAL_RUN_NIGHTLY_BENCH" = "1" ]; then
@@ -147,10 +167,15 @@ if grep -RFnw -- "AppPreferencesRepository" "$ROOT_DIR/example/lib" | \
   exit 1
 fi
 
-(
+echo "CI phase: Example tests"
+time (
   cd "$EXAMPLE_DIR"
   EXAMPLE_CI_TEST_TARGETS=()
   while IFS= read -r test_target; do
+    if [ "$VERIFY_FLUTTER_TERMINAL_SKIP_DESIGN_TESTS" = "1" ] && \
+      [[ "$test_target" == test/design/* ]]; then
+      continue
+    fi
     EXAMPLE_CI_TEST_TARGETS+=("$test_target")
   done < <(
     find test -type f -name '*_test.dart' \
@@ -165,6 +190,7 @@ fi
   # The cat-log benchmark requires a captured trace and is exercised by
   # tools/cat_log_benchmark.sh. Every self-contained test, including newly
   # added test/data and test/pty suites, is discovered automatically here.
+  # CI excludes test/design only after its separate blocking gate passes.
   flutter test "${EXAMPLE_CI_TEST_TARGETS[@]}"
 )
 

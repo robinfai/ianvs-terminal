@@ -3,6 +3,13 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EXAMPLE_DIR="$ROOT_DIR/example"
+# Default to full checks for local use, main, scheduled and manual runs.
+# CI opts out only for a trusted, known-low-risk pull-request diff.
+VERIFY_APPLE_FULL="${VERIFY_APPLE_FULL:-1}"
+case "$VERIFY_APPLE_FULL" in
+  0|1) ;;
+  *) echo "VERIFY_APPLE_FULL must be 0 or 1" >&2; exit 64 ;;
+esac
 IOS_SIMULATOR_UDID="${IANVS_IOS_SIMULATOR_UDID:-}"
 SIMULATOR_STARTED=0
 
@@ -148,16 +155,20 @@ verify_ios_native_exports "$IOS_APP" "$simulator_arch"
     integration_test/compact_mobile_acceptance_test.dart
 )
 
-(
-  cd "$EXAMPLE_DIR"
-  "${apple_build_env[@]}" flutter build ios --release --no-codesign
-)
-IOS_RELEASE_APP="$(
-  find "$EXAMPLE_DIR/build/ios/iphoneos" \
-    -maxdepth 1 -name '*.app' -print -quit
-)"
-if [[ -z "$IOS_RELEASE_APP" ]]; then
-  echo "Flutter did not produce an iOS Release device application." >&2
-  exit 1
+if [ "$VERIFY_APPLE_FULL" = "1" ]; then
+  (
+    cd "$EXAMPLE_DIR"
+    "${apple_build_env[@]}" flutter build ios --release --no-codesign
+  )
+  IOS_RELEASE_APP="$(
+    find "$EXAMPLE_DIR/build/ios/iphoneos" \
+      -maxdepth 1 -name '*.app' -print -quit
+  )"
+  if [[ -z "$IOS_RELEASE_APP" ]]; then
+    echo "Flutter did not produce an iOS Release device application." >&2
+    exit 1
+  fi
+  verify_ios_native_exports "$IOS_RELEASE_APP" arm64
+else
+  echo "PR Debug mode: device Release and arm64 export checks run on main/nightly."
 fi
-verify_ios_native_exports "$IOS_RELEASE_APP" arm64

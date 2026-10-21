@@ -2,12 +2,16 @@ name: Verify
 
 on:
   pull_request:
+  workflow_dispatch:
+  schedule:
+    # Full regression at 02:23 Singapore time; avoid the top-of-hour queue.
+    - cron: "23 18 * * *"
   push:
     branches:
       - main
 
 concurrency:
-  group: verify-${{ github.workflow }}-${{ github.ref }}
+  group: verify-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -257,6 +261,8 @@ jobs:
         run: dart run tools/verify_terminal_core_publish.dart
 
       - name: Run repository verification
+        env:
+          VERIFY_FLUTTER_TERMINAL_SKIP_DESIGN_TESTS: ${{ steps.visual_baselines.outcome == 'success' && '1' || '0' }}
         run: ./tools/verify_flutter_terminal.sh
 
   macos-app:
@@ -268,20 +274,33 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Validate CI policy
+        run: python3 -m unittest discover -s tools/ci -p 'test_*.py'
+
+      - name: Select Apple verification scope
+        id: scope
+        run: python3 tools/ci/apple_verification_scope.py --platform macos
 
       - name: Set up Go
+        if: steps.scope.outputs.run == 'true'
         uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
         with:
           go-version: "1.23.x"
           cache-dependency-path: backend/go.sum
 
       - name: Set up Rust
+        if: steps.scope.outputs.run == 'true'
         uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master; Rust version pinned below
         with:
           toolchain: "1.88.0"
           targets: aarch64-apple-darwin,x86_64-apple-darwin
 
       - name: Set up Flutter
+        if: steps.scope.outputs.run == 'true'
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: "3.44.2"
@@ -289,9 +308,11 @@ jobs:
           cache: false
 
       - name: Enable macOS build target
+        if: steps.scope.outputs.run == 'true'
         run: flutter config --enable-macos-desktop
 
       - name: Print tool versions
+        if: steps.scope.outputs.run == 'true'
         run: |
           go version
           rustc --version
@@ -302,6 +323,9 @@ jobs:
           uname -m
 
       - name: Verify macOS integration, packaging, signature and native tests
+        if: steps.scope.outputs.run == 'true'
+        env:
+          VERIFY_APPLE_FULL: ${{ steps.scope.outputs.full }}
         run: ./tools/verify_macos_app.sh
 
       - name: Preserve macOS native test diagnostics
@@ -322,13 +346,25 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Validate CI policy
+        run: python3 -m unittest discover -s tools/ci -p 'test_*.py'
+
+      - name: Select Apple verification scope
+        id: scope
+        run: python3 tools/ci/apple_verification_scope.py --platform ios
 
       - name: Set up Rust
+        if: steps.scope.outputs.run == 'true'
         uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master; Rust version pinned below
         with:
           toolchain: "1.88.0"
 
       - name: Set up Flutter
+        if: steps.scope.outputs.run == 'true'
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: "3.44.2"
@@ -336,6 +372,7 @@ jobs:
           cache: false
 
       - name: Enable iOS build targets
+        if: steps.scope.outputs.run == 'true'
         run: |
           rustup target add \
             aarch64-apple-ios \
@@ -343,6 +380,7 @@ jobs:
             x86_64-apple-ios
 
       - name: Print tool versions
+        if: steps.scope.outputs.run == 'true'
         run: |
           rustc --version
           cargo --version
@@ -352,7 +390,11 @@ jobs:
           uname -m
 
       - name: Resolve workspace dependencies
+        if: steps.scope.outputs.run == 'true'
         run: flutter pub get
 
       - name: Verify iOS simulator and device static linkage and sandbox shell
+        if: steps.scope.outputs.run == 'true'
+        env:
+          VERIFY_APPLE_FULL: ${{ steps.scope.outputs.full }}
         run: ./tools/verify_ios_simulator.sh
