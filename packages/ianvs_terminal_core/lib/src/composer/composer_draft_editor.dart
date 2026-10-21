@@ -33,6 +33,9 @@ Future<ComposerDraftEditResult?> showComposerDraftEditor(
   bool Function()? isCurrent,
   Listenable? stateChanges,
   TextStyle? textStyle,
+  String Function(bool focused)? editorHint,
+  Widget Function(TextEditingController, FocusNode, bool, Widget)?
+  editorWrapper,
 }) => Navigator.of(context).push<ComposerDraftEditResult>(
   _ComposerDraftRoute(
     reducedMotion: MediaQuery.disableAnimationsOf(context),
@@ -47,6 +50,8 @@ Future<ComposerDraftEditResult?> showComposerDraftEditor(
       isCurrent: isCurrent,
       stateChanges: stateChanges,
       textStyle: textStyle,
+      editorHint: editorHint,
+      editorWrapper: editorWrapper,
     ),
   ),
 );
@@ -87,6 +92,8 @@ class ComposerDraftEditor extends StatefulWidget {
     this.isCurrent,
     this.stateChanges,
     this.textStyle,
+    this.editorHint,
+    this.editorWrapper,
     super.key,
   });
 
@@ -100,6 +107,9 @@ class ComposerDraftEditor extends StatefulWidget {
   final bool Function()? isCurrent;
   final Listenable? stateChanges;
   final TextStyle? textStyle;
+  final String Function(bool focused)? editorHint;
+  final Widget Function(TextEditingController, FocusNode, bool, Widget)?
+  editorWrapper;
 
   @override
   State<ComposerDraftEditor> createState() => _ComposerDraftEditorState();
@@ -115,6 +125,7 @@ class _ComposerDraftEditorState extends State<ComposerDraftEditor> {
   @override
   void initState() {
     super.initState();
+    _focus.addListener(_changed);
     _choice = widget.initialIntentChoice;
     _editor = TextEditingController.fromValue(
       widget.initialValue.copyWith(composing: TextRange.empty),
@@ -263,7 +274,7 @@ class _ComposerDraftEditorState extends State<ComposerDraftEditor> {
         ],
       ),
     );
-    final field = Padding(
+    final rawField = Padding(
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
       child: TextField(
         key: const Key('composer-draft-editor'),
@@ -288,13 +299,18 @@ class _ComposerDraftEditorState extends State<ComposerDraftEditor> {
         style: style,
         strutStyle: StrutStyle.fromTextStyle(style, forceStrutHeight: true),
         decoration: InputDecoration(
-          hintText: t('Unsent draft', '尚未发送的草稿'),
+          hintText:
+              widget.editorHint?.call(_focus.hasFocus) ??
+              t('Unsent draft', '尚未发送的草稿'),
           border: InputBorder.none,
           enabledBorder: InputBorder.none,
           focusedBorder: InputBorder.none,
         ),
       ),
     );
+    final field =
+        widget.editorWrapper?.call(_editor, _focus, _current, rawField) ??
+        rawField;
     return Focus(
       onKeyEvent: (_, event) {
         if (event is KeyDownEvent &&

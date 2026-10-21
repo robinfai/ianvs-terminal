@@ -279,14 +279,13 @@ void main() {
       const channel = MethodChannel('app/voice_input');
       final recognition = Completer<String?>();
       final calls = <String>[];
-      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-        channel,
-        (call) async {
-          calls.add(call.method);
-          if (call.method == 'start') return recognition.future;
-          return null;
-        },
-      );
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+        call,
+      ) async {
+        calls.add(call.method);
+        if (call.method == 'start') return recognition.future;
+        return null;
+      });
       addTearDown(() {
         tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
           channel,
@@ -331,7 +330,7 @@ void main() {
         await Future<void>.delayed(Duration.zero);
       });
       await tester.pumpAndSettle();
-      expect(calls, ['start', cancel ? 'cancel' : 'stop']);
+      expect(calls, ['start', if (cancel) 'cancel' else 'stop']);
       expect(tester.element(prompt), same(element));
       expect(field(tester).controller, same(editor));
       expect(
@@ -346,7 +345,7 @@ void main() {
       await tester.tap(prompt);
       await tester.pumpAndSettle();
       expect(field(tester).maxLines, 5);
-      expect(calls, ['start', cancel ? 'cancel' : 'stop']);
+      expect(calls, ['start', if (cancel) 'cancel' else 'stop']);
       expect(tester.takeException(), isNull);
     });
   }
