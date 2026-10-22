@@ -2303,6 +2303,38 @@ fn wait_for_frame_containing(session_id: u64, needle: &str) -> String {
     panic!("timed out waiting for frame containing {needle}");
 }
 
+fn retain_title_frame_rows(frame: &str, rows: &mut BTreeMap<u64, serde_json::Value>) -> String {
+    let mut parsed: serde_json::Value = serde_json::from_str(frame).unwrap();
+    // Title fixtures fit a stationary viewport. A delta contains only changed
+    // rows, while a snapshot replaces the previously retained viewport.
+    assert_eq!(parsed["viewport_row_shift"].as_i64().unwrap_or(0), 0);
+    if parsed["frame_kind"].as_str() == Some("snapshot") {
+        rows.clear();
+    }
+    for row in parsed["rows"].as_array().expect("expected frame rows") {
+        rows.insert(
+            row["index"].as_u64().expect("expected row index"),
+            row.clone(),
+        );
+    }
+    parsed["rows"] = serde_json::Value::Array(rows.values().cloned().collect());
+    parsed.to_string()
+}
+
+fn wait_for_title_frame_containing(session_id: u64, needle: &str) -> String {
+    let mut rows = BTreeMap::new();
+    for _ in 0..SESSION_WAIT_ATTEMPTS {
+        if let Some(frame) = session::take_frame_diff(session_id).unwrap() {
+            let frame = retain_title_frame_rows(&frame, &mut rows);
+            if frame.contains(needle) {
+                return frame;
+            }
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+    panic!("timed out waiting for title frame containing {needle}");
+}
+
 fn wait_for_frame_where(session_id: u64, predicate: impl Fn(&str) -> bool) -> String {
     for _ in 0..SESSION_WAIT_ATTEMPTS {
         if let Some(frame) = session::take_frame_diff(session_id)
@@ -17161,6 +17193,51 @@ fn vt220_sessions_gate_osc0_and_legacy_title_aliases() {
 }
 
 #[test]
+fn title_frame_rows_retain_responses_across_split_deltas() {
+    let mut rows = BTreeMap::new();
+    let mut initial_rows = (0..7)
+        .map(|index| {
+            serde_json::json!({
+                "index": index,
+                "text": format!("TITLE-OPS-R{index}:response-{index}"),
+            })
+        })
+        .collect::<Vec<_>>();
+    initial_rows.push(serde_json::json!({"index": 7, "text": "TITLE-OPS-R7:partial"}));
+    let initial = serde_json::json!({
+        "frame_kind": "snapshot",
+        "rows": initial_rows,
+    });
+    retain_title_frame_rows(&initial.to_string(), &mut rows);
+    let final_delta = serde_json::json!({
+        "frame_kind": "delta",
+        "window_title": "Direct;both",
+        "rows": [
+            {"index": 7, "text": "TITLE-OPS-R7:response-7"},
+            {"index": 8, "text": "TITLE-OPS-READY"},
+        ],
+    });
+    assert_eq!(logical_rows_from_frame(&final_delta.to_string()).len(), 2);
+    let frame = retain_title_frame_rows(&final_delta.to_string(), &mut rows);
+    let expected = (0..8)
+        .map(|index| format!("TITLE-OPS-R{index}:response-{index}"))
+        .chain(["TITLE-OPS-READY".to_string()])
+        .collect::<Vec<_>>();
+    assert_eq!(logical_rows_from_frame(&frame), expected);
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&frame).unwrap()["window_title"].as_str(),
+        Some("Direct;both")
+    );
+
+    let replacement = serde_json::json!({
+        "frame_kind": "snapshot",
+        "rows": [{"index": 0, "text": "new viewport"}],
+    });
+    let frame = retain_title_frame_rows(&replacement.to_string(), &mut rows);
+    assert_eq!(logical_rows_from_frame(&frame), ["new viewport"]);
+}
+
+#[test]
 fn session_round_trips_xterm_title_queries_modes_and_stack_from_real_pty() {
     let session_id = session::create_session(
         &serde_json::to_string(&xterm_title_window_ops_profile(TerminalEmulation::Xterm256))
@@ -17168,7 +17245,7 @@ fn session_round_trips_xterm_title_queries_modes_and_stack_from_real_pty() {
     )
     .unwrap();
 
-    let frame = wait_for_frame_containing(session_id, "TITLE-OPS-READY");
+    let frame = wait_for_title_frame_containing(session_id, "TITLE-OPS-READY");
     let rows = logical_rows_from_frame(&frame);
     let expected: &[&[u8]] = &[
         b"\x1b]LIcon;beta\x1b\\",
@@ -17214,7 +17291,7 @@ fn vt220_sessions_silence_xterm_title_queries_modes_and_stack() {
     )
     .unwrap();
 
-    let frame = wait_for_frame_containing(session_id, "TITLE-OPS-READY");
+    let frame = wait_for_title_frame_containing(session_id, "TITLE-OPS-READY");
     let rows = logical_rows_from_frame(&frame);
     assert!(rows.iter().any(|row| row == "TITLE-OPS-TIMEOUT"));
     assert!(

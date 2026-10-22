@@ -124,6 +124,9 @@ void main() {
       ) async {
         await mount(tester, compactMobile: compact);
         final field = find.byKey(const Key('ai-prompt'));
+        if (compact) expect(tester.widget<TextField>(field).maxLines, 1);
+        await tester.tap(field);
+        await tester.pumpAndSettle();
         expect(tester.widget<TextField>(field).maxLines, 5);
         final singleHeight = tester.getSize(field).height;
         input(tester).text = 'one\ntwo\nthree\nfour\nfive';
@@ -133,6 +136,26 @@ void main() {
         input(tester).text += '\nsix\nseven';
         await tester.pumpAndSettle();
         expect(tester.getSize(field).height, fiveHeight);
+        final editor = input(tester);
+        final value = editor.value;
+        tester.widget<TextField>(field).focusNode!.unfocus();
+        await tester.pumpAndSettle();
+        if (compact) {
+          expect(tester.widget<TextField>(field).maxLines, 1);
+          expect(
+            tester.getSize(find.byKey(const Key('ai-mobile-composer'))).height,
+            lessThanOrEqualTo(56),
+          );
+        }
+        expect(input(tester), same(editor));
+        expect(editor.value, value);
+        await tester.tap(field);
+        await tester.pumpAndSettle();
+        expect(tester.widget<TextField>(field).maxLines, 5);
+        expect(tester.getSize(field).height, fiveHeight);
+        expect(editor.text, value.text);
+        expect(api.requests, isEmpty);
+        expect(terminal.writes, isEmpty);
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox.shrink());
       });
