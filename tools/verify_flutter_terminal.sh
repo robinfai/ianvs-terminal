@@ -90,8 +90,20 @@ if [ "$VERIFY_FLUTTER_TERMINAL_EXAMPLE_MODE" = "only" ]; then
   if [ "$VERIFY_FLUTTER_TERMINAL_SUITE" != "flutter" ]; then
     echo "Example-only requires flutter suite" >&2; exit 64
   fi
-  "$ROOT_DIR/tools/build_core.sh"
+  (
+    ci_begin_phase "Example native debug build"
+    "$ROOT_DIR/tools/build_core.sh"
+  )
   run_example_tests
+  # Keep the experiment outside the measured test phase. Only shard 0 replays
+  # Cargo; the other shards report the original hook measurement unchanged.
+  if [ "${GITHUB_ACTIONS:-false}" = "true" ]; then
+    NATIVE_PROBE_ARGS=(--root "$ROOT_DIR")
+    if [ "$VERIFY_FLUTTER_TERMINAL_EXAMPLE_SHARD" = "0" ]; then
+      NATIVE_PROBE_ARGS+=(--replay)
+    fi
+    python3 "$ROOT_DIR/tools/ci/native_hook_probe.py" "${NATIVE_PROBE_ARGS[@]}"
+  fi
   exit 0
 fi
 

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:code_assets/code_assets.dart';
@@ -77,11 +78,55 @@ void main(List<String> args) async {
       '--target',
       target,
     ];
+    final startedAt = DateTime.now().toUtc();
+    final cargoTimer = Stopwatch()..start();
     final result = await Process.run(
       'cargo',
       cargoArguments,
       workingDirectory: coreRoot.toFilePath(),
       environment: environment,
+    );
+    cargoTimer.stop();
+    // Hook stdout is normally captured by Flutter. Persist an explicit metric
+    // so CI can distinguish native compilation from test startup/execution.
+    // Record only build configuration, never the entire process environment.
+    final cargoTargetKey = target.toUpperCase().replaceAll('-', '_');
+    final ccTargetKey = target.replaceAll('-', '_');
+    final metric = <String, Object?>{
+      'schema_version': 1,
+      'started_at': startedAt.toIso8601String(),
+      'elapsed_ms': cargoTimer.elapsedMilliseconds,
+      'exit_code': result.exitCode,
+      'profile': 'release',
+      'target': target,
+      'manifest_path': manifest.toFilePath(),
+      'working_directory': coreRoot.toFilePath(),
+      'target_directory': cargoTargetDirectory.toFilePath(),
+      'arguments': cargoArguments,
+      'build_environment': <String, String>{
+        for (final key in <String>[
+          'CARGO_BUILD_JOBS',
+          'CARGO_TARGET_DIR',
+          'CARGO_HOME',
+          'RUSTUP_HOME',
+          'MACOSX_DEPLOYMENT_TARGET',
+          'SDKROOT',
+          'CARGO_TARGET_${cargoTargetKey}_LINKER',
+          'CC_$ccTargetKey',
+          'AR_$ccTargetKey',
+          'HOST_CC',
+          'HOST_AR',
+        ])
+          if (environment.containsKey(key)) key: environment[key]!,
+      },
+    };
+    await File.fromUri(
+      input.outputDirectory.resolve('ianvs-cargo-build.json'),
+    ).writeAsString('${jsonEncode(metric)}\n');
+    stdout.writeln(
+      'Native Cargo build: ${cargoTimer.elapsedMilliseconds} ms; '
+      'target=$target; profile=release; exit=${result.exitCode}; '
+      'directory=${cargoTargetDirectory.toFilePath()}',
     );
     if (result.exitCode != 0) {
       throw ProcessException(
