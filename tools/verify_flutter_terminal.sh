@@ -26,6 +26,11 @@ case "$VERIFY_FLUTTER_TERMINAL_SUITE" in
   all|native|flutter) ;;
   *) echo "VERIFY_FLUTTER_TERMINAL_SUITE must be all, native or flutter" >&2; exit 64 ;;
 esac
+VERIFY_FLUTTER_TERMINAL_PACKAGE_MODE="${VERIFY_FLUTTER_TERMINAL_PACKAGE_MODE:-all}"
+case "$VERIFY_FLUTTER_TERMINAL_PACKAGE_MODE" in
+  all|skip|only) ;;
+  *) echo "Invalid VERIFY_FLUTTER_TERMINAL_PACKAGE_MODE" >&2; exit 64 ;;
+esac
 VERIFY_FLUTTER_TERMINAL_EXAMPLE_MODE="${VERIFY_FLUTTER_TERMINAL_EXAMPLE_MODE:-all}"
 case "$VERIFY_FLUTTER_TERMINAL_EXAMPLE_MODE" in
   all|skip|only) ;;
@@ -74,6 +79,28 @@ if [ "$VERIFY_FLUTTER_TERMINAL_SUITE" != "flutter" ]; then
     echo "Install it with: rustup target add thumbv7em-none-eabihf" >&2
     exit 1
   fi
+fi
+
+if [ "$VERIFY_FLUTTER_TERMINAL_PACKAGE_MODE" = "only" ]; then
+  if [ "$VERIFY_FLUTTER_TERMINAL_SUITE" != "flutter" ] || \
+     [ "$VERIFY_FLUTTER_TERMINAL_EXAMPLE_MODE" != "skip" ]; then
+    echo "Package-only mode requires flutter suite and skipped Example" >&2; exit 64
+  fi
+  "$ROOT_DIR/tools/build_core.sh"
+(
+  ci_begin_phase "Dart PTY tests"
+  cd "$PTY_DIR"
+  dart test
+)
+
+(
+  ci_begin_phase "Standalone terminal core tests"
+  cd "$TERMINAL_CORE_DIR"
+  flutter analyze --fatal-infos
+  flutter test
+)
+
+  exit 0
 fi
 
 if [ "$VERIFY_FLUTTER_TERMINAL_EXAMPLE_MODE" = "only" ]; then
@@ -175,11 +202,14 @@ fi
   dart analyze --fatal-infos
 )
 
+if [ "$VERIFY_FLUTTER_TERMINAL_PACKAGE_MODE" != "skip" ]; then
 (
   ci_begin_phase "Dart PTY tests"
   cd "$PTY_DIR"
   dart test
 )
+
+fi
 
 (
   ci_begin_phase "Flutter terminal package tests"
@@ -187,12 +217,16 @@ fi
   flutter test
 )
 
+
+if [ "$VERIFY_FLUTTER_TERMINAL_PACKAGE_MODE" != "skip" ]; then
 (
   ci_begin_phase "Standalone terminal core tests"
   cd "$TERMINAL_CORE_DIR"
   flutter analyze --fatal-infos
   flutter test
 )
+
+fi
 
 (
   ci_begin_phase "Repository contract tests"
