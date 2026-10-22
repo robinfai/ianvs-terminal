@@ -1148,7 +1148,7 @@ class _TerminalViewportState extends State<TerminalViewport>
   }
 
   bool get _terminalMouseEnabled =>
-      widget.controller.frame.modes.mouseMode != 'off';
+      !widget.readOnly && widget.controller.frame.modes.mouseMode != 'off';
 
   bool get _terminalMouseBlocksLocalSelection =>
       _terminalMouseEnabled && !_usesMobileTextInput;
@@ -1170,7 +1170,8 @@ class _TerminalViewportState extends State<TerminalViewport>
 
   bool get _terminalAlternateScrollEnabled {
     final modes = widget.controller.frame.modes;
-    return modes.alternateScreen &&
+    return !widget.readOnly &&
+        modes.alternateScreen &&
         modes.alternateScroll &&
         modes.mouseMode == 'off';
   }

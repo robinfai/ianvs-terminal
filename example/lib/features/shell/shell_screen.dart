@@ -219,7 +219,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   bool _sessionSidebarOpen = false;
   static const _layoutCueDuration = Duration(milliseconds: 1400);
   static const _runtimeErrorNoticeDuration = Duration(seconds: 4);
-  static const _viewportResizeDebounce = Duration(milliseconds: 240);
+  static const _viewportResizeInterval = Duration(milliseconds: 32);
   static const _terminalOverlayPadding = EdgeInsets.fromLTRB(12, 10, 14, 12);
 
   static const _annotationLimit = 80;

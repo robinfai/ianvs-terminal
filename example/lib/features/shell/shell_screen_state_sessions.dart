@@ -47,19 +47,13 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     if (!mounted || !_sessionExists(sessionId)) {
       return;
     }
-    final selection = _selectionControllers[sessionId];
-    void applyResize() {
-      // Selection can be cleared during a build (for example closing a pane).
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || !_sessionExists(sessionId)) return;
-        if (_scheduledViewportSizes[sessionId] != viewportSize ||
-            _terminalViewportDevicePixelRatios[sessionId] != devicePixelRatio) {
-          return;
-        }
-        if (selection?.selection != null) {
-          _selectionResizeGuards[sessionId]?.resize(applyResize);
-          return;
-        }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_sessionExists(sessionId)) return;
+      if (_scheduledViewportSizes[sessionId] != viewportSize ||
+          _terminalViewportDevicePixelRatios[sessionId] != devicePixelRatio) {
+        return;
+      }
+      void applyResize() {
         sessionController.resizeSession(
           sessionId,
           viewportSize,
@@ -67,17 +61,18 @@ extension _ShellScreenStateSessions on _ShellScreenState {
         );
         _committedViewportSizes[sessionId] = viewportSize;
         _refreshSearchMatchesAfterResize(sessionId);
-      });
-      WidgetsBinding.instance.ensureVisualUpdate();
-    }
+      }
 
-    if (selection == null) {
-      applyResize();
-    } else {
-      _selectionResizeGuards
-          .putIfAbsent(sessionId, () => SelectionResizeGuard(selection))
-          .resize(applyResize);
-    }
+      final selection = _selectionControllers[sessionId];
+      if (selection == null) {
+        applyResize();
+      } else {
+        _selectionResizeGuards
+            .putIfAbsent(sessionId, () => SelectionResizeGuard(selection))
+            .resize(applyResize);
+      }
+    });
+    WidgetsBinding.instance.ensureVisualUpdate();
   }
 
   bool _sessionExists(String sessionId) {
@@ -96,8 +91,8 @@ extension _ShellScreenStateSessions on _ShellScreenState {
   }) {
     _scheduledViewportSizes[sessionId] = viewportSize;
     _terminalViewportDevicePixelRatios[sessionId] = devicePixelRatio;
-    _viewportResizeTimers.remove(sessionId)?.cancel();
     if (immediate) {
+      _viewportResizeTimers.remove(sessionId)?.cancel();
       _commitViewportResize(
         sessionController,
         sessionId,
@@ -107,15 +102,21 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       return;
     }
 
+    // Keep the timer's deadline while replacing its target with latest metrics.
+    // Continuous window dragging therefore cannot starve native resize.
+    if (_viewportResizeTimers.containsKey(sessionId)) return;
     _viewportResizeTimers[sessionId] = Timer(
-      _ShellScreenState._viewportResizeDebounce,
+      _ShellScreenState._viewportResizeInterval,
       () {
         _viewportResizeTimers.remove(sessionId);
+        final latestSize = _scheduledViewportSizes[sessionId];
+        final latestRatio = _terminalViewportDevicePixelRatios[sessionId];
+        if (latestSize == null || latestRatio == null) return;
         _commitViewportResize(
           sessionController,
           sessionId,
-          viewportSize,
-          devicePixelRatio,
+          latestSize,
+          latestRatio,
         );
       },
     );

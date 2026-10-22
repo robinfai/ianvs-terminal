@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:app/features/ai/terminal_ai_workspace.dart';
@@ -172,6 +173,162 @@ Finder _menuAction(TerminalActionId action) => find.byWidgetPredicate(
 );
 
 void main() {
+  testWidgets(
+    'readonly TUI supports local selection and history scrolling',
+    (tester) async {
+      final backend = _Backend();
+      final container = await _mount(tester, backend);
+      final id = container.read(sessionControllerProvider).activeSessionId!;
+      await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.byKey(const Key('shell-toggle-read-only')),
+      );
+      await tester.tap(find.byKey(const Key('shell-toggle-read-only')));
+      await tester.pumpAndSettle();
+      backend.setFrame(id, {
+        'rows': [
+          {'index': 0, 'text': 'TUI content to inspect'},
+        ],
+        'cursor': {'row': 0, 'col': 0, 'visible': true},
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'scrollback_max_offset': 20,
+        'modes': {'mouse_mode': 'normal', 'mouse_encoding': 'sgr'},
+      });
+      container.read(terminalRuntimeControllerProvider).refreshSession(id);
+      await tester.pumpAndSettle();
+      final viewport = tester.widget<app_terminal.TerminalViewport>(
+        _viewportFinder(id),
+      );
+      expect(viewport.readOnly, isTrue);
+      viewport.selectionController.clear();
+      backend.writes.clear();
+      backend.scrollCalls.clear();
+      final pos = tester.getTopLeft(_viewportFinder(id)) + const Offset(35, 12);
+      final pointer = await tester.startGesture(
+        pos,
+        kind: PointerDeviceKind.mouse,
+      );
+      await pointer.moveBy(const Offset(100, 0));
+      await pointer.up();
+      await tester.sendEventToBinding(
+        PointerScrollEvent(
+          position: pos,
+          scrollDelta: const Offset(0, -100),
+          kind: PointerDeviceKind.mouse,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(viewport.selectionController.selection, isNotNull);
+      String? copied;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copied = (call.arguments as Map)['text'] as String;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      unawaited(viewport.inputController.copySelection());
+      await tester.pumpAndSettle();
+      expect(copied, isNotEmpty);
+      expect(backend.selectionTextCalls, isNotEmpty);
+      expect(backend.writes, isEmpty);
+      expect(backend.scrollCalls, isNotEmpty);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  for (final readOnly in [false, true]) {
+    testWidgets(
+      'resize after plain click readOnly=$readOnly',
+      (tester) async {
+        final backend = _Backend();
+        final container = await _mount(tester, backend);
+        final id = container.read(sessionControllerProvider).activeSessionId!;
+        if (readOnly) {
+          await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+          await tester.pumpAndSettle();
+          await tester.ensureVisible(
+            find.byKey(const Key('shell-toggle-read-only')),
+          );
+          await tester.tap(find.byKey(const Key('shell-toggle-read-only')));
+          await tester.pumpAndSettle();
+        }
+        final viewport = tester.widget<app_terminal.TerminalViewport>(
+          _viewportFinder(id),
+        );
+        expect(viewport.readOnly, readOnly);
+        viewport.selectionController.clear();
+        backend.metrics.clear();
+        tester.view.physicalSize = const Size(1100, 760);
+        await _settleMetrics(tester);
+        expect(
+          backend.metrics,
+          isNotEmpty,
+          reason: 'No selection: resize works in both modes',
+        );
+        await tester.tapAt(
+          tester.getTopLeft(_viewportFinder(id)) + const Offset(40, 12),
+          kind: PointerDeviceKind.mouse,
+        );
+        await tester.pump();
+        final selection = viewport.selectionController.selection;
+        expect(selection, isNotNull);
+        expect(selection!.startRow, selection.endRow);
+        expect(selection.startCol, selection.endCol);
+        backend.metrics.clear();
+        tester.view.physicalSize = const Size(1000, 700);
+        await _settleMetrics(tester);
+        expect(backend.metrics, isNotEmpty);
+        expect(viewport.selectionController.selection, isNull);
+        backend.metrics.clear();
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.escape);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.escape);
+        await _settleMetrics(tester);
+        expect(viewport.selectionController.selection, isNull);
+        expect(backend.metrics, isEmpty);
+        viewport.selectionController.clear();
+        await _settleMetrics(tester);
+        expect(
+          backend.metrics,
+          isEmpty,
+          reason: 'No resize waits for selection dismissal',
+        );
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+  }
+  testWidgets(
+    'continuous window resize reaches native while dragging',
+    (tester) async {
+      final backend = _Backend();
+      await _mount(tester, backend);
+      backend.metrics.clear();
+      for (var i = 0; i < 10; i++) {
+        tester.view.physicalSize = Size(1190.0 - i * 10, 800);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(backend.metrics.length, greaterThan(1));
+      await _settleMetrics(tester);
+      final viewport = tester.widget<app_terminal.TerminalViewport>(
+        find.byType(app_terminal.TerminalViewport),
+      );
+      expect(backend.metrics.last.pixelWidth, lessThan(1200));
+      expect(viewport.selectionController.selection, isNull);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
   testWidgets(
     'secondary click in inactive raw pane preserves Composer target and draft',
     (tester) async {
@@ -521,7 +678,7 @@ void main() {
   );
 
   testWidgets(
-    'selection release cannot commit a queued resize from the previous DPR',
+    'selected pane resizes immediately and does not retain obsolete DPR',
     (tester) async {
       final backend = _Backend();
       final container = await _mount(tester, backend);
@@ -543,10 +700,13 @@ void main() {
 
       _setDpr(tester, 2);
       await _settleMetrics(tester);
-      expect(backend.metrics, isEmpty, reason: 'Selection holds the resize.');
+      expect(backend.metrics, hasLength(1));
+      expect(viewport.selectionController.selection, isNull);
+      backend.metrics.clear();
+      events.clear();
       viewport.selectionController.clear();
-      // The selection guard has queued the old DPR 2 post-frame commit. A new
-      // metrics frame now supersedes it before that callback is allowed to run.
+      // A later DPR change must commit only the current metrics, without
+      // replaying a resize retained by the previous selection.
       _setDpr(tester, 3);
       await _settleMetrics(tester);
 
