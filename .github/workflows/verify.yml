@@ -2,12 +2,21 @@ name: Verify
 
 on:
   pull_request:
+  workflow_dispatch:
+    inputs:
+      render_baseline_candidates:
+        description: Generate review candidates after a failed visual comparison
+        type: boolean
+        default: false
+  schedule:
+    # Full regression at 02:23 Singapore time; avoid the top-of-hour queue.
+    - cron: "23 18 * * *"
   push:
     branches:
       - main
 
 concurrency:
-  group: verify-${{ github.workflow }}-${{ github.ref }}
+  group: verify-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -158,18 +167,14 @@ jobs:
           go version
           go test -race -p 1 ./...
 
-  flutter-terminal:
-    name: Flutter terminal (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+  flutter-checks:
+    name: Dart and Flutter checks (macos-26)
+    runs-on: macos-26
     timeout-minutes: 90
-    strategy:
-      matrix:
-        include:
-          - os: macos-26
-            skip_macos_integration: "1"
-
     env:
-      VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION: ${{ matrix.skip_macos_integration }}
+      VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION: "1"
+      VERIFY_FLUTTER_TERMINAL_SUITE: flutter
+      VERIFY_FLUTTER_TERMINAL_EXAMPLE_MODE: skip
 
     steps:
       - name: Check out repository
@@ -207,6 +212,13 @@ jobs:
             x86_64-apple-darwin
           flutter config --enable-macos-desktop
 
+      - name: Cache Rust dependencies
+        uses: ./.github/actions/cache-rust
+        with:
+          workspaces: |
+            native/core
+            packages/ianvs_terminal_core/native/core
+
       - name: Print tool versions
         run: |
           rustc --version
@@ -223,6 +235,7 @@ jobs:
             "$FLUTTER_ROOT/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf"
 
       - name: Resolve workspace dependencies
+        id: dependencies
         run: flutter pub get
 
       - name: Verify visual baselines
@@ -238,26 +251,137 @@ jobs:
           path: example/test/design/failures/
           retention-days: 7
 
+      - name: Verify standalone pub archive
+        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
+        run: dart run tools/verify_terminal_core_publish.dart
+
+      - name: Run repository verification
+        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
+        env:
+          VERIFY_FLUTTER_TERMINAL_SKIP_DESIGN_TESTS: ${{ (steps.visual_baselines.outcome == 'success' || steps.visual_baselines.outcome == 'failure') && '1' || '0' }}
+        run: ./tools/verify_flutter_terminal.sh
+
       - name: Render baseline candidates for review
-        if: failure() && steps.visual_baselines.outcome == 'failure'
+        if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && inputs.render_baseline_candidates && steps.visual_baselines.outcome == 'failure' }}
         working-directory: example
         # The failed visual comparison remains the gate. These candidate
         # images are only review artifacts and are never committed by CI.
         run: flutter test test/design --update-goldens
 
       - name: Upload baseline candidates
-        if: failure() && steps.visual_baselines.outcome == 'failure'
+        if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && inputs.render_baseline_candidates && steps.visual_baselines.outcome == 'failure' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: visual-baseline-candidates-${{ matrix.os }}
-          path: example/test/design/goldens/${{ matrix.os }}/
+          name: visual-baseline-candidates-macos-26
+          path: example/test/design/goldens/macos-26/
           retention-days: 7
 
-      - name: Verify standalone pub archive
-        run: dart run tools/verify_terminal_core_publish.dart
+  example-checks:
+    name: Example widget tests (macos-26)
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      VERIFY_FLUTTER_TERMINAL_SUITE: flutter
+      VERIFY_FLUTTER_TERMINAL_EXAMPLE_MODE: only
+      VERIFY_FLUTTER_TERMINAL_SKIP_DESIGN_TESTS: "1"
+      VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
-      - name: Run repository verification
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master; Rust version pinned below
+        with:
+          toolchain: "1.88.0"
+          components: clippy,rustfmt
+          targets: thumbv7em-none-eabihf
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          # Match the SDK/engine used by example/test/design/goldens.
+          flutter-version: "3.44.2"
+          channel: stable
+          # flutter-action's cache=true path currently invokes a transitive
+          # mutable actions/cache tag. Keep it disabled until upstream pins
+          # that dependency; pub/cargo locks still make resolution repeatable.
+          cache: false
+
+      - name: Enable macOS build targets
+        if: runner.os == 'macOS'
+        run: |
+          rustup target add \
+            aarch64-apple-darwin \
+            x86_64-apple-darwin
+          flutter config --enable-macos-desktop
+
+      - name: Cache Rust dependencies
+        uses: ./.github/actions/cache-rust
+        with:
+          workspaces: |
+            native/core
+            packages/ianvs_terminal_core/native/core
+
+      - name: Resolve workspace dependencies
+        run: flutter pub get
+      - name: Run Example widget tests
         run: ./tools/verify_flutter_terminal.sh
+
+  native-checks:
+    name: Rust and Go checks (macos-26)
+    runs-on: macos-26
+    timeout-minutes: 90
+    env:
+      VERIFY_FLUTTER_TERMINAL_SUITE: native
+      VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          persist-credentials: false
+      - name: Validate CI policy
+        run: python3 -m unittest discover -s tools/ci -p 'test_*.py'
+      - name: Set up Go
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+        with:
+          go-version: "1.23.x"
+          cache-dependency-path: backend/go.sum
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
+        with:
+          toolchain: "1.88.0"
+          components: clippy,rustfmt
+          targets: thumbv7em-none-eabihf,aarch64-apple-darwin,x86_64-apple-darwin
+      - name: Cache Rust dependencies
+        uses: ./.github/actions/cache-rust
+        with:
+          workspaces: |
+            native/core
+            native/completion_core
+            native/vendor/par-term-emu-core-rust
+            native/vendor/zmodem2
+            packages/ianvs_terminal_core/native/core
+      - name: Run native repository verification
+        run: ./tools/verify_flutter_terminal.sh
+
+  flutter-terminal:
+    # Preserve the existing branch-protection check, not just the workflow name.
+    name: Flutter terminal (macos-26)
+    needs: [native-checks, flutter-checks, example-checks]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every repository suite to pass
+        env:
+          NATIVE_RESULT: ${{ needs.native-checks.result }}
+          FLUTTER_RESULT: ${{ needs.flutter-checks.result }}
+          EXAMPLE_RESULT: ${{ needs.example-checks.result }}
+        run: |
+          printf 'Native: %s; Flutter: %s\n' "$NATIVE_RESULT" "$FLUTTER_RESULT"
+          test "$NATIVE_RESULT" = success
+          test "$FLUTTER_RESULT" = success
+          test "$EXAMPLE_RESULT" = success
 
   macos-app:
     name: macOS app integration and release (macos-26)
@@ -268,20 +392,33 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Validate CI policy
+        run: python3 -m unittest discover -s tools/ci -p 'test_*.py'
+
+      - name: Select Apple verification scope
+        id: scope
+        run: python3 tools/ci/apple_verification_scope.py --platform macos
 
       - name: Set up Go
+        if: steps.scope.outputs.run == 'true'
         uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
         with:
           go-version: "1.23.x"
           cache-dependency-path: backend/go.sum
 
       - name: Set up Rust
+        if: steps.scope.outputs.run == 'true'
         uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master; Rust version pinned below
         with:
           toolchain: "1.88.0"
           targets: aarch64-apple-darwin,x86_64-apple-darwin
 
       - name: Set up Flutter
+        if: steps.scope.outputs.run == 'true'
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: "3.44.2"
@@ -289,9 +426,19 @@ jobs:
           cache: false
 
       - name: Enable macOS build target
+        if: steps.scope.outputs.run == 'true'
         run: flutter config --enable-macos-desktop
 
+      - name: Cache Rust dependencies
+        if: steps.scope.outputs.run == 'true'
+        uses: ./.github/actions/cache-rust
+        with:
+          workspaces: |
+            native/core
+            packages/ianvs_terminal_core/native/core
+
       - name: Print tool versions
+        if: steps.scope.outputs.run == 'true'
         run: |
           go version
           rustc --version
@@ -302,6 +449,9 @@ jobs:
           uname -m
 
       - name: Verify macOS integration, packaging, signature and native tests
+        if: steps.scope.outputs.run == 'true'
+        env:
+          VERIFY_APPLE_FULL: ${{ steps.scope.outputs.full }}
         run: ./tools/verify_macos_app.sh
 
       - name: Preserve macOS native test diagnostics
@@ -322,13 +472,25 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Validate CI policy
+        run: python3 -m unittest discover -s tools/ci -p 'test_*.py'
+
+      - name: Select Apple verification scope
+        id: scope
+        run: python3 tools/ci/apple_verification_scope.py --platform ios
 
       - name: Set up Rust
+        if: steps.scope.outputs.run == 'true'
         uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master; Rust version pinned below
         with:
           toolchain: "1.88.0"
 
       - name: Set up Flutter
+        if: steps.scope.outputs.run == 'true'
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: "3.44.2"
@@ -336,13 +498,23 @@ jobs:
           cache: false
 
       - name: Enable iOS build targets
+        if: steps.scope.outputs.run == 'true'
         run: |
           rustup target add \
             aarch64-apple-ios \
             aarch64-apple-ios-sim \
             x86_64-apple-ios
 
+      - name: Cache Rust dependencies
+        if: steps.scope.outputs.run == 'true'
+        uses: ./.github/actions/cache-rust
+        with:
+          workspaces: |
+            native/core
+            packages/ianvs_terminal_core/native/core
+
       - name: Print tool versions
+        if: steps.scope.outputs.run == 'true'
         run: |
           rustc --version
           cargo --version
@@ -352,7 +524,11 @@ jobs:
           uname -m
 
       - name: Resolve workspace dependencies
+        if: steps.scope.outputs.run == 'true'
         run: flutter pub get
 
       - name: Verify iOS simulator and device static linkage and sandbox shell
+        if: steps.scope.outputs.run == 'true'
+        env:
+          VERIFY_APPLE_FULL: ${{ steps.scope.outputs.full }}
         run: ./tools/verify_ios_simulator.sh

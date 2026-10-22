@@ -4,6 +4,13 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CORE_DIR="$ROOT_DIR/native/core"
 EXAMPLE_DIR="$ROOT_DIR/example"
+# Default to full checks for local use, main, scheduled and manual runs.
+# CI opts out only for a trusted, known-low-risk pull-request diff.
+VERIFY_APPLE_FULL="${VERIFY_APPLE_FULL:-1}"
+case "$VERIFY_APPLE_FULL" in
+  0|1) ;;
+  *) echo "VERIFY_APPLE_FULL must be 0 or 1" >&2; exit 64 ;;
+esac
 
 if [ "$(uname -s)" != "Darwin" ]; then
   echo "The macOS application gate requires macOS." >&2
@@ -102,17 +109,21 @@ PROFILE=debug "$ROOT_DIR/tools/build_core.sh"
   flutter build macos --debug
   debug_app="$EXAMPLE_DIR/build/macos/Build/Products/Debug/Trail Development.app"
   codesign --verify --deep --strict "$debug_app"
-  # Flutter re-embeds signed frameworks during incremental builds. The outer
-  # app must be re-sealed when those declared script outputs change.
-  flutter build macos --debug
-  codesign --verify --deep --strict "$debug_app"
-  flutter build macos --release
-  release_app="$EXAMPLE_DIR/build/macos/Build/Products/Release/Trail.app"
-  verify_release_bundle "$release_app"
-  # Rebuild once more to exercise CodeAsset incremental packaging and prove
-  # that a Release rebuild still seals the bundled dylib cleanly.
-  flutter build macos --release
-  verify_release_bundle "$release_app"
+  if [ "$VERIFY_APPLE_FULL" = "1" ]; then
+    # Flutter re-embeds signed frameworks during incremental builds. The outer
+    # app must be re-sealed when those declared script outputs change.
+    flutter build macos --debug
+    codesign --verify --deep --strict "$debug_app"
+    flutter build macos --release
+    release_app="$EXAMPLE_DIR/build/macos/Build/Products/Release/Trail.app"
+    verify_release_bundle "$release_app"
+    # Rebuild once more to exercise CodeAsset incremental packaging and prove
+    # that a Release rebuild still seals the bundled dylib cleanly.
+    flutter build macos --release
+    verify_release_bundle "$release_app"
+  else
+    echo "PR Debug mode: Release and incremental resealing checks run on main/nightly."
+  fi
 
   # Xcode pre-actions print their complete inherited environment. Run the
   # native test target with an allowlisted environment so local/CI signing,
