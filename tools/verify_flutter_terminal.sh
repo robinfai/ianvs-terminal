@@ -26,6 +26,38 @@ case "$VERIFY_FLUTTER_TERMINAL_SUITE" in
   all|native|flutter) ;;
   *) echo "VERIFY_FLUTTER_TERMINAL_SUITE must be all, native or flutter" >&2; exit 64 ;;
 esac
+VERIFY_FLUTTER_TERMINAL_EXAMPLE_MODE="${VERIFY_FLUTTER_TERMINAL_EXAMPLE_MODE:-all}"
+case "$VERIFY_FLUTTER_TERMINAL_EXAMPLE_MODE" in
+  all|skip|only) ;;
+  *) echo "Invalid VERIFY_FLUTTER_TERMINAL_EXAMPLE_MODE" >&2; exit 64 ;;
+esac
+run_example_tests() (
+  ci_begin_phase "Example tests"
+  cd "$EXAMPLE_DIR"
+  EXAMPLE_CI_TEST_TARGETS=()
+  while IFS= read -r test_target; do
+    if [ "$VERIFY_FLUTTER_TERMINAL_SKIP_DESIGN_TESTS" = "1" ] && \
+      [[ "$test_target" == test/design/* ]]; then
+      continue
+    fi
+    EXAMPLE_CI_TEST_TARGETS+=("$test_target")
+  done < <(
+    find test -type f -name '*_test.dart' \
+      ! -path 'test/benchmarks/cat_log_benchmark_test.dart' \
+      -print | LC_ALL=C sort
+  )
+  if [ "${#EXAMPLE_CI_TEST_TARGETS[@]}" -eq 0 ]; then
+    echo "No example tests were discovered." >&2
+    exit 1
+  fi
+  echo "Discovered ${#EXAMPLE_CI_TEST_TARGETS[@]} example test files."
+  # The cat-log benchmark requires a captured trace and is exercised by
+  # tools/cat_log_benchmark.sh. Every self-contained test, including newly
+  # added test/data and test/pty suites, is discovered automatically here.
+  # CI excludes test/design after its separate blocking gate ran, even if red.
+  flutter test "${EXAMPLE_CI_TEST_TARGETS[@]}"
+)
+
 # Bash 3.2 can exit before the `time` keyword reports an errexit failure.
 # Call only inside a phase subshell: its EXIT trap logs both success/failure
 # without changing the parent shell's traps or suppressing `set -e`.
@@ -42,6 +74,15 @@ if [ "$VERIFY_FLUTTER_TERMINAL_SUITE" != "flutter" ]; then
     echo "Install it with: rustup target add thumbv7em-none-eabihf" >&2
     exit 1
   fi
+fi
+
+if [ "$VERIFY_FLUTTER_TERMINAL_EXAMPLE_MODE" = "only" ]; then
+  if [ "$VERIFY_FLUTTER_TERMINAL_SUITE" != "flutter" ]; then
+    echo "Example-only requires flutter suite" >&2; exit 64
+  fi
+  "$ROOT_DIR/tools/build_core.sh"
+  run_example_tests
+  exit 0
 fi
 
 if [ "$VERIFY_FLUTTER_TERMINAL_SUITE" != "native" ]; then
@@ -192,32 +233,9 @@ if grep -RFnw -- "AppPreferencesRepository" "$ROOT_DIR/example/lib" | \
   exit 1
 fi
 
-(
-  ci_begin_phase "Example tests"
-  cd "$EXAMPLE_DIR"
-  EXAMPLE_CI_TEST_TARGETS=()
-  while IFS= read -r test_target; do
-    if [ "$VERIFY_FLUTTER_TERMINAL_SKIP_DESIGN_TESTS" = "1" ] && \
-      [[ "$test_target" == test/design/* ]]; then
-      continue
-    fi
-    EXAMPLE_CI_TEST_TARGETS+=("$test_target")
-  done < <(
-    find test -type f -name '*_test.dart' \
-      ! -path 'test/benchmarks/cat_log_benchmark_test.dart' \
-      -print | LC_ALL=C sort
-  )
-  if [ "${#EXAMPLE_CI_TEST_TARGETS[@]}" -eq 0 ]; then
-    echo "No example tests were discovered." >&2
-    exit 1
-  fi
-  echo "Discovered ${#EXAMPLE_CI_TEST_TARGETS[@]} example test files."
-  # The cat-log benchmark requires a captured trace and is exercised by
-  # tools/cat_log_benchmark.sh. Every self-contained test, including newly
-  # added test/data and test/pty suites, is discovered automatically here.
-  # CI excludes test/design after its separate blocking gate ran, even if red.
-  flutter test "${EXAMPLE_CI_TEST_TARGETS[@]}"
-)
+if [ "$VERIFY_FLUTTER_TERMINAL_EXAMPLE_MODE" != "skip" ]; then
+  run_example_tests
+fi
 
 if [ "$VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION" = "1" ]; then
   echo "Skipping macOS integration tests because VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION=1"

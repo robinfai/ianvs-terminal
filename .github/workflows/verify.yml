@@ -174,6 +174,7 @@ jobs:
     env:
       VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION: "1"
       VERIFY_FLUTTER_TERMINAL_SUITE: flutter
+      VERIFY_FLUTTER_TERMINAL_EXAMPLE_MODE: skip
 
     steps:
       - name: Check out repository
@@ -275,6 +276,57 @@ jobs:
           path: example/test/design/goldens/macos-26/
           retention-days: 7
 
+  example-checks:
+    name: Example widget tests (macos-26)
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      VERIFY_FLUTTER_TERMINAL_SUITE: flutter
+      VERIFY_FLUTTER_TERMINAL_EXAMPLE_MODE: only
+      VERIFY_FLUTTER_TERMINAL_SKIP_DESIGN_TESTS: "1"
+      VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master; Rust version pinned below
+        with:
+          toolchain: "1.88.0"
+          components: clippy,rustfmt
+          targets: thumbv7em-none-eabihf
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          # Match the SDK/engine used by example/test/design/goldens.
+          flutter-version: "3.44.2"
+          channel: stable
+          # flutter-action's cache=true path currently invokes a transitive
+          # mutable actions/cache tag. Keep it disabled until upstream pins
+          # that dependency; pub/cargo locks still make resolution repeatable.
+          cache: false
+
+      - name: Enable macOS build targets
+        if: runner.os == 'macOS'
+        run: |
+          rustup target add \
+            aarch64-apple-darwin \
+            x86_64-apple-darwin
+          flutter config --enable-macos-desktop
+
+      - name: Cache Rust dependencies
+        uses: ./.github/actions/cache-rust
+        with:
+          workspaces: |
+            native/core
+            packages/ianvs_terminal_core/native/core
+
+      - name: Resolve workspace dependencies
+        run: flutter pub get
+      - name: Run Example widget tests
+        run: ./tools/verify_flutter_terminal.sh
+
   native-checks:
     name: Rust and Go checks (macos-26)
     runs-on: macos-26
@@ -315,7 +367,7 @@ jobs:
   flutter-terminal:
     # Preserve the existing branch-protection check, not just the workflow name.
     name: Flutter terminal (macos-26)
-    needs: [native-checks, flutter-checks]
+    needs: [native-checks, flutter-checks, example-checks]
     if: ${{ always() }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -324,10 +376,12 @@ jobs:
         env:
           NATIVE_RESULT: ${{ needs.native-checks.result }}
           FLUTTER_RESULT: ${{ needs.flutter-checks.result }}
+          EXAMPLE_RESULT: ${{ needs.example-checks.result }}
         run: |
           printf 'Native: %s; Flutter: %s\n' "$NATIVE_RESULT" "$FLUTTER_RESULT"
           test "$NATIVE_RESULT" = success
           test "$FLUTTER_RESULT" = success
+          test "$EXAMPLE_RESULT" = success
 
   macos-app:
     name: macOS app integration and release (macos-26)

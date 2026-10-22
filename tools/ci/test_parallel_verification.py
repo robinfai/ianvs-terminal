@@ -168,18 +168,31 @@ esac
     def test_existing_required_check_aggregates_both_suites(self):
         block = job_source("flutter-terminal")
         self.assertIn("name: Flutter terminal (macos-26)", block)
-        self.assertIn("needs: [native-checks, flutter-checks]", block)
+        self.assertIn("needs: [native-checks, flutter-checks, example-checks]", block)
         self.assertIn("if: ${{ always() }}", block)
         self.assertIn("NATIVE_RESULT: ${{ needs.native-checks.result }}", block)
         self.assertIn("FLUTTER_RESULT: ${{ needs.flutter-checks.result }}", block)
+        self.assertIn("EXAMPLE_RESULT: ${{ needs.example-checks.result }}", block)
         script = block.split("        run: |\n", 1)[1]
         script = "\n".join(line[10:] for line in script.splitlines())
         for native, flutter in itertools.product(("success", "failure", "cancelled", "skipped", ""), repeat=2):
             with self.subTest(native=native, flutter=flutter):
-                env = dict(os.environ, NATIVE_RESULT=native, FLUTTER_RESULT=flutter)
+                env = dict(os.environ, NATIVE_RESULT=native, FLUTTER_RESULT=flutter, EXAMPLE_RESULT="success")
                 result = subprocess.run(["bash", "-e", "-o", "pipefail", "-c", script], env=env,
                                         capture_output=True, text=True, timeout=5)
                 self.assertEqual(result.returncode == 0, native == flutter == "success")
+
+    def test_example_parallel_gate(self):
+        self.assertIn("VERIFY_FLUTTER_TERMINAL_EXAMPLE_MODE: only", job_source("example-checks"))
+        self.assertIn("VERIFY_FLUTTER_TERMINAL_EXAMPLE_MODE: skip", job_source("flutter-checks"))
+        result, commands = self.run_suite("flutter")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(any("example | flutter | test" in x for x in commands))
+        block = job_source("flutter-terminal")
+        script = "\n".join(line[10:] for line in block.split("        run: |\n", 1)[1].splitlines())
+        for status in ("failure", "cancelled", "skipped", ""):
+            env = dict(os.environ, NATIVE_RESULT="success", FLUTTER_RESULT="success", EXAMPLE_RESULT=status)
+            self.assertNotEqual(subprocess.run(["bash", "-e", "-c", script], env=env, capture_output=True).returncode, 0)
 
     def test_visual_failure_does_not_skip_other_verification(self):
         block = job_source("flutter-checks")
