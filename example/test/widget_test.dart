@@ -2276,10 +2276,16 @@ void main() {
     expect(find.byKey(const Key('paste-confirmation-dialog')), findsOneWidget);
     expect(find.text('Paste 28 characters across 2 lines?'), findsOneWidget);
     expect(find.text('Preview'), findsOneWidget);
-    final preview = tester.widget<TerminalCodePreview>(
-      find.byKey(const Key('paste-confirmation-preview')),
-    );
-    expect(preview.text, 'first command\nsecond command');
+    final previewFinder = find.byKey(const Key('paste-confirmation-preview'));
+    final preview = tester.widget<TerminalCodePreview>(previewFinder);
+    expect(preview.text, clipboardText);
+    final renderedPreview = tester
+        .widgetList<RichText>(
+          find.descendant(of: previewFinder, matching: find.byType(RichText)),
+        )
+        .map((text) => text.text.toPlainText())
+        .join();
+    expect(renderedPreview, 'first command\nsecond command');
     expect(fakeBindings.writes, isEmpty);
 
     await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
