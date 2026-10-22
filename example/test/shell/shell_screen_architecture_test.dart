@@ -461,6 +461,8 @@ Iterable<File> _allowedShellExternalDependencies(Directory libDirectory) {
     'features/ai/ai_settings.dart',
     'features/ai/ai_settings_dialog.dart',
     'features/ai/terminal_ai_controller.dart',
+    // Shell reuses the code preview for explicit paste confirmation.
+    'features/ai/terminal_ai_message.dart',
     // AI owns connection/receipt routing and native evidence presentation;
     // Shell only creates sessions and assembles these feature boundaries.
     'features/ai/terminal_ai_connections.dart',

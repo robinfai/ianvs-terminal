@@ -2,6 +2,8 @@ ARG SOURCE_DATE_EPOCH=1785542400
 
 FROM ubuntu:24.04@sha256:561618e2c15bf2397621dd04f96926663a3b5616c189cf7e38db7e82f5c538ea AS pam-builder
 
+# Retry transient snapshot 502/503 responses; reject incomplete indexes rather
+# than proceeding to installation with missing package lists. Keep archive pins.
 RUN printf '%s\n' \
         'Types: deb' \
         'URIs: http://snapshot.ubuntu.com/ubuntu/20260801T000000Z/' \
@@ -9,8 +11,12 @@ RUN printf '%s\n' \
         'Components: main universe' \
         'Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg' \
         > /etc/apt/sources.list.d/ubuntu.sources \
-    && apt-get -o Acquire::https::Verify-Peer=false update \
-    && DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::https::Verify-Peer=false install --yes --no-install-recommends \
+    && apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 \
+        -o Acquire::https::Timeout=30 -o APT::Update::Error-Mode=any \
+        -o Acquire::https::Verify-Peer=false update \
+    && DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 \
+        -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 \
+        -o Acquire::https::Verify-Peer=false install --yes --no-install-recommends \
         gcc=4:13.2.0-7ubuntu1 \
         libc6-dev=2.39-0ubuntu8.8 \
         libpam0g-dev=1.5.3-5ubuntu5.6
@@ -28,6 +34,8 @@ ARG SOURCE_DATE_EPOCH
 # Use the same immutable Ubuntu snapshot and OpenSSH package version as the
 # existing ZMODEM fixture. Host and client keys are generated outside the image
 # so the checked fixture contains no reusable credentials.
+# Retry transient snapshot 502/503 responses; reject incomplete indexes rather
+# than proceeding to installation with missing package lists. Keep archive pins.
 RUN printf '%s\n' \
         'Types: deb' \
         'URIs: http://snapshot.ubuntu.com/ubuntu/20260801T000000Z/' \
@@ -35,8 +43,12 @@ RUN printf '%s\n' \
         'Components: main universe' \
         'Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg' \
         > /etc/apt/sources.list.d/ubuntu.sources \
-    && apt-get -o Acquire::https::Verify-Peer=false update \
-    && DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::https::Verify-Peer=false install --yes --no-install-recommends \
+    && apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 \
+        -o Acquire::https::Timeout=30 -o APT::Update::Error-Mode=any \
+        -o Acquire::https::Verify-Peer=false update \
+    && DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 \
+        -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 \
+        -o Acquire::https::Verify-Peer=false install --yes --no-install-recommends \
         ca-certificates=20260601~24.04.1 \
         openssh-server=1:9.6p1-3ubuntu13.18 \
         socat=1.8.0.0-4ubuntu0.1 \

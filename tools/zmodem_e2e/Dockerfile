@@ -7,6 +7,8 @@ ARG SOURCE_DATE_EPOCH
 # snapshot.ubuntu.com redirects the HTTP bootstrap URI to HTTPS, while the
 # pinned base has no CA bundle yet. APT signatures and hashes still
 # authenticate the pinned archive until ca-certificates is installed.
+# Retry transient snapshot 502/503 responses; reject incomplete indexes rather
+# than proceeding to installation with missing package lists. Keep archive pins.
 RUN printf '%s\n' \
         'Types: deb' \
         'URIs: http://snapshot.ubuntu.com/ubuntu/20260801T000000Z/' \
@@ -14,8 +16,12 @@ RUN printf '%s\n' \
         'Components: main universe' \
         'Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg' \
         > /etc/apt/sources.list.d/ubuntu.sources \
-    && apt-get -o Acquire::https::Verify-Peer=false update \
-    && DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::https::Verify-Peer=false install --yes --no-install-recommends \
+    && apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 \
+        -o Acquire::https::Timeout=30 -o APT::Update::Error-Mode=any \
+        -o Acquire::https::Verify-Peer=false update \
+    && DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 \
+        -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 \
+        -o Acquire::https::Verify-Peer=false install --yes --no-install-recommends \
         ca-certificates=20260601~24.04.1 \
         lrzsz=0.12.21-11build1 \
         openssh-server=1:9.6p1-3ubuntu13.18 \
