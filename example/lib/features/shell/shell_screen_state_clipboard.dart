@@ -217,6 +217,7 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
       builder: (dialogContext) {
         return AlertDialog(
           key: const Key('paste-confirmation-dialog'),
+          scrollable: true,
           title: Text(dialogContext.l10n.confirmPaste),
           content: SizedBox(
             width: 560,

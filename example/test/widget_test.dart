@@ -8,6 +8,8 @@ import 'package:app/data/configuration/data_api_configuration_repository.dart';
 import 'package:app/data/services/data_api_migration_service.dart';
 import 'package:app/data/services/data_api_remote_fallback.dart';
 import 'package:app/data/services/data_api_runtime.dart';
+import 'package:app/features/ai/terminal_ai_message.dart'
+    show TerminalCodePreview;
 import 'package:app/features/config/data_api_terminal_config_repository.dart';
 import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/config/local_terminal_config_repository.dart';
@@ -2274,15 +2276,22 @@ void main() {
     expect(find.byKey(const Key('paste-confirmation-dialog')), findsOneWidget);
     expect(find.text('Paste 28 characters across 2 lines?'), findsOneWidget);
     expect(find.text('Preview'), findsOneWidget);
-    final preview = tester.widget<Text>(
-      find.byKey(const Key('paste-confirmation-preview')),
-    );
-    expect(preview.data, 'first command\nsecond command');
+    final previewFinder = find.byKey(const Key('paste-confirmation-preview'));
+    final preview = tester.widget<TerminalCodePreview>(previewFinder);
+    expect(preview.text, clipboardText);
+    final renderedPreview = tester
+        .widgetList<RichText>(
+          find.descendant(of: previewFinder, matching: find.byType(RichText)),
+        )
+        .map((text) => text.text.toPlainText())
+        .join();
+    expect(renderedPreview, 'first command\nsecond command');
     expect(fakeBindings.writes, isEmpty);
 
     await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
     await tester.pumpAndSettle();
     await pasteFuture;
+    expect(fakeBindings.writes, isEmpty);
   });
 
   testWidgets(

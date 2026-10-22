@@ -198,11 +198,12 @@ void main() {
         await tester.showKeyboard(prompt);
         final input = field(tester).controller!;
         const value = TextEditingValue(
-          text: '中文\n第二行，路径 /srv/应用 🧭',
+          text: '中文\n第二行，路径 /srv/应用 🧭\n第三行\n第四行\n第五行\n第六行',
           selection: TextSelection(baseOffset: 0, extentOffset: 2),
         );
         input.value = value;
         await tester.pump();
+        expect(field(tester).maxLines, size.height < 320 ? 1 : 5);
         await tester.tap(find.byKey(const Key('ai-dismiss-keyboard')));
         await tester.pumpAndSettle();
         expect(field(tester).focusNode!.hasFocus, isFalse);
@@ -214,11 +215,29 @@ void main() {
         expect(input.value, value);
         expect(field(tester).maxLines, 1);
         expect(find.byKey(const Key('ai-expand-draft')), findsOneWidget);
+        await tester.tap(find.byKey(const Key('ai-expand-draft')));
+        await tester.pumpAndSettle();
+        final expanded = tester.widget<TextField>(
+          find.byKey(const Key('composer-draft-editor')),
+        );
+        expect(expanded.controller!.value, value);
+        await tester.tap(find.byKey(const Key('composer-draft-hide-keyboard')));
+        await tester.pumpAndSettle();
+        expect(expanded.controller!.value, value);
+        await tester.tap(find.byKey(const Key('composer-draft-done')));
+        await tester.pumpAndSettle();
+        expect(field(tester).controller, same(input));
+        expect(input.value, value);
+        expect(field(tester).maxLines, 1);
+        expect(
+          tester.getSize(find.byKey(const Key('ai-mobile-composer'))).height,
+          lessThanOrEqualTo(56),
+        );
         await tester.tap(prompt);
         await tester.pump();
         expect(field(tester).controller, same(input));
         expect(input.text, value.text);
-        expect(field(tester).maxLines, size.height < 320 ? 1 : 4);
+        expect(field(tester).maxLines, size.height < 320 ? 1 : 5);
         expect(api.requests, isEmpty);
         expect(terminal.writes, isEmpty);
         expect(tester.takeException(), isNull);
@@ -253,6 +272,84 @@ void main() {
     expect(terminal.writes, isEmpty);
   });
 
+  for (final cancel in [false, true]) {
+    testWidgets('collapsed long draft retains voice input: cancel=$cancel', (
+      tester,
+    ) async {
+      const channel = MethodChannel('app/voice_input');
+      final recognition = Completer<String?>();
+      final calls = <String>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+        call,
+      ) async {
+        calls.add(call.method);
+        if (call.method == 'start') return recognition.future;
+        return null;
+      });
+      addTearDown(() {
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        );
+      });
+      await mount(tester, size: const Size(320, 844));
+      final prompt = find.byKey(const Key('ai-prompt'));
+      await tester.showKeyboard(prompt);
+      final editor = field(tester).controller!;
+      const value = TextEditingValue(
+        text: '中文\n第二行\n第三行\n第四行\n第五行\n第六行 🧭',
+        selection: TextSelection(baseOffset: 0, extentOffset: 2),
+      );
+      editor.value = value;
+      await tester.pumpAndSettle();
+      final element = tester.element(prompt);
+      expect(field(tester).maxLines, 5);
+      await tester.tap(find.byKey(const Key('ai-dismiss-keyboard')));
+      await tester.pumpAndSettle();
+      expect(field(tester).maxLines, 1);
+      expect(editor.value, value);
+      expect(calls, isEmpty);
+      final gesture = await tester.startGesture(tester.getCenter(prompt));
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(calls, ['start']);
+      expect(editor.value, value);
+      expect(field(tester).focusNode!.hasFocus, isFalse);
+      expect(
+        tester.getSize(find.byKey(const Key('ai-mobile-composer'))).height,
+        lessThanOrEqualTo(56),
+      );
+      if (cancel) {
+        await gesture.moveTo(
+          tester.getCenter(find.byKey(const Key('voice-cancel-zone'))),
+        );
+        await tester.pump();
+      }
+      await gesture.up();
+      await tester.runAsync(() async {
+        recognition.complete('语音草稿');
+        await Future<void>.delayed(Duration.zero);
+      });
+      await tester.pumpAndSettle();
+      expect(calls, ['start', if (cancel) 'cancel' else 'stop']);
+      expect(tester.element(prompt), same(element));
+      expect(field(tester).controller, same(editor));
+      expect(
+        editor.text,
+        cancel ? value.text : '语音草稿${value.text.substring(2)}',
+      );
+      if (cancel) expect(editor.value, value);
+      expect(controller.draft, editor.text);
+      expect(field(tester).maxLines, 1);
+      expect(api.requests, isEmpty);
+      expect(terminal.writes, isEmpty);
+      await tester.tap(prompt);
+      await tester.pumpAndSettle();
+      expect(field(tester).maxLines, 5);
+      expect(calls, ['start', if (cancel) 'cancel' else 'stop']);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('focus/draft/rotation retain the editing value and controller', (
     tester,
   ) async {
@@ -267,7 +364,7 @@ void main() {
     );
     original.value = value;
     await tester.pump();
-    expect(field(tester).maxLines, 4);
+    expect(field(tester).maxLines, 5);
     field(tester).focusNode!.unfocus();
     await tester.pump();
     expect(field(tester).controller, same(original));

@@ -25,6 +25,7 @@ import '../test/support/macos_integration_test_lifecycle.dart';
 import '../test/support/memory_app_preferences_repository.dart';
 import '../test/support/memory_local_terminal_config_repository.dart';
 import '../test/support/memory_profile_repository.dart';
+import '../test/support/refresh_policy_evidence.dart';
 
 const _frameWait = Duration(seconds: 20);
 const _pollStep = Duration(milliseconds: 100);
@@ -2972,7 +2973,7 @@ while [ ! -f "$RELEASE_FILE" ]; do sleep 0.05; done
     pollStep: const Duration(milliseconds: 5),
     description: 'a current ${state.name} refresh result newer than history',
     condition: () {
-      final latest = _latestRefreshEvent(runtimeEvents, sessionId);
+      final latest = latestRefreshResult(runtimeEvents, sessionId);
       if (latest == null ||
           latest['event'] != 'refresh_result' ||
           latest['refresh_id'] is! int ||
@@ -2991,6 +2992,15 @@ while [ ! -f "$RELEASE_FILE" ]; do sleep 0.05; done
   );
 
   expect(preparedResult, isNotNull);
+  expect(
+    runtime
+        .refreshPolicySnapshotFor(sessionId)
+        .pumpMetrics
+        .currentDelay
+        .inMicroseconds,
+    delayMicros,
+    reason: 'The prepared result must still describe the current policy.',
+  );
   if (state == _BaselineIdleWakeState.maximumBackoff) {
     expect(
       preparedResult!['current_delay_micros'],
@@ -3133,7 +3143,7 @@ while [ ! -f "$RELEASE_FILE" ]; do sleep 0.05; done
     pollStep: const Duration(milliseconds: 5),
     description: 'a current ${state.name} refresh result newer than history',
     condition: () {
-      final latest = _latestRefreshEvent(runtimeEvents, sessionId);
+      final latest = latestRefreshResult(runtimeEvents, sessionId);
       if (latest == null ||
           latest['event'] != 'refresh_result' ||
           latest['refresh_id'] is! int ||
@@ -3153,6 +3163,15 @@ while [ ! -f "$RELEASE_FILE" ]; do sleep 0.05; done
   );
 
   expect(preparedResult, isNotNull);
+  expect(
+    runtime
+        .refreshPolicySnapshotFor(sessionId)
+        .pumpMetrics
+        .currentDelay
+        .inMicroseconds,
+    delayMicros,
+    reason: 'The prepared result must still describe the current policy.',
+  );
   expect(
     runtime.refreshPolicySnapshotFor(sessionId).refreshClass,
     expectedClass,

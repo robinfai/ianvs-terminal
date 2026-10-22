@@ -612,7 +612,7 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
           _focus.hasFocus ||
           !_input.value.composing.isCollapsed ||
           _draftEditorOpen;
-      // Keep long drafts readable even when the keyboard is dismissed.
+      // Keep the reading row compact; the expanded editor retains the full draft.
       final hasDraft = _input.text.isNotEmpty || c.attachments.isNotEmpty;
       final keyboard = View.of(context).viewInsets.bottom > 0;
       final blocked =
@@ -689,7 +689,7 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
                         ),
                         Expanded(
                           child: _prompt(
-                            maxLines: short ? 1 : 5,
+                            maxLines: short || !editing ? 1 : 5,
                             hintText: _mobileDraftHint,
                             dense: true,
                           ),
