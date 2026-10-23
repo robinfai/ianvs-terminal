@@ -277,17 +277,13 @@ jobs:
           retention-days: 7
 
   example-checks:
-    name: Example widget tests (macos-26, shard ${{ matrix.shard }})
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [0, 1, 2]
+    name: Example widget tests (macos-26)
     runs-on: macos-26
     timeout-minutes: 60
     env:
       VERIFY_FLUTTER_TERMINAL_SUITE: flutter
       VERIFY_FLUTTER_TERMINAL_EXAMPLE_MODE: only
-      VERIFY_FLUTTER_TERMINAL_EXAMPLE_SHARD: ${{ matrix.shard }}
+      VERIFY_FLUTTER_TERMINAL_EXAMPLE_SHARD: all
       VERIFY_FLUTTER_TERMINAL_SKIP_DESIGN_TESTS: "1"
       VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION: "1"
     steps:
@@ -329,8 +325,8 @@ jobs:
 
       - name: Resolve workspace dependencies
         run: flutter pub get
-      - name: Run Example widget tests
-        run: ./tools/verify_flutter_terminal.sh
+      - name: Run Example widget tests with bounded in-job concurrency
+        run: python3 tools/ci/run_example_parallel.py --workers 2
 
   native-checks:
     name: Rust and Go checks (macos-26)
