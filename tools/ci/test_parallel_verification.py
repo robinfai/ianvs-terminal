@@ -194,14 +194,15 @@ esac
             env = dict(os.environ, NATIVE_RESULT="success", FLUTTER_RESULT="success", EXAMPLE_RESULT=status)
             self.assertNotEqual(subprocess.run(["bash", "-e", "-c", script], env=env, capture_output=True).returncode, 0)
 
-    def test_example_shard_matrix_contract(self):
+    def test_example_single_runner_parallel_contract(self):
         block = job_source("example-checks")
-        self.assertIn("shard: [0, 1, 2]", block)
-        self.assertIn("VERIFY_FLUTTER_TERMINAL_EXAMPLE_SHARD: ${{ matrix.shard }}", block)
-        self.assertIn("fail-fast: false", block)
+        self.assertNotIn("matrix:", block)
+        self.assertIn("Run Example widget tests with bounded in-job concurrency", block)
+        self.assertIn("python3 tools/ci/run_example_parallel.py --workers 2", block)
         self.assertIn("needs: [native-checks, flutter-checks, example-checks]", job_source("flutter-terminal"))
-        script = (ROOT / "tools/verify_flutter_terminal.sh").read_text()
-        self.assertIn("example_test_index % 3", script)
+        driver = (ROOT / "tools/ci/run_example_parallel.py").read_text()
+        for required in ("tests[i::args.workers]", "subprocess.Popen", "proc.wait()", "if failures:"):
+            self.assertIn(required, driver)
 
     def test_visual_failure_does_not_skip_other_verification(self):
         block = job_source("flutter-checks")
