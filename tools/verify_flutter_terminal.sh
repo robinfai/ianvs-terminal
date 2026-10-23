@@ -108,12 +108,20 @@ if [ "$VERIFY_FLUTTER_TERMINAL_EXAMPLE_MODE" = "only" ]; then
 fi
 
 if [ "$VERIFY_FLUTTER_TERMINAL_SUITE" != "native" ]; then
-  "$ROOT_DIR/tools/build_core.sh"
-  "$ROOT_DIR/tools/verify_generated_contracts.sh"
-  dart run "$ROOT_DIR/tools/sync_terminal_core.dart" --check
-
-  python3 "$ROOT_DIR/tools/validate_osc_protocol_corpus.py"
-  python3 "$ROOT_DIR/tools/osc_semantic_probe.py" --self-test
+  (
+    ci_begin_phase "Native debug prebuild"
+    "$ROOT_DIR/tools/build_core.sh"
+  )
+  (
+    ci_begin_phase "Generated contracts and sync"
+    "$ROOT_DIR/tools/verify_generated_contracts.sh"
+    dart run "$ROOT_DIR/tools/sync_terminal_core.dart" --check
+  )
+  (
+    ci_begin_phase "OSC corpus validation"
+    python3 "$ROOT_DIR/tools/validate_osc_protocol_corpus.py"
+    python3 "$ROOT_DIR/tools/osc_semantic_probe.py" --self-test
+  )
 fi
 
 if [ "$VERIFY_FLUTTER_TERMINAL_SUITE" != "flutter" ]; then

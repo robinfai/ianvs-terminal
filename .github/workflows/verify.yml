@@ -236,12 +236,12 @@ jobs:
 
       - name: Resolve workspace dependencies
         id: dependencies
-        run: flutter pub get
+        run: python3 tools/ci/time_command.py 'Workspace pub get' -- flutter pub get
 
       - name: Verify visual baselines
         id: visual_baselines
         working-directory: example
-        run: flutter test test/design
+        run: python3 ../tools/ci/time_command.py 'Visual golden tests' -- flutter test test/design
 
       - name: Upload visual comparison failures
         if: failure() && steps.visual_baselines.outcome == 'failure'
@@ -253,13 +253,13 @@ jobs:
 
       - name: Verify standalone pub archive
         if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
-        run: dart run tools/verify_terminal_core_publish.dart
+        run: python3 tools/ci/time_command.py 'Standalone pub archive verification' -- dart run tools/verify_terminal_core_publish.dart
 
       - name: Run repository verification
         if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
         env:
           VERIFY_FLUTTER_TERMINAL_SKIP_DESIGN_TESTS: ${{ (steps.visual_baselines.outcome == 'success' || steps.visual_baselines.outcome == 'failure') && '1' || '0' }}
-        run: ./tools/verify_flutter_terminal.sh
+        run: python3 tools/ci/time_command.py 'Repository verification' -- ./tools/verify_flutter_terminal.sh
 
       - name: Render baseline candidates for review
         if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && inputs.render_baseline_candidates && steps.visual_baselines.outcome == 'failure' }}
