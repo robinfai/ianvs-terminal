@@ -195,6 +195,129 @@ if args[0] == "build":
         self.assertEqual(len(log.read_text().splitlines()), 3)
 
 
+    def use_canonical_hook_metric(self, project="example", runner="hooks_runner"):
+        # The app depends on ianvs_pty, whose hook builds native/core, not the
+        # standalone package mirror. Use its actual package/output shape.
+        self.path.unlink()
+        self.core = self.root / "native/core"
+        self.core.mkdir(parents=True, exist_ok=True)
+        (self.core / "Cargo.toml").write_text('[package]\nname="test-core"\n')
+        (self.core / "Cargo.lock").write_text("version = 4\n")
+        directory = self.root / project / ".dart_tool" / runner / "ianvs_pty/config/out"
+        directory.mkdir(parents=True, exist_ok=True)
+        self.path = directory / probe.METRIC_NAME
+        self.target = directory / "cargo-target"
+        self.target.mkdir(exist_ok=True)
+        self.metric["manifest_path"] = str(self.core / "Cargo.toml")
+        self.metric["working_directory"] = str(self.core)
+        self.metric["target_directory"] = str(self.target)
+        self.metric["build_environment"]["CARGO_TARGET_DIR"] = str(self.target)
+        self.metric["arguments"][4] = self.metric["manifest_path"]
+        self.write_metric()
+
+    def test_canonical_example_hook_metric_is_loaded(self):
+        self.use_canonical_hook_metric()
+        self.assertEqual(probe.load_metric(self.path, self.root), self.metric)
+
+    def test_discovers_canonical_hook_in_project_output_directories(self):
+        for project in ("", "example", "packages/ianvs_terminal"):
+            for runner in ("hooks_runner", "native_assets_builder"):
+                with self.subTest(project=project, runner=runner):
+                    self.use_canonical_hook_metric(project, runner)
+                    (self.target / probe.METRIC_NAME).write_text("not a metric")
+                    self.assertEqual(probe.discover(self.root), [self.path])
+                    self.assertEqual(probe.load_metric(self.path, self.root), self.metric)
+
+    def test_rejects_unrelated_cargo_manifest(self):
+        self.metric["manifest_path"] = str(self.root / "native/completion_core/Cargo.toml")
+        self.metric["working_directory"] = str(self.root / "native/completion_core")
+        self.metric["arguments"][4] = self.metric["manifest_path"]
+        self.write_metric()
+        with self.assertRaisesRegex(ValueError, "canonical or packaged"):
+            probe.load_metric(self.path, self.root)
+
+    def test_rejects_canonical_manifest_outside_checkout(self):
+        self.use_canonical_hook_metric()
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        outside = Path(temporary.name) / "Cargo.toml"
+        outside.write_text("outside checkout")
+        manifest = self.core / "Cargo.toml"
+        manifest.unlink()
+        manifest.symlink_to(outside)
+        with self.assertRaisesRegex(ValueError, "canonical or packaged"):
+            probe.load_metric(self.path, self.root)
+
+    def test_rejects_canonical_metric_with_packaged_working_directory(self):
+        self.use_canonical_hook_metric()
+        self.metric["working_directory"] = str(self.root / "packages/ianvs_terminal_core/native/core")
+        self.write_metric()
+        with self.assertRaisesRegex(ValueError, "working directory"):
+            probe.load_metric(self.path, self.root)
+
+    def run_canonical_cli(self, *, replay=False, failure=""):
+        self.use_canonical_hook_metric()
+        log, env = self.fake_cargo(failure=failure)
+        env["GITHUB_STEP_SUMMARY"] = str(self.root / "summary.md")
+        command = [sys.executable, str(ROOT / "tools/ci/native_hook_probe.py"),
+                   "--root", str(self.root)]
+        if replay:
+            command.append("--replay")
+        result = subprocess.run(command, env=env, text=True, capture_output=True, timeout=10)
+        report_path = self.root / ".dart_tool/ci/native-hook-probe.json"
+        report = json.loads(report_path.read_text()) if report_path.exists() else None
+        calls = [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
+        return result, report, calls
+
+    def test_canonical_cli_reports_without_replaying_cargo(self):
+        result, report, calls = self.run_canonical_cli()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(calls, [])
+        self.assertEqual(report["initial_builds"][0]["manifest_path"], self.metric["manifest_path"])
+        self.assertEqual(report["selected_manifest_path"], self.metric["manifest_path"])
+        self.assertIn("Native hook build experiment", (self.root / "summary.md").read_text())
+        self.assertNotIn("replay", report)
+
+    def test_canonical_cli_replays_measured_manifest_and_private_target(self):
+        result, report, calls = self.run_canonical_cli(replay=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual([call[0] for call in calls], ["build", "metadata", "clean", "build"])
+        self.assertEqual(calls[0], self.metric["arguments"])
+        self.assertEqual(calls[-1], self.metric["arguments"])
+        self.assertEqual(report["selected_manifest_path"], self.metric["manifest_path"])
+        self.assertEqual(report["replay"]["cleaned_local_packages"], ["local-core"])
+        self.assertTrue((self.target / "aarch64-apple-darwin/release/libianvs_core.dylib").is_file())
+        self.assertFalse((self.core / "target").exists())
+
+    def test_canonical_cli_build_failure_remains_red_and_preserves_report(self):
+        result, report, calls = self.run_canonical_cli(replay=True, failure="build")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual([call[0] for call in calls], ["build"])
+        self.assertIn("probe_error", report)
+        self.assertIn("Native hook probe failed", result.stderr)
+
+
+class RepositoryHookMeasurementTests(unittest.TestCase):
+    def test_canonical_and_published_hooks_measure_the_same_cargo_call(self):
+        sections = []
+        for package in ("ianvs_pty", "ianvs_terminal_core"):
+            with self.subTest(package=package):
+                source = (ROOT / "packages" / package / "hook/build.dart").read_text()
+                self.assertIn("import 'dart:convert';", source)
+                start = source.index("    final startedAt = DateTime.now().toUtc();")
+                end = source.index("    if (result.exitCode != 0) {", start)
+                section = source[start:end]
+                self.assertIn("input.outputDirectory.resolve('ianvs-cargo-build.json')", section)
+                self.assertIn("'manifest_path': manifest.toFilePath()", section)
+                self.assertLess(section.index("Stopwatch()..start()"), section.index("await Process.run("))
+                self.assertLess(section.index("await Process.run("), section.index("cargoTimer.stop()"))
+                sections.append(section)
+        # The full generator --check gate remains authoritative; this cheap
+        # regression catches measuring only the unused package before builds.
+        self.assertEqual(len(sections), 2)
+        self.assertEqual(sections[0], sections[1])
+
+
 class ExampleProbeEntrypointTests(unittest.TestCase):
     def run_script(self, shard="0", *, actions=True, fail_command=""):
         temporary = tempfile.TemporaryDirectory()

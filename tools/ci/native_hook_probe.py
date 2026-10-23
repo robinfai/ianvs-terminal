@@ -65,9 +65,16 @@ def load_metric(path: Path, root: Path) -> dict:
     target = metric.get("target")
     if target not in TARGETS or metric.get("profile") != "release":
         raise ValueError("Unsupported target/profile in Cargo measurement")
-    manifest = (root / "packages/ianvs_terminal_core/native/core/Cargo.toml").resolve()
-    if Path(metric["manifest_path"]).resolve() != manifest:
-        raise ValueError("Probe may only build the packaged terminal core")
+    # Example uses ianvs_pty -> native/core. The standalone published hook
+    # mirrors it but builds its own packaged sources. Replay the measured
+    # manifest, never silently substitute the other source tree.
+    manifests = {
+        (root / "native/core/Cargo.toml").resolve(),
+        (root / "packages/ianvs_terminal_core/native/core/Cargo.toml").resolve(),
+    }
+    manifest = Path(metric["manifest_path"]).resolve()
+    if manifest not in manifests or not inside(manifest, root):
+        raise ValueError("Probe may only build the canonical or packaged terminal core")
     if Path(metric["working_directory"]).resolve() != manifest.parent:
         raise ValueError("Unexpected Cargo working directory")
     target_dir = Path(metric["target_directory"])
@@ -193,8 +200,10 @@ def main(argv: list[str] | None = None) -> int:
         "initial_builds": [
             {key: metric[key] for key in (
                 "started_at", "elapsed_ms", "target", "profile", "target_directory",
+                "manifest_path",
             )} for metric in metrics
         ],
+        "selected_manifest_path": selected["manifest_path"],
         "manifest_sha256": hashlib.sha256(Path(selected["manifest_path"]).read_bytes()).hexdigest(),
         "lock_sha256": hashlib.sha256(
             Path(selected["working_directory"], "Cargo.lock").read_bytes()
@@ -202,7 +211,8 @@ def main(argv: list[str] | None = None) -> int:
     }
     for metric in metrics:
         print(f"Native hook initial Cargo build: {metric['elapsed_ms']} ms "
-              f"({metric['target']}, release); {metric['target_directory']}", flush=True)
+              f"({metric['target']}, release); manifest={metric['manifest_path']}; "
+              f"{metric['target_directory']}", flush=True)
     print("CI phase: Native cache probe (separate from Example test duration)", flush=True)
     try:
         if options.replay:
