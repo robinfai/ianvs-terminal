@@ -72,18 +72,30 @@ def union_seconds(intervals: list[tuple[float, float]]) -> float:
     return total
 
 
+def compiler_cache_snapshot() -> dict | None:
+    if os.environ.get("IANVS_CI_NATIVE_COMPILER_CACHE") != "1":
+        return None
+    try:
+        from native_hook_cache import cache_snapshot
+        return cache_snapshot()
+    except ImportError:
+        # Standalone diagnostic fixtures may intentionally copy only this file.
+        return {"available": False, "error_type": "ImportError"}
+
+
 def begin(phase: str, root: Path = ROOT, output: Path | None = None) -> Path:
     root = root.resolve()
     output = output or root / "build/ci/native-phases"
     output.mkdir(parents=True, exist_ok=True)
     before, errors = snapshot(root)
+    cache_before = compiler_cache_snapshot()
     identifier = uuid.uuid4().hex
     state = {"schema_version": 1, "id": identifier, "phase": phase,
              "root": str(root), "started_utc": datetime.now(timezone.utc).isoformat(),
              "monotonic_start": time.monotonic(),
              "before": {name: item["digest"] for name, item in before.items()},
              "prior_records": [p.name for p in output.glob("*.json")],
-             "collection_errors": errors}
+             "collection_errors": errors, "compiler_cache_before": cache_before}
     path = output / f"{identifier}.start.json"
     path.write_text(json.dumps(state, ensure_ascii=False) + "\n", encoding="utf-8")
     return path
@@ -166,6 +178,12 @@ def finish(state_path: Path, exit_code: int) -> dict:
               "nested_phase_ids": children, "claimed_hook_ids": sorted(claimed),
               "hooks": hooks, "collection_errors": errors,
               "note": "No metric is not proof of no build; unmeasured time includes preparation and tests. Cache hits are not inferred."}
+    if os.environ.get("IANVS_CI_NATIVE_COMPILER_CACHE") == "1":
+        record["compiler_cache"] = {
+            "before": state.get("compiler_cache_before"),
+            "after": compiler_cache_snapshot(),
+            "note": "Process-wide counter snapshots; nested phases overlap. Do not sum parent and child deltas or infer per-Hook hits.",
+        }
     destination = state_path.with_name(f"{state['id']}.json")
     destination.write_text(json.dumps(record, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print("CI_NATIVE_PHASE=" + json.dumps(record, ensure_ascii=False), flush=True)

@@ -27,3 +27,21 @@ runs:
         cache-bin: false
         cache-workspace-crates: false
         cache-on-failure: true
+
+    # Deliberately limited to the existing Flutter job for this pilot. Other
+    # callers keep their previous cache/build behavior. See docs/ci-native-hook-cache.md.
+    - name: Validate Native Hook compiler cache
+      if: github.job == 'flutter-checks' && vars.IANVS_NATIVE_HOOK_CACHE != 'off'
+      shell: bash
+      run: python3 -m unittest discover -s tools/ci -p 'test_native_hook_cache.py'
+
+    - name: Install pinned Native Hook compiler cache
+      if: github.job == 'flutter-checks' && vars.IANVS_NATIVE_HOOK_CACHE != 'off'
+      uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba # v0.0.11
+      with:
+        version: "v0.16.0"
+
+    - name: Configure dependency-only Native Hook cache
+      if: github.job == 'flutter-checks' && vars.IANVS_NATIVE_HOOK_CACHE != 'off'
+      shell: bash
+      run: python3 tools/ci/native_hook_cache.py configure
