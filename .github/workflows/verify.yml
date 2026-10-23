@@ -325,6 +325,8 @@ jobs:
 
       - name: Resolve workspace dependencies
         run: flutter pub get
+      - name: Build Example native debug library
+        run: ./tools/build_core.sh
       - name: Run Example widget tests with bounded in-job concurrency
         run: python3 tools/ci/run_example_parallel.py --workers 2
 
