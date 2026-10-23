@@ -219,7 +219,7 @@ esac
 
     def test_visual_failure_does_not_skip_other_verification(self):
         block = job_source("flutter-checks")
-        self.assertIn("id: dependencies\\n        run: python3 tools/ci/time_command.py 'Workspace pub get' -- flutter pub get", block)
+        self.assertIn("id: dependencies\n        run: python3 tools/ci/time_command.py 'Workspace pub get' -- flutter pub get", block)
         for name in ("Verify standalone pub archive", "Run repository verification"):
             segment = block.split("      - name: " + name + "\n", 1)[1].split("      - name:", 1)[0]
             self.assertIn("if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}", segment)
