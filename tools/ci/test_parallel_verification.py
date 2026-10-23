@@ -163,7 +163,7 @@ esac
             self.assertNotIn("needs:", block)
             self.assertIn("VERIFY_FLUTTER_TERMINAL_SUITE: " + suite, block)
             self.assertNotIn("continue-on-error:", block)
-            self.assertIn("run: ./tools/verify_flutter_terminal.sh", block)
+            self.assertIn("tools/verify_flutter_terminal.sh", block)
 
     def test_existing_required_check_aggregates_both_suites(self):
         block = job_source("flutter-terminal")
@@ -206,15 +206,26 @@ esac
         self.assertEqual(driver.count("subprocess.Popen("), 1)
         self.assertNotIn("tests[i::args.workers]", driver)
 
+    def test_timing_wrapper_retains_blocking_steps(self):
+        block = job_source("flutter-checks")
+        for name in ("Workspace pub get", "Visual golden tests",
+                     "Standalone pub archive verification", "Repository verification"):
+            self.assertIn(name, block)
+        self.assertNotIn("continue-on-error:", block)
+        script = (ROOT / "tools/verify_flutter_terminal.sh").read_text()
+        for phase in ("Native debug prebuild", "Generated contracts and sync",
+                      "OSC corpus validation"):
+            self.assertIn('ci_begin_phase "' + phase + '"', script)
+
     def test_visual_failure_does_not_skip_other_verification(self):
         block = job_source("flutter-checks")
-        self.assertIn("id: dependencies\n        run: flutter pub get", block)
+        self.assertIn("id: dependencies\\n        run: python3 tools/ci/time_command.py 'Workspace pub get' -- flutter pub get", block)
         for name in ("Verify standalone pub archive", "Run repository verification"):
             segment = block.split("      - name: " + name + "\n", 1)[1].split("      - name:", 1)[0]
             self.assertIn("if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}", segment)
         self.assertIn("(steps.visual_baselines.outcome == 'success' || steps.visual_baselines.outcome == 'failure')", block)
         visual = block.split("      - name: Verify visual baselines\n", 1)[1].split("      - name:", 1)[0]
-        self.assertIn("run: flutter test test/design", visual)
+        self.assertIn("time_command.py 'Visual golden tests' -- flutter test test/design", visual)
         self.assertNotIn("continue-on-error", visual)
         self.assertNotIn("continue-on-error", job_source("flutter-terminal"))
 
