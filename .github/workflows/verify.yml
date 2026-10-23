@@ -290,6 +290,9 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
+      - name: Validate Example runner orchestration
+        run: python3 -m unittest discover -s tools/ci -p 'test_example_execution.py'
+
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master; Rust version pinned below
         with:
@@ -325,10 +328,24 @@ jobs:
 
       - name: Resolve workspace dependencies
         run: flutter pub get
+      - name: Prepare locked Example native dependencies
+        timeout-minutes: 10
+        run: python3 tools/ci/prepare_example_dependencies.py
       - name: Build Example native debug library
+        env:
+          CARGO_NET_OFFLINE: "true"
         run: ./tools/build_core.sh
       - name: Run Example widget tests with bounded in-job concurrency
+        env:
+          CARGO_NET_OFFLINE: "true"
         run: python3 tools/ci/run_example_parallel.py --workers 2
+      - name: Preserve Example test diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: example-test-diagnostics
+          path: build/ci/example/
+          retention-days: 7
 
   native-checks:
     name: Rust and Go checks (macos-26)

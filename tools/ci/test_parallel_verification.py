@@ -201,8 +201,10 @@ esac
         self.assertIn("python3 tools/ci/run_example_parallel.py --workers 2", block)
         self.assertIn("needs: [native-checks, flutter-checks, example-checks]", job_source("flutter-terminal"))
         driver = (ROOT / "tools/ci/run_example_parallel.py").read_text()
-        for required in ("tests[i::args.workers]", "subprocess.Popen", "proc.wait()", "if failures:"):
+        for required in ("--no-pub", "--concurrency={workers}", "subprocess.Popen", "proc.wait()", "return code"):
             self.assertIn(required, driver)
+        self.assertEqual(driver.count("subprocess.Popen("), 1)
+        self.assertNotIn("tests[i::args.workers]", driver)
 
     def test_visual_failure_does_not_skip_other_verification(self):
         block = job_source("flutter-checks")
