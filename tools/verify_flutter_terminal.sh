@@ -74,7 +74,12 @@ run_example_tests() (
 ci_begin_phase() {
   echo "CI phase: $1"
   CI_PHASE_STARTED=$SECONDS
-  trap 'ci_phase_status=$?; printf "CI phase duration: %s seconds\n" "$((SECONDS - CI_PHASE_STARTED))" >&2; exit "$ci_phase_status"' EXIT
+  CI_NATIVE_PHASE_STATE=""
+  if [ "${IANVS_CI_NATIVE_METRICS:-0}" = "1" ]; then
+    CI_NATIVE_PHASE_STATE="$(python3 "$ROOT_DIR/tools/ci/native_phase_metrics.py" begin "$1")" || \
+      echo "Native phase measurement unavailable" >&2
+  fi
+  trap 'ci_phase_status=$?; printf "CI phase duration: %s seconds\n" "$((SECONDS - CI_PHASE_STARTED))" >&2; if [ -n "$CI_NATIVE_PHASE_STATE" ]; then python3 "$ROOT_DIR/tools/ci/native_phase_metrics.py" finish "$CI_NATIVE_PHASE_STATE" "$ci_phase_status" || echo "Native phase measurement incomplete" >&2; fi; exit "$ci_phase_status"' EXIT
 }
 
 if [ "$VERIFY_FLUTTER_TERMINAL_SUITE" != "flutter" ]; then
@@ -115,7 +120,12 @@ if [ "$VERIFY_FLUTTER_TERMINAL_SUITE" != "native" ]; then
   (
     ci_begin_phase "Generated contracts and sync"
     "$ROOT_DIR/tools/verify_generated_contracts.sh"
-    dart run "$ROOT_DIR/tools/sync_terminal_core.dart" --check
+    if [ "${IANVS_CI_NATIVE_METRICS:-0}" = "1" ]; then
+      python3 "$ROOT_DIR/tools/ci/time_command.py" 'Standalone source sync' -- \
+        dart run "$ROOT_DIR/tools/sync_terminal_core.dart" --check
+    else
+      dart run "$ROOT_DIR/tools/sync_terminal_core.dart" --check
+    fi
   )
   (
     ci_begin_phase "OSC corpus validation"

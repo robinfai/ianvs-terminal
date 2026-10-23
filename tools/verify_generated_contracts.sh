@@ -10,7 +10,12 @@ cleanup() {
 }
 trap cleanup EXIT
 
-"$ROOT_DIR/tools/gen_bindings.sh" "$TEMP_DIR/ianvs_core.h"
+if [ "${IANVS_CI_NATIVE_METRICS:-0}" = "1" ]; then
+  python3 "$ROOT_DIR/tools/ci/time_command.py" 'C header generation' -- \
+    "$ROOT_DIR/tools/gen_bindings.sh" "$TEMP_DIR/ianvs_core.h"
+else
+  "$ROOT_DIR/tools/gen_bindings.sh" "$TEMP_DIR/ianvs_core.h"
+fi
 diff -u "$CORE_DIR/ianvs_core.h" "$TEMP_DIR/ianvs_core.h"
 "$ROOT_DIR/tools/verify_native_contract.py"
 "$ROOT_DIR/tools/verify_native_binary_contract.sh"

@@ -175,6 +175,7 @@ jobs:
       VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION: "1"
       VERIFY_FLUTTER_TERMINAL_SUITE: flutter
       VERIFY_FLUTTER_TERMINAL_EXAMPLE_MODE: skip
+      IANVS_CI_NATIVE_METRICS: "1"
 
     steps:
       - name: Check out repository
@@ -276,6 +277,14 @@ jobs:
           path: example/test/design/goldens/macos-26/
           retention-days: 7
 
+      - name: Preserve Flutter native phase diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: flutter-native-phase-diagnostics
+          path: build/ci/native-phases/
+          retention-days: 7
+
   example-checks:
     name: Example widget tests (macos-26)
     runs-on: macos-26
@@ -338,6 +347,7 @@ jobs:
       - name: Run Example widget tests with bounded in-job concurrency
         env:
           CARGO_NET_OFFLINE: "true"
+          IANVS_CI_NATIVE_METRICS: "1"
         run: python3 tools/ci/run_example_parallel.py --workers 2
       - name: Preserve Example test diagnostics
         if: always()
@@ -345,6 +355,14 @@ jobs:
         with:
           name: example-test-diagnostics
           path: build/ci/example/
+          retention-days: 7
+
+      - name: Preserve Example native phase diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: example-native-phase-diagnostics
+          path: build/ci/native-phases/
           retention-days: 7
 
   native-checks:
