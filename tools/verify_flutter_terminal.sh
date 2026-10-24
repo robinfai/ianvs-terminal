@@ -31,16 +31,26 @@ case "$VERIFY_FLUTTER_TERMINAL_EXAMPLE_MODE" in
   all|skip|only) ;;
   *) echo "Invalid VERIFY_FLUTTER_TERMINAL_EXAMPLE_MODE" >&2; exit 64 ;;
 esac
+VERIFY_FLUTTER_TERMINAL_EXAMPLE_SHARD="${VERIFY_FLUTTER_TERMINAL_EXAMPLE_SHARD:-all}"
+case "$VERIFY_FLUTTER_TERMINAL_EXAMPLE_SHARD" in
+  all|0|1|2) ;;
+  *) echo "Invalid Example shard" >&2; exit 64 ;;
+esac
 run_example_tests() (
   ci_begin_phase "Example tests"
   cd "$EXAMPLE_DIR"
   EXAMPLE_CI_TEST_TARGETS=()
+  example_test_index=0
   while IFS= read -r test_target; do
     if [ "$VERIFY_FLUTTER_TERMINAL_SKIP_DESIGN_TESTS" = "1" ] && \
       [[ "$test_target" == test/design/* ]]; then
       continue
     fi
-    EXAMPLE_CI_TEST_TARGETS+=("$test_target")
+    if [ "$VERIFY_FLUTTER_TERMINAL_EXAMPLE_SHARD" = "all" ] || \
+       [ "$((example_test_index % 3))" = "$VERIFY_FLUTTER_TERMINAL_EXAMPLE_SHARD" ]; then
+      EXAMPLE_CI_TEST_TARGETS+=("$test_target")
+    fi
+    example_test_index=$((example_test_index + 1))
   done < <(
     find test -type f -name '*_test.dart' \
       ! -path 'test/benchmarks/cat_log_benchmark_test.dart' \
@@ -64,7 +74,12 @@ run_example_tests() (
 ci_begin_phase() {
   echo "CI phase: $1"
   CI_PHASE_STARTED=$SECONDS
-  trap 'ci_phase_status=$?; printf "CI phase duration: %s seconds\n" "$((SECONDS - CI_PHASE_STARTED))" >&2; exit "$ci_phase_status"' EXIT
+  CI_NATIVE_PHASE_STATE=""
+  if [ "${IANVS_CI_NATIVE_METRICS:-0}" = "1" ]; then
+    CI_NATIVE_PHASE_STATE="$(python3 "$ROOT_DIR/tools/ci/native_phase_metrics.py" begin "$1")" || \
+      echo "Native phase measurement unavailable" >&2
+  fi
+  trap 'ci_phase_status=$?; printf "CI phase duration: %s seconds\n" "$((SECONDS - CI_PHASE_STARTED))" >&2; if [ -n "$CI_NATIVE_PHASE_STATE" ]; then python3 "$ROOT_DIR/tools/ci/native_phase_metrics.py" finish "$CI_NATIVE_PHASE_STATE" "$ci_phase_status" || echo "Native phase measurement incomplete" >&2; fi; exit "$ci_phase_status"' EXIT
 }
 
 if [ "$VERIFY_FLUTTER_TERMINAL_SUITE" != "flutter" ]; then
@@ -80,18 +95,43 @@ if [ "$VERIFY_FLUTTER_TERMINAL_EXAMPLE_MODE" = "only" ]; then
   if [ "$VERIFY_FLUTTER_TERMINAL_SUITE" != "flutter" ]; then
     echo "Example-only requires flutter suite" >&2; exit 64
   fi
-  "$ROOT_DIR/tools/build_core.sh"
+  (
+    ci_begin_phase "Example native debug build"
+    "$ROOT_DIR/tools/build_core.sh"
+  )
   run_example_tests
+  # Keep the experiment outside the measured test phase. Only shard 0 replays
+  # Cargo; the other shards report the original hook measurement unchanged.
+  if [ "${GITHUB_ACTIONS:-false}" = "true" ]; then
+    NATIVE_PROBE_ARGS=(--root "$ROOT_DIR")
+    if [ "$VERIFY_FLUTTER_TERMINAL_EXAMPLE_SHARD" = "0" ]; then
+      NATIVE_PROBE_ARGS+=(--replay)
+    fi
+    python3 "$ROOT_DIR/tools/ci/native_hook_probe.py" "${NATIVE_PROBE_ARGS[@]}"
+  fi
   exit 0
 fi
 
 if [ "$VERIFY_FLUTTER_TERMINAL_SUITE" != "native" ]; then
-  "$ROOT_DIR/tools/build_core.sh"
-  "$ROOT_DIR/tools/verify_generated_contracts.sh"
-  dart run "$ROOT_DIR/tools/sync_terminal_core.dart" --check
-
-  python3 "$ROOT_DIR/tools/validate_osc_protocol_corpus.py"
-  python3 "$ROOT_DIR/tools/osc_semantic_probe.py" --self-test
+  (
+    ci_begin_phase "Native debug prebuild"
+    "$ROOT_DIR/tools/build_core.sh"
+  )
+  (
+    ci_begin_phase "Generated contracts and sync"
+    "$ROOT_DIR/tools/verify_generated_contracts.sh"
+    if [ "${IANVS_CI_NATIVE_METRICS:-0}" = "1" ]; then
+      python3 "$ROOT_DIR/tools/ci/time_command.py" 'Standalone source sync' -- \
+        dart run "$ROOT_DIR/tools/sync_terminal_core.dart" --check
+    else
+      dart run "$ROOT_DIR/tools/sync_terminal_core.dart" --check
+    fi
+  )
+  (
+    ci_begin_phase "OSC corpus validation"
+    python3 "$ROOT_DIR/tools/validate_osc_protocol_corpus.py"
+    python3 "$ROOT_DIR/tools/osc_semantic_probe.py" --self-test
+  )
 fi
 
 if [ "$VERIFY_FLUTTER_TERMINAL_SUITE" != "flutter" ]; then

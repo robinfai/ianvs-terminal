@@ -27,9 +27,15 @@ verify_clean_artifact() {
   dart_library="$2"
   target_dir="$3"
 
-  CARGO_TARGET_DIR="$target_dir" cargo build \
-    --locked \
-    --manifest-path "$source_root/Cargo.toml"
+  if [ "${IANVS_CI_NATIVE_METRICS:-0}" = "1" ]; then
+    CARGO_TARGET_DIR="$target_dir" python3 "$ROOT_DIR/tools/ci/time_command.py" \
+      "Clean ABI build: ${target_dir##*/}" -- cargo build \
+      --locked --manifest-path "$source_root/Cargo.toml"
+  else
+    CARGO_TARGET_DIR="$target_dir" cargo build \
+      --locked \
+      --manifest-path "$source_root/Cargo.toml"
+  fi
   library="$target_dir/debug/$LIBRARY_NAME"
   "$ROOT_DIR/tools/verify_native_contract.py" \
     --header "$source_root/ianvs_core.h" \

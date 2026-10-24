@@ -175,6 +175,7 @@ jobs:
       VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION: "1"
       VERIFY_FLUTTER_TERMINAL_SUITE: flutter
       VERIFY_FLUTTER_TERMINAL_EXAMPLE_MODE: skip
+      IANVS_CI_NATIVE_METRICS: "1"
 
     steps:
       - name: Check out repository
@@ -236,12 +237,12 @@ jobs:
 
       - name: Resolve workspace dependencies
         id: dependencies
-        run: flutter pub get
+        run: python3 tools/ci/time_command.py 'Workspace pub get' -- flutter pub get
 
       - name: Verify visual baselines
         id: visual_baselines
         working-directory: example
-        run: flutter test test/design
+        run: python3 ../tools/ci/time_command.py 'Visual golden tests' -- flutter test test/design
 
       - name: Upload visual comparison failures
         if: failure() && steps.visual_baselines.outcome == 'failure'
@@ -253,13 +254,17 @@ jobs:
 
       - name: Verify standalone pub archive
         if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
-        run: dart run tools/verify_terminal_core_publish.dart
+        run: python3 tools/ci/time_command.py 'Standalone pub archive verification' -- dart run tools/verify_terminal_core_publish.dart
 
       - name: Run repository verification
         if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
         env:
           VERIFY_FLUTTER_TERMINAL_SKIP_DESIGN_TESTS: ${{ (steps.visual_baselines.outcome == 'success' || steps.visual_baselines.outcome == 'failure') && '1' || '0' }}
-        run: ./tools/verify_flutter_terminal.sh
+        run: python3 tools/ci/time_command.py 'Repository verification' -- ./tools/verify_flutter_terminal.sh
+
+      - name: Require real Native Hook compiler cache requests
+        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' && vars.IANVS_NATIVE_HOOK_CACHE != 'off' }}
+        run: python3 tools/ci/native_hook_cache_bridge.py verify
 
       - name: Render baseline candidates for review
         if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && inputs.render_baseline_candidates && steps.visual_baselines.outcome == 'failure' }}
@@ -276,6 +281,14 @@ jobs:
           path: example/test/design/goldens/macos-26/
           retention-days: 7
 
+      - name: Preserve Flutter native phase diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: flutter-native-phase-diagnostics
+          path: build/ci/native-phases/
+          retention-days: 7
+
   example-checks:
     name: Example widget tests (macos-26)
     runs-on: macos-26
@@ -283,11 +296,15 @@ jobs:
     env:
       VERIFY_FLUTTER_TERMINAL_SUITE: flutter
       VERIFY_FLUTTER_TERMINAL_EXAMPLE_MODE: only
+      VERIFY_FLUTTER_TERMINAL_EXAMPLE_SHARD: all
       VERIFY_FLUTTER_TERMINAL_SKIP_DESIGN_TESTS: "1"
       VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION: "1"
     steps:
       - name: Check out repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+
+      - name: Validate Example runner orchestration
+        run: python3 -m unittest discover -s tools/ci -p 'test_example_execution.py'
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master; Rust version pinned below
@@ -324,8 +341,33 @@ jobs:
 
       - name: Resolve workspace dependencies
         run: flutter pub get
-      - name: Run Example widget tests
-        run: ./tools/verify_flutter_terminal.sh
+      - name: Prepare locked Example native dependencies
+        timeout-minutes: 10
+        run: python3 tools/ci/prepare_example_dependencies.py
+      - name: Build Example native debug library
+        env:
+          CARGO_NET_OFFLINE: "true"
+        run: ./tools/build_core.sh
+      - name: Run Example widget tests with bounded in-job concurrency
+        env:
+          CARGO_NET_OFFLINE: "true"
+          IANVS_CI_NATIVE_METRICS: "1"
+        run: python3 tools/ci/run_example_parallel.py --workers 2
+      - name: Preserve Example test diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: example-test-diagnostics
+          path: build/ci/example/
+          retention-days: 7
+
+      - name: Preserve Example native phase diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: example-native-phase-diagnostics
+          path: build/ci/native-phases/
+          retention-days: 7
 
   native-checks:
     name: Rust and Go checks (macos-26)
