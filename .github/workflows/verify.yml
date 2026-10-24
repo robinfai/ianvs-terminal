@@ -262,6 +262,10 @@ jobs:
           VERIFY_FLUTTER_TERMINAL_SKIP_DESIGN_TESTS: ${{ (steps.visual_baselines.outcome == 'success' || steps.visual_baselines.outcome == 'failure') && '1' || '0' }}
         run: python3 tools/ci/time_command.py 'Repository verification' -- ./tools/verify_flutter_terminal.sh
 
+      - name: Require real Native Hook compiler cache requests
+        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' && vars.IANVS_NATIVE_HOOK_CACHE != 'off' }}
+        run: python3 tools/ci/native_hook_cache_bridge.py verify
+
       - name: Render baseline candidates for review
         if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' && inputs.render_baseline_candidates && steps.visual_baselines.outcome == 'failure' }}
         working-directory: example

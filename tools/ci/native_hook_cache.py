@@ -109,7 +109,7 @@ def command_output(arguments: list[str]) -> str:
                           timeout=30).stdout.strip()
 
 
-def configure(root: Path = ROOT) -> None:
+def configure(root: Path = ROOT) -> dict[str, str]:
     if (os.environ.get("GITHUB_ACTIONS") != "true"
             or os.environ.get("GITHUB_JOB") != "flutter-checks"
             or platform.system() != "Darwin"):
@@ -170,6 +170,7 @@ def configure(root: Path = ROOT) -> None:
         "final_libraries_cached": False,
     }, indent=2) + "\n", encoding="utf-8")
     print(f"Native Hook compiler-cache pilot enabled: {version}; epoch={epoch}")
+    return exports
 
 
 def numeric_tree(value: object, depth: int = 0) -> object:
