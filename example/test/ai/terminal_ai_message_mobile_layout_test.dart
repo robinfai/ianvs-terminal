@@ -53,36 +53,29 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  for (final width in [320.0, 375.0, 390.0, 430.0]) {
-    for (final brightness in Brightness.values) {
-      for (final isUser in [false, true]) {
-        testWidgets(
-          'mobile $width $brightness user=$isUser uses W-32 body width',
-          (tester) async {
-            await mountFrame(
-              tester,
-              width: width,
-              brightness: brightness,
-              isUser: isUser,
-            );
-            final body = find.byKey(const Key('reading-body'));
-            final role = find.byKey(const ValueKey('ai-message-role-reading'));
-            expect(tester.getSize(body).width, closeTo(width - 32, .01));
-            expect(tester.getTopLeft(body).dx, closeTo(16, .01));
-            expect(tester.getTopLeft(role).dx, closeTo(16, .01));
-            expect(
-              tester.getBottomLeft(role).dy,
-              lessThan(tester.getTopLeft(body).dy),
-              reason: 'The role must not reserve a column beside the prose.',
-            );
-            final frame = tester.widget<Container>(
-              find.byKey(const ValueKey('ai-message-frame-reading')),
-            );
-            expect(frame.decoration, isUser ? isNotNull : isNull);
-            expect(tester.takeException(), isNull);
-          },
+  // Geometry is theme-independent; exercise both phone width boundaries.
+  for (final width in [320.0, 430.0]) {
+    for (final isUser in [false, true]) {
+      testWidgets('mobile $width user=$isUser uses W-32 body width', (
+        tester,
+      ) async {
+        await mountFrame(tester, width: width, isUser: isUser);
+        final body = find.byKey(const Key('reading-body'));
+        final role = find.byKey(const ValueKey('ai-message-role-reading'));
+        expect(tester.getSize(body).width, closeTo(width - 32, .01));
+        expect(tester.getTopLeft(body).dx, closeTo(16, .01));
+        expect(tester.getTopLeft(role).dx, closeTo(16, .01));
+        expect(
+          tester.getBottomLeft(role).dy,
+          lessThan(tester.getTopLeft(body).dy),
+          reason: 'The role must not reserve a column beside the prose.',
         );
-      }
+        final frame = tester.widget<Container>(
+          find.byKey(const ValueKey('ai-message-frame-reading')),
+        );
+        expect(frame.decoration, isUser ? isNotNull : isNull);
+        expect(tester.takeException(), isNull);
+      });
     }
   }
 

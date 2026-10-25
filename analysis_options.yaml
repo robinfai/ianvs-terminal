@@ -5,6 +5,8 @@ analyzer:
     - "**/*.pb.dart"
     - "**/*.pbenum.dart"
     - "**/*.pbjson.dart"
+    # Generated artifacts and historical source snapshots are not source inputs.
+    - "build/**"
     # Local probes and staged copies live in this git-ignored scratch folder.
     - "tmp/**"
   language:

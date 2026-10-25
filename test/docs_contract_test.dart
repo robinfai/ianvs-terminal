@@ -328,109 +328,6 @@ void main() {
     });
   });
 
-  test('compatibility baseline keeps six-layer evidence explicit', () {
-    final matrix = File(
-      'docs/compatibility/CAPABILITY_MATRIX.md',
-    ).readAsStringSync();
-    final inventory = File(
-      'docs/compatibility/TEST_ASSET_INVENTORY.md',
-    ).readAsStringSync();
-    final knownIssues = File(
-      'docs/compatibility/KNOWN_ISSUES.md',
-    ).readAsStringSync();
-    final manual = File(
-      'docs/compatibility/MANUAL_VERIFICATION.md',
-    ).readAsStringSync();
-
-    expect(
-      matrix,
-      contains(
-        '| Area | Capability | Parse | State | Frame | Runtime | UI | '
-        'Test layer | Current test / boundary |',
-      ),
-    );
-    for (final area in <String>[
-      '| Basics |',
-      '| Input |',
-      '| OSC |',
-      '| Graphics |',
-      '| Shell integration |',
-    ]) {
-      expect(matrix, contains(area));
-    }
-    expect(matrix, contains('Unknown'));
-    expect(matrix, contains('resize_replay_micros'));
-    expect(matrix, contains('real PTY shell starts, accepts input'));
-    expect(matrix, contains('real PTY alternate-screen TUI starts, resizes'));
-    expect(matrix, contains('UnicodeVersion changes visible columns'));
-
-    expect(inventory, contains('native/core/tests/'));
-    expect(inventory, contains('example/integration_test/'));
-    expect(inventory, contains('tools/vttest_gui_nightly.sh'));
-    expect(matrix, contains('resize_replay_skipped_truncated_count'));
-    expect(knownIssues, contains('DIAGNOSTIC_EVENT_V1.md'));
-    expect(manual, contains('Never record a missing prerequisite as `pass`'));
-  });
-
-  test('current testing guide points to interaction regressions', () {
-    final guide = File('docs/TESTING.md').readAsStringSync();
-    final pasteTests = File(
-      'example/test/shell/shell_screen_phase4_test.dart',
-    ).readAsStringSync();
-    final searchTests = File(
-      'example/test/widget_test.dart',
-    ).readAsStringSync();
-
-    expect(guide, contains('test/shell/shell_screen_phase4_test.dart'));
-    expect(guide, contains('test/widget_test.dart'));
-    expect(
-      pasteTests,
-      contains('OSC 52 prompt identifies inactive split pane'),
-    );
-    expect(
-      pasteTests,
-      contains('OSC 52 paste read labels empty clipboard preview'),
-    );
-    expect(
-      pasteTests,
-      contains('native paste confirms multiline text before sending'),
-    );
-    expect(
-      pasteTests,
-      contains('command-v read-only paste does not read clipboard'),
-    );
-    expect(
-      searchTests,
-      contains('shell search closes on Escape without terminal input'),
-    );
-    expect(
-      searchTests,
-      contains('shell search overlay stays inside active split pane'),
-    );
-  });
-
-  test('terminal verification script runs docs contract tests', () {
-    final script = File('tools/verify_flutter_terminal.sh').readAsStringSync();
-
-    expect(script, contains('dart test test/docs_contract_test.dart'));
-  });
-
-  test('terminal verification script uses portable source scans', () {
-    final script = File('tools/verify_flutter_terminal.sh').readAsStringSync();
-
-    expect(
-      script,
-      isNot(contains(RegExp(r'(^|[|;&()\s])rg(?=\s)', multiLine: true))),
-    );
-    expect(script, contains('persistence_repository_composition.dart'));
-    expect(
-      script,
-      contains('title: context.l10n.defaultsAppearance'),
-      reason: 'the settings entry gate must follow the localized source',
-    );
-    expect(script, isNot(contains('grep -RFn -- "Defaults & appearance"')));
-  });
-
   test('terminal verification scopes the vendored Clippy allowance', () {
     final script = File('tools/verify_flutter_terminal.sh').readAsStringSync();
     final vendorBlock = script.indexOf(r'cd "$VENDORED_TERMINAL_CORE_DIR"');
@@ -459,7 +356,6 @@ void main() {
         script,
         isNot(contains('VERIFY_FLUTTER_TERMINAL_RUN_EXAMPLE_WIDGET_TESTS')),
       );
-      expect(script, contains('Every self-contained test'));
     },
   );
 

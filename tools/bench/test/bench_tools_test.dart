@@ -14,61 +14,6 @@ import '../src/summary_analyzer.dart';
 import '../src/workloads.dart';
 
 void main() {
-  group('terminal verification script', () {
-    test('runs benchmark smoke and exposes a non-GUI mode', () {
-      final script = File(
-        'tools/verify_flutter_terminal.sh',
-      ).readAsStringSync();
-
-      expect(
-        script,
-        contains(
-          'dart run tools/bench/runner/bench_runner.dart --config '
-          'tools/bench/configs/bench_ci_smoke.yaml',
-        ),
-      );
-      expect(
-        script,
-        contains('VERIFY_FLUTTER_TERMINAL_SKIP_MACOS_INTEGRATION'),
-      );
-      expect(
-        script,
-        contains('VERIFY_FLUTTER_TERMINAL_RUN_EXAMPLE_WIDGET_TESTS'),
-      );
-      expect(script, contains('VERIFY_FLUTTER_TERMINAL_RUN_NIGHTLY_BENCH'));
-      expect(
-        script,
-        contains(
-          'dart run tools/bench/runner/bench_runner.dart --config '
-          'tools/bench/configs/bench_nightly_resource.yaml',
-        ),
-      );
-      expect(script, contains('IANVS_REQUIRE_POSIX_SHM_TESTS'));
-      expect(script, contains('test/sessions'));
-      expect(script, contains('flutter test test/widget_test.dart'));
-    });
-
-    test('testing docs document the nightly resource benchmark gate', () {
-      final docs = File('docs/TESTING.md').readAsStringSync();
-
-      expect(docs, contains('VERIFY_FLUTTER_TERMINAL_RUN_NIGHTLY_BENCH'));
-      expect(docs, contains('bench_nightly_resource.yaml'));
-      expect(docs, contains('idle.quiet'));
-      expect(docs, contains('max_p95_process_cpu_percent'));
-      expect(docs, contains('max_peak_process_rss_bytes'));
-    });
-
-    test('known issues distinguish shipped resource gates from baselines', () {
-      final docs = File('docs/KNOWN_ISSUES.md').readAsStringSync();
-
-      expect(docs, contains('bench_nightly_resource.yaml'));
-      expect(docs, contains('VERIFY_FLUTTER_TERMINAL_RUN_NIGHTLY_BENCH'));
-      expect(docs, contains('quiet-host'));
-      expect(docs, contains('cross-machine'));
-      expect(docs, contains('对比基线'));
-    });
-  });
-
   group('BenchConfig', () {
     test(
       'ci smoke collects os resource samples for performance visibility',

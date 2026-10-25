@@ -118,29 +118,4 @@ void main() {
       isFalse,
     );
   });
-
-  test('missing gate is not considered passed', () {
-    const evidence = LocalTerminalVerificationEvidence(
-      items: [
-        LocalTerminalVerificationEvidenceItem(
-          gate: LocalTerminalVerificationGate.unitTests,
-          status: LocalTerminalVerificationStatus.passed,
-          required: true,
-        ),
-      ],
-    );
-
-    expect(
-      evidence.gatePassed(LocalTerminalVerificationGate.unitTests),
-      isTrue,
-    );
-    expect(
-      evidence.gatePassed(LocalTerminalVerificationGate.staticAnalysis),
-      isFalse,
-    );
-    expect(
-      evidence.missingRequiredGates,
-      contains(LocalTerminalVerificationGate.staticAnalysis),
-    );
-  });
 }

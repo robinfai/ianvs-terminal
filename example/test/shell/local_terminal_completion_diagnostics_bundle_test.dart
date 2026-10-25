@@ -5,9 +5,27 @@ import 'package:app/features/shell/local_terminal_current_completion_state.dart'
 import 'package:app/features/shell/local_terminal_p0_boundary_closure_manifest.dart';
 import 'package:app/features/shell/local_terminal_production_wiring_manifest_builder.dart';
 import 'package:app/features/shell/local_terminal_verification_evidence.dart';
+import 'package:app/features/shell/local_terminal_verification_plan_records.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('verified evidence clears blockers through the diagnostic outputs', () {
+    final bundle = LocalTerminalCompletionDiagnosticsBundle(
+      controller: LocalTerminalCompletionController.verified(
+        capturedAt: DateTime.utc(2026, 5, 16),
+        verificationEvidence:
+            LocalTerminalVerificationPlanRecords.latestPassed()
+                .toRecorder()
+                .evidence,
+      ),
+    );
+
+    expect(bundle.canCloseObjective, isTrue);
+    expect(bundle.hasBlockedMenuEntries, isFalse);
+    expect(bundle.toPlainText(), contains('can close'));
+    expect(bundle.toJson()['canCloseObjective'], isTrue);
+  });
+
   test('bundles pending completion diagnostics from one controller', () {
     final bundle = LocalTerminalCompletionDiagnosticsBundle(
       controller: LocalTerminalCompletionController.pending(

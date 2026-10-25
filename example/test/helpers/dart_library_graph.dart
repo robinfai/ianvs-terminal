@@ -1,30 +1,20 @@
 import 'dart:io';
 
-/// A test-only description of the Dart files owned by one architecture budget.
+/// A test-only description of the Dart files inside one architecture boundary.
 final class DartLibraryGraph {
-  const DartLibraryGraph({
-    required this.files,
-    required this.lineCounts,
-    required this.cycles,
-  });
+  const DartLibraryGraph({required this.files, required this.cycles});
 
   /// Canonical paths for every file reachable inside the owned boundary.
   final Set<String> files;
-
-  /// Physical line count keyed by canonical file path.
-  final Map<String, int> lineCounts;
 
   /// Import/export/part cycles encountered while walking the graph.
   ///
   /// Dart library cycles are legal, so they are reported rather than rejected.
   /// Every member of a cycle is still counted exactly once.
   final List<List<String>> cycles;
-
-  int get aggregateLineCount =>
-      lineCounts.values.fold(0, (total, lines) => total + lines);
 }
 
-/// Thrown when a local Dart library graph cannot be budgeted unambiguously.
+/// Thrown when a local Dart library graph cannot be resolved unambiguously.
 final class DartLibraryGraphException implements Exception {
   const DartLibraryGraphException(this.message);
 
@@ -121,7 +111,6 @@ final class DartLibraryGraphScanner {
     }
 
     final parsedByPath = <String, _ParsedDartFile>{};
-    final lineCounts = <String, int>{};
     final visited = <String>{};
     final visiting = <String>{};
     final traversalStack = <String>[];
@@ -145,7 +134,6 @@ final class DartLibraryGraphScanner {
       final source = sourceFile.readAsStringSync();
       final parsed = _DirectiveParser(sourceFile, source).parse();
       parsedByPath[sourcePath] = parsed;
-      lineCounts[sourcePath] = _physicalLineCount(source);
 
       final targetsFromSource = <String>{};
       for (final directive in parsed.outgoing) {
@@ -230,7 +218,6 @@ final class DartLibraryGraphScanner {
 
     return DartLibraryGraph(
       files: Set<String>.unmodifiable(visited),
-      lineCounts: Map<String, int>.unmodifiable(lineCounts),
       cycles: List<List<String>>.unmodifiable(
         cycles.map(List<String>.unmodifiable),
       ),
@@ -337,25 +324,6 @@ String _canonicalOrNormalized(File file) => file.existsSync()
 bool _isWithinDirectory(String filePath, String directoryPath) =>
     filePath == directoryPath ||
     filePath.startsWith('$directoryPath${Platform.pathSeparator}');
-
-int _physicalLineCount(String source) {
-  if (source.isEmpty) {
-    return 0;
-  }
-  var separators = 0;
-  var offset = 0;
-  while (offset < source.length) {
-    final width = _lineBreakWidthAt(source, offset);
-    if (width == 0) {
-      offset += 1;
-      continue;
-    }
-    separators += 1;
-    offset += width;
-  }
-  final endsWithLineBreak = source.endsWith('\n') || source.endsWith('\r');
-  return endsWithLineBreak ? separators : separators + 1;
-}
 
 enum _DirectiveKind {
   import('import'),

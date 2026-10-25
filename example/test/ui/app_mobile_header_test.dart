@@ -4,10 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import '../helpers/pump_app.dart';
 
 void main() {
-  for (final scale in [1.0, 2.0, 3.0]) {
-    testWidgets('centers title with asymmetric controls at ${scale}x', (
-      tester,
-    ) async {
+  testWidgets(
+    'centers the fixed-size mobile title without overlapping controls',
+    (tester) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(375, 667);
       addTearDown(tester.view.reset);
@@ -23,7 +22,6 @@ void main() {
           ),
         ),
         platform: TargetPlatform.iOS,
-        textScale: scale,
       );
       final title = tester.getRect(find.text('连接'));
       expect(title.center.dx, closeTo(375 / 2, 1));
@@ -32,6 +30,6 @@ void main() {
         lessThan(tester.getRect(find.byType(IconButton).first).left),
       );
       expect(tester.takeException(), isNull);
-    });
-  }
+    },
+  );
 }

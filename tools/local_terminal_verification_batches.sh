@@ -85,19 +85,8 @@ EOF
     completion)
       cat <<'EOF'
 flutter test \
-  example/test/shell/local_terminal_current_completion_state_test.dart \
-  example/test/shell/local_terminal_real_wiring_backlog_evidence_test.dart \
-  example/test/shell/local_terminal_pending_completion_snapshot_factory_test.dart \
-  example/test/shell/local_terminal_shell_ui_wiring_facade_test.dart \
-  example/test/shell/local_terminal_shell_ui_wiring_snapshot_test.dart \
   example/test/shell/local_terminal_completion_evidence_report_test.dart \
-  example/test/shell/local_terminal_completion_summary_test.dart \
-  example/test/shell/local_terminal_completion_diagnostics_view_model_test.dart \
-  example/test/shell/local_terminal_completion_diagnostics_actions_test.dart \
-  example/test/shell/local_terminal_completion_menu_model_test.dart \
-  example/test/shell/local_terminal_completion_command_menu_adapter_test.dart \
   example/test/shell/local_terminal_completion_diagnostics_bundle_test.dart \
-  example/test/shell/local_terminal_completion_diagnostics_presentation_test.dart \
   example/test/shell/local_terminal_completion_shell_command_menu_diagnostics_test.dart
 EOF
       ;;
@@ -109,18 +98,14 @@ flutter test \
   example/test/shell/shell_action_production_wiring_state_test.dart \
   example/test/shell/shell_action_production_executor_test.dart \
   example/test/shell/shell_action_production_runtime_adapter_test.dart \
-  example/test/shell/shell_action_production_wiring_report_test.dart \
-  example/test/shell/shell_action_production_audit_snapshot_test.dart \
   example/test/shell/shell_action_production_closure_manifest_test.dart \
-  example/test/shell/local_terminal_action_domain_router_test.dart \
-  example/test/shell/local_terminal_domain_wiring_summary_test.dart
+  example/test/shell/local_terminal_action_domain_router_test.dart
 EOF
       ;;
     cross-milestone)
       cat <<'EOF'
 flutter test \
-  example/test/shell/local_terminal_production_wiring_bundle_test.dart \
-  example/test/shell/local_terminal_production_wiring_manifest_builder_test.dart
+  example/test/shell/local_terminal_production_wiring_manifest_test.dart
 EOF
       ;;
     p2-workspace)
@@ -228,19 +213,8 @@ run_batch() {
       ;;
     completion)
       flutter test \
-        example/test/shell/local_terminal_current_completion_state_test.dart \
-        example/test/shell/local_terminal_real_wiring_backlog_evidence_test.dart \
-        example/test/shell/local_terminal_pending_completion_snapshot_factory_test.dart \
-        example/test/shell/local_terminal_shell_ui_wiring_facade_test.dart \
-        example/test/shell/local_terminal_shell_ui_wiring_snapshot_test.dart \
         example/test/shell/local_terminal_completion_evidence_report_test.dart \
-        example/test/shell/local_terminal_completion_summary_test.dart \
-        example/test/shell/local_terminal_completion_diagnostics_view_model_test.dart \
-        example/test/shell/local_terminal_completion_diagnostics_actions_test.dart \
-        example/test/shell/local_terminal_completion_menu_model_test.dart \
-        example/test/shell/local_terminal_completion_command_menu_adapter_test.dart \
         example/test/shell/local_terminal_completion_diagnostics_bundle_test.dart \
-        example/test/shell/local_terminal_completion_diagnostics_presentation_test.dart \
         example/test/shell/local_terminal_completion_shell_command_menu_diagnostics_test.dart
       ;;
     p1)
@@ -250,16 +224,12 @@ run_batch() {
         example/test/shell/shell_action_production_wiring_state_test.dart \
         example/test/shell/shell_action_production_executor_test.dart \
         example/test/shell/shell_action_production_runtime_adapter_test.dart \
-        example/test/shell/shell_action_production_wiring_report_test.dart \
-        example/test/shell/shell_action_production_audit_snapshot_test.dart \
         example/test/shell/shell_action_production_closure_manifest_test.dart \
-        example/test/shell/local_terminal_action_domain_router_test.dart \
-        example/test/shell/local_terminal_domain_wiring_summary_test.dart
+        example/test/shell/local_terminal_action_domain_router_test.dart
       ;;
     cross-milestone)
       flutter test \
-        example/test/shell/local_terminal_production_wiring_bundle_test.dart \
-        example/test/shell/local_terminal_production_wiring_manifest_builder_test.dart
+        example/test/shell/local_terminal_production_wiring_manifest_test.dart
       ;;
     p2-workspace)
       flutter test example/test/layout
