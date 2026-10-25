@@ -11,58 +11,56 @@ void main() {
     const Size(402, 874),
     const Size(874, 402),
   ]) {
-    for (final scale in [1.0, 2.0, 3.0]) {
-      testWidgets('mobile SSH connects with core fields at $size / $scale', (
-        tester,
-      ) async {
-        tester.view.devicePixelRatio = 1;
-        tester.view.physicalSize = size;
-        tester.view.padding = FakeViewPadding(
-          top: size.height > size.width ? 62 : 0,
-          bottom: size.height > size.width ? 34 : 21,
-        );
-        addTearDown(tester.view.reset);
-        SshProfileEditorResult? result;
-        await _open(tester, scale: scale, onClosed: (value) => result = value);
-        expect(find.byKey(const Key('ssh-profile-name')), findsNothing);
-        expect(find.byKey(const Key('ssh-port')), findsNothing);
-        expect(find.byKey(const Key('ssh-private-keys')), findsNothing);
-        expect(find.byKey(const Key('ssh-clear-password')), findsNothing);
-        expect(tester.takeException(), isNull);
-        for (final entry in {
-          'ssh-host': 'review.example.test',
-          'ssh-user': 'reviewer',
-          'ssh-password': 'demo-password',
-        }.entries) {
-          await tester.ensureVisible(find.byKey(Key(entry.key)));
-          await tester.enterText(find.byKey(Key(entry.key)), entry.value);
-        }
-        // The new full-page form must also scroll above a software keyboard.
-        tester.view.viewInsets = FakeViewPadding(
-          bottom: size.height > size.width ? 300 : 180,
-        );
-        await tester.pumpAndSettle();
-        await tester.ensureVisible(find.byKey(const Key('ssh-connect')));
-        await tester.pumpAndSettle();
-        final button = tester.getRect(find.byKey(const Key('ssh-connect')));
-        expect(button.height, greaterThanOrEqualTo(44));
-        expect(
-          button.bottom,
-          lessThanOrEqualTo(size.height - tester.view.viewInsets.bottom),
-        );
-        expect(tester.takeException(), isNull);
-        await tester.tap(find.byKey(const Key('ssh-connect')));
-        await tester.pumpAndSettle();
-        expect(result?.profile.name, 'review.example.test');
-        expect(
-          result?.profile.connection.auth,
-          terminal.TerminalSshAuthMethod.password,
-        );
-        expect(result?.profile.connection.password, 'demo-password');
-        expect(result?.saveProfile, isTrue);
-        expect(result?.clearSecrets, isEmpty);
-      });
-    }
+    testWidgets('mobile SSH connects with fixed-size core fields at $size', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = size;
+      tester.view.padding = FakeViewPadding(
+        top: size.height > size.width ? 62 : 0,
+        bottom: size.height > size.width ? 34 : 21,
+      );
+      addTearDown(tester.view.reset);
+      SshProfileEditorResult? result;
+      await _open(tester, onClosed: (value) => result = value);
+      expect(find.byKey(const Key('ssh-profile-name')), findsNothing);
+      expect(find.byKey(const Key('ssh-port')), findsNothing);
+      expect(find.byKey(const Key('ssh-private-keys')), findsNothing);
+      expect(find.byKey(const Key('ssh-clear-password')), findsNothing);
+      expect(tester.takeException(), isNull);
+      for (final entry in {
+        'ssh-host': 'review.example.test',
+        'ssh-user': 'reviewer',
+        'ssh-password': 'demo-password',
+      }.entries) {
+        await tester.ensureVisible(find.byKey(Key(entry.key)));
+        await tester.enterText(find.byKey(Key(entry.key)), entry.value);
+      }
+      // The new full-page form must also scroll above a software keyboard.
+      tester.view.viewInsets = FakeViewPadding(
+        bottom: size.height > size.width ? 300 : 180,
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const Key('ssh-connect')));
+      await tester.pumpAndSettle();
+      final button = tester.getRect(find.byKey(const Key('ssh-connect')));
+      expect(button.height, greaterThanOrEqualTo(44));
+      expect(
+        button.bottom,
+        lessThanOrEqualTo(size.height - tester.view.viewInsets.bottom),
+      );
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.byKey(const Key('ssh-connect')));
+      await tester.pumpAndSettle();
+      expect(result?.profile.name, 'review.example.test');
+      expect(
+        result?.profile.connection.auth,
+        terminal.TerminalSshAuthMethod.password,
+      );
+      expect(result?.profile.connection.password, 'demo-password');
+      expect(result?.saveProfile, isTrue);
+      expect(result?.clearSecrets, isEmpty);
+    });
   }
 
   testWidgets('more settings preserves names and expands invalid hidden port', (

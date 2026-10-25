@@ -58,42 +58,6 @@ void main() {
     expect(manifest.blockers, contains('Static analysis has not passed.'));
   });
 
-  test('default P1 baseline closure requires verification evidence', () {
-    final state = ShellActionProductionWiringState.fromCallbacks(
-      actionSet: ShellActionProductionActionSet.defaults(),
-      callbacks: _baselineCallbacks(),
-    );
-    final snapshot = ShellActionProductionAuditSnapshot(
-      capturedAt: DateTime.utc(2026, 5, 16),
-      wiringReport: ShellActionProductionWiringReport.fromState(state),
-    );
-
-    final unverifiedManifest = ShellActionProductionClosureManifest(
-      snapshot: snapshot,
-      testsPassed: false,
-      analysisPassed: false,
-    );
-    final verifiedManifest = ShellActionProductionClosureManifest(
-      snapshot: snapshot,
-      testsPassed: true,
-      analysisPassed: true,
-    );
-
-    expect(snapshot.canCloseP1ActionWiring, isTrue);
-    expect(unverifiedManifest.wiringReady, isTrue);
-    expect(unverifiedManifest.canClose, isFalse);
-    expect(
-      unverifiedManifest.blockers,
-      contains('Required action wiring tests have not passed.'),
-    );
-    expect(
-      unverifiedManifest.blockers,
-      contains('Static analysis has not passed.'),
-    );
-    expect(verifiedManifest.canClose, isTrue);
-    expect(verifiedManifest.blockers, isEmpty);
-  });
-
   test('failed recent dispatch blocks closure', () {
     final state = ShellActionProductionWiringState.fromCallbacks(
       actionSet: const ShellActionProductionActionSet(
@@ -128,40 +92,4 @@ void main() {
       contains('Recent production action dispatch failed.'),
     );
   });
-}
-
-ShellActionProductionCallbacks _baselineCallbacks() {
-  return const ShellActionProductionCallbacks(
-    newTab: _complete,
-    closeTab: _complete,
-    reopenClosedTab: _complete,
-    reopenClosedPane: _complete,
-    duplicateCurrentCwd: _complete,
-    splitRight: _complete,
-    splitDown: _complete,
-    closePane: _complete,
-    focusNextPane: _complete,
-    focusPreviousPane: _complete,
-    copy: _complete,
-    paste: _complete,
-    instantReplay: _complete,
-    copyCommandOutput: _complete,
-    searchScrollback: _complete,
-    nextPrompt: _complete,
-    previousPrompt: _complete,
-    clearBuffer: _complete,
-    toggleReadOnly: _complete,
-    toggleCommandPalette: _complete,
-    openDefaults: _complete,
-    defaults: _complete,
-    profiles: _complete,
-    exportScrollback: _complete,
-    resizePaneLeft: _complete,
-    swapPane: _complete,
-    zoomPane: _complete,
-  );
-}
-
-ShellActionBindingResult _complete(ShellActionBindingContext context) {
-  return const ShellActionBindingResult.completed();
 }

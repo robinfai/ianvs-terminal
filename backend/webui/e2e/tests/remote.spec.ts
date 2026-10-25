@@ -51,7 +51,7 @@ test('remote: sign in without a key and request it only for sensitive operations
 
   // Sign out, then prove authentication succeeds without an encryption key.
   await page.getByRole('link', { name: 'Session' }).click()
-  await page.getByRole('button', { name: 'Sign out' }).click()
+  await page.getByRole('button', { name: 'Sign out', exact: true }).click()
   await signIn(page)
 
   // Decryption is the point where a key is requested and verified.
@@ -80,7 +80,7 @@ test('remote: sign in without a key and request it only for sensitive operations
 
   // Profiles persist across another keyless sign-in.
   await page.getByRole('link', { name: 'Session' }).click()
-  await page.getByRole('button', { name: 'Sign out' }).click()
+  await page.getByRole('button', { name: 'Sign out', exact: true }).click()
   await signIn(page)
   await expect(page.locator('tbody')).toContainText('deploy@staging2.example.com:2200')
 })

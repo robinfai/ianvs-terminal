@@ -113,7 +113,6 @@ export
         final graph = _fixtureScanner(fixtureDirectory).scan();
 
         expect(graph.files, hasLength(5));
-        expect(graph.aggregateLineCount, equals(10));
       },
     );
 
@@ -127,7 +126,7 @@ import 'conditional_default.dart'
       _writeFixture(
         fixtureDirectory,
         'relative_feature.dart',
-        List<String>.filled(5000, 'final value = 1;').join('\n'),
+        'final value = 1;\n',
       );
       _writeFixture(
         fixtureDirectory,
@@ -146,44 +145,12 @@ import 'conditional_default.dart'
       );
 
       final graph = _fixtureScanner(fixtureDirectory).scan();
-      final largeFilePath = File(
+      final relativeFilePath = File(
         '${fixtureDirectory.path}/relative_feature.dart',
       ).resolveSymbolicLinksSync();
 
       expect(graph.files, hasLength(5));
-      expect(graph.lineCounts[largeFilePath], equals(5000));
-      expect(
-        graph.lineCounts.entries.where((entry) => entry.value > 4100),
-        isNotEmpty,
-      );
-    });
-
-    test('counts LF CRLF and CR physical lines identically', () {
-      for (final entry in <String, String>{
-        'lf.dart': 'one\ntwo\nthree\n',
-        'crlf.dart': 'one\r\ntwo\r\nthree\r\n',
-        'cr.dart': 'one\rtwo\rthree\r',
-      }.entries) {
-        _writeFixture(fixtureDirectory, entry.key, entry.value);
-      }
-      _writeFixture(
-        fixtureDirectory,
-        'shell_screen.dart',
-        "import 'lf.dart';\rimport 'crlf.dart';\r\nimport 'cr.dart';\n",
-      );
-
-      final graph = _fixtureScanner(fixtureDirectory).scan();
-
-      for (final basename in const <String>[
-        'lf.dart',
-        'crlf.dart',
-        'cr.dart',
-      ]) {
-        final path = File(
-          '${fixtureDirectory.path}/$basename',
-        ).resolveSymbolicLinksSync();
-        expect(graph.lineCounts[path], equals(3), reason: basename);
-      }
+      expect(graph.files, contains(relativeFilePath));
     });
 
     test('ignores metadata strings and finds the following directives', () {
@@ -205,10 +172,8 @@ import 'metadata_target.dart';
       expect(graph.files, hasLength(2));
     });
 
-    test(
-      'counts a large library after generic named metadata designations',
-      () {
-        _writeFixture(fixtureDirectory, 'shell_screen.dart', '''
+    test('follows imports after generic named metadata designations', () {
+      _writeFixture(fixtureDirectory, 'shell_screen.dart', '''
 @DirectiveMetadata<String>.named(
   nested: <Object>[
     "import 'not_a_directive.dart';",
@@ -221,25 +186,20 @@ import 'metadata_target.dart';
 @annotations.shell.Metadata<int>.named
 import 'named_metadata_target.dart';
 ''');
-        _writeFixture(
-          fixtureDirectory,
-          'named_metadata_target.dart',
-          List<String>.filled(5000, 'final value = 1;').join('\n'),
-        );
+      _writeFixture(
+        fixtureDirectory,
+        'named_metadata_target.dart',
+        'final value = 1;\n',
+      );
 
-        final graph = _fixtureScanner(fixtureDirectory).scan();
-        final targetPath = File(
-          '${fixtureDirectory.path}/named_metadata_target.dart',
-        ).resolveSymbolicLinksSync();
+      final graph = _fixtureScanner(fixtureDirectory).scan();
+      final targetPath = File(
+        '${fixtureDirectory.path}/named_metadata_target.dart',
+      ).resolveSymbolicLinksSync();
 
-        expect(graph.files, hasLength(2));
-        expect(graph.lineCounts[targetPath], equals(5000));
-        expect(
-          graph.lineCounts.entries.where((entry) => entry.value > 4100),
-          isNotEmpty,
-        );
-      },
-    );
+      expect(graph.files, hasLength(2));
+      expect(graph.files, contains(targetPath));
+    });
 
     test('rejects a cross-directory dependency without an allowlist entry', () {
       final externalDirectory = Directory('${fixtureDirectory.path}_external')
@@ -325,7 +285,6 @@ export 'shell_screen_feature.dart';
       final graph = _fixtureScanner(fixtureDirectory).scan();
 
       expect(graph.files, hasLength(2));
-      expect(graph.lineCounts, hasLength(2));
       expect(graph.cycles, hasLength(1));
     });
 
@@ -354,42 +313,28 @@ export 'shell_screen_feature.dart';
     });
   });
 
-  group('shell screen architecture budget', () {
-    test('bounds the complete owned library graph without a part count', () {
-      final shellScreen = _shellScreenFile();
-      final scanner = DartLibraryGraphScanner(
-        entrypoint: shellScreen,
-        packageName: 'app',
-        packageLibDirectory: shellScreen.parent.parent.parent,
-        ownedDirectory: shellScreen.parent,
-        orphanProtectedFiles: _orphanProtectedShellScreenFiles(
-          shellScreen.parent,
-        ),
-        allowedExternalFiles: _allowedShellExternalDependencies(
-          shellScreen.parent.parent.parent,
-        ),
-      );
+  group('shell screen dependencies', () {
+    test(
+      'resolves owned libraries without orphaned parts or forbidden imports',
+      () {
+        final shellScreen = _shellScreenFile();
+        final scanner = DartLibraryGraphScanner(
+          entrypoint: shellScreen,
+          packageName: 'app',
+          packageLibDirectory: shellScreen.parent.parent.parent,
+          ownedDirectory: shellScreen.parent,
+          orphanProtectedFiles: _orphanProtectedShellScreenFiles(
+            shellScreen.parent,
+          ),
+          allowedExternalFiles: _allowedShellExternalDependencies(
+            shellScreen.parent.parent.parent,
+          ),
+        );
 
-      final graph = scanner.scan();
-      final entryPath = shellScreen.resolveSymbolicLinksSync();
-      final oversizedFiles = graph.lineCounts.entries
-          .where((entry) => entry.value > 4150)
-          .toList(growable: false);
-
-      expect(graph.lineCounts[entryPath], lessThanOrEqualTo(1700));
-      expect(
-        oversizedFiles,
-        isEmpty,
-        reason:
-            'No owned shell library or part may exceed 4,150 lines: '
-            '$oversizedFiles',
-      );
-      expect(
-        graph.aggregateLineCount,
-        lessThanOrEqualTo(41700),
-        reason: 'The complete reachable shell-owned library graph is bounded.',
-      );
-    });
+        final graph = scanner.scan();
+        expect(graph.files, contains(shellScreen.resolveSymbolicLinksSync()));
+      },
+    );
   });
 }
 

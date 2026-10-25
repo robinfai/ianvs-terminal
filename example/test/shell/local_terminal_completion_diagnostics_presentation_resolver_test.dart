@@ -23,16 +23,30 @@ void main() {
     expect(presentation.totalBlockedCount, greaterThan(0));
   });
 
-  test('can keep completed presentation visible when requested', () {
-    final snapshot = LocalTerminalShellUiWiringSnapshot.pending(
+  test(
+    'keeps blocked diagnostics visible when automatic hiding is disabled',
+    () {
+      final snapshot = LocalTerminalShellUiWiringSnapshot.pending(
+        capturedAt: DateTime.utc(2026, 5, 16),
+      );
+      const resolver = LocalTerminalCompletionDiagnosticsPresentationResolver(
+        hideWhenComplete: false,
+      );
+
+      final presentation = resolver.resolve(snapshot);
+
+      expect(presentation.visible, isTrue);
+    },
+  );
+  test('hides completed diagnostics by default', () {
+    final snapshot = LocalTerminalShellUiWiringSnapshot.verified(
       capturedAt: DateTime.utc(2026, 5, 16),
     );
-    const resolver = LocalTerminalCompletionDiagnosticsPresentationResolver(
-      hideWhenComplete: false,
-    );
+    const resolver = LocalTerminalCompletionDiagnosticsPresentationResolver();
 
+    expect(snapshot.canCloseObjective, isTrue);
     final presentation = resolver.resolve(snapshot);
-
-    expect(presentation.visible, isTrue);
+    expect(presentation.visible, isFalse);
+    expect(presentation.totalBlockedCount, 0);
   });
 }

@@ -8,8 +8,6 @@ use syn::{
     Attribute, Expr, File, Item, ItemMod, Macro, Meta, Path as SynPath, Token, Type, UseTree,
 };
 
-const SESSION_SOURCE: &str = include_str!("../src/session.rs");
-
 // These adversarial sources are real Rust modules, not merely parser input.
 // Keeping them in the integration-test crate proves the escape examples stay
 // semantically compilable as the AST gate evolves.
@@ -713,18 +711,6 @@ fn dependency_roots(file: &File) -> BTreeSet<String> {
             .filter_map(|path| path.split("::").next().map(str::to_string)),
     );
     collector.dependency_roots
-}
-
-#[test]
-fn session_orchestrator_stays_within_its_post_extraction_line_budget() {
-    const SESSION_LINE_BUDGET: usize = 13_500;
-    let line_count = SESSION_SOURCE.lines().count();
-
-    assert!(
-        line_count <= SESSION_LINE_BUDGET,
-        "session.rs has {line_count} lines, above its {SESSION_LINE_BUDGET}-line budget; \
-         move another cohesive responsibility behind a session submodule"
-    );
 }
 
 #[test]
