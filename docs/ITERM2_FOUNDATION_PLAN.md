@@ -17,6 +17,8 @@
 
 IME、搜索、粘贴、窗格缩放、配置恢复和 replay 历史案例用于审查与运行现有回归，未发现对应缺陷前不改动这些底层机制。特别是 replay 已具备 native 副作用隔离，应继续复用；Profile 自动化已是现有功能，不增加新的自动化类型。
 
+验证记录：目录相关聚焦测试 6 项、组件/AI 焦点测试 24 项通过，应用静态分析无问题。native 应用核心 450 项及会话集成 527 项通过（核心另有 2 项显式忽略）；其中包含回放不创建子进程、拒绝写入及抑制宿主副作用的断言。完整 `make verify` 已通过（退出码 0）：应用测试 3,802 项；终端包 1,018 项、独立发布包 1,062 项；六组 macOS 集成测试合计 53 项；Xcode 原生测试 37 项。Debug/Release 构建、增量重建与签名检查通过。门禁中的显式 ignored/skipped 用例保持原样，不将其计入通过数；未运行可选 nightly 资源基准。日志保存在本地 `build/terminal-entry-refinements/verify.log`。
+
 ## 证据与限制
 
 分析日期：2026-10-26。Ianvs 源码 `099274789bac9f49d96bea32c09d8ffa60d5219c`；iTerm2 源码 `ad80b196b4447bd6a99b572de7009dc1ad59db8d`。
@@ -25,7 +27,7 @@ Computer Use 核验对象是用户已打开的 `/Applications/Trail.app`（`work
 
 iTerm2 本地 Development 构建成功，并使用 `-suite iTerm2` 启动；构建记录在相邻仓库 `build/reference-audit/build.log`。Computer Use 对安装版和本地构建的 `com.googlecode.iterm2` 均拒绝访问。**本报告尚未完成双应用实机对比**；iTerm2 优点和修复机制来自源码、commit diff 与 issue 正文，不能声称本轮亲测其交互。不会通过变更 bundle ID 绕过工具限制。
 
-本地截图、AX 和 issue JSON 位于 `build/iterm2-entry-audit/`，不纳入版本控制。截图编号见下表。测试文件只作为后续验证入口，本轮未运行终端产品回归。GitLab issue 状态为抓取时状态；无法读取的 issue、未获取的讨论均明确标出。
+本地截图、AX 和 issue JSON 位于 `build/iterm2-entry-audit/`，不纳入版本控制。截图编号见下表。分析阶段的测试文件仅作为验证入口；实施阶段实际运行结果见实施记录。GitLab issue 状态为抓取时状态；无法读取的 issue、未获取的讨论均明确标出。
 
 ## 当前入口清单
 
@@ -110,7 +112,7 @@ Ianvs 的同目录动作目前根据 shell hostname 判远端；SFTP 则应始�
 
 [修复 5964ff2](https://github.com/gnachman/iTerm2/commit/5964ff23177814d752e95a6e57931863842131d4) 说明 `.itr` 内嵌 Profile 原样创建 replay session，可能带入运行命令的 trigger；改为只允许经验证的绘制设置、分配新 GUID，并要求新增 Profile 字段显式分类。引用 issue 13128 无法访问（本轮 API 返回 404），因此这里只使用 commit/diff 证据，不推断 issue 正文或讨论。
 
-Ianvs 已有多层隔离，不能按“只有 UI 只读”评估：专用 replay backend 忽略历史 userInput/shellSemantic；回放窗口创建独立 runtime，输入控制器固定 readOnly；native 的 `spawn_replay` 不创建子进程，`replay_output` 调用 `ingest_pty_output(bytes, false)`，禁止发布宿主 callback 和写回协议响应。现有 `replay_fixture_frame` 以不存在的程序创建 replay，断言 OSC 52、OpenURL 不产生事件，手工写入返回 ReadOnlyReplaySession。上述是源码和测试断言证据，本轮未运行该 native 测试。
+Ianvs 已有多层隔离，不能按“只有 UI 只读”评估：专用 replay backend 忽略历史 userInput/shellSemantic；回放窗口创建独立 runtime，输入控制器固定 readOnly；native 的 `spawn_replay` 不创建子进程，`replay_output` 调用 `ingest_pty_output(bytes, false)`，禁止发布宿主 callback 和写回协议响应。现有 `replay_fixture_frame` 以不存在的程序创建 replay，断言 OSC 52、OpenURL 不产生事件，手工写入返回 ReadOnlyReplaySession。分析阶段仅核对源码和断言；实施阶段完整门禁中的 native 会话测试已运行并通过该用例。
 
 应保留这些既有保护，复用原测试覆盖新增协议，而不是重新设计一套回放隔离。剩余审查集中在导入数据到 sessionConfig 的字段来源，以及自动化/配置新增字段能否越过上述边界；现有断言不能自动证明所有未来字段均安全。此项是预防性验证任务，不是已确认漏洞。详见 [native replay 与事件门禁](../native/core/src/session.rs)、[回放窗口](../example/lib/features/shell/shell_screen_recording_library.dart)、[native 回放测试](../native/core/tests/session_test.rs)。
 
