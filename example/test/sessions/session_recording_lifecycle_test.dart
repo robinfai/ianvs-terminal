@@ -664,6 +664,8 @@ Future<_RecordingHarness> _createHarness({
   });
   container.read(sessionControllerProvider.notifier);
   await Future<void>.delayed(const Duration(milliseconds: 100));
+  final state = container.read(sessionControllerProvider);
+  expect(state.activeSessionId, isNotNull, reason: state.lastError);
   return _RecordingHarness(
     container: container,
     backend: backend,
@@ -673,6 +675,8 @@ Future<_RecordingHarness> _createHarness({
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   test(
     'start and stop save redacted current data outside relaunch intent',
     () async {

@@ -16,8 +16,14 @@ requires PRs, prohibits force pushes and deletion, and has no bypass actors.
 It requires resolving review threads, but no mandatory second reviewer, so the
 owner can merge their own PRs. Ruleset ID: `23715048`.
 
-`macos-release.yml` runs on a push to protected main (a PR merge), or a manual run
-on main. Each merged revision is versioned `1.1.<git rev-list --count HEAD>`;
+`macos-release.yml` is triggered on a push to main (a PR merge), or a manual run
+on main. Production publication is disabled by default: the release job runs
+only when the repository Actions variable `MACOS_RELEASE_ENABLED` is set to
+`true`. When the variable is absent or disabled, both automatic and
+manual runs skip publication. The separate Verify workflow still runs its full
+applicable build and test gates.
+
+Each merged revision is versioned `1.1.<git rev-list --count HEAD>`;
 its build number is that same commit count. Full git history and no history
 rewrites are required. No version-bump commits or writes to main are needed.
 This series follows the existing `v1.0.0` release; it does not change iOS versions.
@@ -36,8 +42,18 @@ manual installation of the first updater-enabled release.
 ## One-time credentials
 
 Configure in **Settings → Secrets and variables → Actions**. Never commit keys.
-The workflow fails before building/publishing if credentials are missing; it does
-not silently downgrade public releases to ad-hoc or Apple Development signing.
+Free Apple accounts (Personal Teams) can be used for local development, but do
+not meet Apple's [Developer ID requirements](https://developer.apple.com/developer-id/)
+for the certificate and notarization required by this
+production pipeline. Leave `MACOS_RELEASE_ENABLED` unset until a suitable Apple
+Developer Program membership and all credentials below are ready. Sparkle keys
+are generated separately and do not replace Apple's signing credentials.
+
+After configuring the credentials, set `MACOS_RELEASE_ENABLED=true` to enable
+publication; remove the variable or set it to `false` to disable future runs.
+Once enabled, the workflow still fails before building/publishing if credentials
+are missing. It does not silently downgrade public releases to ad-hoc or Apple
+Development signing.
 
 Repository secrets:
 
@@ -52,6 +68,7 @@ Repository variables:
 
 | Name | Value |
 | --- | --- |
+| `MACOS_RELEASE_ENABLED` | Set to `true` to enable automatic or manual production publication; disabled by default |
 | `MACOS_SIGNING_IDENTITY` | Exact identity, e.g. `Developer ID Application: Name (TEAMID)` |
 | `NOTARY_KEY_ID` | Apple API key ID |
 | `NOTARY_ISSUER_ID` | Apple API issuer ID (team API key) |
