@@ -13,7 +13,18 @@ AppTerminalColors resolveTerminalColors(
   BuildContext context, {
   TerminalProfileAppearance? profileAppearance,
 }) {
-  final colorScheme = Theme.of(context).colorScheme;
+  return resolveTerminalColorsForScheme(
+    Theme.of(context).colorScheme,
+    highContrast: MediaQuery.highContrastOf(context),
+    profileAppearance: profileAppearance,
+  );
+}
+
+AppTerminalColors resolveTerminalColorsForScheme(
+  ColorScheme colorScheme, {
+  bool highContrast = false,
+  TerminalProfileAppearance? profileAppearance,
+}) {
   final base = TerminalViewportColors(
     canvasBackground: colorScheme.surfaceContainerLowest,
     foreground: colorScheme.onSurface,
@@ -25,7 +36,7 @@ AppTerminalColors resolveTerminalColors(
     // Preserve explicit program colors for fades while keeping theme-derived
     // text readable on backgrounds selected by terminal applications.
     minimumContrastRatio: 4.5,
-    preserveExplicitForegroundColors: !MediaQuery.highContrastOf(context),
+    preserveExplicitForegroundColors: !highContrast,
     smartCursorColor: true,
   );
   final overrides = profileAppearance?.colors;

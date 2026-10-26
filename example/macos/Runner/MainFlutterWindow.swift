@@ -56,7 +56,9 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
   private var sidebarChromeWidth: CGFloat?
   private var configuredChromeHeight: CGFloat = 44
   private var chromeDragRegions: [NSRect]? = []
-  private var trafficLightCenteringWorkItem: DispatchWorkItem?
+  private var trafficLightLayoutObservers: [NSObjectProtocol] = []
+  private var observedTrafficLightViews: [NSView] = []
+  private var isCenteringTrafficLights = false
   private var notificationExpiryWorkItems: [String: DispatchWorkItem] = [:]
   private var attentionRequestIds: Set<Int> = []
   private var osc72DropTarget: Osc72DropTarget?
@@ -612,11 +614,13 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     }
 
     super.awakeFromNib()
-    scheduleTrafficLightCentering()
+    centerTrafficLightButtonsInChromeBar()
   }
 
   deinit {
-    trafficLightCenteringWorkItem?.cancel()
+    for observer in trafficLightLayoutObservers {
+      NotificationCenter.default.removeObserver(observer)
+    }
     for workItem in notificationExpiryWorkItems.values {
       workItem.cancel()
     }
@@ -635,15 +639,18 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
       chromeDragRegions = []
     }
     super.setFrame(frameRect, display: flag)
-    scheduleTrafficLightCentering()
+    centerTrafficLightButtonsInChromeBar()
   }
 
   func updateTitleBarLayout(sidebarWidth: CGFloat?, height: CGFloat,
                            draggableRegions: [NSRect]?) {
+    let heightChanged = configuredChromeHeight != height
     sidebarChromeWidth = sidebarWidth
     configuredChromeHeight = height
     chromeDragRegions = draggableRegions
-    scheduleTrafficLightCentering()
+    if heightChanged || trafficLightLayoutObservers.isEmpty {
+      centerTrafficLightButtonsInChromeBar()
+    }
   }
 
   private var chromeMouseResponder: NSResponder?
@@ -716,7 +723,14 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
 
   override func becomeKey() {
     super.becomeKey()
-    scheduleTrafficLightCentering()
+    centerTrafficLightButtonsInChromeBar()
+  }
+
+  override func update() {
+    super.update()
+    // AppKit can also reconfigure the zoom button without a frame notification.
+    // Finish the same native update with all three buttons in their final positions.
+    centerTrafficLightButtonsInChromeBar()
   }
 
   @objc func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
@@ -1259,25 +1273,36 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
   }
 
   @objc private func handleTrafficLightLayoutChange(_ notification: Notification) {
-    scheduleTrafficLightCentering()
+    centerTrafficLightButtonsInChromeBar()
   }
 
-  private func scheduleTrafficLightCentering() {
-    trafficLightCenteringWorkItem?.cancel()
-    let workItem = DispatchWorkItem { [weak self] in
-      self?.centerTrafficLightButtonsInChromeBar()
+  private func observeTrafficLightViews(_ views: [NSView]) {
+    guard views.map(ObjectIdentifier.init) != observedTrafficLightViews.map(ObjectIdentifier.init)
+    else { return }
+    for observer in trafficLightLayoutObservers {
+      NotificationCenter.default.removeObserver(observer)
     }
-    trafficLightCenteringWorkItem = workItem
-    DispatchQueue.main.async(execute: workItem)
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
-      guard let self, self.trafficLightCenteringWorkItem === workItem else {
-        return
+    trafficLightLayoutObservers.removeAll()
+    observedTrafficLightViews = views
+    for view in views {
+      view.postsFrameChangedNotifications = true
+      view.postsBoundsChangedNotifications = true
+      for name in [NSView.frameDidChangeNotification, NSView.boundsDidChangeNotification] {
+        trafficLightLayoutObservers.append(NotificationCenter.default.addObserver(
+          forName: name, object: view, queue: nil
+        ) { [weak self] _ in
+          // OSC title/spinner updates make AppKit lay out the native buttons again.
+          // Correct that layout before it is displayed, not on a later run-loop tick.
+          self?.centerTrafficLightButtonsInChromeBar()
+        })
       }
-      self.centerTrafficLightButtonsInChromeBar()
     }
   }
 
   private func centerTrafficLightButtonsInChromeBar() {
+    guard !isCenteringTrafficLights else { return }
+    isCenteringTrafficLights = true
+    defer { isCenteringTrafficLights = false }
     let buttons = [
       standardWindowButton(.closeButton),
       standardWindowButton(.miniaturizeButton),
@@ -1286,14 +1311,19 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     guard let buttonSuperview = buttons.first?.superview else {
       return
     }
+    observeTrafficLightViews([buttonSuperview] + buttons)
+    // AppKit owns the auto-hiding fullscreen title bar.
+    guard !styleMask.contains(.fullScreen) else { return }
 
     for button in buttons {
-      var frame = button.frame
-      frame.origin.y =
-        buttonSuperview.bounds.height -
-        configuredChromeHeight +
-        (configuredChromeHeight - frame.height) / 2
-      button.setFrameOrigin(frame.origin)
+      guard let parent = button.superview else { continue }
+      let center = parent.convert(
+        NSPoint(x: 0, y: frame.height - configuredChromeHeight / 2), from: nil)
+      var origin = button.frame.origin
+      origin.y = center.y - button.frame.height / 2
+      if origin != button.frame.origin {
+        button.setFrameOrigin(origin)
+      }
     }
   }
 

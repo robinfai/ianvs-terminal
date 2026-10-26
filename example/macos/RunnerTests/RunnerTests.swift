@@ -419,9 +419,13 @@ class RunnerTests: XCTestCase {
     )
   }
 
-  func testMainWindowChromeRestoresFrameAfterApplyingFullSizeStyle() {
+  func testMainWindowChromeRestoresFrameAfterApplyingFullSizeStyle() throws {
     let autosaveName = "RunnerTests.MainWindow.\(UUID().uuidString)"
     defer { NSWindow.removeFrame(usingName: autosaveName) }
+    let screen = try XCTUnwrap(NSScreen.main)
+    // AppKit restores onto the current main screen. Keep the saved fixture on
+    // that screen too, including when its desktop origin is negative.
+    let visibleFrame = screen.visibleFrame
     let styleMask: NSWindow.StyleMask = [
       .titled,
       .closable,
@@ -435,7 +439,9 @@ class RunnerTests: XCTestCase {
       defer: false
     )
     seedWindow.setFrame(
-      NSRect(x: 120, y: 160, width: 920, height: 680),
+      NSRect(x: visibleFrame.minX + 40, y: visibleFrame.minY + 40,
+             width: min(920, visibleFrame.width - 80),
+             height: min(680, visibleFrame.height - 80)),
       display: false
     )
     let savedFrame = seedWindow.frame
@@ -589,6 +595,33 @@ class RunnerTests: XCTestCase {
       at: NSPoint(x: 440, y: 578), contentSize: size,
       chromeHeight: 54, draggableRegions: []),
       "An unmeasured or resized layout must not hijack controls")
+  }
+
+  func testTrafficLightsStayCenteredDuringNativeTitleLayout() throws {
+    let window = MainFlutterWindow(
+      contentRect: NSRect(x: 100, y: 200, width: 900, height: 600),
+      styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+      backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    window.titleVisibility = .hidden
+    window.titlebarAppearsTransparent = true
+    window.orderFront(nil)
+    defer { window.orderOut(nil) }
+    for height: CGFloat in [44, 54, 44] {
+      window.setFrame(window.frame.insetBy(dx: -10, dy: -10), display: false)
+      window.updateTitleBarLayout(sidebarWidth: nil, height: height, draggableRegions: [])
+      for title in ["⠋ | ianvs-terminal", "⠙ | ianvs-terminal", "中文对话 | ianvs-terminal"] {
+        window.title = title
+        window.contentView?.superview?.layoutSubtreeIfNeeded()
+        window.update()
+        for type: NSWindow.ButtonType in [.closeButton, .miniaturizeButton, .zoomButton] {
+          let button = try XCTUnwrap(window.standardWindowButton(type))
+          let rect = button.convert(button.bounds, to: nil)
+          XCTAssertEqual(window.frame.height - rect.midY, height / 2, accuracy: 0.5,
+            "Title \(title), button \(type.rawValue): native title/resize layout must stay centered")
+        }
+      }
+    }
   }
 
   func testMeasuredUnifiedChromeUsesNativeMouseDownAndRevokesOldResizeRegions() throws {

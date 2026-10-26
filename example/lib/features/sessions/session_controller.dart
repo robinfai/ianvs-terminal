@@ -3,12 +3,15 @@ import 'dart:convert' show jsonEncode, utf8;
 import 'dart:io' show Directory, File, FileMode, IOSink, Platform;
 import 'dart:typed_data' show Uint8List;
 
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show MissingPluginException;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/configuration/data_api_configuration_providers.dart';
 import '../../platform/app_shutdown_coordinator.dart';
+import '../../ui/foundation/app_terminal_colors.dart';
+import '../../ui/foundation/app_theme.dart';
 import '../config/local_terminal_config_bootstrap.dart';
 import '../config/local_terminal_config_loader.dart';
 import '../config/local_terminal_config_models.dart';
@@ -1379,8 +1382,37 @@ class SessionController extends Notifier<SessionState> {
       return null;
     }
     try {
+      final dispatcher = WidgetsBinding.instance.platformDispatcher;
+      final brightness = switch (_appPreferences.appearance.themeMode) {
+        TerminalThemeMode.system => dispatcher.platformBrightness,
+        TerminalThemeMode.light => Brightness.light,
+        TerminalThemeMode.dark => Brightness.dark,
+      };
+      final theme = buildIanvsTerminalTheme(
+        brightness,
+        platform: defaultTargetPlatform,
+        highContrast: dispatcher.accessibilityFeatures.highContrast,
+      );
+      final viewportColors = resolveTerminalColorsForScheme(
+        theme.colorScheme,
+      ).viewport;
+      final config = launchProfile.toSessionConfig();
       return _runtime.createSession(
-        launchProfile.toSessionConfig().copyWith(
+        config.copyWith(
+          // OSC 10/11 must report the theme colors painted by the viewport.
+          // Programs such as Codex blend faded artwork against these defaults.
+          display: config.display.copyWith(
+            colors: config.display.colors.copyWith(
+              special: config.display.colors.special.copyWith(
+                foreground: terminalViewportHexFromColor(
+                  viewportColors.foreground,
+                ),
+                background: terminalViewportHexFromColor(
+                  viewportColors.canvasBackground,
+                ),
+              ),
+            ),
+          ),
           // The macOS example installs the native OSC 72 bridge. Other
           // platforms retain the package's deny-by-default behavior.
           dragDropEnabled: Platform.isMacOS,
