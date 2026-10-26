@@ -35,8 +35,17 @@ class LocalTerminalPastePolicy {
     return largePasteThreshold > 0 && text.length >= largePasteThreshold;
   }
 
-  bool requiresConfirmation(String text) {
-    if (confirmMultilinePaste && _containsLineBreak(text)) {
+  bool requiresConfirmation(
+    String text, {
+    bool commandRunning = false,
+    bool bracketedPaste = false,
+  }) {
+    // Unknown shell state is deliberately conservative. A running application
+    // must also request paste framing before multiline warnings can be skipped.
+    final applicationPaste = commandRunning && bracketedPaste;
+    if (confirmMultilinePaste &&
+        !applicationPaste &&
+        _containsLineBreak(text)) {
       return true;
     }
     return confirmLargePaste && isLargePaste(text);

@@ -5216,6 +5216,89 @@ void main() {
     debugDefaultTargetPlatformOverride = null;
   });
 
+  for (final scenario in [
+    (hook: 'preexec', bracketed: true, confirm: false, large: false),
+    (hook: 'precmd', bracketed: true, confirm: true, large: false),
+    (hook: 'command_finished', bracketed: true, confirm: true, large: false),
+    (hook: 'preexec', bracketed: false, confirm: true, large: false),
+    (hook: 'unknown', bracketed: true, confirm: true, large: false),
+    (hook: 'preexec', bracketed: true, confirm: true, large: true),
+  ]) {
+    testWidgets('native paste uses session state $scenario', (tester) async {
+      final clipboardText = scenario.large
+          ? '第一行\n  second line\n' * 1024
+          : '第一行\n  second line';
+      final fakeBindings = FakePtyBackend();
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async => call.method == 'Clipboard.getData'
+            ? <String, dynamic>{'text': clipboardText}
+            : null,
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      fakeBindings.setFrame(1, <String, Object?>{
+        'rows': <Object?>[],
+        'cursor': <String, Object?>{'row': 0, 'col': 0, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': <Object?>[],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+        'modes': <String, Object?>{'bracketed_paste': scenario.bracketed},
+      });
+      if (scenario.hook == 'precmd' || scenario.hook == 'command_finished') {
+        fakeBindings.enqueueEvent(
+          1,
+          const PtyEvent(
+            kind: 'shell_hook',
+            sessionId: '1',
+            payload: <String, Object?>{'hook': 'preexec', 'command': 'vi'},
+          ),
+        );
+      }
+      fakeBindings.enqueueEvent(
+        1,
+        PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: <String, Object?>{'hook': scenario.hook, 'command': 'vi'},
+        ),
+      );
+      container.read(terminalRuntimeControllerProvider).refreshSession('1');
+      await tester.pump();
+      final pending = _dispatchNativeWindowBridge(
+        tester,
+        const MethodCall('nativePaste'),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('paste-confirmation-dialog')),
+        scenario.confirm ? findsOneWidget : findsNothing,
+      );
+      if (scenario.confirm) {
+        expect(fakeBindings.writes, isEmpty);
+        await tester.tap(find.widgetWithText(FilledButton, 'Paste'));
+        await tester.pumpAndSettle();
+      }
+      await pending;
+      expect(fakeBindings.writes, hasLength(1));
+      expect(
+        utf8.decode(fakeBindings.writes.single),
+        scenario.bracketed ? '\x1b[200~$clipboardText\x1b[201~' : clipboardText,
+      );
+    });
+  }
+
   testWidgets('native paste confirms multiline text before sending', (
     tester,
   ) async {

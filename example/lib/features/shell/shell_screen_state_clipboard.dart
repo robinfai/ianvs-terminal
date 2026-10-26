@@ -187,10 +187,26 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
     if (text.isEmpty || _manualInputBlocked(sessionId, epoch: inputEpoch)) {
       return;
     }
+    final sessionState = ref.read(sessionControllerProvider);
+    final pane = sessionState.tabs
+        .expand((tab) => tab.effectivePanes)
+        .where((pane) => pane.sessionId == sessionId)
+        .firstOrNull;
+    final frame = runtime.viewportFor(sessionId).frame;
     final decision = LocalTerminalPasteDecisionResolver.resolve(
       text: text,
       readOnly: _manualInputBlocked(sessionId),
       pastePolicy: _pastePolicy,
+      commandRunning:
+          pane != null &&
+          pane
+              .shellCapabilities[ShellIntegrationCapability.commandStart]
+              .isActive &&
+          pane.shellIntegration.commandStartedAt != null,
+      // Force framing is a user override, not evidence of application support.
+      bracketedPaste:
+          frame.modes.bracketedPaste &&
+          _pasteModesFor(frame.modes).bracketedPaste,
       historyPolicy: const LocalTerminalPasteHistoryPolicy(enabled: false),
     );
     switch (decision.kind) {
