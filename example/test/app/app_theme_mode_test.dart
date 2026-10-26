@@ -3,10 +3,12 @@ import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
+import 'package:app/features/terminal/terminal_viewport_colors.dart';
 import 'package:app/ui/app_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart' show TerminalSessionConfig;
 
 import '../support/fake_pty_backend.dart';
 import '../support/memory_local_terminal_config_repository.dart';
@@ -17,13 +19,16 @@ Future<void> _pumpApp(
   WidgetTester tester, {
   LocalTerminalConfigDocument? config,
   MemoryLocalTerminalConfigRepository? configRepository,
+  FakePtyBackend? backend,
 }) async {
   final repository =
       configRepository ?? MemoryLocalTerminalConfigRepository(config);
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
+        ptySessionBackendProvider.overrideWithValue(
+          backend ?? FakePtyBackend(),
+        ),
         profileRepositoryProvider.overrideWithValue(
           MemoryProfileRepository(
             TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
@@ -42,6 +47,59 @@ Future<void> _pumpApp(
 }
 
 void main() {
+  for (final mode in TerminalThemeMode.values) {
+    for (final systemBrightness in Brightness.values) {
+      testWidgets(
+        'new sessions report viewport colors for $mode / $systemBrightness',
+        (tester) async {
+          tester.binding.platformDispatcher.platformBrightnessTestValue =
+              systemBrightness;
+          addTearDown(
+            tester.binding.platformDispatcher.clearPlatformBrightnessTestValue,
+          );
+          final backend = FakePtyBackend();
+          await _pumpApp(
+            tester,
+            backend: backend,
+            config: LocalTerminalConfigDocument(
+              appearance: TerminalAppAppearance(themeMode: mode),
+            ),
+          );
+
+          void expectViewportDefaults() {
+            final context = tester.element(find.text('Trail'));
+            final viewport = resolveTerminalColors(context).viewport;
+            final special = TerminalSessionConfig.fromJson(
+              backend.lastCreatedSessionPayload!,
+            ).display.colors.special;
+            expect(
+              terminalViewportColorFromHex(special.foreground),
+              viewport.foreground,
+            );
+            expect(
+              terminalViewportColorFromHex(special.background),
+              viewport.canvasBackground,
+            );
+          }
+
+          expectViewportDefaults();
+          final controller = ProviderScope.containerOf(
+            tester.element(find.text('Trail')),
+          ).read(sessionControllerProvider.notifier);
+          await controller.setThemeMode(
+            systemBrightness == Brightness.dark
+                ? TerminalThemeMode.light
+                : TerminalThemeMode.dark,
+          );
+          controller.createSession(defaultTerminalProfile());
+          await tester.pumpAndSettle();
+          expectViewportDefaults();
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  }
+
   for (final mode in [TerminalThemeMode.light, TerminalThemeMode.dark]) {
     testWidgets(
       'system high contrast changes $mode without replacing the session',
