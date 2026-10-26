@@ -26,6 +26,8 @@ class LocalTerminalPasteDecisionResolver {
     required bool readOnly,
     required LocalTerminalPastePolicy pastePolicy,
     required LocalTerminalPasteHistoryPolicy historyPolicy,
+    bool commandRunning = false,
+    bool bracketedPaste = false,
   }) {
     final largePaste = pastePolicy.isLargePaste(text);
     final captureHistory = historyPolicy.shouldCapture(
@@ -41,7 +43,11 @@ class LocalTerminalPasteDecisionResolver {
       );
     }
 
-    if (pastePolicy.requiresConfirmation(text)) {
+    if (pastePolicy.requiresConfirmation(
+      text,
+      commandRunning: commandRunning,
+      bracketedPaste: bracketedPaste,
+    )) {
       return LocalTerminalPasteDecision(
         kind: LocalTerminalPasteDecisionKind.requireConfirmation,
         captureHistory: captureHistory,

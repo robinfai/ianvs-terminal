@@ -4,6 +4,55 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('Local terminal paste decision', () {
+    for (final running in [false, true]) {
+      for (final bracketed in [false, true]) {
+        test('multiline running=$running bracketed=$bracketed', () {
+          final decision = LocalTerminalPasteDecisionResolver.resolve(
+            text: 'one\ntwo',
+            readOnly: false,
+            commandRunning: running,
+            bracketedPaste: bracketed,
+            pastePolicy: const LocalTerminalPastePolicy(),
+            historyPolicy: const LocalTerminalPasteHistoryPolicy(
+              enabled: false,
+            ),
+          );
+          expect(
+            decision.kind,
+            running && bracketed
+                ? LocalTerminalPasteDecisionKind.sendImmediately
+                : LocalTerminalPasteDecisionKind.requireConfirmation,
+          );
+          expect(decision.text, 'one\ntwo');
+          expect(decision.captureHistory, isFalse);
+        });
+      }
+    }
+
+    test(
+      'application framing does not bypass size confirmation or read-only',
+      () {
+        for (final readOnly in [false, true]) {
+          final decision = LocalTerminalPasteDecisionResolver.resolve(
+            text: '字\n' * 4096,
+            readOnly: readOnly,
+            commandRunning: true,
+            bracketedPaste: true,
+            pastePolicy: const LocalTerminalPastePolicy(),
+            historyPolicy: const LocalTerminalPasteHistoryPolicy(
+              enabled: false,
+            ),
+          );
+          expect(
+            decision.kind,
+            readOnly
+                ? LocalTerminalPasteDecisionKind.blockedReadOnly
+                : LocalTerminalPasteDecisionKind.requireConfirmation,
+          );
+        }
+      },
+    );
+
     test('blocks paste in read-only mode without history capture', () {
       final decision = LocalTerminalPasteDecisionResolver.resolve(
         text: 'hello',

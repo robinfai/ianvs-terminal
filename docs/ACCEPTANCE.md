@@ -140,3 +140,19 @@ make acceptance-cross-platform-sync
 
 日志、截图、trace 和临时报告统一写入 `build/`。完成任务后只同步现行合同、
 测试入口和未解决风险；不把已完成任务或整套运行证据复制到 `docs/`。
+
+## 会话感知粘贴
+
+普通文本粘贴沿用同一个会话输入通道。默认按程序请求的 bracketed paste
+模式封装；保留用户显式 force/plain 配置，但 force 不作为程序支持协议的证据。
+
+- shell 提示符或执行状态未知时，多行确认按现有设置生效。
+- 只有当前会话观察到命令执行开始、相应 shell 能力有效，且程序实际请求并使用
+  bracketed paste 时，才省略多行确认。不能按程序名、窗口标题或备用屏幕推断。
+- 命令结束或返回提示符后重新启用多行确认。未启用协议的 vi 仍需确认。
+- 超大文本阈值确认独立生效，编辑器也不豁免。只读、退出及输入所有权限制保持有效。
+- 大块内容保持一次逻辑写入，由既有原生队列处理背压；本次不提供新增的慢速粘贴、
+  进度或取消界面。UTF-8 内容与括号粘贴边界不得拆成可与普通输入交错的独立操作。
+
+回归入口：`example/test/policies/local_terminal_paste_decision_test.dart`、
+`example/test/shell/shell_screen_phase4_test.dart` 中的 paste 用例。
