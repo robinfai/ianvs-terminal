@@ -2149,7 +2149,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'new_ssh_session': 'New SSH session',
       'new_tab_at_folder': 'New tab at folder',
       'open_recording_for_replay': 'Replay',
-      'duplicate_current_cwd': 'Duplicate current directory',
+      'duplicate_current_cwd': 'New terminal in current directory',
       'reopen_closed_tab': 'Reopen closed tab',
       'open_launcher': 'Open launcher',
       'open_command_menu': 'Open command menu',
@@ -2864,7 +2864,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get duplicateCwdRequiresProfileSession =>
-      'Duplicate current directory requires a default profile and active session.';
+      'New terminal in current directory requires a default profile and active session.';
 
   @override
   String get noCurrentDirectoryAvailable =>
@@ -3047,7 +3047,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get duplicateCurrentDirectory => 'Duplicate current directory';
+  String get duplicateCurrentDirectory => 'New terminal in current directory';
 
   @override
   String get growActivePane => 'Grow active pane';

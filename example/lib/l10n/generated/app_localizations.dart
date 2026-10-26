@@ -3591,7 +3591,7 @@ abstract class AppLocalizations {
   /// No description provided for @terminalActionName.
   ///
   /// In en, this message translates to:
-  /// **'{action, select, new_tab{New tab} new_ssh_session{New SSH session} new_tab_at_folder{New tab at folder} open_recording_for_replay{Replay} duplicate_current_cwd{Duplicate current directory} reopen_closed_tab{Reopen closed tab} open_launcher{Open launcher} open_command_menu{Open command menu} open_sftp_panel{Open SFTP panel} split_right{Split right} split_down{Split down} focus_next_pane{Focus next pane} focus_previous_pane{Focus previous pane} resize_pane{Resize pane} swap_pane{Swap pane} zoom_pane{Zoom pane} close_pane{Close pane} reopen_closed_pane{Reopen closed pane} close_active_tab{Close active tab} open_defaults{Open defaults} activate_tab{Activate tab} copy{Copy} copy_command_output{Copy command output} paste{Paste} toggle_read_only{Toggle read-only} toggle_replay_recording{Toggle replay recording} clear_buffer{Clear buffer} replay_recent_activity{Replay recent activity} search_scrollback{Search scrollback} next_search_match{Next search match} previous_search_match{Previous search match} clear_search{Clear search} defaults{Defaults} profiles{Profiles} request_quit_confirmation{Request quit confirmation} previous_prompt{Previous prompt} next_prompt{Next prompt} export_scrollback{Export scrollback} shell_capabilities{Shell capabilities} export_diagnostics{Export diagnostics} other{{action}}}'**
+  /// **'{action, select, new_tab{New tab} new_ssh_session{New SSH session} new_tab_at_folder{New tab at folder} open_recording_for_replay{Replay} duplicate_current_cwd{New terminal in current directory} reopen_closed_tab{Reopen closed tab} open_launcher{Open launcher} open_command_menu{Open command menu} open_sftp_panel{Open SFTP panel} split_right{Split right} split_down{Split down} focus_next_pane{Focus next pane} focus_previous_pane{Focus previous pane} resize_pane{Resize pane} swap_pane{Swap pane} zoom_pane{Zoom pane} close_pane{Close pane} reopen_closed_pane{Reopen closed pane} close_active_tab{Close active tab} open_defaults{Open defaults} activate_tab{Activate tab} copy{Copy} copy_command_output{Copy command output} paste{Paste} toggle_read_only{Toggle read-only} toggle_replay_recording{Toggle replay recording} clear_buffer{Clear buffer} replay_recent_activity{Replay recent activity} search_scrollback{Search scrollback} next_search_match{Next search match} previous_search_match{Previous search match} clear_search{Clear search} defaults{Defaults} profiles{Profiles} request_quit_confirmation{Request quit confirmation} previous_prompt{Previous prompt} next_prompt{Next prompt} export_scrollback{Export scrollback} shell_capabilities{Shell capabilities} export_diagnostics{Export diagnostics} other{{action}}}'**
   String terminalActionName(String action);
 
   /// No description provided for @appCategory.
@@ -4533,7 +4533,7 @@ abstract class AppLocalizations {
   /// No description provided for @duplicateCwdRequiresProfileSession.
   ///
   /// In en, this message translates to:
-  /// **'Duplicate current directory requires a default profile and active session.'**
+  /// **'New terminal in current directory requires a default profile and active session.'**
   String get duplicateCwdRequiresProfileSession;
 
   /// No description provided for @noCurrentDirectoryAvailable.
@@ -4833,7 +4833,7 @@ abstract class AppLocalizations {
   /// No description provided for @duplicateCurrentDirectory.
   ///
   /// In en, this message translates to:
-  /// **'Duplicate current directory'**
+  /// **'New terminal in current directory'**
   String get duplicateCurrentDirectory;
 
   /// No description provided for @growActivePane.

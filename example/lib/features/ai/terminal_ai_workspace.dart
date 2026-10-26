@@ -1630,28 +1630,41 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                 _savePosition();
                 c.newTask();
               },
-              icon: const Icon(Icons.add, size: 20),
+              icon: Icon(
+                Icons.add,
+                size: 20,
+                semanticLabel: t('New task', '新任务'),
+              ),
             ),
           if (!compact)
             IconButton(
               key: const Key('ai-open-settings'),
               tooltip: t('AI connection', 'AI 连接'),
               onPressed: _openSettings,
-              icon: const Icon(Icons.settings_outlined, size: 20),
+              icon: Icon(
+                Icons.settings_outlined,
+                semanticLabel: t('AI connection', 'AI 连接'),
+              ),
             ),
           if (singleRow) _taskActions(includeInlineActions: true),
           IconButton(
             key: const Key('ai-close'),
             tooltip: t('Collapse to read-only terminal', '收起并只读查看终端'),
             onPressed: _collapseTask,
-            icon: const Icon(Icons.close, size: 20),
+            icon: Icon(
+              Icons.close,
+              semanticLabel: t('Collapse to read-only terminal', '收起并只读查看终端'),
+            ),
           ),
           if (widget.onObserveTerminal != null)
             IconButton(
               key: const Key('ai-observe-terminal'),
               tooltip: t('View terminal (read-only)', '只读查看终端'),
               onPressed: _observeTerminal,
-              icon: const Icon(Icons.visibility_outlined, size: 20),
+              icon: Icon(
+                Icons.visibility_outlined,
+                semanticLabel: t('View terminal (read-only)', '只读查看终端'),
+              ),
             ),
         ],
       ),

@@ -501,15 +501,23 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     _focusSession(ref.read(sessionControllerProvider).activeSessionId);
   }
 
-  TerminalProfile _profileWithActiveLocalDirectory(TerminalProfile profile) {
+  TerminalProfile _profileWithActiveLocalDirectory(TerminalProfile profile) =>
+      _profileWithLocalDirectory(
+        profile,
+        ref.read(sessionControllerProvider).activeSessionId,
+      );
+
+  TerminalProfile _profileWithLocalDirectory(
+    TerminalProfile profile,
+    String? sourceSessionId,
+  ) {
     if (profile.isSsh) {
       return profile;
     }
     final sessionState = ref.read(sessionControllerProvider);
-    final activeSessionId = sessionState.activeSessionId;
-    final activePane = activeSessionId == null
+    final activePane = sourceSessionId == null
         ? null
-        : _paneForSession(sessionState, activeSessionId);
+        : _paneForSession(sessionState, sourceSessionId);
     if (activePane == null) {
       return profile;
     }
@@ -1145,7 +1153,16 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       AppNotifications.show(context, SnackBar(content: Text(conflictReason)));
       return false;
     }
-    sessionController.splitSession(targetSessionId, profile, axis);
+    // Use the selected pane's environment even if another pane has focus.
+    final targetPane = _paneForSession(currentState, targetSessionId);
+    final sourceProfile = targetPane == null
+        ? profile
+        : _profileForPane(targetPane, currentState.profiles) ?? profile;
+    sessionController.splitSession(
+      targetSessionId,
+      _profileWithLocalDirectory(sourceProfile, targetSessionId),
+      axis,
+    );
     _focusSession(ref.read(sessionControllerProvider).activeSessionId);
     return true;
   }

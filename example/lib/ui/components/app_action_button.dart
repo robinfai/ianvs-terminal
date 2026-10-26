@@ -44,7 +44,7 @@ class AppActionButton extends StatelessWidget {
         style: tone == AppActionTone.danger
             ? IconButton.styleFrom(foregroundColor: colors.error)
             : null,
-        icon: Icon(icon, size: iconSize),
+        icon: Icon(icon, size: iconSize, semanticLabel: tooltip),
       );
     }
     final content = icon == null

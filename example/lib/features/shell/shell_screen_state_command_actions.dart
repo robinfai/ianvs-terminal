@@ -288,28 +288,29 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
               l10n.noCurrentDirectoryAvailable,
             );
           }
-          if (_shellHostIsRemote(currentPane?.shellIntegration.hostname)) {
+          if (_profileForPane(currentPane!, currentState.profiles)?.isSsh ==
+                  true ||
+              _shellHostIsRemote(currentPane.shellIntegration.hostname)) {
             return ShellActionBindingResult.skipped(
               l10n.remoteDirectoryCannotDuplicate,
             );
           }
           _createSession(
             sessionController,
-            defaultProfile,
+            (_profileForPane(currentPane, currentState.profiles) ??
+                    defaultProfile)
+                .copyWith(cwd: currentDirectory),
             returningToLayout: activeSessionIdBeforeOpen == null,
           );
           final duplicateSessionId = ref
               .read(sessionControllerProvider)
               .activeSessionId;
-          if (duplicateSessionId == null) {
+          if (duplicateSessionId == null ||
+              duplicateSessionId == currentSessionId) {
             return ShellActionBindingResult.skipped(
               l10n.noDuplicatedSessionCreated,
             );
           }
-          _sendPlainTextToSession(
-            duplicateSessionId,
-            'cd ${_shellQuotedPath(currentDirectory)}',
-          );
           return const ShellActionBindingResult.completed();
         },
         reopenClosedTab: (_) {
@@ -930,7 +931,8 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         ? context.l10n.noDefaultProfileAvailable
         : !hasCurrentDirectory
         ? context.l10n.noCurrentDirectoryAvailable
-        : _shellHostIsRemote(targetPane?.shellIntegration.hostname)
+        : (_profileForPane(targetPane!, sessionState.profiles)?.isSsh == true ||
+              _shellHostIsRemote(targetPane.shellIntegration.hostname))
         ? context.l10n.remoteDirectoryCannotDuplicate
         : null;
     final growPaneBlockedReason = targetPane == null
@@ -1227,24 +1229,19 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         if (currentDirectory == null || currentDirectory.isEmpty) {
           return;
         }
-        if (_shellHostIsRemote(currentPane?.shellIntegration.hostname)) {
+        if (_profileForPane(currentPane!, currentState.profiles)?.isSsh ==
+                true ||
+            _shellHostIsRemote(currentPane.shellIntegration.hostname)) {
           _showShellSnackBar(context.l10n.remoteDirectoryCannotDuplicate);
           return;
         }
         _createSession(
           sessionController,
-          defaultProfile,
+          (_profileForPane(currentPane, currentState.profiles) ??
+                  defaultProfile)
+              .copyWith(cwd: currentDirectory),
           returningToLayout: false,
         );
-        final duplicateSessionId = ref
-            .read(sessionControllerProvider)
-            .activeSessionId;
-        if (duplicateSessionId != null) {
-          _sendPlainTextToSession(
-            duplicateSessionId,
-            'cd ${_shellQuotedPath(currentDirectory)}',
-          );
-        }
         return;
       case TerminalActionId.splitRight:
         if (defaultProfile == null) {

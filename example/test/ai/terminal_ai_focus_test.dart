@@ -61,6 +61,28 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('desktop task toolbar exposes named accessibility buttons', (
+    tester,
+  ) async {
+    await prepare();
+    final semantics = tester.ensureSemantics();
+    try {
+      await mount(tester);
+      for (final entry in {
+        'ai-new-task': 'New task',
+        'ai-open-settings': 'AI connection',
+        'ai-close': 'Collapse to read-only terminal',
+      }.entries) {
+        expect(
+          tester.getSemantics(find.byKey(Key(entry.key))).label,
+          entry.value,
+        );
+      }
+    } finally {
+      semantics.dispose();
+    }
+  });
+
   FocusNode inputFocus(WidgetTester tester) =>
       tester.widget<TextField>(find.byKey(const Key('ai-prompt'))).focusNode!;
 
