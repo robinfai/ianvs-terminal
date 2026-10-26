@@ -15,7 +15,9 @@ concurrency:
 
 jobs:
   release:
-    if: github.ref == 'refs/heads/main'
+    # Free Apple accounts cannot provide Developer ID signing/notarization.
+    # Opt in only after the production credentials below are configured.
+    if: github.ref == 'refs/heads/main' && vars.MACOS_RELEASE_ENABLED == 'true'
     runs-on: macos-15
     timeout-minutes: 90
     permissions:
