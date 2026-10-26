@@ -2052,7 +2052,7 @@ class AppLocalizationsZh extends AppLocalizations {
       'new_ssh_session': '新建 SSH 会话',
       'new_tab_at_folder': '在文件夹中新建标签页',
       'open_recording_for_replay': '回放',
-      'duplicate_current_cwd': '复制当前目录会话',
+      'duplicate_current_cwd': '在当前目录新建终端',
       'reopen_closed_tab': '重新打开关闭的标签页',
       'open_launcher': '打开启动器',
       'open_command_menu': '打开命令菜单',
@@ -2736,7 +2736,8 @@ class AppLocalizationsZh extends AppLocalizations {
   String get closeTabRequiresActiveTab => '关闭标签页需要活动标签页。';
 
   @override
-  String get duplicateCwdRequiresProfileSession => '复制当前目录需要默认 Profile 和活动会话。';
+  String get duplicateCwdRequiresProfileSession =>
+      '在当前目录新建终端需要默认 Profile 和活动会话。';
 
   @override
   String get noCurrentDirectoryAvailable => '没有可用的当前目录。';
@@ -2888,7 +2889,7 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get duplicateCurrentDirectory => '复制当前目录';
+  String get duplicateCurrentDirectory => '在当前目录新建终端';
 
   @override
   String get growActivePane => '增大活动窗格';

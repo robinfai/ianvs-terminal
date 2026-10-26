@@ -307,29 +307,4 @@ extension _ShellScreenStateClipboard on _ShellScreenState {
     }
     ref.read(terminalRuntimeControllerProvider).sendInput(sessionId, bytes);
   }
-
-  bool _sendPlainTextToSession(String sessionId, String text) {
-    if (text.isEmpty) {
-      return false;
-    }
-    if (_manualInputBlocked(sessionId)) {
-      return false;
-    }
-    ref
-        .read(terminalRuntimeControllerProvider)
-        .sendInput(sessionId, Uint8List.fromList(utf8.encode(text)));
-    _focusSession(sessionId);
-    return true;
-  }
-
-  String _shellQuotedPath(String path) {
-    final trimmed = path.trim();
-    if (trimmed.isEmpty) {
-      return "''";
-    }
-    if (RegExp(r'^[A-Za-z0-9_./:@%+=,-]+$').hasMatch(trimmed)) {
-      return trimmed;
-    }
-    return "'${trimmed.replaceAll("'", r"'\''")}'";
-  }
 }

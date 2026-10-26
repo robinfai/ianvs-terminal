@@ -4070,6 +4070,129 @@ void main() {
     expect(find.text('Clipboard is empty'), findsOneWidget);
   });
 
+  for (final action in ['New terminal in current directory', 'Split right']) {
+    testWidgets('$action launches at the source cwd without injecting cd', (
+      tester,
+    ) async {
+      final fakeBindings = FakePtyBackend();
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      fakeBindings.enqueueEvent(
+        1,
+        const PtyEvent(
+          kind: 'shell_context',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'osc7',
+            'cwd': "/tmp/项目 with spaces/'quoted'",
+            'hostname': 'localhost',
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+      final writesBefore = fakeBindings.writes.length;
+
+      await _tapTabContextMenuAction(tester, action);
+
+      expect(
+        fakeBindings.lastCreatedSessionPayload!['launch'],
+        containsPair('cwd', "/tmp/项目 with spaces/'quoted'"),
+      );
+      expect(fakeBindings.writes.skip(writesBefore), isEmpty);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      expect(container.read(sessionControllerProvider).activeSessionId, '2');
+    });
+  }
+
+  testWidgets('split preserves the source profile instead of the default', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final controller = container.read(sessionControllerProvider.notifier);
+    final profile = defaultTerminalProfile().copyWith(
+      id: 'custom-shell',
+      name: 'Custom shell',
+      cwd: '/custom/start',
+    );
+    controller.createSession(profile);
+    await tester.pumpAndSettle();
+    await _tapTabContextMenuAction(tester, 'Split right', sessionId: '2');
+    final pane = container
+        .read(sessionControllerProvider)
+        .tabs
+        .last
+        .effectivePanes
+        .last;
+    expect(pane.profileId, 'custom-shell');
+    expect(
+      fakeBindings.lastCreatedSessionPayload!['launch'],
+      containsPair('cwd', '/custom/start'),
+    );
+  });
+
+  testWidgets(
+    'failed same-directory launch never writes into the old session',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      fakeBindings.enqueueEvent(
+        1,
+        const PtyEvent(
+          kind: 'shell_context',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'osc7',
+            'cwd': '/local/project',
+            'hostname': 'localhost',
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+      fakeBindings.failingOperations.add('createSession');
+      final writesBefore = fakeBindings.writes.length;
+      await _tapTabContextMenuAction(
+        tester,
+        'New terminal in current directory',
+      );
+      expect(fakeBindings.writes.skip(writesBefore), isEmpty);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      expect(container.read(sessionControllerProvider).activeSessionId, '1');
+    },
+  );
+
+  testWidgets('split does not inherit a remote-reported local shell cwd', (
+    tester,
+  ) async {
+    final fakeBindings = FakePtyBackend();
+    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+    final initialLaunch = fakeBindings.lastCreatedSessionPayload!['launch'];
+    fakeBindings.enqueueEvent(
+      1,
+      const PtyEvent(
+        kind: 'shell_context',
+        sessionId: '1',
+        payload: <String, Object?>{
+          'source': 'osc7',
+          'cwd': '/remote/only',
+          'hostname': 'remote.example',
+        },
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+    await _tapTabContextMenuAction(tester, 'Split right');
+    expect(
+      (fakeBindings.lastCreatedSessionPayload!['launch']! as Map)['cwd'],
+      (initialLaunch! as Map)['cwd'],
+    );
+  });
+
   testWidgets(
     'OSC shell context remote cwd disables local duplicate affordance',
     (tester) async {
@@ -4094,7 +4217,7 @@ void main() {
 
       await _openTabContextMenu(tester);
 
-      expect(find.text('Duplicate current directory'), findsOneWidget);
+      expect(find.text('New terminal in current directory'), findsOneWidget);
       expect(
         find.text(
           'Unavailable: Remote-reported current directories cannot be duplicated as local sessions.',

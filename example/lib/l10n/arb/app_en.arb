@@ -2008,7 +2008,7 @@
   "idleGap": "Idle gap",
   "shellSemantics": "Shell semantics",
   "activityFallbackNoShellHook": "Activity fallback · no shell hook",
-  "terminalActionName": "{action, select, new_tab{New tab} new_ssh_session{New SSH session} new_tab_at_folder{New tab at folder} open_recording_for_replay{Replay} duplicate_current_cwd{Duplicate current directory} reopen_closed_tab{Reopen closed tab} open_launcher{Open launcher} open_command_menu{Open command menu} open_sftp_panel{Open SFTP panel} split_right{Split right} split_down{Split down} focus_next_pane{Focus next pane} focus_previous_pane{Focus previous pane} resize_pane{Resize pane} swap_pane{Swap pane} zoom_pane{Zoom pane} close_pane{Close pane} reopen_closed_pane{Reopen closed pane} close_active_tab{Close active tab} open_defaults{Open defaults} activate_tab{Activate tab} copy{Copy} copy_command_output{Copy command output} paste{Paste} toggle_read_only{Toggle read-only} toggle_replay_recording{Toggle replay recording} clear_buffer{Clear buffer} replay_recent_activity{Replay recent activity} search_scrollback{Search scrollback} next_search_match{Next search match} previous_search_match{Previous search match} clear_search{Clear search} defaults{Defaults} profiles{Profiles} request_quit_confirmation{Request quit confirmation} previous_prompt{Previous prompt} next_prompt{Next prompt} export_scrollback{Export scrollback} shell_capabilities{Shell capabilities} export_diagnostics{Export diagnostics} other{{action}}}",
+  "terminalActionName": "{action, select, new_tab{New tab} new_ssh_session{New SSH session} new_tab_at_folder{New tab at folder} open_recording_for_replay{Replay} duplicate_current_cwd{New terminal in current directory} reopen_closed_tab{Reopen closed tab} open_launcher{Open launcher} open_command_menu{Open command menu} open_sftp_panel{Open SFTP panel} split_right{Split right} split_down{Split down} focus_next_pane{Focus next pane} focus_previous_pane{Focus previous pane} resize_pane{Resize pane} swap_pane{Swap pane} zoom_pane{Zoom pane} close_pane{Close pane} reopen_closed_pane{Reopen closed pane} close_active_tab{Close active tab} open_defaults{Open defaults} activate_tab{Activate tab} copy{Copy} copy_command_output{Copy command output} paste{Paste} toggle_read_only{Toggle read-only} toggle_replay_recording{Toggle replay recording} clear_buffer{Clear buffer} replay_recent_activity{Replay recent activity} search_scrollback{Search scrollback} next_search_match{Next search match} previous_search_match{Previous search match} clear_search{Clear search} defaults{Defaults} profiles{Profiles} request_quit_confirmation{Request quit confirmation} previous_prompt{Previous prompt} next_prompt{Next prompt} export_scrollback{Export scrollback} shell_capabilities{Shell capabilities} export_diagnostics{Export diagnostics} other{{action}}}",
   "@terminalActionName": {
     "placeholders": {
       "action": {
@@ -2386,7 +2386,7 @@
   "noTerminalSessionOptionAvailable": "No terminal session option is available.",
   "closeTabRequiresActiveSession": "Close tab requires an active session.",
   "closeTabRequiresActiveTab": "Close tab requires an active tab.",
-  "duplicateCwdRequiresProfileSession": "Duplicate current directory requires a default profile and active session.",
+  "duplicateCwdRequiresProfileSession": "New terminal in current directory requires a default profile and active session.",
   "noCurrentDirectoryAvailable": "No current directory is available.",
   "remoteDirectoryCannotDuplicate": "Remote-reported current directories cannot be duplicated as local sessions.",
   "noDuplicatedSessionCreated": "No duplicated session was created.",
@@ -2443,7 +2443,7 @@
       }
     }
   },
-  "duplicateCurrentDirectory": "Duplicate current directory",
+  "duplicateCurrentDirectory": "New terminal in current directory",
   "growActivePane": "Grow active pane",
   "swapActivePane": "Swap active pane",
   "closeActivePane": "Close active pane",

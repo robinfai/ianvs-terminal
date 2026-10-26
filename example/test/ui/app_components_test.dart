@@ -26,6 +26,32 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('icon-only actions expose a label as well as a tooltip', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    try {
+      var pressed = false;
+      await pumpHarness(
+        tester,
+        AppActionButton(
+          buttonKey: const Key('named-action'),
+          icon: Icons.close,
+          tooltip: 'Close settings',
+          onPressed: () => pressed = true,
+        ),
+      );
+      expect(
+        tester.getSemantics(find.byKey(const Key('named-action'))).label,
+        'Close settings',
+      );
+      await tester.tap(find.bySemanticsLabel('Close settings'));
+      expect(pressed, isTrue);
+    } finally {
+      semantics.dispose();
+    }
+  });
+
   testWidgets(
     'full-screen dialogs keep actions inside safe areas above the keyboard',
     (tester) async {

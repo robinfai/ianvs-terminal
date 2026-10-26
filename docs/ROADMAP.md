@@ -17,6 +17,8 @@
 
 ## 执行顺序
 
+当前已开放入口按 [iTerm2 对照分析](ITERM2_FOUNDATION_PLAN.md) 评估改进：先明确目录操作与会话目标，再验证输入、搜索、窗格、配置和回放边界。分析包含 Ianvs 实机观察与 iTerm2 commit/issue 证据；iTerm2 GUI 对比仍受工具访问限制；目录、分屏上下文与按钮语义已形成实现，其他历史案例作为回归依据。不扩展功能范围，也不改变当前唯一 active lane 和下列工程门禁。
+
 1. 守住 current-only 协议、严格输入校验、发布包镜像一致性和真实 PTY 行为。
 2. 修复 [KNOWN_ISSUES.md](KNOWN_ISSUES.md) 中的门禁阻塞，运行聚焦回归及完整 `make verify`。
 3. 补齐 iOS 实体设备、可选 API 跨设备同步、辅助访问和发布验收。

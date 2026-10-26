@@ -13,6 +13,7 @@
 - [桌面通知与操作反馈](DESKTOP_NOTIFICATIONS.md)：右上角提示队列、复制反馈和系统通知边界。
 - [数据持久化与同步](DATA_API_PERSISTENCE.md)：本地优先、可选 API 同步及凭据边界。
 - [当前执行目标](CURRENT_EXECUTION_TARGET.md)、[路线图](ROADMAP.md)：当前优先级与退出条件。
+- [以 iTerm2 为参考的基础功能规划](ITERM2_FOUNDATION_PLAN.md)：当前开放入口的实机证据、iTerm2 commit/issue 分析及改进顺序。
 - [已知问题](KNOWN_ISSUES.md)：当前限制与未关闭的风险。
 - [手机 Block × AI PRD](product/mobile-block-ai-v1/README.md)：分阶段需求、交互合同和真实平台验收要求。
 - [桌面 Block × AI PRD v1.1](product/desktop-block-ai-v1/README.md)、[实施状态](product/desktop-block-ai-v1/STATUS.md)、[跨端对照](product/desktop-block-ai-v1/results/CROSS_PLATFORM_REVIEW.md)：桌面交互修订及当前实现／证据缺口。
