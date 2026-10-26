@@ -898,6 +898,22 @@ void main() {
       },
       'dragDropEnabled': true,
     });
+    final viewportColors = tester
+        .widget<TerminalViewport>(find.byType(TerminalViewport))
+        .colors!;
+    final profileColors = savedProfile.appearance.colors.resolveWith();
+    // The profile retains its custom colors, while new sessions report the
+    // foreground/background actually painted by the app's unified theme.
+    final runtimeColors = profileColors.copyWith(
+      special: profileColors.special.copyWith(
+        foreground: terminal.terminalViewportHexFromColor(
+          viewportColors.foreground,
+        ),
+        background: terminal.terminalViewportHexFromColor(
+          viewportColors.canvasBackground,
+        ),
+      ),
+    );
     expect(fakeBindings.lastCreatedSessionPayload!['appearance'], {
       'font': {
         'family': savedProfile.appearance.font.family,
@@ -905,7 +921,7 @@ void main() {
         'size': savedProfile.appearance.font.size,
         'lineHeight': savedProfile.appearance.font.lineHeight,
       },
-      'colors': savedProfile.appearance.colors.resolveWith().toJson(),
+      'colors': runtimeColors.toJson(),
       'cursor': {
         'shape': savedProfile.appearance.cursor.shape.name,
         'blink': savedProfile.appearance.cursor.blink,
