@@ -726,6 +726,15 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     centerTrafficLightButtonsInChromeBar()
   }
 
+  override var title: String {
+    didSet {
+      // AppKit can reset only the zoom button during setTitle without notifying
+      // our frame observers. Restore it before returning to the display loop;
+      // waiting for update() leaves a visible jump during CLI title animations.
+      centerTrafficLightButtonsInChromeBar()
+    }
+  }
+
   override func update() {
     super.update()
     // AppKit can also reconfigure the zoom button without a frame notification.
