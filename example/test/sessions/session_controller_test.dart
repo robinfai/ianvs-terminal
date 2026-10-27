@@ -5746,7 +5746,108 @@ void main() {
         contains('Terminal layout restore skipped 1 pane'),
       );
       expect(state.lastError, contains('removed-profile'));
+      await container
+          .read(sessionControllerProvider.notifier)
+          .flushLayoutPersistence();
+      await container
+          .read(appShutdownCoordinatorProvider)
+          .shutdown(bounded: false);
       expect(workspaceRepository.savedDocuments, isEmpty);
+    },
+  );
+
+  test(
+    'partially restored layout saves reordered tabs and restores the new order',
+    () async {
+      final workspaceRepository = _TestLocalTerminalLayoutRepository(
+        TerminalLayout(
+          activeTabId: 'default',
+          tabs: [
+            for (final profileId in ['default', 'removed-profile', 'ssh'])
+              TerminalLayoutTab(
+                id: profileId,
+                activePaneId: 'old-pane',
+                root: TerminalPaneNode.leaf(
+                  id: 'old-pane',
+                  sessionIntent: TerminalRelaunchSpec(
+                    profileId: profileId,
+                    cwd: '/workspace',
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+      ProviderContainer makeContainer() => ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(
+              TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
+            ),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+          localTerminalConfigRepositoryProvider.overrideWithValue(
+            _TestLocalTerminalConfigRepository(
+              const LocalTerminalConfigDocument(
+                layout: LocalTerminalLayoutConfig(restoreLayout: true),
+              ),
+            ),
+          ),
+          localTerminalLayoutRepositoryProvider.overrideWithValue(
+            workspaceRepository,
+          ),
+        ],
+      );
+      final container = makeContainer();
+      addTearDown(container.dispose);
+
+      final controller = container.read(sessionControllerProvider.notifier);
+      await _waitForCondition(
+        condition: () => container.read(sessionControllerProvider).isReady,
+        description: 'fallback after terminal layout relaunch failure',
+      );
+
+      expect(container.read(sessionControllerProvider).tabs, hasLength(2));
+      await controller.flushLayoutPersistence();
+      expect(
+        workspaceRepository.savedDocuments,
+        isEmpty,
+        reason: 'An unchanged partial restore must preserve the old intent',
+      );
+
+      controller.reorderTab(oldIndex: 0, newIndex: 1);
+      await _waitForCondition(
+        condition: () => workspaceRepository.savedDocuments.isNotEmpty,
+        description: 'automatic save after reordering partially restored tabs',
+      );
+      await container
+          .read(appShutdownCoordinatorProvider)
+          .shutdown(bounded: false);
+      expect(
+        workspaceRepository.document!.tabs.map(
+          (tab) => tab.root.sessionIntent!.profileId,
+        ),
+        ['ssh', 'default'],
+      );
+
+      final restarted = makeContainer();
+      addTearDown(restarted.dispose);
+      restarted.read(sessionControllerProvider.notifier);
+      await _waitForCondition(
+        condition: () => restarted.read(sessionControllerProvider).isReady,
+        description: 'restore latest reordered layout',
+      );
+      expect(
+        restarted
+            .read(sessionControllerProvider)
+            .tabs
+            .map((tab) => tab.profileId),
+        ['ssh', 'default'],
+      );
+      expect(restarted.read(sessionControllerProvider).lastError, isNull);
     },
   );
 
