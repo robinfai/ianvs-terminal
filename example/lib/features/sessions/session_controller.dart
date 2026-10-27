@@ -514,6 +514,7 @@ class SessionController extends Notifier<SessionState> {
   int _progressEventOrder = 0;
   bool _layoutPersistenceEnabled = false;
   bool _layoutPersistenceBlocked = false;
+  bool _layoutAwaitingChangeAfterRestore = false;
   Timer? _layoutPersistenceTimer;
   Timer? _layoutRetryTimer;
   int _layoutRetryAttempt = 0;
@@ -750,6 +751,7 @@ class SessionController extends Notifier<SessionState> {
 
   Future<void> _bootstrap() async {
     _layoutPersistenceBlocked = false;
+    _layoutAwaitingChangeAfterRestore = false;
     final demoFixture = ref.read(sessionDemoFixtureProvider);
     if (demoFixture != null) {
       for (final tab in demoFixture.tabs) {
@@ -848,7 +850,9 @@ class SessionController extends Notifier<SessionState> {
           initialTabs = restored.tabs;
           initialSessionId = restored.activeSessionId;
           if (restored.failures.isNotEmpty) {
-            _layoutPersistenceBlocked = true;
+            // Preserve the saved intent until the live layout changes, but do
+            // not permanently disable saving because a profile was removed.
+            _layoutAwaitingChangeAfterRestore = true;
             layoutRestoreError = _layoutRestoreFailureMessage(
               restored.failures,
             );
@@ -1043,6 +1047,7 @@ class SessionController extends Notifier<SessionState> {
     if (snapshot == _lastLayoutSnapshot) {
       return;
     }
+    _layoutAwaitingChangeAfterRestore = false;
     _lastLayoutSnapshot = snapshot;
     _layoutPersistenceTimer?.cancel();
     _layoutPersistenceTimer = Timer(_layoutPersistenceDebounce, () {
@@ -1064,7 +1069,9 @@ class SessionController extends Notifier<SessionState> {
       await (_sessionShutdownFuture ?? _layoutSaveChain);
       return;
     }
-    if (!_layoutPersistenceEnabled || !state.isReady) {
+    if (!_layoutPersistenceEnabled ||
+        _layoutAwaitingChangeAfterRestore ||
+        !state.isReady) {
       return;
     }
     _layoutPersistenceTimer?.cancel();
@@ -2765,7 +2772,10 @@ class SessionController extends Notifier<SessionState> {
     _layoutRetryTimer = null;
 
     final pendingLayoutWrites = _layoutSaveChain;
-    final finalLayout = _layoutPersistenceEnabled && state.isReady
+    final finalLayout =
+        _layoutPersistenceEnabled &&
+            !_layoutAwaitingChangeAfterRestore &&
+            state.isReady
         ? LocalSessionLayoutCodec.capture(state)
         : null;
     if (finalLayout != null) {
@@ -5782,6 +5792,7 @@ class SessionController extends Notifier<SessionState> {
       }
     }
     _layoutPersistenceEnabled = restoreLayout && !_layoutPersistenceBlocked;
+    _layoutAwaitingChangeAfterRestore = false;
     _lastLayoutSnapshot = null;
     if (restoreLayout && state.isReady) {
       await flushLayoutPersistence();
