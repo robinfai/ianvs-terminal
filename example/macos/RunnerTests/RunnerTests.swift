@@ -611,15 +611,21 @@ class RunnerTests: XCTestCase {
       window.setFrame(window.frame.insetBy(dx: -10, dy: -10), display: false)
       window.updateTitleBarLayout(sidebarWidth: nil, height: height, draggableRegions: [])
       for title in ["⠋ | ianvs-terminal", "⠙ | ianvs-terminal", "中文对话 | ianvs-terminal"] {
-        window.title = title
-        window.contentView?.superview?.layoutSubtreeIfNeeded()
-        window.update()
-        for type: NSWindow.ButtonType in [.closeButton, .miniaturizeButton, .zoomButton] {
-          let button = try XCTUnwrap(window.standardWindowButton(type))
-          let rect = button.convert(button.bounds, to: nil)
-          XCTAssertEqual(window.frame.height - rect.midY, height / 2, accuracy: 0.5,
-            "Title \(title), button \(type.rawValue): native title/resize layout must stay centered")
+        func assertCentered(_ phase: String) throws {
+          for type: NSWindow.ButtonType in [.closeButton, .miniaturizeButton, .zoomButton] {
+            let button = try XCTUnwrap(window.standardWindowButton(type))
+            let rect = button.convert(button.bounds, to: nil)
+            XCTAssertEqual(window.frame.height - rect.midY, height / 2, accuracy: 0.5,
+              "Title \(title), button \(type.rawValue), \(phase): must stay centered")
+          }
         }
+        window.title = title
+        // A later update() used to conceal the green button's intermediate jump.
+        try assertCentered("immediately after title")
+        window.contentView?.superview?.layoutSubtreeIfNeeded()
+        try assertCentered("after native layout")
+        window.update()
+        try assertCentered("after window update")
       }
     }
   }
