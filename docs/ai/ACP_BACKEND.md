@@ -52,10 +52,11 @@ original login file.
 
 ## Shared packages and build
 
-The workspace consumes `ianvs_acp_runtime` and `ianvs_agent_chat` from the sibling
-`../ianvs-acp/packages` checkout. Clone both repositories beside each other and
-run `flutter pub get` at the terminal workspace root. There is no second Dart
-JSON-RPC implementation or compatibility backend.
+The workspace consumes published `ianvs_agent_core ^0.1.0`,
+`ianvs_acp_runtime ^0.2.0` and `ianvs_agent_chat ^0.3.0` from pub.dev.
+Run `flutter pub get` at the Terminal workspace root; the committed lockfile
+records exact versions and archive hashes. CI needs no sibling ACP checkout.
+There is no second Dart JSON-RPC implementation or compatibility backend.
 
 The macOS Runner's **Bundle ACP Runtime** phase builds the resolved package,
 embeds `libianvs_acp_ffi.dylib`, and signs it before the application is signed.

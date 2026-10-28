@@ -86,12 +86,12 @@ forced termination can lose changes since the last completed save.
 
 ## Dependency release
 
-Development currently resolves the sibling packages locally. Formal consumers
-must use published versions containing these APIs. Existing pub.dev chat 0.2.0
-and runtime 0.1.0 predate the split core contracts; they are not compatible
-substitutes. Publish core first, then chat/runtime, and only then switch Terminal
-constraints and lockfile after a clean hosted dependency resolution. Publication
-and its final consumer switch must not be simulated with an unavailable version.
+Terminal consumes published `ianvs_agent_core ^0.1.0`,
+`ianvs_acp_runtime ^0.2.0` and `ianvs_agent_chat ^0.3.0` from pub.dev.
+The lockfile hashes match the verified official archives. Core was published
+before runtime/chat; the latter packages passed real hosted dry-runs without
+overrides. CI no longer clones the sibling ACP repository. Mermaid remains a
+source fallback and requires no separately published native Mermaid package.
 
 ## Validation
 
@@ -109,5 +109,13 @@ Verified locally on 2026-10-28 with Flutter 3.44.8: application suite 3,866
 passed / 2 skipped, changed production and test files passed static analysis,
 and mobile dark / desktop wide conversation captures were visually inspected.
 The suite used the local ACP native library and sibling development packages.
-Hosted-package consumption and remote CI for this iteration remain release gates;
-these local results do not claim physical-device restart testing.
+Hosted-package validation is recorded below; remote CI is reported on the pull
+request. These local results do not claim physical-device restart testing.
+
+Hosted release verification on 2026-10-28 used core 0.1.0, runtime 0.2.0 and
+chat 0.3.0. Strict lockfile resolution succeeded and all three archive hashes
+matched pub.dev. The runtime's downloaded source built a signed arm64 Debug
+library, which the complete application suite then used: 3,866 passed / 2 skipped.
+Whole-workspace `dart analyze --fatal-infos` and all 190 CI orchestration tests
+passed. The independent ACP hosted consumer also passed its five shared-widget
+tests, ABI 12 load/dispose smoke and macOS Debug app build.

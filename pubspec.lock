@@ -458,23 +458,26 @@ packages:
   ianvs_acp_runtime:
     dependency: transitive
     description:
-      path: "../ianvs-acp/packages/ianvs_acp_runtime"
-      relative: true
-    source: path
-    version: "0.1.0"
+      name: ianvs_acp_runtime
+      sha256: abccdc1349e14e899a04022f74398d42859aca0152cac8f2d50fa71e3674d5f0
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.2.0"
   ianvs_agent_chat:
     dependency: transitive
     description:
-      path: "../ianvs-acp/packages/ianvs_agent_chat"
-      relative: true
-    source: path
-    version: "0.2.0"
+      name: ianvs_agent_chat
+      sha256: cd8d90e2ca936055517ed85453ece7c2b5f6a5f76419536295ddf6159be8adde
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.3.0"
   ianvs_agent_core:
     dependency: transitive
     description:
-      path: "../ianvs-acp/packages/ianvs_agent_core"
-      relative: true
-    source: path
+      name: ianvs_agent_core
+      sha256: dc8813004ebb1221091ea2516716e3a995d7dbbf7e1896cd14bf7a1613699eca
+      url: "https://pub.dev"
+    source: hosted
     version: "0.1.0"
   ianvs_design:
     dependency: transitive

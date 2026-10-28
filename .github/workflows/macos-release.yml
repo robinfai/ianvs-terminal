@@ -35,9 +35,6 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Check out shared agent packages
-        uses: ./.github/actions/checkout-agent-packages
-
       - name: Validate release credentials
         env:
           MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}

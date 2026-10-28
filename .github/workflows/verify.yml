@@ -181,9 +181,6 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
-      - name: Check out shared agent packages
-        uses: ./.github/actions/checkout-agent-packages
-
       - name: Set up Go
         uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
         with:
@@ -305,9 +302,6 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
-
-      - name: Check out shared agent packages
-        uses: ./.github/actions/checkout-agent-packages
 
       - name: Validate Example runner orchestration
         run: python3 -m unittest discover -s tools/ci -p 'test_example_execution.py'
@@ -449,9 +443,6 @@ jobs:
           fetch-depth: 2
           persist-credentials: false
 
-      - name: Check out shared agent packages
-        uses: ./.github/actions/checkout-agent-packages
-
       - name: Validate CI policy
         run: python3 -m unittest discover -s tools/ci -p 'test_*.py'
 
@@ -531,9 +522,6 @@ jobs:
         with:
           fetch-depth: 2
           persist-credentials: false
-
-      - name: Check out shared agent packages
-        uses: ./.github/actions/checkout-agent-packages
 
       - name: Validate CI policy
         run: python3 -m unittest discover -s tools/ci -p 'test_*.py'
