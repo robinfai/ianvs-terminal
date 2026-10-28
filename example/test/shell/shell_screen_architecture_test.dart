@@ -393,6 +393,8 @@ Iterable<File> _allowedShellExternalDependencies(Directory libDirectory) {
     'data/sync/local_first_sync.dart',
     'data/services/portable_master_key.dart',
     'l10n/l10n.dart',
+    // Shell registers history capture before application teardown.
+    'platform/app_shutdown_coordinator.dart',
     'platform/clipboard_bridge.dart',
     'platform/corrupt_file_quarantine.dart',
     'platform/local_json_file.dart',
@@ -406,6 +408,9 @@ Iterable<File> _allowedShellExternalDependencies(Directory libDirectory) {
     'features/ai/ai_settings.dart',
     'features/ai/ai_settings_dialog.dart',
     'features/ai/terminal_ai_controller.dart',
+    // The AI feature owns serialization; Shell only binds session lifetimes.
+    'features/ai/terminal_ai_history_binding.dart',
+    'features/ai/terminal_ai_history_repository.dart',
     // Shell reuses the code preview for explicit paste confirmation.
     'features/ai/terminal_ai_message.dart',
     // AI owns connection/receipt routing and native evidence presentation;

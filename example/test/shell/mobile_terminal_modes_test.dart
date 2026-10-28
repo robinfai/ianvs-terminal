@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -5,6 +6,8 @@ import 'dart:ui' as ui;
 import 'package:app/features/ai/ai_models.dart';
 import 'package:app/features/ai/ai_settings.dart';
 import 'package:app/features/ai/terminal_ai_controller.dart';
+import 'package:app/features/ai/terminal_ai_history_repository.dart';
+import 'package:app/features/ai/terminal_ai_retained_timeline.dart';
 import 'package:app/features/ai/terminal_ai_workspace.dart';
 import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
@@ -315,6 +318,7 @@ Future<({ProviderContainer container, String id})> _pump(
   double scale = 1,
   TerminalViewMode? preference,
   AiConfiguration? configuration = const AiConfiguration.mock(),
+  TerminalAiHistoryRepository? historyRepository,
 }) async {
   debugDefaultTargetPlatformOverride = platform;
   tester.view.devicePixelRatio = 1;
@@ -343,6 +347,10 @@ Future<({ProviderContainer container, String id})> _pump(
     ProviderScope(
       overrides: [
         aiSettingsProvider.overrideWithValue(aiSettings),
+        if (historyRepository != null)
+          terminalAiHistoryRepositoryProvider.overrideWithValue(
+            historyRepository,
+          ),
         ptySessionBackendProvider.overrideWithValue(backend),
         profileRepositoryProvider.overrideWithValue(
           MemoryProfileRepository(
@@ -474,6 +482,57 @@ Future<void> _showWorkspace(WidgetTester tester, String id) async {
 
 void main() {
   ConfigurationCaptureBinding();
+  testWidgets(
+    'late restart history switches Shell to archived native timeline',
+    (tester) async {
+      final history = _DelayedHistoryRepository();
+      final backend = _MobileBackend()..owner = 'ready';
+      final mounted = await _pump(tester, backend, historyRepository: history);
+      final id = mounted.id;
+      await _showWorkspace(tester, id);
+      history.documents.complete([
+        {
+          'schema': 1,
+          'id': 'saved-previous-task',
+          'title': 'Previous task',
+          'transcript': [
+            {
+              'id': 'old-message',
+              'role': 'assistant',
+              'text': 'Saved reply',
+              'state': 'message',
+            },
+          ],
+          'sources': {
+            'saved-previous-source': [
+              {
+                'id': 'old-block',
+                'command': 'pwd',
+                'exitCode': 0,
+                'running': false,
+                'totalLines': 1,
+                'lines': [
+                  {'index': 0, 'text': 'saved output'},
+                ],
+              },
+            ],
+          },
+        },
+      ]);
+      await _settle(tester);
+      final workspace = tester.widget<TerminalAiWorkspace>(
+        find.byType(TerminalAiWorkspace),
+      );
+      expect(workspace.controller.restoredHistory, isTrue);
+      expect(find.byType(TerminalAiRetainedTimeline), findsOneWidget);
+      expect(find.text('Saved reply'), findsOneWidget);
+      expect(backend.submissions, isEmpty);
+      expect(backend.writes, isEmpty);
+      await tester.pumpWidget(const SizedBox.shrink());
+      debugDefaultTargetPlatformOverride = null;
+    },
+  );
+
   for (final platform in [TargetPlatform.iOS, TargetPlatform.android]) {
     for (final preference in [null, TerminalViewMode.blocks]) {
       testWidgets(
@@ -2724,4 +2783,16 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     debugDefaultTargetPlatformOverride = null;
   });
+}
+
+class _DelayedHistoryRepository implements TerminalAiHistoryRepository {
+  final documents = Completer<List<Map<String, Object?>>>();
+  @override
+  Future<List<Map<String, Object?>>> load() => documents.future;
+  @override
+  Future<void> save(
+    String id,
+    Map<String, Object?> document, {
+    Map<String, Object?>? previous,
+  }) async {}
 }

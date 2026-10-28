@@ -37,11 +37,10 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
-        expect(find.byType(SelectionArea), findsOneWidget);
+        expect(find.byType(SelectableText), findsOneWidget);
         final rendered = tester
-            .widgetList<RichText>(find.byType(RichText))
-            .map((widget) => widget.text.toPlainText())
-            .join('\n');
+            .widget<SelectableText>(find.byType(SelectableText))
+            .data;
         expect(rendered, contains(text));
         final scrollables = tester.stateList<ScrollableState>(
           find.byType(Scrollable),

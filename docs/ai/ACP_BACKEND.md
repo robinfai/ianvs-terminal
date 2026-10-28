@@ -69,8 +69,11 @@ preventing automatic recovery from replaying a terminal task. The backend checks
 the adapter identity, exact model config and bounded prompt `resultMeta` quota.
 Model-specific quota interpretation remains in Trail.
 
-`TerminalAiMessage` embeds the shared `ChatMessageBody`. Trail retains its role
-frame, unified terminal timeline, composer, evidence and execution receipts.
+`TerminalAiMessage` embeds the shared `ChatMessageFrame` and `ChatMessageBody`.
+Tool, plan, decision and code-preview surfaces also come from the shared package.
+Trail owns the unified terminal timeline, hosted composer editor and actions,
+evidence and execution receipts. Mixed history survives application restarts
+through the host-owned [bounded history store](MIXED_TIMELINE.md).
 Links are host callbacks, images are blocked by default, and Mermaid uses source
 fallback without a native Mermaid dependency. Whole-message selection uses the
 shared Markdown copy behavior: exact source for whole-document copy, with rich

@@ -345,7 +345,8 @@ void main() {
               .getSize(find.byKey(const Key('ai-mobile-composer')))
               .height;
           expect(aiHeight, lessThanOrEqualTo(56));
-          expect(aiHeight, blockHeight);
+          // Shared prompt uses a 0.75 px border; the native composer uses 1 px.
+          expect(aiHeight, closeTo(blockHeight, 1));
           expectCentered('ai-send');
           await expectPaintedCentered('ai-send');
           expect(ai.draft, saved.text);

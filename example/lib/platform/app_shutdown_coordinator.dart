@@ -4,11 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 typedef AppShutdownTask = Future<void> Function();
 
-/// Ordered process-shutdown boundaries.
+/// Process-shutdown capture and settlement boundaries.
 ///
-/// Application state must be finalized before infrastructure such as local
-/// sidecars is released. Tasks within one phase still run concurrently.
-enum AppShutdownPhase { application, infrastructure }
+/// Persistence capture starts before application teardown. Their asynchronous
+/// work settles together before infrastructure such as sidecars is released.
+enum AppShutdownPhase { persistence, application, infrastructure }
 
 final class _RegisteredAppShutdownTask {
   const _RegisteredAppShutdownTask({required this.phase, required this.run});
@@ -183,11 +183,12 @@ final class AppShutdownCoordinator {
   }
 
   Future<AppShutdownResult> _runToSettlement() {
-    // Start application tasks synchronously with [shutdown]. Flutter disposes
-    // descendants before their parent State, so deferring this first phase to
-    // an async body would let ProviderScope disposal race recording/layout
-    // capture. Later phases still begin only after the preceding phase settles.
-    var phases = _startPhase(AppShutdownPhase.application);
+    // Capture persistent content synchronously before native teardown begins.
+    // Both write completion and application cleanup precede infrastructure;
+    // application capture must still start synchronously during widget disposal.
+    final persistence = _startPhase(AppShutdownPhase.persistence);
+    final application = _startPhase(AppShutdownPhase.application);
+    var phases = Future.wait([persistence, application]).then<void>((_) {});
     phases = phases.then((_) => _startPhase(AppShutdownPhase.infrastructure));
     return phases.then((_) {
       _stopwatch.stop();

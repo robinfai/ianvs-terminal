@@ -45,6 +45,8 @@ dependencies:
   flutter_secure_storage: ^10.3.1
   ianvs_acp_runtime:
     path: ../../ianvs-acp/packages/ianvs_acp_runtime
+  ianvs_agent_core:
+    path: ../../ianvs-acp/packages/ianvs_agent_core
   ianvs_agent_chat:
     path: ../../ianvs-acp/packages/ianvs_agent_chat
   ianvs_design: ^0.4.0

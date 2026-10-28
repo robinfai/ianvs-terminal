@@ -1,11 +1,10 @@
-import 'dart:math' as math;
-
 import 'package:app/features/ai/terminal_ai_message.dart';
 import 'package:app/ui/foundation/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ianvs_agent_chat/ianvs_agent_chat.dart' show ChatMessageBody;
+import 'package:ianvs_agent_chat/ianvs_agent_chat.dart'
+    show ChatMessageBody, ChatMessageFrame;
 
 void main() {
   Future<void> mountFrame(
@@ -70,10 +69,7 @@ void main() {
           lessThan(tester.getTopLeft(body).dy),
           reason: 'The role must not reserve a column beside the prose.',
         );
-        final frame = tester.widget<Container>(
-          find.byKey(const ValueKey('ai-message-frame-reading')),
-        );
-        expect(frame.decoration, isUser ? isNotNull : isNull);
+        expect(find.byType(ChatMessageFrame), findsOneWidget);
         expect(tester.takeException(), isNull);
       });
     }
@@ -81,39 +77,42 @@ void main() {
 
   for (final width in [390.0, 900.0, 1728.0]) {
     for (final scale in [1.0, 2.0]) {
-      testWidgets('desktop $width at $scale retains its reading layout', (
-        tester,
-      ) async {
-        await mountFrame(
-          tester,
-          width: width,
-          platform: TargetPlatform.macOS,
-          scale: scale,
-        );
-        final body = find.byKey(const Key('reading-body'));
-        final frame = find.byKey(const ValueKey('ai-message-frame-reading'));
-        final frameWidth = math.min(width - 28, 960.0);
-        expect(tester.getSize(frame).width, closeTo(frameWidth, .01));
-        expect(
-          tester.getSize(body).width,
-          closeTo(frameWidth - 24 - 28 * scale - 12, .01),
-        );
-        expect(
-          tester.getTopLeft(body).dx - tester.getTopLeft(frame).dx,
-          closeTo(24 + 28 * scale, .01),
-        );
-        expect(tester.takeException(), isNull);
-      });
+      testWidgets(
+        'desktop $width at $scale uses bounded shared reading layout',
+        (tester) async {
+          await mountFrame(
+            tester,
+            width: width,
+            platform: TargetPlatform.macOS,
+            scale: scale,
+          );
+          final body = find.byKey(const Key('reading-body'));
+          final role = find.byKey(const ValueKey('ai-message-role-reading'));
+          expect(tester.getSize(body).width, lessThanOrEqualTo(800));
+          expect(tester.getSize(body).width, greaterThan(200));
+          if (width < 600) {
+            expect(
+              tester.getBottomLeft(role).dy,
+              lessThan(tester.getTopLeft(body).dy),
+            );
+          } else {
+            expect(tester.getTopLeft(body).dy, tester.getTopLeft(role).dy);
+            expect(
+              tester.getTopLeft(body).dx,
+              greaterThan(tester.getTopRight(role).dx),
+            );
+          }
+          expect(tester.takeException(), isNull);
+        },
+      );
     }
   }
 
-  testWidgets('wide tablet keeps the existing side-by-side layout', (
-    tester,
-  ) async {
+  testWidgets('wide tablet uses shared side-by-side layout', (tester) async {
     await mountFrame(tester, width: 700);
     final body = find.byKey(const Key('reading-body'));
     final role = find.byKey(const ValueKey('ai-message-role-reading'));
-    expect(tester.getSize(body).width, closeTo(700 - 92, .01));
+    expect(tester.getSize(body).width, greaterThan(400));
     expect(tester.getTopLeft(body).dy, tester.getTopLeft(role).dy);
     expect(tester.takeException(), isNull);
   });

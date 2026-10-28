@@ -69,6 +69,41 @@ void main() {
     ]);
   });
 
+  testWidgets(
+    'first live block stays after prose when initial history is empty',
+    (tester) async {
+      var ids = <String>[];
+      final controller = CommandBlockController(
+        request: (_) => {
+          'blocks': [
+            for (final id in ids) {'id': id, 'command': 'echo live'},
+          ],
+        },
+      );
+      addTearDown(controller.dispose);
+      controller.refresh();
+      late List<CommandBlockTimelineItem> rendered;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: UnifiedTerminalTimeline(
+            controller: controller,
+            taskId: 'task',
+            sourceSessionId: 'session',
+            items: const [CommandBlockTimelineItem.content('prose', null)],
+            builder: (items) {
+              rendered = items;
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+      ids = ['live'];
+      controller.refresh();
+      await tester.pump();
+      expect(rendered.map((item) => item.id), ['prose', 'native-session-live']);
+    },
+  );
+
   testWidgets('same block ID in another source cannot hide current history', (
     tester,
   ) async {

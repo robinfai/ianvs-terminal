@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:ianvs_agent_core/ianvs_agent_core.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart'
     show
         InputIntent,
@@ -20,6 +21,7 @@ import 'ai_settings.dart';
 part 'terminal_ai_acp.dart';
 part 'terminal_ai_api_operations.dart';
 part 'terminal_ai_approval.dart';
+part 'terminal_ai_history.dart';
 
 abstract interface class AiTerminalPort {
   Future<AiTerminalContext> readContext();
@@ -120,6 +122,7 @@ class AiTranscriptEntry {
     this.suppliedEvidence,
     this.approvalReview,
     this.inputProgress,
+    this.agentContent,
   });
   final String id;
   final String role;
@@ -135,6 +138,24 @@ class AiTranscriptEntry {
   final List<AiEvidenceRange>? suppliedEvidence;
   final AiApprovalReview? approvalReview;
   final AiKeyInputProgress? inputProgress;
+
+  /// Display-only ACP content; never an execution receipt or permission grant.
+  final ChatMessageView? agentContent;
+}
+
+/// A display association to a host-owned operation. The referenced entry carries
+/// the receipt state; the ACP tool's status never changes terminal success.
+class AiToolExecutionReference {
+  const AiToolExecutionReference({
+    required this.toolCallId,
+    required this.operationId,
+    required this.entry,
+  });
+  final String toolCallId;
+  final String operationId;
+  final AiTranscriptEntry entry;
+  String? get sessionId => entry.target?.sessionId;
+  String? get blockId => entry.blockId;
 }
 
 @immutable
@@ -174,6 +195,9 @@ class _AiTask {
   _AiTask(this.id, {InputIntent defaultInputIntent = InputIntent.ai})
     : inputIntent = InputIntentState(defaultIntent: defaultInputIntent);
   final String id;
+  String? historyId;
+  bool restoredHistory = false;
+  final historySourceIds = <String>{};
   String title = '';
   String draft = '';
   int draftRevision = 0;
@@ -208,6 +232,12 @@ class _AiTask {
   String? observationVersion;
   AiTerminalContext? observationContext;
   String? agentTextId;
+  int agentTurnSerial = 0;
+  late final agentContent = ChatContentProjection(
+    identity: ChatContentIdentity(this, id),
+  );
+  final agentContentEntries = <String, String>{};
+  final expandedAgentEntries = <String>{};
   final agentOperations = <String, ({String input, AiAction action})>{};
   final agentResults = <String, Map<String, Object?>>{};
   final apiOperations = <String, _AiApiOperation>{};
@@ -230,6 +260,18 @@ class _AiTask {
 /// human command submitted in this view uses [runUserCommand] without inference.
 /// Inference cancellation, manual input and session guards revoke old proposals.
 class TerminalAiController extends ChangeNotifier {
+  static int _historySerial = 0;
+  final String historyNamespace =
+      'saved-${DateTime.now().microsecondsSinceEpoch}-${++_historySerial}';
+  String? historyError;
+  bool get restoredHistory => _task.restoredHistory;
+  Set<String> get restoredSourceIds => Set.unmodifiable(_task.historySourceIds);
+  void setHistoryError(String? value) {
+    if (historyError == value || _disposed) return;
+    historyError = value;
+    _emit();
+  }
+
   TerminalAiController({
     required this.settings,
     required this.terminal,
@@ -938,6 +980,7 @@ class TerminalAiController extends ChangeNotifier {
   }
 
   Future<void> _reconcileReceipts(_AiTask task) async {
+    if (task.restoredHistory) return;
     final port = terminal;
     final inspector = port is AiSubmissionInspector
         ? port as AiSubmissionInspector
@@ -1466,6 +1509,82 @@ class TerminalAiController extends ChangeNotifier {
         }
       }
     }
+  }
+
+  bool isAgentContentExpanded(String entryId) =>
+      _task.expandedAgentEntries.contains(entryId);
+
+  void setAgentContentExpanded(String entryId, bool expanded) {
+    if (!_transcript.any(
+      (entry) => entry.id == entryId && entry.agentContent != null,
+    )) {
+      return;
+    }
+    if (expanded) {
+      _task.expandedAgentEntries.add(entryId);
+    } else {
+      _task.expandedAgentEntries.remove(entryId);
+    }
+    _emit();
+  }
+
+  /// Resolve only explicit bridge operation identities with matching input.
+  /// Never infer a relationship from command text, call order or tool success.
+  AiToolExecutionReference? executionForAgentContent(ChatMessageView message) {
+    final raw = message.metadata['rawInput'];
+    if (raw is! Map || raw['server'] != 'trail_terminal') return null;
+    final name = raw['tool'];
+    if (name != 'run_command' && name != 'send_keys') return null;
+    var arguments = raw['arguments'];
+    if (arguments is String) {
+      try {
+        arguments = jsonDecode(arguments);
+      } on FormatException {
+        return null;
+      }
+    }
+    if (arguments is! Map) return null;
+    final operationId = arguments['operation_id'];
+    if (operationId is! String) return null;
+    final operation = _task.agentOperations[operationId];
+    if (operation == null) return null;
+    final actionArgs = Map<String, Object?>.from(arguments)
+      ..remove('context_version')
+      ..remove('operation_id');
+    // JSON map ordering is not semantically significant.
+    final expected = jsonDecode(operation.input) as Map;
+    if (expected['name'] != name ||
+        !_sameAgentInput(expected['arguments'], actionArgs)) {
+      return null;
+    }
+    final entry = _transcript
+        .where((entry) => entry.action?.id == operation.action.id)
+        .firstOrNull;
+    if (entry == null) return null;
+    return AiToolExecutionReference(
+      toolCallId: chatToolCallId(message.metadata),
+      operationId: operationId,
+      entry: entry,
+    );
+  }
+
+  bool _sameAgentInput(Object? left, Object? right) {
+    if (left is Map && right is Map) {
+      return left.length == right.length &&
+          left.keys.every(
+            (key) =>
+                right.containsKey(key) &&
+                _sameAgentInput(left[key], right[key]),
+          );
+    }
+    if (left is List && right is List) {
+      return left.length == right.length &&
+          List.generate(
+            left.length,
+            (i) => _sameAgentInput(left[i], right[i]),
+          ).every((same) => same);
+    }
+    return left == right;
   }
 
   void _updateActionEntry(

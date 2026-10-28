@@ -131,7 +131,9 @@ class CodexAcpBackend implements AgentBackend {
         if (!_running || !_acceptUpdates || update['sessionId'] != _session) {
           return;
         }
-        if (update['kind'] == 'assistant_text') {
+        if ({'tool_call', 'plan', 'thought'}.contains(update['kind'])) {
+          _events?.call({'sessionUpdate': 'trail_content', ...update});
+        } else if (update['kind'] == 'assistant_text') {
           _events?.call({
             'sessionUpdate': 'agent_message_chunk',
             'content': {'type': 'text', 'text': update['text'] ?? ''},

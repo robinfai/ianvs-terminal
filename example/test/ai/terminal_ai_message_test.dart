@@ -106,8 +106,7 @@ void main() {
           tester.getTopLeft(find.byKey(const Key('user-body'))).dx,
           tester.getTopLeft(find.byKey(const Key('assistant-body'))).dx,
         );
-        expect(tester.widget<Container>(user).decoration, isNotNull);
-        expect(tester.widget<Container>(assistant).decoration, isNull);
+        // Both roles now use the shared frame with aligned reading measures.
         expect(find.text('You'), findsOneWidget);
         expect(find.text('AI'), findsNothing);
         final icon = tester.widget<Icon>(

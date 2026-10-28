@@ -24,14 +24,15 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       focusNode.dispose();
     }
     _searchFocusNode.dispose();
+    for (final ai in _aiSessions.values) {
+      _retireAiHistory(ai);
+      ai.dispose();
+    }
+    _aiSessions.clear();
     for (final session in _composerSessions.values) {
       session.dispose();
     }
     _composerSessions.clear();
-    for (final ai in _aiSessions.values) {
-      ai.dispose();
-    }
-    _aiSessions.clear();
     for (final reader in _readerControllers.values) {
       reader.dispose();
     }
@@ -142,8 +143,12 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     _clearViewportMetricsForSession(sessionId);
     _clearInstantReplayHistory(sessionId);
 
+    final removedAi = _aiSessions.remove(sessionId);
+    if (removedAi != null) {
+      _retireAiHistory(removedAi);
+      removedAi.dispose();
+    }
     _composerSessions.remove(sessionId)?.dispose();
-    _aiSessions.remove(sessionId)?.dispose();
     _readerControllers.remove(sessionId)?.dispose();
     _openAiSessions.remove(sessionId);
     _manualInputEpochs.remove(sessionId);

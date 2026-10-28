@@ -76,6 +76,106 @@ void main() {
         : {'block': block};
   }
 
+  test('history merges saved blocks when the live grid has been cleared', () {
+    var id = 'old';
+    final connections = TerminalAiConnections(
+      sessionId: 'one',
+      terminal: _Endpoint('one'),
+      requestBlocks: (_, query) {
+        final block = {
+          'id': id,
+          'command': id,
+          'totalLines': 1,
+          'lines': [
+            {'index': 0, 'text': '$id output'},
+          ],
+        };
+        return query['id'] == null
+            ? {
+                'blocks': [block],
+              }
+            : {'block': block};
+      },
+    );
+    connections.exportHistorySources((s) => 'saved-$s');
+    id = 'new';
+    final saved = connections.exportHistorySources((s) => 'saved-$s');
+    expect((saved['saved-one']! as List).map((b) => (b as Map)['id']), [
+      'old',
+      'new',
+    ]);
+    connections.dispose();
+  });
+
+  test(
+    'saved native records cannot alias reused session IDs and paginate unchanged output',
+    () async {
+      final original = TerminalAiConnections(
+        sessionId: 'same',
+        terminal: _Endpoint('same'),
+        requestBlocks: (source, query) {
+          final block = <String, Object?>{
+            'id': 'block',
+            'command': 'old command',
+            'running': true,
+            'totalLines': 600,
+            'offset': 0,
+            'columns': 80,
+            'lines': [
+              for (var i = 0; i < 600; i++) {'index': i, 'text': 'original $i'},
+            ],
+          };
+          return query['id'] == null
+              ? {
+                  'blocks': [block],
+                }
+              : {'block': block};
+        },
+      );
+      final saved =
+          jsonDecode(
+                jsonEncode(
+                  original.exportHistorySources(
+                    (source) => 'saved-process-$source',
+                  ),
+                ),
+              )
+              as Map;
+      original.dispose();
+      var liveRequests = 0;
+      final live = _Endpoint('same');
+      final next = TerminalAiConnections(
+        sessionId: 'same',
+        terminal: live,
+        requestBlocks: (source, query) {
+          liveRequests++;
+          return blocks(source, query);
+        },
+      );
+      next.restoreHistorySources(Map<String, Object?>.from(saved));
+      final before = liveRequests;
+      final output = await next.evidence.outputText('saved-process-same/block');
+      expect(output, contains('original 0'));
+      expect(output, contains('original 599'));
+      expect(
+        liveRequests,
+        before,
+        reason: 'Archive lookup cannot fall through to a live PTY',
+      );
+      final historical = next.evidence.blocks.firstWhere(
+        (block) => block.id.startsWith('saved-'),
+      );
+      expect(historical.running, isFalse);
+      expect(
+        historical.exitCode,
+        isNull,
+        reason: 'Shutdown cannot invent an exit status',
+      );
+      expect(live.writes, isEmpty);
+      next.dispose();
+    },
+  );
+
   test(
     'three connections keep each native history window and original reading state',
     () async {

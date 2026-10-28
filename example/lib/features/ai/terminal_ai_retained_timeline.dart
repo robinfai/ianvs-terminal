@@ -60,32 +60,39 @@ class TerminalAiRetainedTimeline extends StatelessWidget {
                     : 'Retained source terminal'),
           ),
     ];
-    Widget buildTimeline(List<CommandBlockTimelineItem> timeline) =>
-        TerminalCommandBlocksView(
-          controller: connections.evidence,
-          timeline: timeline,
-          scrollController: scroll,
-          followTail: followTail,
-          showToolbar: false,
-          chinese: Localizations.localeOf(context).languageCode == 'zh',
-          font: font,
-          onReinput: onReinput,
-          onAskAi: attach,
-          onAttachRange: (block) => attach(block, range: true),
-          onAttachBlocks: (blocks) {
-            for (final block in blocks) {
-              attach(block);
-            }
-          },
-          onOpenLinkTarget: onOpenLinkTarget,
-          onLinkContextMenu: onLinkContextMenu,
-        );
+    Widget buildTimeline(
+      List<CommandBlockTimelineItem> timeline,
+    ) => TerminalCommandBlocksView(
+      controller: connections.evidence,
+      timeline: timeline,
+      scrollController: scroll,
+      followTail: followTail,
+      showToolbar: false,
+      chinese: Localizations.localeOf(context).languageCode == 'zh',
+      font: font,
+      onReinput: onReinput,
+      onAskAi: attach,
+      onAttachRange: (block) => attach(block, range: true),
+      onAttachBlocks: (blocks) {
+        for (final block in blocks) {
+          attach(block);
+        }
+      },
+      onOpenLinkTarget: controller.restoredHistory ? null : onOpenLinkTarget,
+      onLinkContextMenu: controller.restoredHistory ? null : onLinkContextMenu,
+    );
     return unifiedWorkspace
         ? UnifiedTerminalTimeline(
             controller: connections.evidence,
             taskId: controller.taskId,
             sourceSessionId: connections.sessionId,
             globalBlockIds: true,
+            includeBlock: (block) {
+              final source = block.id.split('/').first;
+              return controller.restoredHistory
+                  ? controller.restoredSourceIds.contains(source)
+                  : !source.startsWith('saved-');
+            },
             items: projected,
             blockItemBuilder: (block) {
               final source = block.id.split('/').first;
@@ -93,7 +100,11 @@ class TerminalAiRetainedTimeline extends StatelessWidget {
                 block.id,
                 id: 'native-${block.id}',
                 sourceSessionId: source,
-                sourceLabel: sourceLabelFor?.call(source) ?? source,
+                sourceLabel: source.startsWith('saved-')
+                    ? (Localizations.localeOf(context).languageCode == 'zh'
+                          ? '历史终端快照'
+                          : 'Saved terminal snapshot')
+                    : sourceLabelFor?.call(source) ?? source,
               );
             },
             builder: buildTimeline,

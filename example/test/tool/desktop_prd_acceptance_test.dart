@@ -5,6 +5,7 @@ import 'package:app/data/configuration/data_api_configuration_repository.dart';
 import 'package:app/data/services/portable_master_key.dart';
 import 'package:app/features/ai/ai_models.dart';
 import 'package:app/features/ai/ai_settings.dart';
+import 'package:app/features/ai/terminal_ai_history_repository.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/shell/shell_screen.dart';
@@ -262,6 +263,20 @@ void main() {
         await tester.runAsync(() => settings.save(configuredInApp));
         final saved = await tester.runAsync(fixture.aiConfigurationStore.read);
         expect(saved?.toJson(), configuredInApp.toJson());
+        await tester.runAsync(
+          () => container.read(terminalAiHistoryRepositoryProvider).save(
+            'saved-fixture',
+            {'schema': 1, 'id': 'saved-fixture'},
+          ),
+        );
+        expect(
+          await tester.runAsync(
+            () => File(
+              '${fixture.support.path}/ai-history/saved-fixture.json',
+            ).exists(),
+          ),
+          isTrue,
+        );
 
         final launch = (backend.lastCreatedSessionPayload!['launch']! as Map)
             .cast<String, Object?>();

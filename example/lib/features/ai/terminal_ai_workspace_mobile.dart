@@ -29,6 +29,12 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
   }
 
   String get _mobileStatus {
+    if (c.historyError != null) {
+      return t('History storage unavailable', '历史存储暂不可用');
+    }
+    if (c.restoredHistory) {
+      return t('Restored history · read-only snapshot', '已恢复历史 · 只读快照');
+    }
     if (c.hasUnresolvedSubmission) {
       return c.followUpEnded
           ? t('Follow-up ended · outcome unknown', '已结束跟进 · 原结果未知')
@@ -620,15 +626,11 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
           (c.terminalError != null || c.targetChanged);
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        child: Container(
+        child: PromptInput.hosted(
           key: const Key('ai-mobile-composer'),
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: context.appTheme.panel,
-            border: Border.all(color: context.appTheme.borderStrong),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Stack(
+          actions: const SizedBox.shrink(),
+          editor: Stack(
             children: [
               Column(
                 mainAxisSize: MainAxisSize.min,

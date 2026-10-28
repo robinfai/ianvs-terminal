@@ -4,6 +4,8 @@ import 'dart:ui' show FlutterView;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show MatrixUtils, ScrollDirection;
 import 'package:flutter/services.dart';
+import 'package:ianvs_agent_chat/ianvs_agent_chat.dart';
+import 'package:ianvs_agent_core/ianvs_agent_core.dart';
 import 'package:ianvs_design/ianvs_design.dart' show IanvsTypographyContext;
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 
@@ -676,7 +678,14 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     },
   );
 
-  String get _status => c.followUpEnded
+  String get _status => c.historyError != null
+      ? t('History could not be saved or restored', '历史记录保存或恢复失败')
+      : c.restoredHistory
+      ? t(
+          'Restored history · read-only snapshots; running outcomes unverified',
+          '已恢复历史 · 只读快照；原运行结果需核对',
+        )
+      : c.followUpEnded
       ? c.hasUnresolvedSubmission
             ? t(
                 'Follow-up ended · original outcome remains unknown',
@@ -958,6 +967,52 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
 
   Widget _entry(AiTranscriptEntry entry, bool narrow) {
     if (entry.action != null) return _proposal(entry, narrow);
+    if (entry.agentContent case final content?) {
+      final execution = c.executionForAgentContent(content);
+      final rawInput = content.metadata['rawInput'];
+      final terminalTool =
+          rawInput is Map && rawInput['server'] == 'trail_terminal';
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (content.metadata['kind'] == 'plan')
+              ChatPlanCard(message: content)
+            else if (content.role == ChatMessageRole.tool)
+              ChatToolCard(
+                key: ValueKey(entry.id),
+                message: content,
+                showDetails: !terminalTool,
+                expanded: c.isAgentContentExpanded(entry.id),
+                onExpandedChanged: (expanded) =>
+                    c.setAgentContentExpanded(entry.id, expanded),
+              )
+            else
+              TerminalAiMessage(text: content.text),
+            if (execution != null)
+              TextButton.icon(
+                key: ValueKey('ai-tool-receipt-${entry.id}'),
+                onPressed: () {
+                  _follow = false;
+                  unawaited(
+                    _restorePosition(
+                      CommandTimelineAnchor(
+                        itemId: execution.entry.id,
+                        offset: 0,
+                        scrollOffset: _scroll.hasClients ? _scroll.offset : 0,
+                      ),
+                      _scroll.hasClients ? _scroll.offset : 0,
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.terminal_outlined, size: 16),
+                label: Text(t('View terminal operation', '查看终端操作')),
+              ),
+          ],
+        ),
+      );
+    }
     final evidence = entry.role == 'assistant' && widget.onShowEvidence != null
         ? _evidence(entry).toList()
         : const <AiEvidenceReference>[];
@@ -1097,7 +1152,6 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
         c.pending?.id == action.id &&
         c.proposalRevision == entry.revision &&
         entry.state == AiEntryState.proposed;
-    final palette = context.appTheme;
     final label = switch (entry.state) {
       AiEntryState.proposed =>
         c.phase == AiPhase.reviewing && c.pending?.id == action.id
@@ -1110,127 +1164,122 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
       AiEntryState.rejected => t('Declined', '已拒绝'),
       _ => t('Revoked', '已撤销'),
     };
-    return Container(
-      key: ValueKey('ai-proposal-${entry.id}'),
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: active ? palette.accent : palette.borderStrong,
-        ),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(label, style: Theme.of(context).textTheme.labelMedium),
-          const SizedBox(height: 8),
-          Text.rich(
-            TextSpan(
-              children: [
-                TextSpan(
-                  text: t('Purpose: ', '目的：'),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: ChatDecisionCard(
+        key: ValueKey('ai-proposal-${entry.id}'),
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(label, style: Theme.of(context).textTheme.labelMedium),
+            const SizedBox(height: 8),
+            Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: t('Purpose: ', '目的：'),
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  TextSpan(text: action.reason),
+                ],
+              ),
+            ),
+            if (entry.approvalReview case final review?) ...[
+              const SizedBox(height: 8),
+              AiApprovalNotice(
+                key: ValueKey('ai-approval-review-${entry.id}'),
+                review: review,
+                pending: entry.state == AiEntryState.proposed,
+                confirmed:
+                    entry.state == AiEntryState.accepted ||
+                    entry.state == AiEntryState.interrupted ||
+                    entry.state == AiEntryState.submitted ||
+                    entry.state == AiEntryState.unknown,
+              ),
+            ],
+            const SizedBox(height: 8),
+            Text(
+              '${t('Target: ', '执行目标：')}${entry.target?.targetLabel.isNotEmpty == true ? entry.target!.targetLabel : entry.target?.sessionId ?? ''} · ${entry.target?.contextId ?? ''}\n${t('Directory: ', '目录：')}${entry.target?.cwd ?? ''}',
+              key: const Key('ai-action-target'),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              action.kind == AiActionKind.runCommand
+                  ? t('Command', '命令')
+                  : t('Terminal input', '终端按键'),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 4),
+            SelectableText(
+              action.preview,
+              key: active ? const Key('ai-action-preview') : null,
+              minLines: 1,
+              maxLines: narrow && !reviewPage ? 3 : null,
+              style: context.ianvsTypography.code.copyWith(fontSize: 14),
+            ),
+            if (entry.inputProgress case final progress?)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  t(
+                    '${progress.sent} of ${progress.total} input steps were sent. '
+                        '${progress.writeUncertain ? 'The next step has an unknown outcome. ' : ''}'
+                        'Continuing reads the current screen; sent input and remaining steps are not replayed automatically.',
+                    '已发送 ${progress.sent}/${progress.total} 步输入。'
+                        '${progress.writeUncertain ? '下一步的发送结果未知。' : ''}'
+                        '继续任务会重新读取屏幕，不会自动重发已发送或剩余输入。',
+                  ),
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
-                TextSpan(text: action.reason),
-              ],
-            ),
-          ),
-          if (entry.approvalReview case final review?) ...[
-            const SizedBox(height: 8),
-            AiApprovalNotice(
-              key: ValueKey('ai-approval-review-${entry.id}'),
-              review: review,
-              pending: entry.state == AiEntryState.proposed,
-              confirmed:
-                  entry.state == AiEntryState.accepted ||
-                  entry.state == AiEntryState.interrupted ||
-                  entry.state == AiEntryState.submitted ||
-                  entry.state == AiEntryState.unknown,
-            ),
-          ],
-          const SizedBox(height: 8),
-          Text(
-            '${t('Target: ', '执行目标：')}${entry.target?.targetLabel.isNotEmpty == true ? entry.target!.targetLabel : entry.target?.sessionId ?? ''} · ${entry.target?.contextId ?? ''}\n${t('Directory: ', '目录：')}${entry.target?.cwd ?? ''}',
-            key: const Key('ai-action-target'),
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          const SizedBox(height: 10),
-          Text(
-            action.kind == AiActionKind.runCommand
-                ? t('Command', '命令')
-                : t('Terminal input', '终端按键'),
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          const SizedBox(height: 4),
-          SelectableText(
-            action.preview,
-            key: active ? const Key('ai-action-preview') : null,
-            minLines: 1,
-            maxLines: narrow && !reviewPage ? 3 : null,
-            style: context.ianvsTypography.code.copyWith(fontSize: 14),
-          ),
-          if (entry.inputProgress case final progress?)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                t(
-                  '${progress.sent} of ${progress.total} input steps were sent. '
-                      '${progress.writeUncertain ? 'The next step has an unknown outcome. ' : ''}'
-                      'Continuing reads the current screen; sent input and remaining steps are not replayed automatically.',
-                  '已发送 ${progress.sent}/${progress.total} 步输入。'
-                      '${progress.writeUncertain ? '下一步的发送结果未知。' : ''}'
-                      '继续任务会重新读取屏幕，不会自动重发已发送或剩余输入。',
+              ),
+            if (!active &&
+                entry.inputProgress == null &&
+                (entry.state == AiEntryState.unknown ||
+                    entry.statusReason != null))
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  entry.state == AiEntryState.unknown
+                      ? t(
+                          'This command may already have run. Check its original receipt before continuing; it will not be sent again.',
+                          '此命令可能已经执行。继续前请核对原提交回执，不会再次发送此命令。',
+                        )
+                      : t(
+                          'This proposal cannot be executed. Continue to read current state.',
+                          '此提案已失效，继续任务时会重新读取当前状态。',
+                        ),
+                  key: ValueKey('ai-proposal-status-${entry.id}'),
+                  style: Theme.of(context).textTheme.bodySmall,
                 ),
-                style: Theme.of(context).textTheme.bodySmall,
               ),
-            ),
-          if (!active &&
-              entry.inputProgress == null &&
-              (entry.state == AiEntryState.unknown ||
-                  entry.statusReason != null))
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                entry.state == AiEntryState.unknown
-                    ? t(
-                        'This command may already have run. Check its original receipt before continuing; it will not be sent again.',
-                        '此命令可能已经执行。继续前请核对原提交回执，不会再次发送此命令。',
-                      )
-                    : t(
-                        'This proposal cannot be executed. Continue to read current state.',
-                        '此提案已失效，继续任务时会重新读取当前状态。',
-                      ),
-                key: ValueKey('ai-proposal-status-${entry.id}'),
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ),
-          if (active && !reviewPage) ...[
-            const SizedBox(height: 12),
-            if (narrow && !reviewPage)
-              Wrap(
-                alignment: WrapAlignment.end,
-                spacing: 8,
-                runSpacing: 6,
-                children: [
-                  TextButton(
-                    key: const Key('ai-reject'),
-                    onPressed: () {
-                      if (_canActOn(entry, taskId)) c.reject();
-                    },
-                    child: Text(t('Decline', '拒绝')),
-                  ),
-                  FilledButton(
-                    key: const Key('ai-review-action'),
-                    onPressed: () => _review(entry),
-                    child: Text(t('Review full command', '审阅完整命令')),
-                  ),
-                ],
-              )
-            else
-              _proposalActions(entry),
+            if (active && !reviewPage) ...[
+              const SizedBox(height: 12),
+              if (narrow && !reviewPage)
+                Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    TextButton(
+                      key: const Key('ai-reject'),
+                      onPressed: () {
+                        if (_canActOn(entry, taskId)) c.reject();
+                      },
+                      child: Text(t('Decline', '拒绝')),
+                    ),
+                    FilledButton(
+                      key: const Key('ai-review-action'),
+                      onPressed: () => _review(entry),
+                      child: Text(t('Review full command', '审阅完整命令')),
+                    ),
+                  ],
+                )
+              else
+                _proposalActions(entry),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -2581,121 +2630,124 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
         ),
       );
     }
-    return Container(
+    return Padding(
       key: const Key('ai-command-surface'),
-      margin: EdgeInsets.all(
+      padding: EdgeInsets.all(
         singleRow
             ? 4
             : compact
             ? 6
             : 12,
       ),
-      padding: EdgeInsets.symmetric(
-        horizontal: singleRow
-            ? 6
-            : compact
-            ? 8
-            : 14,
-        vertical: singleRow ? 0 : 6,
-      ),
-      decoration: BoxDecoration(
-        color: palette.panel,
-        border: Border.all(color: palette.borderStrong),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (!short)
-            Row(
-              children: [
-                Expanded(
-                  child: Tooltip(
-                    message: '${widget.targetLabel} · ${c.context?.cwd ?? ''}',
-                    child: Text(
-                      '${widget.targetLabel.isEmpty ? t('Current terminal', '当前终端') : widget.targetLabel} · ${c.context?.cwd ?? ''}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodySmall?.copyWith(color: palette.textMuted),
-                    ),
-                  ),
-                ),
-                if (c.attachments.isNotEmpty) _pendingContexts(),
-              ],
-            ),
-          if (c.attachments.isNotEmpty && !short)
-            LayoutBuilder(
-              builder: (context, bounds) => SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    for (var i = 0; i < c.attachments.length; i++)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 6),
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            maxWidth: bounds.maxWidth,
-                          ),
-                          child: _contextChip(
-                            c.attachments[i],
-                            removable: true,
-                          ),
+      child: PromptInput.hosted(
+        padding: EdgeInsets.symmetric(
+          horizontal: singleRow
+              ? 6
+              : compact
+              ? 8
+              : 14,
+          vertical: singleRow ? 0 : 6,
+        ),
+        header: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (!short)
+              Row(
+                children: [
+                  Expanded(
+                    child: Tooltip(
+                      message:
+                          '${widget.targetLabel} · ${c.context?.cwd ?? ''}',
+                      child: Text(
+                        '${widget.targetLabel.isEmpty ? t('Current terminal', '当前终端') : widget.targetLabel} · ${c.context?.cwd ?? ''}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: palette.textMuted,
                         ),
                       ),
-                  ],
+                    ),
+                  ),
+                  if (c.attachments.isNotEmpty) _pendingContexts(),
+                ],
+              ),
+            if (c.attachments.isNotEmpty && !short)
+              LayoutBuilder(
+                builder: (context, bounds) => SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      for (var i = 0; i < c.attachments.length; i++)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: bounds.maxWidth,
+                            ),
+                            child: _contextChip(
+                              c.attachments[i],
+                              removable: true,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          if (!singleRow) _prompt(maxLines: maxLines),
-          LayoutBuilder(
-            builder: (context, bounds) => Row(
-              children: [
-                if (singleRow) ...[
-                  ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: bounds.maxWidth * .3),
-                    child: _inputIntentMenu(),
-                  ),
-                  const SizedBox(width: 4),
-                  Expanded(child: _prompt(maxLines: 1)),
-                ] else
-                  Expanded(
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: _inputIntentMenu(),
-                    ),
-                  ),
-                if (_commandEditor != null) _commandActions(),
-                _expandDraftButton(),
-                if (singleRow)
-                  _sendButton(iconOnly: bounds.maxWidth < 480)
-                else
-                  ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: bounds.maxWidth * .55,
-                    ),
-                    child: _sendButton(),
-                  ),
-              ],
-            ),
-          ),
-          if (compact && !singleRow)
-            Row(
-              children: [
-                if (short && c.attachments.isNotEmpty) _pendingContexts(),
-                if (View.of(context).viewInsets.bottom > 0)
-                  _hideKeyboardButton(),
+          ],
+        ),
+        editor: singleRow
+            ? const SizedBox.shrink()
+            : _prompt(maxLines: maxLines),
+        actions: LayoutBuilder(
+          builder: (context, bounds) => Row(
+            children: [
+              if (singleRow) ...[
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: bounds.maxWidth * .3),
+                  child: _inputIntentMenu(),
+                ),
+                const SizedBox(width: 4),
+                Expanded(child: _prompt(maxLines: 1)),
+              ] else
                 Expanded(
                   child: Align(
-                    alignment: Alignment.centerRight,
-                    child: _statusBar(true),
+                    alignment: Alignment.centerLeft,
+                    child: _inputIntentMenu(),
                   ),
                 ),
-              ],
-            ),
-        ],
+              if (_commandEditor != null) _commandActions(),
+              _expandDraftButton(),
+              if (singleRow)
+                _sendButton(iconOnly: bounds.maxWidth < 480)
+              else
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: bounds.maxWidth * .55),
+                  child: _sendButton(),
+                ),
+            ],
+          ),
+        ),
+        footer: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (compact && !singleRow)
+              Row(
+                children: [
+                  if (short && c.attachments.isNotEmpty) _pendingContexts(),
+                  if (View.of(context).viewInsets.bottom > 0)
+                    _hideKeyboardButton(),
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: _statusBar(true),
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ),
       ),
     );
   }

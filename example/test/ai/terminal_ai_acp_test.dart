@@ -619,6 +619,141 @@ void main() {
       expect(terminal.writes, isEmpty);
     });
 
+    test(
+      'tool updates and plan keep stable slots without proving execution',
+      () async {
+        agent.run = (_, events) async {
+          void tool(String status, {bool input = false}) => events({
+            'sessionUpdate': 'trail_content',
+            'kind': 'tool_call',
+            'text': input ? 'Run command' : '',
+            'metadata': {
+              'toolCallId': 'call-1',
+              'status': status,
+              'rawInput': input
+                  ? {
+                      'server': 'trail_terminal',
+                      'tool': 'run_command',
+                      'arguments': {'operation_id': 'missing', 'command': 'ls'},
+                    }
+                  : null,
+            },
+          });
+          tool('pending', input: true);
+          events({
+            'sessionUpdate': 'trail_content',
+            'kind': 'plan',
+            'metadata': {
+              'entries': [
+                {'content': 'Inspect', 'status': 'pending'},
+              ],
+            },
+          });
+          events({
+            'sessionUpdate': 'agent_message_chunk',
+            'content': {'type': 'text', 'text': 'Waiting'},
+          });
+          tool('completed');
+          events({
+            'sessionUpdate': 'agent_message_chunk',
+            'content': {'type': 'text', 'text': ' for receipt'},
+          });
+        };
+        await controller.ask('Explain');
+        final content = controller.transcript
+            .where((e) => e.agentContent != null)
+            .toList();
+        expect(content, hasLength(2));
+        expect(content.first.agentContent!.metadata['status'], 'completed');
+        expect(content.first.agentContent!.metadata['rawInput'], isNotNull);
+        expect(
+          controller.executionForAgentContent(content.first.agentContent!),
+          isNull,
+        );
+        expect(controller.transcript.last.text, 'Waiting for receipt');
+        expect(terminal.writes, isEmpty);
+      },
+    );
+
+    test(
+      'tool identity resolves only to its matching host operation receipt',
+      () async {
+        agent.run = (tools, events) async {
+          final observed = await tools('get_terminal_state', {});
+          final arguments = <String, Object?>{
+            'command': 'ls',
+            'reason': 'Inspect',
+            'operation_id': 'one',
+            'context_version': observed['context_version'],
+          };
+          events({
+            'sessionUpdate': 'trail_content',
+            'kind': 'tool_call',
+            'text': 'Run',
+            'metadata': {
+              'toolCallId': 'call',
+              'status': 'completed',
+              'rawInput': {
+                'server': 'trail_terminal',
+                'tool': 'run_command',
+                'arguments': arguments,
+              },
+            },
+          });
+          await tools('run_command', arguments);
+        };
+        await controller.ask('Inspect');
+        final content = controller.transcript
+            .firstWhere((e) => e.agentContent != null)
+            .agentContent!;
+        final pending = controller.executionForAgentContent(content)!;
+        expect(pending.toolCallId, 'call');
+        expect(pending.operationId, 'one');
+        expect(pending.entry.state, AiEntryState.proposed);
+        expect(pending.blockId, isNull);
+        expect(terminal.writes, isEmpty);
+        await controller.approve(revision: controller.proposalRevision);
+        final accepted = controller.executionForAgentContent(content)!;
+        expect(accepted.entry.state, AiEntryState.accepted);
+        expect(accepted.sessionId, 'tab-one');
+        expect(accepted.blockId, 'block');
+        expect(terminal.writes, hasLength(1));
+      },
+    );
+
+    test(
+      'retained tool history keeps IDs and rejects stale events after task switch',
+      () async {
+        late AgentEventHandler oldEvents;
+        agent.run = (_, events) async {
+          oldEvents = events;
+          events({
+            'sessionUpdate': 'trail_content',
+            'kind': 'tool_call',
+            'text': 'Inspect',
+            'metadata': {'toolCallId': 'retained', 'status': 'pending'},
+          });
+        };
+        await controller.ask('Inspect');
+        final task = controller.taskId;
+        final before = controller.transcript.last;
+        controller.newTask();
+        oldEvents({
+          'sessionUpdate': 'trail_content',
+          'kind': 'tool_call',
+          'metadata': {'toolCallId': 'retained', 'status': 'completed'},
+        });
+        expect(controller.transcript, isEmpty);
+        controller.selectTask(task);
+        expect(controller.transcript.last.id, before.id);
+        expect(
+          controller.transcript.last.agentContent!.metadata['status'],
+          'pending',
+        );
+        expect(terminal.writes, isEmpty);
+      },
+    );
+
     test('streamed reply chunks form one message', () async {
       agent.run = (_, events) async {
         for (final text in ['First', ' second']) {

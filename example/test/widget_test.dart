@@ -2280,10 +2280,13 @@ void main() {
     final preview = tester.widget<TerminalCodePreview>(previewFinder);
     expect(preview.text, clipboardText);
     final renderedPreview = tester
-        .widgetList<RichText>(
-          find.descendant(of: previewFinder, matching: find.byType(RichText)),
+        .widgetList<SelectableText>(
+          find.descendant(
+            of: previewFinder,
+            matching: find.byType(SelectableText),
+          ),
         )
-        .map((text) => text.text.toPlainText())
+        .map((text) => text.data ?? text.textSpan?.toPlainText() ?? '')
         .join();
     expect(renderedPreview, 'first command\nsecond command');
     expect(fakeBindings.writes, isEmpty);
