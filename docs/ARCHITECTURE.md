@@ -108,6 +108,84 @@ root manifest 完全一致的 `libianvs_core`。仓库内的同步门禁保证 s
 3. `ianvs_pty` 下发给 Rust。
 4. `TerminalRuntimeController` 消费 frame diff / event，驱动 `TerminalViewportController`。
 
+## 搜索快照
+
+原生搜索在 `TerminalSession.capture_search_snapshot()` 内持锁捕获拥有独立文本的
+搜索行，同时保存软换行和折叠投影坐标；随后释放锁，再拼接逻辑行并执行匹配。
+一次搜索不会混用捕获前后的主屏、alternate screen 或折叠状态，匹配阶段不阻塞
+PTY 状态更新。相关回归在 `native/core/src/session/search_snapshot_tests.rs`。
+
+这仍是同步搜索请求，捕获阶段仍需遍历保留历史；尚未引入分页、取消或写时复制。
+返回坐标属于捕获时的状态，不能由此推定其在后续 resize、滚动淘汰后仍然有效。
+
+## SSH 传输预算
+
+`native/core/src/ssh/buffer.rs` 在异步 SSH 任务与同步 PTY reader 之间提供
+4 MiB 输出队列，实际 `Read` 消费才释放额度；队列外最多保留一个 1 MiB
+处理批次，结束诊断另有最多 4 KiB 的保留空间。剩余批次未交付时暂停接收下一条
+channel message，消费后继续，本地取消仍独立处理。该预算不包含 russh 自身的
+协议窗口和网络缓冲区；明确取消时不承诺排空尚未交付的数据。
+
+普通输入按最多 64 KiB 分片，并共享 1 MiB 队列及在途额度，单条写入还计入
+固定开销；大 `write_all` 等待消费推进而不是仅因超过预算被拒绝。
+这是同步 Write 合同的背压，不意味着调用线程不会等待远端窗口。
+关闭会唤醒等待额度的写入者。Shell bootstrap 回复使用独立预算，避免被等待
+初始化完成的用户粘贴占满。异常超大输出批次有明确失败，不静默截断。
+
+队列行为测试位于 `native/core/src/ssh/buffer.rs`；真实 OpenSSH 的慢消费者、
+16 MiB 输出完整性及退出码验证由 `tools/ssh_e2e/run.sh` 执行。
+
+## Trigger 输出事件
+
+Profile 触发器消费原生 `output_text` 事件，不再扫描 Frame 的可见行。
+会话只有在配置了 Trigger 后才通过当前 Session Request 开启输出观察；后台
+窗格也遵循同一规则。每条事件携带独立文本、订阅标识和逻辑行身份，runtime
+校验当前订阅与会话 epoch，app 对同一行的同一规则只执行一次。
+帧重建、滚动、resize 和回放都不会单独执行通知或发送输入。
+
+观察器保守处理控制序列：光标编辑、图形和超长行不会跨片段拼接成匹配；
+事件溢出有诊断，不能把有界观察声明为无损命令审计。启用前的启动输出不追溯，
+中途订阅从下一安全行开始；已经执行的 partial 匹配不能被未来输出撤销。
+精确字段、限制和测试入口见
+[输出观察合同](protocols/SESSION_REQUEST_RESPONSE_V1.md#live-output-observation)。
+
+## 命令发生记录与文件上下文
+
+`CommandOccurrence` 是现有原生命令 Block 的元数据投影，以 runtime 的 session
+epoch 和 block ID 标识一次执行，保留 context/submission 关联、执行时目录、
+开始结束时间和可空退出码。真实启动传输由 runtime 捕获，shell 声明的主机和
+用户名另存为证据；后续 `cd`、Profile 修改或嵌套 shell 不改写旧记录。
+Block controller 有界保留元数据，Composer 从同一来源投影当前上下文的历史。
+记录仍在不代表原始输出仍在；输出部分淘汰、不可用和未确定分别表示，未知
+退出码也不视为成功。该记录不新增持久历史库或 Layout 字段。
+
+终端目标解析优先显式 OSC 8 链接，再识别连续软换行中的 URL；文件候选只在
+有明确来源上下文时启用，支持路径和 `:line:column`，以及引号包裹的含空格路径。
+相对路径使用输出所属命令捕获的目录，不使用点击时的当前目录。文件操作接在
+Block 内联输出、紧凑视图和阅读器，直接使用同一个 Block 快照。普通终端 Frame
+携带同锁捕获的 `semantic_snapshot_token`、去重 Block 来源信息和完整视口行归属；
+三者在每帧（包括 delta）整体替换，不从异步 Block 列表或预览文本推定文件上下文。
+终端写入与 dirty/cache 发布共享状态锁边界，抽帧不能看见新内容配旧 dirty 范围。
+点击、右键菜单和异步确认绑定显示帧修订与会话代际；显示帧更新后旧目标失效。
+只有整行具有唯一输出归属时才授权文件操作，折叠摘要、填充行、混合归属、
+alternate screen、replay 或超出元数据预算均不猜测路径。无上下文的 `file://`
+同样不能打开文件。协议边界见 [Frame Packet](protocols/TERMINAL_FRAME_PACKET_V1.md)。
+后续光标写入或结构性编辑覆盖旧输出时，其文件来源授权失效；失效状态随快照
+保留。软换行中的文件 URI 与普通路径使用相同的跨片段归属检查。
+记录查询与输出页面缓存也绑定 session epoch；同名 Block 不能继承旧会话的页面、
+选择或阅读状态。包含 `..` 的路径暂不用于语义文件操作，避免词法折叠跨越符号
+链接时定位到另一个文件；需要真实文件系统规范化后才能安全支持该情况。
+
+宿主在用户点击时核对会话与传输。远端路径复用 SFTP 面板及已有下载／编辑
+能力，不交给本地文件打开器；本地路径继续使用现有确认与系统打开流程。
+SFTP 菜单与确认绑定面板位置修订，目录或连接变化后旧授权失效；异步任务轮询和
+取消绑定会话代际，不能把旧任务编号用于复用同一 ID 的新会话。
+嵌套 SSH 的文件路由还绑定实例凭据，该凭据随命令来源冻结；context ID 再次
+使用不会让历史点击或编辑器回传取得新连接的文件权限。
+嵌套 host route 缺失时不回退外层 SSH；shell 声明的主机名与 SFTP 端点不一致
+且没有别名对应证据时拒绝定位。该保守限制包括部分 IP／DNS／短主机名组合。
+解析到行列不等于系统默认应用支持跳转行列，也不代表引入编辑器或工程管理器。
+
 ## App 侧终端状态
 
 当前产品状态边界由 [TERMINAL_PRODUCT_SCOPE.md](TERMINAL_PRODUCT_SCOPE.md)

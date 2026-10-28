@@ -265,6 +265,71 @@
       "goal": "Keep one exact current native/Dart runtime boundary: versioned SessionConfig, Session Request/Response, Runtime Event, Diagnostic Event, Frame Packet and Graphic Asset Packet contracts with no predecessor wire fallback.",
       "evidence": [
         {
+          "path": "native/core/src/session/semantic_snapshot.rs",
+          "contains": ["MAX_ROWS", "MAX_BLOCKS", "MAX_BYTES", "owns_column"]
+        },
+        {
+          "path": "packages/ianvs_terminal/lib/src/runtime/terminal_runtime_controller.dart",
+          "contains": ["occurrenceForFrameRow", "semanticSnapshotToken", "_invalidatedSemanticSnapshotTokens"]
+        },
+        {
+          "path": "packages/ianvs_terminal/lib/src/terminal/command_occurrence.dart",
+          "contains": ["CommandOccurrence", "CommandOutputRetention", "sessionEpoch"]
+        },
+        {
+          "path": "packages/ianvs_terminal/test/terminal_semantic_target_test.dart",
+          "contains": ["terminalSemanticTargetAt", "fileTarget"]
+        },
+        {
+          "path": "example/test/shell/terminal_file_actions_test.dart",
+          "contains": ["historical cwd", "unknown nested host", "stale incarnation"]
+        },
+        {
+          "path": "native/core/src/session/command_blocks.rs",
+          "contains": [
+            "command_identity_is_captured_before_later_directory_and_host_changes",
+            "unknown_command_identity_stays_unknown_after_metadata_arrives",
+            "invalid_shell_identity_is_not_inherited_by_the_next_command"
+          ]
+        },
+        {
+          "path": "native/core/src/session/search_snapshot_tests.rs",
+          "contains": [
+            "search_snapshot_retains_wrapped_unicode_while_other_thread_ingests",
+            "search_snapshot_keeps_alternate_screen_after_return_to_primary",
+            "search_snapshot_preserves_folded_source_rows_and_projected_offsets"
+          ]
+        },
+        {
+          "path": "native/core/src/ssh/buffer.rs",
+          "contains": [
+            "partial_reads_release_only_consumed_bytes_and_preserve_order",
+            "slow_consumer_drains_pending_batches_without_loss_or_growth",
+            "input_credit_is_released_by_drop_and_close_wakes_blocked_producer"
+          ]
+        },
+        {
+          "path": "native/core/tests/ssh_openssh_acceptance_test.rs",
+          "contains": [
+            "openssh_large_output_survives_slow_consumer_and_preserves_exit_status"
+          ]
+        },
+        {
+          "path": "native/core/src/session/output_observer.rs",
+          "contains": [
+            "subscriptions_start_at_safe_boundaries_and_change_identity",
+            "same_read_edits_and_graphics_do_not_publish_erased_matches",
+            "event_batches_are_bounded_without_carrying_dropped_fragments"
+          ]
+        },
+        {
+          "path": "native/core/tests/session_test.rs",
+          "contains": [
+            "live_output_observations_are_opt_in_and_independent_of_frames",
+            "replay_output_cannot_subscribe_or_emit_trigger_text"
+          ]
+        },
+        {
           "path": "native/completion_core/src/lib.rs",
           "contains": ["CompletionQuery", "deny_unknown_fields", "local_context"]
         },
@@ -442,6 +507,12 @@
       ],
       "verification_commands": [
         "cargo test --manifest-path native/core/Cargo.toml --test runtime_capabilities_test",
+        "cargo test --manifest-path native/core/Cargo.toml --lib search_snapshot_tests",
+        "cargo test --manifest-path native/core/Cargo.toml --lib ssh::buffer::tests",
+        "cargo test --manifest-path native/core/Cargo.toml --lib output_observer",
+        "cargo test --manifest-path native/core/Cargo.toml --test session_test live_output_observations",
+        "cargo test --manifest-path native/core/Cargo.toml --test session_test replay_output_cannot_subscribe",
+        "./tools/ssh_e2e/run.sh",
         "make test-composer",
         "make test-composer-ui",
         "cargo test --manifest-path native/core/Cargo.toml --test runtime_event_envelope_test",
@@ -454,7 +525,10 @@
         "cd packages/ianvs_pty && dart analyze && dart test",
         "cd packages/ianvs_terminal && flutter test test/terminal_session_config_v1_test.dart test/terminal_runtime_controller_test.dart test/terminal_json_request_client_test.dart test/terminal_diagnostics_test.dart test/terminal_frame_packet_v1_test.dart test/terminal_live_recorder_test.dart test/terminal_replay_backend_test.dart",
         "dart test test/docs_contract_test.dart",
-        "make verify"
+        "make verify",
+        "cargo test --locked --manifest-path native/core/Cargo.toml --lib session::command_blocks::tests::",
+        "cd packages/ianvs_terminal && flutter test test/terminal/command_occurrence_test.dart test/terminal_semantic_target_test.dart test/terminal_semantic_viewport_test.dart",
+        "cd example && flutter test test/shell/terminal_file_actions_test.dart"
       ],
       "exit_criteria": [
         "The loaded native core and Dart bindings expose the exact current versioned symbols and reject unsupported schemas.",

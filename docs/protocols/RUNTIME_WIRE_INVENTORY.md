@@ -41,16 +41,27 @@ rather than JSON Runtime Envelopes.
   remains outside this wire.
 - Search, selection, recording and other generic commands use Session Request/Response v1;
   operation-specific clients own payload semantics.
+- `terminal.command_blocks` includes execution-time `cwd`, nullable `shellHostname`,
+  `shellUsername` and `sftpContextId` route lease. Dart projects this metadata into bounded command occurrences;
+  authenticated launch transport remains a separate runtime-owned identity. Semantic
+  file targets are host callbacks, not another wire command or PTY input path.
 - [Composer V1](COMPOSER_V1.md) carries pure completion, optional bounded local
   suggestions and lease-bound submission through that same request envelope.
   PTY output and OSC metadata cannot grant permission to submit.
 - OSC 52 text clipboard reads use Runtime Event `host_request` and correlated Host Response v1.
   One-way URL, attention, notification and asset-transfer events remain separate. Other terminal
   protocol replies use the explicit byte channel so ZMODEM ordering remains authoritative.
+- Optional `terminal.observe_output` uses Session Request/Response v1; its bounded,
+  self-contained `output_text` events share Runtime Event Envelope v1 and are disabled
+  by default. Trigger actions consume live observations, never viewport frames or replay.
+  See [Session Request/Response](SESSION_REQUEST_RESPONSE_V1.md#live-output-observation).
 - Frame/Session metrics use Diagnostic Event v1. The `terminal.export_diagnostics` evidence
   package is a separate privacy-preserving operation payload.
 - Frame Packet v1 carries session identity, sequence and timestamp around `terminal-frame-diff-v1`.
   Dart acknowledges only accepted packets; stale acknowledgement requests a native Snapshot.
+  Nested Frame semantic snapshot tokens bind inline frozen Block provenance to complete viewport
+  row ownership. Delta frames replace this metadata; a later `terminal.command_blocks` response
+  cannot authorize a previously displayed row.
 - Graphic Asset Packet v1 atomically transfers session/asset/version identity, dimensions and
   bounded decoded RGBA. File downloads retain their dedicated one-shot byte channel.
 
