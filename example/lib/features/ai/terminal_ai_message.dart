@@ -142,8 +142,8 @@ class TerminalAiMessage extends StatelessWidget {
   );
 }
 
-/// Host command/evidence previews are literal bytes, not model prose. Preserve
-/// line boundaries and horizontal scrolling without routing through Markdown.
+/// Host previews display literal text without Markdown. Normalize line endings
+/// for display while retaining the original [text] for the host's paste decision.
 class TerminalCodePreview extends StatelessWidget {
   const TerminalCodePreview({required this.text, super.key});
 
@@ -162,7 +162,7 @@ class TerminalCodePreview extends StatelessWidget {
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Text(
-            text,
+            text.replaceAll('\r\n', '\n').replaceAll('\r', '\n'),
             softWrap: false,
             style: context.ianvsTypography.code.copyWith(
               color: palette.textPrimary,
