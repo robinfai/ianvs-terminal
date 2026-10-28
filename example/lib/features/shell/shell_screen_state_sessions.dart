@@ -177,7 +177,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       _lastActivityFramePreviews.remove(sessionId);
       _lastNewOutputFramePreviews.remove(sessionId);
       _triggerMatchesBySession.remove(sessionId);
-      _terminalFrameSequenceBySession.remove(sessionId);
+      _triggerRuleSignatures.remove(sessionId);
       _searchRefreshFrameSignatures.remove(sessionId);
       final searchHadSession =
           _searchMatchesBySession.containsKey(sessionId) ||
@@ -328,6 +328,11 @@ extension _ShellScreenStateSessions on _ShellScreenState {
   }
 
   void _syncPresentationState(SessionState sessionState) {
+    for (final tab in sessionState.tabs) {
+      for (final pane in tab.effectivePanes) {
+        _syncTriggerObservation(pane.sessionId);
+      }
+    }
     final currentTabCount = sessionState.tabs.length;
     _syncTabColorViewportListeners(sessionState);
     _seedInactiveSessionFrameBaselines(sessionState);

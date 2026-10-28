@@ -75,6 +75,9 @@ extension _ShellScreenAi on _ShellScreenState {
           terminal: TerminalAiConnections(
             sessionId: sessionId,
             terminal: _aiEndpoint(sessionId),
+            scopeForSession: (source) => ref
+                .read(terminalRuntimeControllerProvider)
+                .commandOccurrenceScopeFor(source),
             requestBlocks: (source, request) => ref
                 .read(terminalRuntimeControllerProvider)
                 .commandBlocks(source, request),
@@ -615,6 +618,9 @@ extension _ShellScreenAi on _ShellScreenState {
                 onReinput: (command) => _reinputAiCommand(sessionId, command),
                 onOpenLinkTarget: (target) =>
                     unawaited(_openTerminalLinkTarget(sessionId, target)),
+                onLinkContextMenu: (target) => unawaited(
+                  _handleTerminalLinkContextMenu(sessionId, target),
+                ),
               )
             : timelineBuilder,
         onShowEvidence: retained

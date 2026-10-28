@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:convert' show utf8;
+import 'dart:convert' show jsonEncode, utf8;
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' show AppExitResponse, ViewFocusEvent, ViewFocusState;
@@ -82,6 +82,7 @@ import 'shell_acceptance.dart';
 import 'shell_action_registry.dart';
 import 'shell_action_runtime_bindings.dart';
 import 'shell_shortcut_bridge.dart';
+import 'terminal_file_actions.dart';
 import 'widgets/desktop_session_status.dart';
 import 'widgets/mobile_disconnected_session_notice.dart';
 import 'widgets/mobile_session_list.dart';
@@ -283,8 +284,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, String?> _lastActivityFramePreviews = {};
   final Map<String, String?> _lastNewOutputFramePreviews = {};
   final Map<String, Set<String>> _triggerMatchesBySession = {};
+  final Map<String, String> _triggerRuleSignatures = {};
   final Map<String, RegExp?> _profileTriggerRegexCache = {};
-  final Map<String, int> _terminalFrameSequenceBySession = {};
   final Map<String, String> _instantReplayRemoteCommands = <String, String>{};
   final Map<String, String> _searchRefreshFrameSignatures = {};
 
@@ -315,6 +316,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   bool _isSftpPanelOpen = false;
   String? _sftpPanelSessionId;
+  SftpSessionTarget? _sftpPanelPinnedTarget;
+  String _sftpPanelInitialPath = '/';
+  String? _sftpPanelHighlightedName;
   bool _activeTerminalHasFocus = false;
   bool _recentlyClosedLastSession = false;
   bool _showLayoutCue = false;

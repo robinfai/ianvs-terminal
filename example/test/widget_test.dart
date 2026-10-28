@@ -4350,6 +4350,12 @@ void main() {
     });
     await tester.pump(const Duration(milliseconds: 40));
 
+    expect(fakeBindings.writes, isEmpty);
+    expect(notifications, isEmpty);
+    fakeBindings.enqueueEvent(1, _triggerOutput('0', 'Password:'));
+    fakeBindings.enqueueEvent(1, _triggerOutput('1', 'ERROR 42 failed'));
+    await tester.pump(const Duration(milliseconds: 40));
+
     expect(fakeBindings.writes, hasLength(1));
     expect(fakeBindings.writes.single, utf8.encode('secret\n'));
     expect(notifications, hasLength(1));
@@ -4381,59 +4387,69 @@ void main() {
     expect(notifications, hasLength(1));
   });
 
-  testWidgets('profile triggers fire for repeated delta output', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
-    final profile = defaultTerminalProfile().copyWith(
-      triggers: const [
-        TerminalProfileTrigger(
-          pattern: 'Password:',
-          action: TerminalProfileTriggerAction.sendText,
-          value: 'secret\n',
+  testWidgets(
+    'profile triggers ignore repeated delta frames and fire once per output line',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      final profile = defaultTerminalProfile().copyWith(
+        triggers: const [
+          TerminalProfileTrigger(
+            pattern: 'Password:',
+            action: TerminalProfileTriggerAction.sendText,
+            value: 'secret\n',
+          ),
+        ],
+      );
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [profile]),
         ),
-      ],
-    );
+      );
 
-    await _pumpShellScreen(
-      tester,
-      bindings: fakeBindings,
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [profile]),
-      ),
-    );
+      Map<String, Object?> passwordDeltaFrame() {
+        return {
+          'frame_kind': 'delta',
+          'rows': [
+            {'index': 0, 'text': 'Password:', 'style_runs': const <Object?>[]},
+          ],
+          'cursor': {'row': 0, 'col': 9, 'visible': true},
+          'selection': null,
+          'viewport_rows': 24,
+          'viewport_cols': 80,
+          'dirty_ranges': [
+            {'start': 0, 'end': 1},
+          ],
+          'scrollback_offset': 0,
+          'scrollback_max_offset': 0,
+        };
+      }
 
-    Map<String, Object?> passwordDeltaFrame() {
-      return {
-        'frame_kind': 'delta',
-        'rows': [
-          {'index': 0, 'text': 'Password:', 'style_runs': const <Object?>[]},
-        ],
-        'cursor': {'row': 0, 'col': 9, 'visible': true},
-        'selection': null,
-        'viewport_rows': 24,
-        'viewport_cols': 80,
-        'dirty_ranges': [
-          {'start': 0, 'end': 1},
-        ],
-        'scrollback_offset': 0,
-        'scrollback_max_offset': 0,
-      };
-    }
+      fakeBindings.enqueueFrame(1, passwordDeltaFrame());
+      await tester.pump(const Duration(milliseconds: 40));
+      fakeBindings.enqueueFrame(1, passwordDeltaFrame());
+      await tester.pump(const Duration(milliseconds: 40));
 
-    fakeBindings.enqueueFrame(1, passwordDeltaFrame());
-    await tester.pump(const Duration(milliseconds: 40));
-    fakeBindings.enqueueFrame(1, passwordDeltaFrame());
-    await tester.pump(const Duration(milliseconds: 40));
+      expect(fakeBindings.writes, isEmpty);
+      fakeBindings.enqueueEvent(1, _triggerOutput('0', 'Password:'));
+      fakeBindings.enqueueEvent(
+        1,
+        _triggerOutput('0', 'Password: more', revision: '2'),
+      );
+      fakeBindings.enqueueEvent(1, _triggerOutput('1', 'Password:'));
+      await tester.pump(const Duration(milliseconds: 40));
 
-    expect(fakeBindings.writes.map(utf8.decode).toList(), [
-      'secret\n',
-      'secret\n',
-    ]);
-  });
+      expect(fakeBindings.writes.map(utf8.decode).toList(), [
+        'secret\n',
+        'secret\n',
+      ]);
+    },
+  );
 
   testWidgets(
-    'profile triggers match wrapped logical rows for notifications and send-text actions',
+    'profile triggers consume logical output independently of wrapped display rows',
     (tester) async {
       final fakeBindings = FakePtyBackend();
       final notifications = <Map<String, String?>>[];
@@ -4491,6 +4507,15 @@ void main() {
         'scrollback_offset': 0,
         'scrollback_max_offset': 0,
       });
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(fakeBindings.writes, isEmpty);
+      fakeBindings.enqueueEvent(1, _triggerOutput('0', 'Pass'));
+      fakeBindings.enqueueEvent(
+        1,
+        _triggerOutput('0', 'Password:', revision: '2'),
+      );
+      fakeBindings.enqueueEvent(1, _triggerOutput('1', 'ERROR 42 failed'));
       await tester.pump(const Duration(milliseconds: 40));
 
       expect(fakeBindings.writes, hasLength(1));
@@ -6477,3 +6502,17 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 }
+
+PtyEvent _triggerOutput(String line, String text, {String revision = '1'}) =>
+    PtyEvent(
+      kind: 'output_text',
+      sessionId: '1',
+      payload: {
+        'subscription': '1',
+        'lineId': line,
+        'revision': revision,
+        'text': text,
+        'complete': false,
+        'dropped': 0,
+      },
+    );

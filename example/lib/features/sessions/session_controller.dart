@@ -1418,6 +1418,7 @@ class SessionController extends Notifier<SessionState> {
           dragDropEnabled: Platform.isMacOS,
         ),
         retainExitCodes: launchProfile.isSsh ? const {255} : const {},
+        observeOutput: launchProfile.triggers.isNotEmpty,
       );
     } on Object catch (error) {
       final detail = _boundedShellMetadata(error.toString(), 240);
@@ -3493,6 +3494,9 @@ class SessionController extends Notifier<SessionState> {
       case TerminalSessionSshHostKeyPromptEvent():
         // ShellScreen owns explicit host-key verification and native response.
         break;
+      case TerminalSessionOutputTextEvent():
+        // UI trigger consumer owns this live-output observation.
+        break;
       case TerminalSessionFrameEvent():
         _applyFrame(event.sessionId, event.frame);
       case TerminalSessionExitEvent():
@@ -3857,6 +3861,14 @@ class SessionController extends Notifier<SessionState> {
       },
       hostContextId: switch (event.rawPayload['host_context_id']) {
         final String value when value.isNotEmpty && value.length <= 64 => value,
+        _ => null,
+      },
+      sftpContextId: switch (event.rawPayload['sftp_context_id']) {
+        final String value
+            when value.isNotEmpty &&
+                value.length <= 128 &&
+                !value.runes.any((r) => r < 32 || (r >= 127 && r <= 159)) =>
+          value,
         _ => null,
       },
       sftpRoute: event.rawPayload['sftp_route'] == true,

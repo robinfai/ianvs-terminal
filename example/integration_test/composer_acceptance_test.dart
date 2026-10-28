@@ -396,6 +396,13 @@ void main() {
               (block) =>
                   block.lines.any((line) => line.text == 'BLOCK_SCROLL:120'),
             ),
+        diagnostics: () =>
+            'lastError=${container.read(sessionControllerProvider).lastError}; '
+            'owner=${model.ownership}; lease=${model.readyLease}; '
+            'busy=${ai.busy}; checking=${ai.checkingTerminal}; '
+            'editor=${model.editor.text}; focus=${tester.widget<TextField>(editor).focusNode?.hasFocus}; '
+            'blocks=${blocks.blocks.map((b) => '${b.id}: ${b.command} total=${b.totalLines} tail=${b.lines.reversed.take(4).map((l) => l.text).toList()}').join(' | ')}; '
+            'screen=${terminalText()}',
       );
       for (var i = 0; i < 6; i++) {
         await tester.pump(const Duration(milliseconds: 16));
@@ -540,6 +547,11 @@ void main() {
       await until(
         tester,
         () => terminalText().contains('COMPOSER_VALUE:retained'),
+        diagnostics: () =>
+            'lastError=${container.read(sessionControllerProvider).lastError}; '
+            'owner=${model.ownership}; busy=${ai.busy}; checking=${ai.checkingTerminal}; '
+            'editor=${model.editor.text}; focus=${tester.widget<TextField>(editor).focusNode?.hasFocus}; '
+            'screen=${terminalText()}',
       );
       await until(
         tester,

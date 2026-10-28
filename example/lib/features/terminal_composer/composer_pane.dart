@@ -21,6 +21,7 @@ final class ComposerPaneSession extends ChangeNotifier {
     mode.addListener(_modeChanged);
     mobileAiSettings?.addListener(_updateLlmAvailability);
     _updateLlmAvailability();
+    blocks.addListener(_updateHistoryFromOccurrences);
   }
 
   final _draftEditors = <TerminalComposerController>{};
@@ -41,7 +42,7 @@ final class ComposerPaneSession extends ChangeNotifier {
     model.setActive(false);
     _draftEditors.add(model);
     _updateEditorShell(model, _lastShell);
-    model.updateHistory(_history);
+    _updateHistoryFromOccurrencesFor(model);
     return model;
   }
 
@@ -152,6 +153,7 @@ final class ComposerPaneSession extends ChangeNotifier {
   late final TerminalComposerController controller;
   late final CommandBlockController blocks = CommandBlockController(
     request: (request) => runtime.commandBlocks(sessionId, request),
+    occurrenceScope: runtime.commandOccurrenceScopeFor(sessionId),
   );
   final TerminalModeController mode;
   TerminalPane? _pane;
@@ -352,9 +354,31 @@ final class ComposerPaneSession extends ChangeNotifier {
       _historyRevision = historyRevision;
       _history = history.cast<String>();
       for (final model in [controller, ..._draftEditors]) {
-        model.updateHistory(_history);
+        _updateHistoryFromOccurrencesFor(model);
       }
     }
+    _updateHistoryFromOccurrences();
+  }
+
+  void _updateHistoryFromOccurrences() {
+    if (_disposed) return;
+    for (final model in [controller, ..._draftEditors]) {
+      _updateHistoryFromOccurrencesFor(model);
+    }
+  }
+
+  void _updateHistoryFromOccurrencesFor(TerminalComposerController model) {
+    final scope = blocks.occurrenceScope;
+    if (scope == null) {
+      model.updateHistory(_history);
+      return;
+    }
+    model.updateOccurrenceHistory(
+      blocks.occurrences,
+      scope: scope,
+      contextId: _composerContextId,
+      shellHistory: _history,
+    );
   }
 
   void _updateEditorShell(
@@ -455,6 +479,7 @@ final class ComposerPaneSession extends ChangeNotifier {
     } else {
       _disposeDraftResources();
     }
+    blocks.removeListener(_updateHistoryFromOccurrences);
     blocks.dispose();
     editorFocus.dispose();
     super.dispose();

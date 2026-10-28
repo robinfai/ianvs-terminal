@@ -1,43 +1,51 @@
 part of 'shell_screen.dart';
 
 extension _ShellScreenStateTriggers on _ShellScreenState {
-  void _runProfileTriggers(
-    String sessionId,
-    terminal.TerminalFrameDiff frame, {
-    required int frameSequence,
-  }) {
-    final profile = _profileForSession(sessionId);
-    if (profile == null || profile.triggers.isEmpty) {
+  void _syncTriggerObservation(String sessionId) {
+    final triggers =
+        _profileForSession(sessionId)?.triggers ??
+        const <TerminalProfileTrigger>[];
+    final signature = jsonEncode([
+      for (final trigger in triggers)
+        [
+          trigger.pattern,
+          trigger.action.name,
+          trigger.value,
+          trigger.caseSensitive,
+        ],
+    ]);
+    final previous = _triggerRuleSignatures[sessionId];
+    final runtime = ref.read(terminalRuntimeControllerProvider);
+    if (previous != null && previous != signature) {
+      runtime.setOutputObservation(sessionId, enabled: false);
+      _triggerMatchesBySession.remove(sessionId);
+    }
+    _triggerRuleSignatures[sessionId] = signature;
+    runtime.setOutputObservation(sessionId, enabled: triggers.isNotEmpty);
+  }
+
+  void _runProfileTriggers(terminal.TerminalSessionOutputTextEvent event) {
+    if (!ref
+        .read(terminalRuntimeControllerProvider)
+        .isCurrentOutputObservation(event)) {
       return;
     }
+    final sessionId = event.sessionId;
+    if (event.dropped > 0 || event.text.isEmpty) return;
+    final profile = _profileForSession(sessionId);
+    if (profile == null || profile.triggers.isEmpty) return;
     final seenMatches = _triggerMatchesBySession.putIfAbsent(
       sessionId,
       () => <String>{},
     );
-    for (final logicalRow in _logicalRows(frame.rows)) {
-      final text = logicalRow.text;
-      if (text.isEmpty) {
-        continue;
-      }
-      for (final trigger in profile.triggers) {
-        final regex = _regexForTrigger(trigger);
-        if (regex == null) {
-          continue;
-        }
-        if (!regex.hasMatch(text)) {
-          continue;
-        }
-        final matchKey = _triggerMatchKey(
-          trigger,
-          logicalRow,
-          frameScope: _frameDedupeScope(frame, frameSequence),
-        );
-        if (!seenMatches.add(matchKey)) {
-          continue;
-        }
-        _trimTriggerMatchHistory(seenMatches);
-        _runProfileTrigger(sessionId, trigger, text);
-      }
+    for (final trigger in profile.triggers) {
+      final regex = _regexForTrigger(trigger);
+      if (regex == null || !regex.hasMatch(event.text)) continue;
+      final key =
+          '${event.sessionEpoch}:${event.subscription}:${event.lineId}\u0000${trigger.pattern}\u0000${trigger.action.name}\u0000${trigger.value}\u0000${trigger.caseSensitive}';
+      if (!seenMatches.add(key)) continue;
+      _trimTriggerMatchHistory(seenMatches);
+      _runProfileTrigger(sessionId, trigger, event.text);
     }
   }
 
@@ -90,31 +98,6 @@ extension _ShellScreenStateTriggers on _ShellScreenState {
     while (seenMatches.length > _ShellScreenState._triggerMatchHistoryLimit) {
       seenMatches.remove(seenMatches.first);
     }
-  }
-
-  String _triggerMatchKey(
-    TerminalProfileTrigger trigger,
-    _LogicalTerminalRow logicalRow, {
-    required String frameScope,
-  }) {
-    return [
-      frameScope,
-      trigger.pattern,
-      trigger.action.name,
-      trigger.value ?? '',
-      trigger.caseSensitive,
-      logicalRow.endRow.index,
-      logicalRow.text,
-    ].join('\u0000');
-  }
-
-  String _frameDedupeScope(
-    terminal.TerminalFrameDiff frame,
-    int frameSequence,
-  ) {
-    return frame.frameKind == terminal.TerminalFrameKind.delta
-        ? 'delta:$frameSequence'
-        : 'snapshot';
   }
 
   void _runProfileTrigger(

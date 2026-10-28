@@ -182,14 +182,12 @@ extension _ShellScreenStateEvents on _ShellScreenState {
           event,
           ref.read(terminalRuntimeControllerProvider),
         );
+      case terminal.TerminalSessionOutputTextEvent():
+        _runProfileTriggers(event);
       case terminal.TerminalSessionFrameEvent(:final sessionId, :final frame):
-        final frameSequence =
-            (_terminalFrameSequenceBySession[sessionId] ?? 0) + 1;
-        _terminalFrameSequenceBySession[sessionId] = frameSequence;
         _recordInstantReplayFrame(sessionId, frame);
         _markNewOutputBadge(sessionId, frame);
 
-        _runProfileTriggers(sessionId, frame, frameSequence: frameSequence);
         _notifyInactiveActivity(sessionId, frame);
         _refreshSearchMatchesAfterFrame(sessionId, frame);
         _refreshProtocolAnnotationText(sessionId);

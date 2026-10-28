@@ -14,6 +14,16 @@ import 'package:ianvs_terminal/ianvs_terminal.dart';
 import '../helpers/pump_app.dart';
 
 class _Runtime extends Fake implements TerminalRuntimeController {
+  @override
+  CommandOccurrenceScope? commandOccurrenceScopeFor(String sessionId) =>
+      CommandOccurrenceScope(
+        sessionId: sessionId,
+        sessionEpoch: 1,
+        transport: const CommandTransportIdentity(
+          kind: CommandTransportKind.local,
+        ),
+      );
+
   final viewport = TerminalViewportController();
   final writes = <List<int>>[];
   final receipts = <String, Map<String, Object?>>{};
@@ -232,6 +242,38 @@ void main() {
       expect(scroll.offset, closeTo(0, .1));
       return scroll;
     }
+
+    testWidgets(
+      'normal mode refreshes bounded occurrences without revealing or submitting',
+      (tester) async {
+        try {
+          await mount(tester);
+          session.selectMode(TerminalViewMode.normal);
+          final reveal = session.blocks.revealRevision;
+          runtime.output.add(_Runtime._block('normal', 'normal shell command'));
+          runtime.viewport.updateFrame(
+            const TerminalFrameDiff(
+              rows: [TerminalRow(index: 0, text: 'normal shell command')],
+              cursor: TerminalCursor(row: 0, col: 0, visible: true),
+              viewportRows: 24,
+              viewportCols: 80,
+              dirtyRanges: [TerminalDirtyRange(start: 0, end: 1)],
+              scrollbackOffset: 0,
+              scrollbackMaxOffset: 0,
+            ),
+          );
+          await settle(tester);
+          expect(
+            session.blocks.occurrenceFor('normal')?.command,
+            'normal shell command',
+          );
+          expect(session.blocks.revealRevision, reveal);
+          expect(runtime.writes, isEmpty);
+        } finally {
+          await dispose(tester);
+        }
+      },
+    );
 
     testWidgets(
       'reveals only the accepted manual receipt, restores live input, and does not follow again',

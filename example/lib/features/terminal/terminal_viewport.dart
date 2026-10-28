@@ -62,6 +62,7 @@ class TerminalViewport extends StatelessWidget {
     this.onPointerDown,
     this.onOpenLink,
     this.onOpenLinkTarget,
+    this.semanticContextForRow,
     this.onLinkHoverChanged,
     this.onLinkContextMenu,
     this.onPasteClipboard,
@@ -105,6 +106,7 @@ class TerminalViewport extends StatelessWidget {
   final ValueChanged<PointerDownEvent>? onPointerDown;
   final ValueChanged<String>? onOpenLink;
   final ValueChanged<terminal.TerminalLinkTarget>? onOpenLinkTarget;
+  final terminal.TerminalSemanticContextResolver? semanticContextForRow;
   final ValueChanged<terminal.TerminalLinkTarget?>? onLinkHoverChanged;
   final ValueChanged<terminal.TerminalLinkTarget>? onLinkContextMenu;
   final Future<void> Function()? onPasteClipboard;
@@ -152,6 +154,7 @@ class TerminalViewport extends StatelessWidget {
       onPointerDown: onPointerDown,
       onOpenLink: onOpenLink,
       onOpenLinkTarget: onOpenLinkTarget,
+      semanticContextForRow: semanticContextForRow,
       onLinkHoverChanged: onLinkHoverChanged,
       onLinkContextMenu: onLinkContextMenu,
       onPasteClipboard: onPasteClipboard,

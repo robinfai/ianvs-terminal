@@ -8,6 +8,9 @@ import 'package:ianvs_terminal/ianvs_terminal.dart';
 
 class _Runtime extends Fake implements TerminalRuntimeController {
   @override
+  CommandOccurrenceScope? commandOccurrenceScopeFor(String sessionId) => null;
+
+  @override
   Map<String, Object?>? composerRequest(
     String sessionId,
     String operation,

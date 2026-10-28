@@ -869,6 +869,7 @@ class TerminalShellIntegrationSnapshot {
     this.contextId,
     this.contextKind,
     this.hostContextId,
+    this.sftpContextId,
     this.connectionChain = const [],
     this.sftpRoute = false,
     this.sshHost,
@@ -898,6 +899,9 @@ class TerminalShellIntegrationSnapshot {
   final String? contextId;
   final String? contextKind;
   final String? hostContextId;
+
+  /// Native lease for the active host route; never a shell context identifier.
+  final String? sftpContextId;
   final List<ShellConnectionHop> connectionChain;
   final bool sftpRoute;
   final String? sshHost;
@@ -959,6 +963,7 @@ class TerminalShellIntegrationSnapshot {
     String? contextId,
     String? contextKind,
     String? hostContextId,
+    Object? sftpContextId = _shellIntegrationNoChange,
     List<ShellConnectionHop>? connectionChain,
     bool? sftpRoute,
     String? sshHost,
@@ -986,6 +991,9 @@ class TerminalShellIntegrationSnapshot {
       contextId: contextId ?? this.contextId,
       contextKind: contextKind ?? this.contextKind,
       hostContextId: hostContextId ?? this.hostContextId,
+      sftpContextId: identical(sftpContextId, _shellIntegrationNoChange)
+          ? this.sftpContextId
+          : sftpContextId as String?,
       connectionChain: connectionChain ?? this.connectionChain,
       sftpRoute: sftpRoute ?? this.sftpRoute,
       sshHost: sshHost ?? this.sshHost,

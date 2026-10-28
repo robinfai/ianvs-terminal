@@ -217,9 +217,22 @@ class FakePtyBackend
     final request = jsonDecode(requestJson) as Map<String, Object?>;
     jsonRequests.add(request);
     return switch (request['kind']) {
+      'terminal.observe_output' => jsonEncode({
+        'enabled': request['enabled'],
+        'subscription': '1',
+      }),
       'composer.state' => jsonEncode(const <String, Object?>{
         'state': 'unknown',
       }),
+      'terminal.command_blocks' => jsonEncode(
+        request['id'] is String
+            ? const <String, Object?>{'missing': true}
+            : const <String, Object?>{
+                'blocks': <Object?>[],
+                'omittedBlocks': 0,
+                'alternateScreen': false,
+              },
+      ),
       'terminal.search_text' => _searchTextJson(
         sessionId,
         request['query'] as String? ?? '',

@@ -20,6 +20,7 @@ class TerminalAiConnections
     required String sessionId,
     required AiTerminalPort terminal,
     required this.requestBlocks,
+    this.scopeForSession,
   }) : _sessionId = sessionId,
        _active = terminal {
     _sources[sessionId] = terminal;
@@ -33,6 +34,7 @@ class TerminalAiConnections
   final Set<AiCancellation> _executions = {};
   final Map<String, Object?>? Function(String, Map<String, Object?>)
   requestBlocks;
+  final CommandOccurrenceScope? Function(String)? scopeForSession;
   String _sessionId;
   AiTerminalPort _active;
   AiTerminalPort get active => _active;
@@ -46,6 +48,10 @@ class TerminalAiConnections
   late final evidence = CommandBlockController(
     request: _requestEvidence,
     maximumBlocks: null, // _requestEvidence bounds each native source below.
+    occurrenceScopeForBlock: (block) {
+      final source = _source(block.id);
+      return source == null ? null : scopeForSession?.call(source.$1);
+    },
   );
 
   void _listen() {
@@ -211,6 +217,7 @@ class TerminalAiConnections
   Map<String, Object?> _project(String session, Map<String, Object?> block) => {
     ...block,
     'id': evidenceId(session, block['id']! as String),
+    'sourceBlockId': block['sourceBlockId'] ?? block['id'],
   };
 
   Map<String, Object?>? _requestEvidence(Map<String, Object?> query) {

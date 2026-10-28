@@ -19,6 +19,9 @@ class _DelayedStore extends MemoryAiStore {
 
 class _Runtime extends Fake implements TerminalRuntimeController {
   @override
+  CommandOccurrenceScope? commandOccurrenceScopeFor(String sessionId) => null;
+
+  @override
   Map<String, Object?>? composerRequest(
     String id,
     String operation,

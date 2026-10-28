@@ -11,6 +11,9 @@ import 'package:ianvs_terminal/ianvs_terminal.dart';
 import 'terminal_ai_test.dart' show FakeApi, MemoryAiStore;
 
 class _Runtime extends Fake implements TerminalRuntimeController {
+  @override
+  CommandOccurrenceScope? commandOccurrenceScopeFor(String sessionId) => null;
+
   final submissions = <String>[];
   @override
   Stream<TerminalSessionInputEvent> get inputEvents => const Stream.empty();

@@ -18,6 +18,7 @@ class TerminalAiRetainedTimeline extends StatelessWidget {
     required this.font,
     required this.onReinput,
     this.onOpenLinkTarget,
+    this.onLinkContextMenu,
     this.sourceLabelFor,
     this.unifiedWorkspace = false,
     super.key,
@@ -30,6 +31,7 @@ class TerminalAiRetainedTimeline extends StatelessWidget {
   final TerminalFontConfig font;
   final ValueChanged<String> onReinput;
   final ValueChanged<TerminalLinkTarget>? onOpenLinkTarget;
+  final ValueChanged<TerminalLinkTarget>? onLinkContextMenu;
   final String? Function(String sessionId)? sourceLabelFor;
 
   @override
@@ -76,6 +78,7 @@ class TerminalAiRetainedTimeline extends StatelessWidget {
             }
           },
           onOpenLinkTarget: onOpenLinkTarget,
+          onLinkContextMenu: onLinkContextMenu,
         );
     return unifiedWorkspace
         ? UnifiedTerminalTimeline(
@@ -110,6 +113,7 @@ Future<String?> showAiEvidenceReader(
   TerminalFontConfig font = const TerminalFontConfig(),
   ValueChanged<CommandBlock>? onAttachRange,
   ValueChanged<TerminalLinkTarget>? onOpenLinkTarget,
+  ValueChanged<TerminalLinkTarget>? onLinkContextMenu,
 }) async {
   final origins = reference.origins
       .map((r) => (r.sessionId, r.sourceLineBase))
@@ -156,6 +160,7 @@ Future<String?> showAiEvidenceReader(
     chinese: Localizations.localeOf(context).languageCode == 'zh',
     onAttachRange: onAttachRange,
     onOpenLinkTarget: onOpenLinkTarget,
+    onLinkContextMenu: onLinkContextMenu,
   );
 }
 

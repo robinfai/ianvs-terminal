@@ -7,6 +7,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 
 class _Runtime extends Fake implements TerminalRuntimeController {
+  @override
+  CommandOccurrenceScope? commandOccurrenceScopeFor(String sessionId) => null;
+
   final requests = <Map<String, Object?>>[];
   bool supportSourceLine = true;
   final List<Map<String, Object?>> rows = [

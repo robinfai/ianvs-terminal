@@ -965,6 +965,35 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                                     .copy ||
                                             !sessionReadOnly);
                                   },
+                                  semanticContextForRow: (row) {
+                                    final revision = viewportController
+                                        .frame
+                                        .semanticSnapshotToken;
+                                    final runtime = ref.read(
+                                      terminalRuntimeControllerProvider,
+                                    );
+                                    final epoch = runtime.sessionEpochFor(
+                                      sessionId,
+                                    );
+                                    if (revision == null || epoch == null) {
+                                      return null;
+                                    }
+                                    final occurrence = runtime
+                                        .occurrenceForFrameRow(
+                                          sessionId,
+                                          sessionEpoch: epoch,
+                                          frameRevision: revision,
+                                          viewportRow: row.index,
+                                        );
+                                    return occurrence == null
+                                        ? null
+                                        : terminal
+                                              .TerminalSemanticContext.fromOccurrence(
+                                            occurrence,
+                                            frameRevision: revision,
+                                            viewportRow: row.index,
+                                          );
+                                  },
                                   onOpenLinkTarget: (target) => unawaited(
                                     _openTerminalLinkTarget(sessionId, target),
                                   ),
@@ -1013,6 +1042,13 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                               font: effectiveTerminalFont,
                                               onMeasuredCellSizeChanged:
                                                   measureCell,
+                                              onLinkContextMenu: (target) =>
+                                                  unawaited(
+                                                    _handleTerminalLinkContextMenu(
+                                                      sessionId,
+                                                      target,
+                                                    ),
+                                                  ),
                                               onOpenLinkTarget: (target) =>
                                                   unawaited(
                                                     _openTerminalLinkTarget(
@@ -1203,6 +1239,12 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                   font: effectiveTerminalFont,
                                   onAttachRange: (block) =>
                                       _openAi(sessionId, range: block),
+                                  onLinkContextMenu: (target) => unawaited(
+                                    _handleTerminalLinkContextMenu(
+                                      sessionId,
+                                      target,
+                                    ),
+                                  ),
                                   onOpenLinkTarget: (target) => unawaited(
                                     _openTerminalLinkTarget(sessionId, target),
                                   ),
@@ -1291,6 +1333,12 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                       _openAi(sessionId, blocks: blocks),
                                   onAttachRange: (block) =>
                                       _openAi(sessionId, range: block),
+                                  onLinkContextMenu: (target) => unawaited(
+                                    _handleTerminalLinkContextMenu(
+                                      sessionId,
+                                      target,
+                                    ),
+                                  ),
                                   onOpenLinkTarget: (target) => unawaited(
                                     _openTerminalLinkTarget(sessionId, target),
                                   ),
@@ -1492,11 +1540,153 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
         : context.l10n.paneContextTitled(pane.title, sessionId, paneState);
   }
 
+  bool _terminalFileSourceIsCurrent(
+    String sessionId,
+    int epoch, {
+    String? contextId,
+  }) {
+    if (!mounted) return false;
+    final runtime = ref.read(terminalRuntimeControllerProvider);
+    final pane = _paneForSession(
+      ref.read(sessionControllerProvider),
+      sessionId,
+    );
+    return runtime.hasSession(sessionId) &&
+        runtime.sessionEpochFor(sessionId) == epoch &&
+        pane != null &&
+        !pane.isExited &&
+        (contextId == null ||
+            contextId == (pane.shellIntegration.contextId ?? 'root'));
+  }
+
+  bool _terminalFileOccurrenceIsCurrent(
+    terminal.TerminalSemanticContext provenance,
+  ) {
+    final runtime = ref.read(terminalRuntimeControllerProvider);
+    final revision = provenance.frameRevision;
+    final row = provenance.viewportRow;
+    if ((revision == null) != (row == null)) return false;
+    final occurrence = revision != null && row != null
+        ? runtime.occurrenceForFrameRow(
+            provenance.sessionId,
+            sessionEpoch: provenance.sessionEpoch,
+            frameRevision: revision,
+            viewportRow: row,
+          )
+        : _composerSessions[provenance.sessionId]?.blocks.occurrenceForId(
+            provenance.occurrenceId,
+          );
+    return occurrence != null &&
+        occurrence.id == provenance.occurrenceId &&
+        occurrence.scope.sessionId == provenance.sessionId &&
+        occurrence.scope.sessionEpoch == provenance.sessionEpoch &&
+        occurrence.cwd == provenance.cwd &&
+        occurrence.contextId == provenance.contextId &&
+        occurrence.shellHostname == provenance.shellHostname &&
+        occurrence.sftpContextId == provenance.sftpContextId &&
+        _terminalFileSourceIsCurrent(
+          provenance.sessionId,
+          provenance.sessionEpoch,
+          contextId: provenance.contextId ?? 'root',
+        );
+  }
+
   Future<void> _openTerminalLinkTarget(
     String sessionId,
     terminal.TerminalLinkTarget target,
-  ) {
-    return _openTerminalLink(target.uri, sourceSessionId: sessionId);
+  ) async {
+    var fileTarget = target.fileTarget;
+    final uri = Uri.tryParse(target.uri);
+    final provenance = target.semanticContext;
+    if (fileTarget == null && uri?.scheme == 'file' && provenance == null) {
+      _showShellSnackBar(context.l10n.blockedFileLink);
+      return;
+    }
+    if (fileTarget == null && uri?.scheme == 'file' && provenance != null) {
+      final scope = ref
+          .read(terminalRuntimeControllerProvider)
+          .commandOccurrenceScopeFor(sessionId);
+      final authority = uri!.host.toLowerCase();
+      // Keep URI authority: a different host must never be silently rebound to
+      // the current SFTP endpoint (or interpreted as a local file).
+      final allowedHosts = <String>{
+        '',
+        'localhost',
+        if (scope?.transport.host case final host?) host.toLowerCase(),
+        if (provenance.shellHostname case final host?) host.toLowerCase(),
+      };
+      if (!allowedHosts.contains(authority) ||
+          uri.hasQuery ||
+          uri.hasPort ||
+          uri.hasFragment ||
+          uri.userInfo.isNotEmpty) {
+        _showShellSnackBar(context.l10n.blockedFileLink);
+        return;
+      }
+      fileTarget = terminal.TerminalSemanticFileTarget(
+        path: uri.path,
+        context: provenance,
+      );
+    }
+    if (fileTarget == null) {
+      await _openTerminalLink(target.uri, sourceSessionId: sessionId);
+      return;
+    }
+    final evidence = fileTarget.context;
+    final runtime = ref.read(terminalRuntimeControllerProvider);
+    final scope = runtime.commandOccurrenceScopeFor(sessionId);
+    final state = ref.read(sessionControllerProvider);
+    final pane = _paneForSession(state, sessionId);
+    final remote = _sftpTargetFor(state, sessionId);
+    if (scope == null ||
+        pane == null ||
+        evidence.sessionId != sessionId ||
+        !_terminalFileOccurrenceIsCurrent(evidence)) {
+      _showShellSnackBar(context.l10n.blockedFileLink);
+      return;
+    }
+    final localHost = Platform.localHostname.toLowerCase();
+    final location = resolveTerminalFileLocation(
+      target: fileTarget,
+      scope: scope,
+      activeContextId: pane.shellIntegration.contextId ?? 'root',
+      hasRemoteRoute: remote != null,
+      remoteHost: remote?.host,
+      remoteContextId: remote?.contextId,
+      localHostnames: {
+        'localhost',
+        '127.0.0.1',
+        '::1',
+        localHost,
+        '$localHost.local',
+      },
+    );
+    if (location == null || (!location.remote && Platform.isWindows)) {
+      _showShellSnackBar(context.l10n.blockedFileLink);
+      return;
+    }
+    if (location.remote) {
+      if (_terminalFileOccurrenceIsCurrent(evidence)) {
+        _openSftpFileLocation(remote!, location);
+      }
+      return;
+    }
+    if (!await _confirmOpenFileLink(
+      location.localUri,
+      sourceSessionId: sessionId,
+    )) {
+      return;
+    }
+    if (!mounted) return;
+    if (!_terminalFileOccurrenceIsCurrent(evidence)) {
+      _showShellSnackBar(context.l10n.blockedFileLink);
+      return;
+    }
+    try {
+      await ref.read(shellExternalUrlOpenerProvider)(location.localUri);
+    } on Object {
+      if (mounted) _showShellSnackBar(context.l10n.couldNotOpenLink);
+    }
   }
 
   Future<void> _saveTerminalGraphicImage(
@@ -1565,7 +1755,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
     }
     switch (action) {
       case _TerminalLinkMenuAction.open:
-        await _openTerminalLink(target.uri, sourceSessionId: sessionId);
+        await _openTerminalLinkTarget(sessionId, target);
       case _TerminalLinkMenuAction.copy:
         await ClipboardBridge.copy(target.uri);
         _showShellSnackBar(l10n.copiedLinkTarget);
@@ -1603,6 +1793,28 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
       );
       return;
     }
+    final runtime = ref.read(terminalRuntimeControllerProvider);
+    final sourceEpoch = sourceSessionId == null
+        ? null
+        : runtime.sessionEpochFor(sourceSessionId);
+    bool sourceStillLocal() {
+      if (sourceSessionId == null ||
+          sourceEpoch == null ||
+          !_terminalFileSourceIsCurrent(sourceSessionId, sourceEpoch)) {
+        return false;
+      }
+      final scope = runtime.commandOccurrenceScopeFor(sourceSessionId);
+      final state = ref.read(sessionControllerProvider);
+      final pane = _paneForSession(state, sourceSessionId);
+      return scope?.transport.kind == terminal.CommandTransportKind.local &&
+          _sftpTargetFor(state, sourceSessionId) == null &&
+          !_shellHostIsRemote(pane?.shellIntegration.hostname);
+    }
+
+    if (scheme == 'file' && !sourceStillLocal()) {
+      _showShellSnackBar(l10n.blockedFileLink);
+      return;
+    }
     if (scheme == 'file' &&
         !filePermissionGranted &&
         !await _confirmOpenFileLink(
@@ -1610,6 +1822,10 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
           sourceSessionId: sourceSessionId,
         )) {
       _showShellSnackBar(l10n.blockedFileLink);
+      return;
+    }
+    if (!mounted || (scheme == 'file' && !sourceStillLocal())) {
+      if (mounted) _showShellSnackBar(l10n.blockedFileLink);
       return;
     }
     try {
