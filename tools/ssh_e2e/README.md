@@ -37,6 +37,9 @@ state plus bounded logs from every service before cleanup.
 
 The acceptance test proves:
 
+- byte-exact delivery of 16 MiB of output to a deliberately slow reader,
+  including 512 resize requests while reading is paused, followed by the
+  original nonzero remote exit status;
 - password authentication and password-backed PAM keyboard-interactive;
 - two separate PAM prompts (`Fixture password` followed by `One-time password`)
   delivered and answered as independent client challenge rounds;

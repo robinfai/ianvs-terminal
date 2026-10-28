@@ -12,7 +12,7 @@ use russh::keys::PrivateKey;
 #[cfg(unix)]
 use russh::keys::agent::{AgentIdentity, client::AgentClient};
 use russh::keys::key::PrivateKeyWithHashAlg;
-use russh::{Channel, ChannelMsg, ChannelOpenFailure, Disconnect};
+use russh::{Channel, ChannelMsg, ChannelOpenFailure, ChannelWriteHalf, Disconnect};
 use russh_sftp::client::{
     Config as SftpConfig, RawSftpSession, SftpSession, error::Error as SftpError,
 };
@@ -28,7 +28,9 @@ use std::io::{Error as IoError, ErrorKind, Read, Result as IoResult, Write};
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
-use std::sync::{Arc, Condvar, Mutex as StdMutex, mpsc as std_mpsc};
+#[cfg(test)]
+use std::sync::mpsc as std_mpsc;
+use std::sync::{Arc, Condvar, Mutex as StdMutex};
 use std::task::{Context as TaskContext, Poll};
 use std::thread;
 use std::time::Duration;
@@ -39,6 +41,18 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::process::{Child as TokioChild, ChildStdin, ChildStdout, Command};
 use tokio::sync::{Notify, OwnedSemaphorePermit, Semaphore, mpsc, oneshot};
 use url::Url;
+
+mod buffer;
+#[cfg(test)]
+mod queue_tests;
+
+// Application-side budgets, independent of russh's transport window.
+const SSH_OUTPUT_QUEUE_BYTES: usize = 4 * 1024 * 1024;
+const SSH_OUTPUT_BATCH_BYTES: usize = 1024 * 1024;
+const SSH_INPUT_QUEUE_BYTES: usize = 1024 * 1024;
+const SSH_INPUT_ITEM_OVERHEAD: usize = 64;
+const SSH_INPUT_CHUNK_BYTES: usize = 64 * 1024;
+const SSH_MAX_PACKET_BYTES: u32 = 32 * 1024;
 
 const SOCKS_HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 const FORWARD_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
@@ -450,7 +464,7 @@ impl SshAuthClient {
 
 #[derive(Debug)]
 enum SshCommand {
-    Data(Vec<u8>),
+    Data(QueuedSshInput),
     Resize(PtySize),
     ListDirectory {
         path: String,
@@ -529,44 +543,52 @@ where
     tokio::time::timeout(timeout, teardown).await.is_ok()
 }
 
-struct SshReader {
-    receiver: std_mpsc::Receiver<Vec<u8>>,
-    pending: Vec<u8>,
+/// The permit covers both queued and partially transmitted bytes. Charging an
+/// item overhead also bounds allocation count for a flood of one-byte writes.
+#[derive(Debug)]
+struct QueuedSshInput {
+    bytes: Vec<u8>,
     offset: usize,
+    _permit: buffer::InputPermit,
 }
 
-impl Read for SshReader {
-    fn read(&mut self, target: &mut [u8]) -> IoResult<usize> {
-        if target.is_empty() {
-            return Ok(0);
-        }
-        while self.offset >= self.pending.len() {
-            match self.receiver.recv() {
-                Ok(bytes) if bytes.is_empty() => continue,
-                Ok(bytes) => {
-                    self.pending = bytes;
-                    self.offset = 0;
-                }
-                Err(_) => return Ok(0),
-            }
-        }
-        let remaining = &self.pending[self.offset..];
-        let count = remaining.len().min(target.len());
-        target[..count].copy_from_slice(&remaining[..count]);
-        self.offset += count;
-        Ok(count)
-    }
+fn reserve_ssh_input(
+    budget: &Arc<buffer::InputBudget>,
+    bytes: &[u8],
+    wait: bool,
+) -> IoResult<QueuedSshInput> {
+    let charge = bytes
+        .len()
+        .checked_add(SSH_INPUT_ITEM_OVERHEAD)
+        .ok_or_else(|| IoError::new(ErrorKind::WouldBlock, "SSH input byte budget exceeded"))?;
+    let permit = budget.reserve(charge, wait)?;
+    Ok(QueuedSshInput {
+        bytes: bytes.to_vec(),
+        offset: 0,
+        _permit: permit,
+    })
 }
 
 #[derive(Clone)]
 struct SshWriter {
     sender: mpsc::UnboundedSender<SshCommand>,
+    budget: Arc<buffer::InputBudget>,
 }
 
 impl Write for SshWriter {
     fn write(&mut self, bytes: &[u8]) -> IoResult<usize> {
+        if self.sender.is_closed() {
+            return Err(IoError::new(ErrorKind::BrokenPipe, "SSH session is closed"));
+        }
+        if bytes.is_empty() {
+            return Ok(0);
+        }
+        // Write::write may accept a prefix; write_all repeatedly waits for credit.
+        // No copy of the caller's oversized paste lives in the transport queue.
+        let bytes = &bytes[..bytes.len().min(SSH_INPUT_CHUNK_BYTES)];
+        let input = reserve_ssh_input(&self.budget, bytes, true)?;
         self.sender
-            .send(SshCommand::Data(bytes.to_vec()))
+            .send(SshCommand::Data(input))
             .map_err(|_| IoError::new(ErrorKind::BrokenPipe, "SSH session is closed"))?;
         Ok(bytes.len())
     }
@@ -576,9 +598,33 @@ impl Write for SshWriter {
     }
 }
 
+/// Each write is cancellation-safe; a zero remote window does not suspend the
+/// main SSH select loop, its output handling, or local cancellation.
+async fn write_ssh_input<W: AsyncWrite + Unpin>(
+    writer: &mut W,
+    pending: &mut VecDeque<QueuedSshInput>,
+) -> IoResult<()> {
+    let Some(front) = pending.front_mut() else {
+        return Ok(());
+    };
+    let count = writer.write(&front.bytes[front.offset..]).await?;
+    if count == 0 {
+        return Err(IoError::new(
+            ErrorKind::WriteZero,
+            "SSH input writer closed",
+        ));
+    }
+    front.offset += count;
+    if front.offset == front.bytes.len() {
+        pending.pop_front();
+    }
+    Ok(())
+}
+
 struct SshMaster {
     sender: mpsc::UnboundedSender<SshCommand>,
-    reader: Mutex<Option<std_mpsc::Receiver<Vec<u8>>>>,
+    reader: Mutex<Option<buffer::Reader>>,
+    input_budget: Arc<buffer::InputBudget>,
     writer_taken: AtomicBool,
     size: Mutex<PtySize>,
 }
@@ -602,11 +648,7 @@ impl MasterPty for SshMaster {
             .lock()
             .take()
             .ok_or_else(|| anyhow!("SSH reader has already been taken"))?;
-        Ok(Box::new(SshReader {
-            receiver,
-            pending: Vec::new(),
-            offset: 0,
-        }))
+        Ok(Box::new(receiver))
     }
 
     fn take_writer(&self) -> Result<Box<dyn Write + Send>> {
@@ -615,6 +657,7 @@ impl MasterPty for SshMaster {
         }
         Ok(Box::new(SshWriter {
             sender: self.sender.clone(),
+            budget: self.input_budget.clone(),
         }))
     }
 
@@ -641,6 +684,7 @@ struct SshChild {
     status: SharedExitStatus,
     auth: SshAuthClient,
     cancellation: SshCancellation,
+    input_budget: Arc<buffer::InputBudget>,
 }
 
 impl fmt::Debug for SshChild {
@@ -653,6 +697,7 @@ impl ChildKiller for SshChild {
     fn kill(&mut self) -> IoResult<()> {
         self.auth.cancel_all();
         self.cancellation.cancel();
+        self.input_budget.close();
         let _ = self.sender.send(SshCommand::Close);
         Ok(())
     }
@@ -663,6 +708,7 @@ impl ChildKiller for SshChild {
             status: Arc::clone(&self.status),
             auth: self.auth.clone(),
             cancellation: self.cancellation.clone(),
+            input_budget: self.input_budget.clone(),
         })
     }
 }
@@ -1496,7 +1542,8 @@ pub(crate) fn spawn_ssh_with_shell_integration(
     let auth = SshAuthClient::default();
     let cancellation = SshCancellation::default();
     let (command_sender, command_receiver) = mpsc::unbounded_channel();
-    let (output_sender, output_receiver) = std_mpsc::channel();
+    let (output_sender, output_receiver) = buffer::channel(SSH_OUTPUT_QUEUE_BYTES);
+    let input_budget = buffer::InputBudget::new(SSH_INPUT_QUEUE_BYTES);
     let status: SharedExitStatus = Arc::new((StdMutex::new(None), Condvar::new()));
     let initial_size = PtySize {
         rows,
@@ -1507,6 +1554,7 @@ pub(crate) fn spawn_ssh_with_shell_integration(
     let master = Box::new(SshMaster {
         sender: command_sender.clone(),
         reader: Mutex::new(Some(output_receiver)),
+        input_budget: input_budget.clone(),
         writer_taken: AtomicBool::new(false),
         size: Mutex::new(initial_size),
     });
@@ -1517,6 +1565,7 @@ pub(crate) fn spawn_ssh_with_shell_integration(
         status: Arc::clone(&status),
         auth: auth.clone(),
         cancellation: cancellation.clone(),
+        input_budget: input_budget.clone(),
     });
 
     let thread_auth = auth.clone();
@@ -1547,12 +1596,12 @@ pub(crate) fn spawn_ssh_with_shell_integration(
                         thread_cancellation,
                     ))
                 });
+            input_budget.close();
             thread_composer.close();
             let exit_code = match result {
                 Ok(code) => code,
                 Err(error) => {
-                    let message = format!("\r\nIanvs SSH: {error:#}\r\n");
-                    let _ = output_sender.send(message.into_bytes());
+                    output_sender.finish_diagnostic(&format!("\r\nIanvs SSH: {error:#}\r\n"));
                     255
                 }
             };
@@ -1589,7 +1638,7 @@ struct PreparedSshSession {
 }
 
 async fn teardown_ssh_network(
-    channel: Channel<client::Msg>,
+    channel: ChannelWriteHalf<client::Msg>,
     session: client::Handle<SshClientHandler>,
     jump_sessions: Vec<client::Handle<SshClientHandler>>,
 ) {
@@ -1775,7 +1824,7 @@ async fn run_ssh_session(
     initial_size: PtySize,
     shell_integration: SshShellIntegrationOptions,
     mut commands: mpsc::UnboundedReceiver<SshCommand>,
-    output: std_mpsc::Sender<Vec<u8>>,
+    output: buffer::Sender,
     auth: SshAuthClient,
     cancellation: SshCancellation,
 ) -> Result<u32> {
@@ -1810,19 +1859,27 @@ async fn run_ssh_session(
         jump_sessions,
         mut forward_receiver,
         forward_listeners,
-        mut channel,
+        channel,
         mut shell_integration,
     } = prepared;
+    let (mut channel_read, channel) = channel.split();
     let connected = format!(
         "\r\nConnected to {}@{}:{}\r\n",
         connection.user, connection.host, connection.port
     )
     .into_bytes();
     let mut announced = shell_integration.is_none();
-    let mut bootstrap_input = Vec::new();
+    let mut bootstrap_input: VecDeque<QueuedSshInput> = VecDeque::new();
+    let mut pending_input = VecDeque::new();
+    // Protocol bootstrap replies must not compete with a paste held until ready.
+    let protocol_input_budget = buffer::InputBudget::new(SSH_INPUT_QUEUE_BYTES);
+    let mut wire_writer = channel.make_writer();
+    let mut pending_output = buffer::Pending::new(SSH_OUTPUT_BATCH_BYTES);
     let mut fallback_shell_pending = false;
+    let mut pending_resize: Option<PtySize> = None;
+    let mut pending_shell_request = false;
     if announced {
-        let _ = output.send(connected.clone());
+        pending_output.push(connected.clone())?;
     }
     let bootstrap_deadline = tokio::time::sleep(crate::shell_bootstrap::TIMEOUT);
     tokio::pin!(bootstrap_deadline);
@@ -1834,54 +1891,75 @@ async fn run_ssh_session(
         let mut sftp_requests: FuturesUnordered<BoxFuture<'_, ()>> =
             FuturesUnordered::new();
         let sftp_operation_root = SftpOperationCancellation::new();
-        let channel_loop_result: Result<()> = async {
+        let mut forward_requests: FuturesUnordered<BoxFuture<'_, ()>> = FuturesUnordered::new();
+        let channel_loop_result: Result<()> = tokio::select! {
+        biased;
+        _ = cancellation.cancelled() => Ok(()),
+        result = async {
         loop {
+        if output.reader_closed() {
+            channel_end = SshChannelEnd::OutputClosed;
+            break;
+        }
+        if let Err(error) = pending_output.flush(&output) {
+            // The reader may disappear between the check and the append.
+            if error.kind() == ErrorKind::BrokenPipe {
+                channel_end = SshChannelEnd::OutputClosed;
+                break;
+            }
+            return Err(error.into());
+        }
         tokio::select! {
-            biased;
             _ = cancellation.cancelled() => {
                 channel_end = SshChannelEnd::Cancelled;
                 break;
             },
-            _ = &mut bootstrap_deadline, if !announced => {
+            _ = output.space_changed() => {},
+            result = async {
+                let size = pending_resize.expect("guarded pending resize");
+                channel.window_change(u32::from(size.cols), u32::from(size.rows),
+                    u32::from(size.pixel_width), u32::from(size.pixel_height)).await
+            }, if pending_resize.is_some() => { result?; pending_resize = None; },
+            result = channel.request_shell(true), if pending_shell_request => {
+                result?;
+                pending_shell_request = false;
+            },
+            result = write_ssh_input(&mut wire_writer, &mut pending_input), if !pending_input.is_empty() => { result?; },
+            _ = &mut bootstrap_deadline, if !announced && pending_output.is_empty() => {
                 if let Some(bootstrap) = &mut shell_integration {
-                    let _ = output.send(bootstrap.expire());
+                    pending_output.push(bootstrap.expire())?;
                 }
-                let _ = output.send(connected.clone());
+                pending_output.push(connected.clone())?;
                 announced = true;
                 if !bootstrap_input.is_empty() {
-                    channel.data_bytes(std::mem::take(&mut bootstrap_input)).await?;
+                    pending_input.append(&mut bootstrap_input);
                 }
             },
-            _ = bootstrap_tick.tick() => {
+            _ = bootstrap_tick.tick(), if pending_output.is_empty() => {
                 if let Some(bootstrap) = &mut shell_integration {
                     let bytes = bootstrap.expire_due();
                     if !bytes.is_empty() {
-                        let _ = output.send(bytes);
+                        pending_output.push(bytes)?;
                     }
                     if announced && !bootstrap.checking() && !bootstrap_input.is_empty() {
-                        channel.data_bytes(std::mem::take(&mut bootstrap_input)).await?;
+                        pending_input.append(&mut bootstrap_input);
                     }
                 }
             },
             _ = sftp_requests.next(), if !sftp_requests.is_empty() => {},
+            _ = forward_requests.next(), if !forward_requests.is_empty() => {},
             command = commands.recv() => match command {
-                Some(SshCommand::Data(bytes)) => {
+                Some(SshCommand::Data(input)) => {
                     if !announced || shell_integration.as_ref().is_some_and(|b| b.checking()) {
-                        if bootstrap_input.len() + bytes.len() > 65536 {
-                            bail!("shell initialization input buffer is full");
-                        }
-                        bootstrap_input.extend(bytes);
+                        bootstrap_input.push_back(input);
                     } else {
-                        channel.data_bytes(bytes).await?;
+                        pending_input.push_back(input);
                     }
                 },
                 Some(SshCommand::Resize(size)) => {
-                    channel.window_change(
-                        u32::from(size.cols),
-                        u32::from(size.rows),
-                        u32::from(size.pixel_width),
-                        u32::from(size.pixel_height),
-                    ).await?;
+                    // Coalesce a resize burst. Sending must not block receiving:
+                    // russh may be waiting for us to consume channel output.
+                    pending_resize = Some(size);
                 }
                 Some(SshCommand::ListDirectory { path, context, mut response }) => {
                     if response.is_closed() {
@@ -1978,20 +2056,25 @@ async fn run_ssh_session(
                     break;
                 }
             },
-            message = channel.wait() => match message {
+            message = channel_read.wait(), if pending_output.is_empty() => match message {
                 Some(ChannelMsg::Data { data }) | Some(ChannelMsg::ExtendedData { data, .. }) => {
+                    if data.len() > SSH_MAX_PACKET_BYTES as usize {
+                        bail!("SSH peer exceeded the advertised channel packet size");
+                    }
                     let bytes = if let Some(bootstrap) = &mut shell_integration {
                         let processed = bootstrap.feed(&data);
                         for reply in processed.replies {
-                            channel.data_bytes(reply).await?;
+                            if !reply.is_empty() {
+                                pending_input.push_back(reserve_ssh_input(&protocol_input_budget, &reply, false)?);
+                            }
                         }
                         if bootstrap.ready && !announced {
                             // Publish the check result before displaying the connected banner.
-                            let _ = output.send(processed.output);
-                            let _ = output.send(connected.clone());
+                            pending_output.push(processed.output)?;
+                            pending_output.push(connected.clone())?;
                             announced = true;
                             if !bootstrap_input.is_empty() {
-                                channel.data_bytes(std::mem::take(&mut bootstrap_input)).await?;
+                                pending_input.append(&mut bootstrap_input);
                             }
                             continue;
                         }
@@ -2003,28 +2086,25 @@ async fn run_ssh_session(
                         && !shell_integration.as_ref().is_some_and(|b| b.checking())
                         && !bootstrap_input.is_empty()
                     {
-                        channel.data_bytes(std::mem::take(&mut bootstrap_input)).await?;
+                        pending_input.append(&mut bootstrap_input);
                     }
-                    if !bytes.is_empty() && output.send(bytes).is_err() {
-                        channel_end = SshChannelEnd::OutputClosed;
-                        break;
-                    }
+                    pending_output.push(bytes)?;
                 }
                 Some(ChannelMsg::Failure) if !announced => {
                     if fallback_shell_pending {
                         bail!("remote server rejected both SSH initialization and the interactive shell");
                     }
                     fallback_shell_pending = true;
-                    channel.request_shell(true).await?;
+                    pending_shell_request = true;
                 }
                 Some(ChannelMsg::Success) if fallback_shell_pending && !announced => {
                     if let Some(bootstrap) = &mut shell_integration {
-                        let _ = output.send(bootstrap.degrade("exec_rejected"));
+                        pending_output.push(bootstrap.degrade("exec_rejected"))?;
                     }
-                    let _ = output.send(connected.clone());
+                    pending_output.push(connected.clone())?;
                     announced = true;
                     if !bootstrap_input.is_empty() {
-                        channel.data_bytes(std::mem::take(&mut bootstrap_input)).await?;
+                        pending_input.append(&mut bootstrap_input);
                     }
                 }
                 Some(ChannelMsg::ExitStatus { exit_status: code }) => {
@@ -2043,57 +2123,19 @@ async fn run_ssh_session(
                 }
                 _ => {}
             },
-            accepted = forward_receiver.recv(), if !forward_listeners.is_empty() => {
-                if let Some(mut accepted) = accepted {
-                    let Some(permit) = forward_runtime.try_relay_permit() else {
-                        if accepted.socks5 {
-                            let _ = send_socks_reply(&mut accepted.stream, 1).await;
-                        }
-                        continue;
-                    };
-                    let open_channel = tokio::select! {
-                        biased;
-                        _ = cancellation.cancelled() => None,
-                        result = tokio::time::timeout(
-                            FORWARD_CONNECT_TIMEOUT,
-                            session.channel_open_direct_tcpip(
-                                accepted.target_host.clone(),
-                                u32::from(accepted.target_port),
-                                accepted.stream.peer_addr().map(|address| address.ip().to_string()).unwrap_or_else(|_| "127.0.0.1".to_string()),
-                                accepted.stream.peer_addr().map(|address| u32::from(address.port())).unwrap_or(0),
-                            ),
-                        ) => result.ok(),
-                    };
-                    let Some(open_channel) = open_channel else {
-                        if accepted.socks5 {
-                            let _ = send_socks_reply(&mut accepted.stream, 1).await;
-                        }
-                        continue;
-                    };
-                    match open_channel {
-                        Ok(forward_channel) => {
-                            if accepted.socks5 && !send_socks_reply(&mut accepted.stream, 0).await {
-                                let _ = forward_channel.close().await;
-                                continue;
-                            }
-                            let _ = forward_runtime.spawn_relay(
-                                forward_channel.into_stream(),
-                                accepted.stream,
-                                permit,
-                            );
-                        }
-                        Err(_error) => {
-                            if accepted.socks5 {
-                                let _ = send_socks_reply(&mut accepted.stream, 1).await;
-                            }
-                        }
-                    }
+            accepted = forward_receiver.recv(), if !forward_listeners.is_empty()
+                && forward_requests.len() < MAX_PENDING_FORWARD_HANDSHAKES => {
+                if let Some(accepted) = accepted {
+                    forward_requests.push(Box::pin(complete_local_forward(
+                        accepted, &session, &forward_runtime, &cancellation,
+                    )));
                 }
             },
         }
         }
         Ok(())
-        }.await;
+        } => result,
+        };
         finish_sftp_request_scope(
             channel_loop_result,
             &sftp_operation_root,
@@ -2112,9 +2154,60 @@ async fn run_ssh_session(
     forward_listeners.abort_all();
     auth.cancel_all();
     shutdown_ssh_resources(&cancellation, &forward_runtime).await;
+    drop(channel_read);
     teardown_ssh_network(channel, session, jump_sessions).await;
     session_result?;
     ssh_session_exit_result(exit_status, channel_end, transport_end)
+}
+
+// A forwarding handshake must not suspend terminal reads: the russh driver can
+// itself be waiting for room in this channel's bounded receive queue.
+async fn complete_local_forward(
+    mut accepted: AcceptedLocalForward,
+    session: &client::Handle<SshClientHandler>,
+    forward_runtime: &ForwardRuntime,
+    cancellation: &SshCancellation,
+) {
+    let Some(permit) = forward_runtime.try_relay_permit() else {
+        if accepted.socks5 {
+            let _ = send_socks_reply(&mut accepted.stream, 1).await;
+        }
+        return;
+    };
+    let open_channel = tokio::select! {
+        biased;
+        _ = cancellation.cancelled() => None,
+        result = tokio::time::timeout(
+            FORWARD_CONNECT_TIMEOUT,
+            session.channel_open_direct_tcpip(
+                accepted.target_host.clone(),
+                u32::from(accepted.target_port),
+                accepted.stream.peer_addr().map(|address| address.ip().to_string()).unwrap_or_else(|_| "127.0.0.1".to_string()),
+                accepted.stream.peer_addr().map(|address| u32::from(address.port())).unwrap_or(0),
+            ),
+        ) => result.ok(),
+    };
+    let Some(open_channel) = open_channel else {
+        if accepted.socks5 {
+            let _ = send_socks_reply(&mut accepted.stream, 1).await;
+        }
+        return;
+    };
+    match open_channel {
+        Ok(forward_channel) => {
+            if accepted.socks5 && !send_socks_reply(&mut accepted.stream, 0).await {
+                let _ = forward_channel.close().await;
+                return;
+            }
+            let _ =
+                forward_runtime.spawn_relay(forward_channel.into_stream(), accepted.stream, permit);
+        }
+        Err(_error) => {
+            if accepted.socks5 {
+                let _ = send_socks_reply(&mut accepted.stream, 1).await;
+            }
+        }
+    }
 }
 
 async fn capture_closed_ssh_transport(
@@ -2156,11 +2249,31 @@ async fn finish_sftp_request_scope<T>(
 struct SftpEndpoint<'a> {
     session: Option<&'a client::Handle<SshClientHandler>>,
     route: Vec<String>,
+    route_cancellation: Option<SftpOperationCancellation>,
 }
 trait SftpTransport: AsyncRead + AsyncWrite + Unpin + Send {}
 impl<T: AsyncRead + AsyncWrite + Unpin + Send> SftpTransport for T {}
 impl SftpEndpoint<'_> {
+    async fn bind_route<T>(&self, operation: impl Future<Output = Result<T>>) -> Result<T> {
+        let Some(route) = &self.route_cancellation else {
+            return operation.await;
+        };
+        let result = tokio::select! {
+            biased;
+            _ = route.cancelled() => bail!("SSH file route was retired"),
+            result = operation => result,
+        };
+        if route.is_cancelled() {
+            bail!("SSH file route was retired");
+        }
+        result
+    }
+
     async fn open_stream(&self) -> Result<Box<dyn SftpTransport>> {
+        self.bind_route(self.open_stream_inner()).await
+    }
+
+    async fn open_stream_inner(&self) -> Result<Box<dyn SftpTransport>> {
         let command = crate::shell_bootstrap::sftp_command(&self.route);
         if let Some(session) = self.session {
             let channel = session
@@ -2238,14 +2351,18 @@ fn endpoint_for<'a>(
     bootstrap: Option<&crate::shell_bootstrap::Bootstrap>,
     context: &str,
 ) -> Result<SftpEndpoint<'a>> {
-    let route = match bootstrap {
-        Some(bootstrap) => bootstrap.route_for(context)?,
-        None if context == "root" => Vec::new(),
+    let (route, route_cancellation) = match bootstrap {
+        Some(bootstrap) => {
+            let (route, cancellation) = bootstrap.bound_route_for(context)?;
+            (route, Some(cancellation))
+        }
+        None if context == "root" => (Vec::new(), None),
         None => bail!("SSH shell context is unavailable"),
     };
     Ok(SftpEndpoint {
         session: Some(session),
         route,
+        route_cancellation,
     })
 }
 
@@ -2266,12 +2383,12 @@ pub(crate) fn local_sftp_client(
                     Some(SshCommand::ListDirectory {path, context, mut response}) => {
                         if response.is_closed() {continue;}
                         if work.len() >= MAX_CONCURRENT_SFTP_REQUESTS {let _=response.send(Err("too many SFTP requests".into()));continue;}
-                        let route = match state.lock().unwrap().route_for(&context) {
+                        let (route, route_cancellation) = match state.lock().unwrap().bound_route_for(&context) {
                             Ok(route) => route,
                             Err(e) => {let _=response.send(Err(e.to_string()));continue;}
                         };
                         work.push(Box::pin(async move {
-                            let request = list_sftp_directory(SftpEndpoint {session: None, route}, path);
+                            let request = list_sftp_directory(SftpEndpoint {session: None, route, route_cancellation: Some(route_cancellation)}, path);
                             let result = tokio::select! {
                                 _ = response.closed() => return,
                                 result = tokio::time::timeout(SFTP_DIRECTORY_REQUEST_TIMEOUT, request) => match result {
@@ -2285,13 +2402,13 @@ pub(crate) fn local_sftp_client(
                     Some(SshCommand::SftpOperation {operation, context, mut response}) => {
                         if response.is_closed() {continue;}
                         if work.len() >= MAX_CONCURRENT_SFTP_REQUESTS {let _=response.send(Err("too many SFTP requests".into()));continue;}
-                        let route = match state.lock().unwrap().route_for(&context) {
+                        let (route, route_cancellation) = match state.lock().unwrap().bound_route_for(&context) {
                             Ok(route) => route,
                             Err(e) => {let _=response.send(Err(e.to_string()));continue;}
                         };
                         let cancellation = cancellation.child();
                         work.push(Box::pin(async move {
-                            let request = execute_sftp_operation(SftpEndpoint {session: None, route}, operation, cancellation.clone());
+                            let request = execute_sftp_operation(SftpEndpoint {session: None, route, route_cancellation: Some(route_cancellation)}, operation, cancellation.clone());
                             tokio::pin!(request);
                             let result = tokio::select! {
                                 _ = response.closed() => {
@@ -2322,6 +2439,15 @@ pub(crate) fn local_sftp_client(
 
 async fn list_sftp_directory(
     endpoint: SftpEndpoint<'_>,
+    path: String,
+) -> Result<SftpDirectoryListing> {
+    endpoint
+        .bind_route(list_sftp_directory_inner(&endpoint, path))
+        .await
+}
+
+async fn list_sftp_directory_inner(
+    endpoint: &SftpEndpoint<'_>,
     path: String,
 ) -> Result<SftpDirectoryListing> {
     let stream = endpoint.open_stream().await?;
@@ -2423,6 +2549,7 @@ async fn execute_sftp_operation(
     operation: SftpOperation,
     cancellation: SftpOperationCancellation,
 ) -> Result<()> {
+    let cancellation = cancellation.with_route(endpoint.route_cancellation.as_ref());
     let sftp = tokio::select! {
         biased;
         _ = cancellation.cancelled() => bail!("SFTP file operation was cancelled"),
@@ -2541,22 +2668,43 @@ async fn download_sftp_file(
     result
 }
 
+/// Check inside the blocking worker, after any queue delay. Once `commit`
+/// starts, its OS atomic replacement is the irrevocable commit boundary.
+fn sftp_blocking_commit<T>(
+    cancellation: &SftpOperationCancellation,
+    commit: impl FnOnce() -> IoResult<T>,
+) -> IoResult<T> {
+    if cancellation.is_cancelled() {
+        return Err(IoError::new(
+            ErrorKind::Interrupted,
+            "SFTP file operation was cancelled",
+        ));
+    }
+    commit()
+}
+
 #[cfg(not(windows))]
 async fn install_local_download(
     staging: &Path,
     destination: &Path,
     cancellation: &SftpOperationCancellation,
 ) -> Result<()> {
-    sftp_operation_step(cancellation, tokio::fs::rename(staging, destination))
-        .await
-        .context("could not atomically install local download")
+    let staging = staging.to_owned();
+    let destination = destination.to_owned();
+    let cancellation = cancellation.clone();
+    tokio::task::spawn_blocking(move || {
+        sftp_blocking_commit(&cancellation, || std::fs::rename(staging, destination))
+    })
+    .await
+    .context("local download replacement worker failed")?
+    .context("could not atomically install local download")
 }
 
 #[cfg(windows)]
 async fn install_local_download(
     staging: &Path,
     destination: &Path,
-    _cancellation: &SftpOperationCancellation,
+    cancellation: &SftpOperationCancellation,
 ) -> Result<()> {
     use std::iter;
     use std::os::windows::ffi::OsStrExt as _;
@@ -2574,21 +2722,24 @@ async fn install_local_download(
         .encode_wide()
         .chain(iter::once(0))
         .collect();
+    let cancellation = cancellation.clone();
     tokio::task::spawn_blocking(move || {
-        // SAFETY: both pointers reference owned, NUL-terminated UTF-16 buffers
-        // for the duration of this call. MoveFileExW does not retain them.
-        let moved = unsafe {
-            MoveFileExW(
-                staging_wide.as_ptr(),
-                destination_wide.as_ptr(),
-                MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
-            )
-        };
-        if moved == 0 {
-            Err(IoError::last_os_error())
-        } else {
-            Ok(())
-        }
+        sftp_blocking_commit(&cancellation, || {
+            // SAFETY: both pointers reference owned, NUL-terminated UTF-16 buffers
+            // for the duration of this call. MoveFileExW does not retain them.
+            let moved = unsafe {
+                MoveFileExW(
+                    staging_wide.as_ptr(),
+                    destination_wide.as_ptr(),
+                    MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
+                )
+            };
+            if moved == 0 {
+                Err(IoError::last_os_error())
+            } else {
+                Ok(())
+            }
+        })
     })
     .await
     .context("local download replacement worker failed")?
@@ -2759,9 +2910,10 @@ fn append_sftp_string(buffer: &mut Vec<u8>, value: &str) -> Result<()> {
 }
 
 #[derive(Clone)]
-struct SftpOperationCancellation {
+pub(crate) struct SftpOperationCancellation {
     state: Arc<SftpOperationCancellationState>,
     parent: Option<Arc<SftpOperationCancellationState>>,
+    route: Option<Arc<SftpOperationCancellationState>>,
 }
 
 struct SftpOperationCancellationState {
@@ -2770,13 +2922,14 @@ struct SftpOperationCancellationState {
 }
 
 impl SftpOperationCancellation {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             state: Arc::new(SftpOperationCancellationState {
                 cancelled: AtomicBool::new(false),
                 notify: Notify::new(),
             }),
             parent: None,
+            route: None,
         }
     }
 
@@ -2787,23 +2940,45 @@ impl SftpOperationCancellation {
                 notify: Notify::new(),
             }),
             parent: Some(Arc::clone(&self.state)),
+            route: self.route.clone(),
         }
     }
 
-    fn cancel(&self) {
+    pub(crate) fn cancel(&self) {
         if !self.state.cancelled.swap(true, Ordering::AcqRel) {
             self.state.notify.notify_waiters();
         }
     }
 
+    fn with_route(&self, route: Option<&Self>) -> Self {
+        let mut combined = self.clone();
+        combined.route = route.map(|route| route.state.clone());
+        combined
+    }
+
+    fn is_cancelled(&self) -> bool {
+        self.state.cancelled.load(Ordering::Acquire)
+            || self
+                .parent
+                .as_ref()
+                .is_some_and(|state| state.cancelled.load(Ordering::Acquire))
+            || self
+                .route
+                .as_ref()
+                .is_some_and(|state| state.cancelled.load(Ordering::Acquire))
+    }
+
     async fn cancelled(&self) {
-        if let Some(parent) = &self.parent {
-            tokio::select! {
-                _ = wait_for_sftp_cancellation(&self.state) => {},
-                _ = wait_for_sftp_cancellation(parent) => {},
+        async fn optional(state: Option<&Arc<SftpOperationCancellationState>>) {
+            match state {
+                Some(state) => wait_for_sftp_cancellation(state).await,
+                None => std::future::pending::<()>().await,
             }
-        } else {
-            wait_for_sftp_cancellation(&self.state).await;
+        }
+        tokio::select! {
+            _ = wait_for_sftp_cancellation(&self.state) => {},
+            _ = optional(self.parent.as_ref()) => {},
+            _ = optional(self.route.as_ref()) => {},
         }
     }
 }
@@ -3063,6 +3238,7 @@ fn is_valid_sftp_entry_name(name: &str) -> bool {
 fn client_config(connection: &TerminalProfileConnection) -> Arc<client::Config> {
     Arc::new(client::Config {
         inactivity_timeout: None,
+        maximum_packet_size: SSH_MAX_PACKET_BYTES,
         keepalive_interval: (connection.keepalive_seconds > 0)
             .then(|| Duration::from_secs(connection.keepalive_seconds)),
         keepalive_max: connection.keepalive_count_max,

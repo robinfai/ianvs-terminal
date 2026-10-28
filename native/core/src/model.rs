@@ -843,6 +843,12 @@ pub enum TerminalFrameKind {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TerminalFrameDiff {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub semantic_snapshot_token: Option<String>,
+    #[serde(default)]
+    pub semantic_blocks: Vec<TerminalSemanticBlock>,
+    #[serde(default)]
+    pub semantic_row_contexts: Vec<TerminalSemanticRowContext>,
     #[serde(default = "default_terminal_frame_schema_version")]
     pub frame_schema_version: String,
     #[serde(default)]
@@ -903,6 +909,23 @@ pub struct TerminalFrameDiff {
     pub blocks: Vec<TerminalBlock>,
     #[serde(default)]
     pub inline_buttons: Vec<TerminalInlineButton>,
+}
+
+/// Shell-declared metadata frozen alongside the frame; never transport authority.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TerminalSemanticBlock {
+    pub sftp_context_id: Option<String>,
+    pub id: String,
+    pub cwd: String,
+    pub context_id: Option<String>,
+    pub shell_hostname: Option<String>,
+    pub shell_username: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TerminalSemanticRowContext {
+    pub viewport_row: usize,
+    pub block_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

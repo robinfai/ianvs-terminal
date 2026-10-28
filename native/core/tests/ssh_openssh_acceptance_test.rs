@@ -642,6 +642,108 @@ fn run_forwarding_probe(port: u16, identity: &str) {
 
 #[test]
 #[ignore = "requires the dedicated Docker OpenSSH topology; run tools/ssh_e2e/run.sh"]
+fn openssh_large_output_survives_slow_consumer_and_preserves_exit_status() {
+    const PAYLOAD_BYTES: usize = 16 * 1024 * 1024;
+    let SshRuntime {
+        master,
+        mut reader,
+        mut writer,
+        mut child,
+        auth: _,
+        sftp: _,
+    } = spawn_ssh(
+        password_connection(required_port("IANVS_SSH_E2E_PASSWORD_PORT")),
+        24,
+        100,
+    )
+    .expect("large-output SSH transport should start");
+    let (output_sender, output_receiver) = mpsc::sync_channel(1);
+    let (resize_sender, resize_receiver) = mpsc::sync_channel(1);
+    let (resume_sender, resume_receiver) = mpsc::sync_channel(1);
+    thread::spawn(move || {
+        let result = (|| -> std::io::Result<Vec<u8>> {
+            let mut output = Vec::new();
+            let mut chunk = [0_u8; 16 * 1024];
+            let mut paused = false;
+            loop {
+                let count = reader.read(&mut chunk)?;
+                if count == 0 {
+                    return Ok(output);
+                }
+                output.extend_from_slice(&chunk[..count]);
+                if !paused && output.len() >= 1024 * 1024 {
+                    paused = true;
+                    let _ = resize_sender.send(());
+                    resume_receiver
+                        .recv_timeout(SESSION_TIMEOUT)
+                        .map_err(std::io::Error::other)?;
+                }
+                if output.len() > PAYLOAD_BYTES + 1024 * 1024 {
+                    return Err(std::io::Error::other("unexpected excess SSH probe output"));
+                }
+                // Deliberately throttle the consumer as the workload; correctness
+                // does not depend on a particular packet or scheduler timing.
+                thread::sleep(Duration::from_millis(1));
+            }
+        })();
+        let _ = output_sender.send(result);
+    });
+    let command = format!(
+        "stty -echo; printf '\\n__TRAIL_FLOOD_BEGIN__\\n'; head -c {PAYLOAD_BYTES} /dev/zero | tr '\\000' 'Q'; printf '\\n__TRAIL_FLOOD_END__\\n'; exit 23\n"
+    );
+    writer
+        .write_all(command.as_bytes())
+        .expect("queue flood probe");
+    drop(writer);
+    if let Err(error) = resize_receiver.recv_timeout(SESSION_TIMEOUT) {
+        let _ = child.kill();
+        panic!("SSH flood did not reach the paused-reader barrier: {error}");
+    }
+    // Exercise control traffic while the reader is paused. Resize is allowed
+    // to coalesce, but must never prevent output or cancellation from advancing.
+    for index in 0..512 {
+        master
+            .resize(portable_pty::PtySize {
+                rows: 24,
+                cols: 100 + index % 2,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .expect("queue resize during output pressure");
+    }
+    resume_sender
+        .send(())
+        .expect("resume the SSH output reader");
+    let output = match output_receiver.recv_timeout(SESSION_TIMEOUT) {
+        Ok(Ok(output)) => output,
+        result => {
+            let _ = child.kill();
+            panic!("slow-consumer SSH probe did not finish: {result:?}");
+        }
+    };
+    let begin = b"\r\n__TRAIL_FLOOD_BEGIN__\r\n";
+    let end = b"\r\n__TRAIL_FLOOD_END__\r\n";
+    let start = output
+        .windows(begin.len())
+        .position(|bytes| bytes == begin)
+        .expect("missing beginning marker")
+        + begin.len();
+    let finish = output[start..]
+        .windows(end.len())
+        .position(|bytes| bytes == end)
+        .expect("missing end marker")
+        + start;
+    assert_eq!(
+        finish - start,
+        PAYLOAD_BYTES,
+        "output must not be lost or duplicated"
+    );
+    assert!(output[start..finish].iter().all(|byte| *byte == b'Q'));
+    assert_eq!(child.wait().expect("SSH exit status").exit_code(), 23);
+}
+
+#[test]
+#[ignore = "requires the dedicated Docker OpenSSH topology; run tools/ssh_e2e/run.sh"]
 fn openssh_authentication_and_proxy_jump_acceptance() {
     run_sftp_probe(
         password_connection(required_port("IANVS_SSH_E2E_PASSWORD_PORT")),

@@ -76,6 +76,10 @@ pub struct Zone {
     pub end_col: Option<usize>,
     /// Execution context captured at the boundary, rather than the current cwd.
     pub cwd: Option<String>,
+    /// Shell-declared identity at execution time; not authenticated transport.
+    pub shell_hostname: Option<String>,
+    pub shell_username: Option<String>,
+    pub sftp_context_id: Option<String>,
     pub finished_at: Option<u64>,
     /// Shell-provided provenance; never grants input permission by itself.
     pub submission_id: Option<String>,
@@ -86,6 +90,9 @@ pub struct Zone {
     pub output_start: Option<(usize, usize)>,
     pub suspended: bool,
     pub output_truncated: bool,
+    /// Raw viewport provenance is revoked after later edits overwrite output.
+    /// Kept in snapshots; independent from retained command-block contents.
+    pub semantic_invalidated: bool,
     /// Ownership on rows shared with a child. A CR may leave child cells to
     /// the right of the parent's new cursor; range endpoints alone are not
     /// sufficient to distinguish those cells from the parent's own output.
@@ -108,6 +115,9 @@ impl Zone {
             start_col: 0,
             end_col: None,
             cwd: None,
+            shell_hostname: None,
+            shell_username: None,
+            sftp_context_id: None,
             finished_at: None,
             submission_id: None,
             context_id: None,
@@ -115,6 +125,7 @@ impl Zone {
             output_start: None,
             suspended: false,
             output_truncated: false,
+            semantic_invalidated: false,
             output_boundary_rows: std::collections::BTreeMap::new(),
             pending_child: None,
         }

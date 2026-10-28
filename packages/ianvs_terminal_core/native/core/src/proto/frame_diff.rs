@@ -88,6 +88,35 @@ pub struct TerminalFrameDiff {
     pub inline_buttons: ::prost::alloc::vec::Vec<TerminalInlineButton>,
     #[prost(string, optional, tag = "33")]
     pub font_family: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "34")]
+    pub semantic_snapshot_token: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(message, repeated, tag = "35")]
+    pub semantic_blocks: ::prost::alloc::vec::Vec<TerminalSemanticBlock>,
+    #[prost(message, repeated, tag = "36")]
+    pub semantic_row_contexts: ::prost::alloc::vec::Vec<TerminalSemanticRowContext>,
+}
+/// Frozen provenance for the complete displayed viewport, including delta frames.
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct TerminalSemanticBlock {
+    #[prost(string, tag = "1")]
+    pub id: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub cwd: ::prost::alloc::string::String,
+    #[prost(string, optional, tag = "3")]
+    pub context_id: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "4")]
+    pub shell_hostname: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "5")]
+    pub shell_username: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "6")]
+    pub sftp_context_id: ::core::option::Option<::prost::alloc::string::String>,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct TerminalSemanticRowContext {
+    #[prost(uint32, tag = "1")]
+    pub viewport_row: u32,
+    #[prost(string, tag = "2")]
+    pub block_id: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct TerminalRow {

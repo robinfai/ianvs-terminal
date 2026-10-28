@@ -48,6 +48,23 @@ message TerminalFrameDiff {
   repeated TerminalBlock blocks = 31;
   repeated TerminalInlineButton inline_buttons = 32;
   optional string font_family = 33;
+  optional string semantic_snapshot_token = 34;
+  repeated TerminalSemanticBlock semantic_blocks = 35;
+  repeated TerminalSemanticRowContext semantic_row_contexts = 36;
+}
+
+// Frozen provenance for the complete displayed viewport, including delta frames.
+message TerminalSemanticBlock {
+  string id = 1;
+  string cwd = 2;
+  optional string context_id = 3;
+  optional string shell_hostname = 4;
+  optional string shell_username = 5;
+  optional string sftp_context_id = 6;
+}
+message TerminalSemanticRowContext {
+  uint32 viewport_row = 1;
+  string block_id = 2;
 }
 
 enum TerminalFrameKind {

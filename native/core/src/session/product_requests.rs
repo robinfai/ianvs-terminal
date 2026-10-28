@@ -49,8 +49,10 @@ fn sftp_context(request: &serde_json::Value) -> Result<String, SessionError> {
         None => Ok("root".into()),
         Some(serde_json::Value::String(id))
             if !id.is_empty()
-                && id.len() <= 64
-                && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') =>
+                && id.len() <= 85
+                && id
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'@') =>
         {
             Ok(id.clone())
         }
@@ -92,6 +94,22 @@ pub fn request_session(
     }
 
     match operation {
+        "terminal.observe_output" => {
+            if request.as_object().is_none_or(|map| map.len() != 1) {
+                return Ok(None);
+            }
+            let Some(enabled) = request["enabled"].as_bool() else {
+                return Ok(None);
+            };
+            let session = STORE.get(session_id)?;
+            if session.is_replay && enabled {
+                return Ok(None);
+            }
+            let subscription = session.output_observer.lock().set_enabled(enabled);
+            request_json_response(
+                serde_json::json!({"enabled": enabled, "subscription": subscription.to_string()}),
+            )
+        }
         "terminal.live_screen" => {
             let session = STORE.get(session_id)?;
             let state = session.state.lock();

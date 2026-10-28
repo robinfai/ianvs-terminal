@@ -11,6 +11,24 @@ pub const MAX_SEMANTIC_ZONES: usize = 4096;
 const ZONE_CAP_EVICTION_BATCH: usize = 256;
 
 impl Grid {
+    pub(crate) fn invalidate_closed_output_provenance(&mut self, row: usize) {
+        let absolute = self.total_lines_scrolled.saturating_add(row);
+        if self.semantic_checked_row == Some(absolute) {
+            return;
+        }
+        self.semantic_checked_row = Some(absolute);
+        for zone in &mut self.zones {
+            if zone.closed
+                && zone.zone_type == crate::zone::ZoneType::Output
+                && absolute >= zone.abs_row_start
+                && absolute <= zone.abs_row_end
+                && !(absolute == zone.abs_row_end && zone.end_col == Some(0))
+            {
+                zone.semantic_invalidated = true;
+            }
+        }
+    }
+
     /// Cell moves cannot preserve the column ownership of a parent/child
     /// boundary. Discard affected portions instead of attributing moved child
     /// text to the parent. Ordinary full-screen upward scrolling preserves
@@ -24,7 +42,19 @@ impl Grid {
             .total_lines_scrolled
             .saturating_add(bottom.min(self.rows - 1));
         let screen_end = self.total_lines_scrolled.saturating_add(self.rows);
+        self.semantic_checked_row = None;
         for zone in &mut self.zones {
+            let provenance_end = if zone.is_open() {
+                screen_end
+            } else {
+                zone.abs_row_end
+            };
+            if zone.zone_type == crate::zone::ZoneType::Output
+                && zone.abs_row_start <= bottom
+                && provenance_end >= top
+            {
+                zone.semantic_invalidated = true;
+            }
             if zone.output_start.is_none() && !zone.suspended && zone.pending_child.is_none() {
                 continue;
             }
@@ -69,17 +99,20 @@ impl Grid {
 
     /// Get all semantic zones mutably
     pub fn zones_mut(&mut self) -> &mut Vec<Zone> {
+        self.semantic_checked_row = None;
         &mut self.zones
     }
 
     /// Push a new zone
     pub fn push_zone(&mut self, zone: Zone) {
+        self.semantic_checked_row = None;
         self.make_room_for_zone();
         self.zones.push(zone);
     }
 
     /// Close the current zone at the given row
     pub fn close_current_zone(&mut self, abs_row: usize) {
+        self.semantic_checked_row = None;
         if let Some(zone) = self.zones.iter_mut().rfind(|zone| zone.is_open()) {
             zone.close(abs_row);
         }
@@ -87,6 +120,7 @@ impl Grid {
 
     /// Close a specific open zone by identifier.
     pub(crate) fn close_zone(&mut self, zone_id: usize, abs_row: usize) -> bool {
+        self.semantic_checked_row = None;
         let Some(zone) = self
             .zones
             .iter_mut()

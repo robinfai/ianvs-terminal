@@ -22903,3 +22903,107 @@ fn graphics_snapshot_import_accepts_json_without_additive_fields() {
     assert_eq!(store.graphics_count(), 0);
     assert!(store.all_virtual_placements().is_empty());
 }
+
+#[test]
+fn live_output_observations_are_opt_in_and_independent_of_frames() {
+    let profile = local_profile(
+        "trigger",
+        "Trigger",
+        "/bin/sh",
+        vec![
+            "-c".to_string(),
+            "read first; printf '\\nOBSERVED_TRIGGER\\n'; read second".to_string(),
+        ],
+        BTreeMap::new(),
+        TerminalEmulation::Xterm256,
+    );
+    let id = session::create_session(&serde_json::to_string(&profile).unwrap()).unwrap();
+    let guard = SessionGuard::new(id);
+    let initial: serde_json::Value =
+        serde_json::from_str(&session::poll_events(id).unwrap()).unwrap();
+    assert!(
+        initial
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|e| e["kind"] != "output_text")
+    );
+    let response = session::request_session(
+        id,
+        "terminal.observe_output",
+        &serde_json::json!({"enabled": true}),
+    )
+    .unwrap()
+    .unwrap();
+    let response: serde_json::Value = serde_json::from_str(&response).unwrap();
+    assert_eq!(response["subscription"], "1");
+    session::write_session(id, b"go\n").unwrap();
+    let events = collect_events_until(id, |events| {
+        events.iter().any(|event| {
+            event["kind"] == "output_text" && event["payload"]["text"] == "OBSERVED_TRIGGER"
+        })
+    });
+    assert!(
+        events
+            .iter()
+            .any(|event| event["kind"] == "output_text" && event["payload"]["subscription"] == "1")
+    );
+    session::resize_session(id, 90, 30, 900, 600).unwrap();
+    let _ = session::take_frame_diff(id).unwrap();
+    let _ = session::take_frame_diff(id).unwrap();
+    let events: serde_json::Value =
+        serde_json::from_str(&session::poll_events(id).unwrap()).unwrap();
+    assert!(
+        events
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|e| e["kind"] != "output_text")
+    );
+    assert!(
+        session::request_session(
+            id,
+            "terminal.observe_output",
+            &serde_json::json!({"enabled": true, "unknown": true})
+        )
+        .unwrap()
+        .is_none()
+    );
+    assert!(
+        session::request_session(
+            id,
+            "terminal.observe_output",
+            &serde_json::json!({"enabled": "true"})
+        )
+        .unwrap()
+        .is_none()
+    );
+    drop(guard);
+}
+
+#[test]
+fn replay_output_cannot_subscribe_or_emit_trigger_text() {
+    let id =
+        session::create_replay_session(&serde_json::to_string(&interactive_profile()).unwrap())
+            .unwrap();
+    let _guard = SessionGuard::new(id);
+    assert!(
+        session::request_session(
+            id,
+            "terminal.observe_output",
+            &serde_json::json!({"enabled": true})
+        )
+        .unwrap()
+        .is_none()
+    );
+    session::replay_session_output(id, b"\nPassword:\n").unwrap();
+    let events: serde_json::Value =
+        serde_json::from_str(&session::poll_events(id).unwrap()).unwrap();
+    assert!(
+        events
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|e| e["kind"] != "output_text")
+    );
+}
