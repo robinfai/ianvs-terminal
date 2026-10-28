@@ -17,7 +17,7 @@
 - [已知问题](KNOWN_ISSUES.md)：当前限制与未关闭的风险。
 - [手机 Block × AI PRD](product/mobile-block-ai-v1/README.md)：分阶段需求、交互合同和真实平台验收要求。
 - [桌面 Block × AI PRD v1.1](product/desktop-block-ai-v1/README.md)、[实施状态](product/desktop-block-ai-v1/STATUS.md)、[跨端对照](product/desktop-block-ai-v1/results/CROSS_PLATFORM_REVIEW.md)：桌面交互修订及当前实现／证据缺口。
-- [AI 功能与实现](ai/WARP_AI_IMPLEMENTATION.md)、[ACP 边界](ai/ACP_BACKEND.md)、[智能审阅](ai/SMART_APPROVAL.md)。
+- [AI 功能与实现](ai/WARP_AI_IMPLEMENTATION.md)、[ACP 边界](ai/ACP_BACKEND.md)、[混合时间线与重启恢复](AI_MIXED_TIMELINE.md)、[智能审阅](ai/SMART_APPROVAL.md)。
 
 ## 协议与实现
 

@@ -104,18 +104,3 @@ atomic files, native source ID reuse, invalid documents, stale approvals,
 reading anchors, delayed Shell restoration, closed-session pending writes,
 failed-save retry, multi-session field/fold merging, newest-valid selection and
 pre-teardown capture.
-
-Verified locally on 2026-10-28 with Flutter 3.44.8: application suite 3,866
-passed / 2 skipped, changed production and test files passed static analysis,
-and mobile dark / desktop wide conversation captures were visually inspected.
-The suite used the local ACP native library and sibling development packages.
-Hosted-package validation is recorded below; remote CI is reported on the pull
-request. These local results do not claim physical-device restart testing.
-
-Hosted release verification on 2026-10-28 used core 0.1.0, runtime 0.2.0 and
-chat 0.3.0. Strict lockfile resolution succeeded and all three archive hashes
-matched pub.dev. The runtime's downloaded source built a signed arm64 Debug
-library, which the complete application suite then used: 3,866 passed / 2 skipped.
-Whole-workspace `dart analyze --fatal-infos` and all 190 CI orchestration tests
-passed. The independent ACP hosted consumer also passed its five shared-widget
-tests, ABI 12 load/dispose smoke and macOS Debug app build.

@@ -74,7 +74,7 @@ Model-specific quota interpretation remains in Trail.
 Tool, plan, decision and code-preview surfaces also come from the shared package.
 Trail owns the unified terminal timeline, hosted composer editor and actions,
 evidence and execution receipts. Mixed history survives application restarts
-through the host-owned [bounded history store](MIXED_TIMELINE.md).
+through the host-owned [bounded history store](../AI_MIXED_TIMELINE.md).
 Links are host callbacks, images are blocked by default, and Mermaid uses source
 fallback without a native Mermaid dependency. Whole-message selection uses the
 shared Markdown copy behavior: exact source for whole-document copy, with rich
