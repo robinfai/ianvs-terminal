@@ -30,6 +30,9 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955
+      - name: Check out shared agent packages
+        uses: ./.github/actions/checkout-agent-packages
+
       - name: Validate acceptance orchestration
         run: python3 -m unittest discover -s tools/ci -p 'test_native_hook_cache_acceptance.py'
       - name: Set up Rust

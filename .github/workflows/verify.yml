@@ -181,6 +181,9 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
+      - name: Check out shared agent packages
+        uses: ./.github/actions/checkout-agent-packages
+
       - name: Set up Go
         uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
         with:
@@ -303,13 +306,16 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
+      - name: Check out shared agent packages
+        uses: ./.github/actions/checkout-agent-packages
+
       - name: Validate Example runner orchestration
         run: python3 -m unittest discover -s tools/ci -p 'test_example_execution.py'
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master; Rust version pinned below
         with:
-          toolchain: "1.88.0"
+          toolchain: "1.90.0"
           components: clippy,rustfmt
           targets: thumbv7em-none-eabihf
 
@@ -341,6 +347,11 @@ jobs:
 
       - name: Resolve workspace dependencies
         run: flutter pub get
+      - name: Build shared ACP runtime for native fixture tests
+        working-directory: example
+        run: |
+          IANVS_ACP_FRAMEWORKS_DIR="$PWD/build/acp-native" dart run ianvs_acp_runtime:build_macos
+          echo "IANVS_ACP_RUST_LIBRARY=$PWD/build/acp-native/libianvs_acp_ffi.dylib" >> "$GITHUB_ENV"
       - name: Prepare locked Example native dependencies
         timeout-minutes: 10
         run: python3 tools/ci/prepare_example_dependencies.py
@@ -438,6 +449,9 @@ jobs:
           fetch-depth: 2
           persist-credentials: false
 
+      - name: Check out shared agent packages
+        uses: ./.github/actions/checkout-agent-packages
+
       - name: Validate CI policy
         run: python3 -m unittest discover -s tools/ci -p 'test_*.py'
 
@@ -456,7 +470,7 @@ jobs:
         if: steps.scope.outputs.run == 'true'
         uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # master; Rust version pinned below
         with:
-          toolchain: "1.88.0"
+          toolchain: "1.90.0"
           targets: aarch64-apple-darwin,x86_64-apple-darwin
 
       - name: Set up Flutter
@@ -517,6 +531,9 @@ jobs:
         with:
           fetch-depth: 2
           persist-credentials: false
+
+      - name: Check out shared agent packages
+        uses: ./.github/actions/checkout-agent-packages
 
       - name: Validate CI policy
         run: python3 -m unittest discover -s tools/ci -p 'test_*.py'
