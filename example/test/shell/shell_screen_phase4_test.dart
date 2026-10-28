@@ -666,6 +666,13 @@ void main() {
       clock: () => now,
     );
 
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final runtime = container.read(terminalRuntimeControllerProvider);
+    // Drive event delivery explicitly: adaptive idle polling can exceed 40 ms.
+    // The injected shell clock independently controls the attention cooldown.
+
     fakeBindings.enqueueEvent(
       1,
       const PtyEvent(
@@ -674,7 +681,8 @@ void main() {
         payload: <String, Object?>{'source': 'iterm1337', 'action': 'once'},
       ),
     );
-    await tester.pump(const Duration(milliseconds: 40));
+    runtime.refreshSession('1');
+    await tester.pump();
     expect(attention.requests, <NativeUserAttentionType>[
       NativeUserAttentionType.informational,
     ]);
@@ -687,7 +695,8 @@ void main() {
         payload: <String, Object?>{'source': 'iterm1337', 'action': 'once'},
       ),
     );
-    await tester.pump(const Duration(milliseconds: 40));
+    runtime.refreshSession('1');
+    await tester.pump();
     expect(
       attention.requests,
       <NativeUserAttentionType>[NativeUserAttentionType.informational],
@@ -702,7 +711,8 @@ void main() {
         payload: <String, Object?>{'source': 'iterm1337', 'action': 'no'},
       ),
     );
-    await tester.pump(const Duration(milliseconds: 40));
+    runtime.refreshSession('1');
+    await tester.pump();
     expect(attention.cancellations, <int>[100]);
 
     now = now.add(const Duration(seconds: 3));
@@ -714,7 +724,8 @@ void main() {
         payload: <String, Object?>{'source': 'iterm1337', 'action': 'yes'},
       ),
     );
-    await tester.pump(const Duration(milliseconds: 40));
+    runtime.refreshSession('1');
+    await tester.pump();
     expect(attention.requests, <NativeUserAttentionType>[
       NativeUserAttentionType.informational,
       NativeUserAttentionType.critical,
@@ -728,7 +739,8 @@ void main() {
         payload: <String, Object?>{'source': 'iterm1337', 'action': 'no'},
       ),
     );
-    await tester.pump(const Duration(milliseconds: 40));
+    runtime.refreshSession('1');
+    await tester.pump();
     expect(attention.cancellations, <int>[100, 101]);
   });
 
