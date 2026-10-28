@@ -9,8 +9,8 @@ String aiErrorText(String code, bool zh) {
       '请先在本机登录 Codex，然后重新连接。',
     ),
     'acp_desktop_only': (
-      'Local ACP agents require the desktop app.',
-      '本地 ACP Agent 需要在桌面端运行。',
+      'Local ACP agents currently require the macOS app.',
+      '本地 ACP Agent 目前需要在 macOS 应用中运行。',
     ),
     'acp_discovery_platform': (
       'Automatic detection is available on macOS and Linux.',

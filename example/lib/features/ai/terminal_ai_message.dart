@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
+import 'package:ianvs_agent_chat/ianvs_agent_chat.dart' show ChatMessageBody;
 import 'package:ianvs_design/ianvs_design.dart' show IanvsTypographyContext;
 
 import '../../ui/app_ui.dart';
@@ -121,9 +121,8 @@ class TerminalAiMessageFrame extends StatelessWidget {
 }
 
 /// Model prose shares the timeline's vertical scroll; code may scroll sideways.
-/// Images are represented by their source text and never fetched by rendering.
-/// Only mobile spacing changes; Markdown data, code bytes and selection remain
-/// untouched. In particular, no soft-break characters are inserted into paths.
+/// Shared content rendering never fetches images by default. The terminal owns
+/// its frame, links and outer scroll; Markdown parsing and selection are shared.
 class TerminalAiMessage extends StatelessWidget {
   const TerminalAiMessage({required this.text, this.onOpenLink, super.key});
 
@@ -131,78 +130,20 @@ class TerminalAiMessage extends StatelessWidget {
   final ValueChanged<String>? onOpenLink;
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final palette = context.appTheme;
-    final body = theme.textTheme.bodyMedium!;
-    return LayoutBuilder(
-      builder: (context, bounds) {
-        final mobile = _usesMobileReadingLayout(context, bounds);
-        return SelectionArea(
-          child: MarkdownBody(
-            data: text,
-            softLineBreak: true,
-            fitContent: false,
-            styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
-              p: body,
-              h1: theme.textTheme.titleMedium,
-              h2: theme.textTheme.titleSmall,
-              h3: theme.textTheme.titleSmall,
-              h4: body.copyWith(fontWeight: FontWeight.w600),
-              h5: body.copyWith(fontWeight: FontWeight.w600),
-              h6: body.copyWith(fontWeight: FontWeight.w600),
-              strong: const TextStyle(fontWeight: FontWeight.w600),
-              a: body.copyWith(
-                color:
-                    theme.textButtonTheme.style?.foregroundColor?.resolve({}) ??
-                    palette.textPrimary,
-                decoration: TextDecoration.underline,
-              ),
-              code: context.ianvsTypography.code.copyWith(
-                fontSize: body.fontSize,
-                // Transparent inline spans avoid fragmented dark bars while
-                // fenced blocks keep their own themed container surface.
-                backgroundColor: mobile
-                    ? palette.chrome.withValues(alpha: 0)
-                    : palette.chrome,
-              ),
-              blockSpacing: mobile ? 12 : 8,
-              listIndent: mobile ? 18 : 24,
-              listBullet: body,
-              blockquote: body.copyWith(color: palette.textMuted),
-              blockquotePadding: EdgeInsets.symmetric(
-                horizontal: mobile ? 8 : 12,
-                vertical: 8,
-              ),
-              blockquoteDecoration: BoxDecoration(
-                border: Border(
-                  left: BorderSide(color: palette.borderStrong, width: 2),
-                ),
-              ),
-              codeblockPadding: EdgeInsets.all(mobile ? 8 : 12),
-              codeblockDecoration: BoxDecoration(
-                color: palette.chrome,
-                borderRadius: BorderRadius.circular(6),
-              ),
-            ),
-            onTapLink: onOpenLink == null
-                ? null
-                : (_, href, _) {
-                    if (href != null) onOpenLink!(href);
-                  },
-            imageBuilder: (uri, title, alt) => Text(
-              '${alt?.isNotEmpty == true ? '$alt · ' : ''}$uri',
-              style: body.copyWith(color: palette.textMuted),
-            ),
-          ),
-        );
-      },
-    );
-  }
+  Widget build(BuildContext context) => ChatMessageBody(
+    text: text,
+    documentSelection: true,
+    softLineBreak: true,
+    onTapLink: onOpenLink == null
+        ? null
+        : (_, href, _) {
+            if (href != null) onOpenLink!(href);
+          },
+  );
 }
 
-/// Renders literal text with the same selectable code block as AI messages.
-/// A longer fence keeps pasted Markdown fences inside the code block.
+/// Host command/evidence previews are literal bytes, not model prose. Preserve
+/// line boundaries and horizontal scrolling without routing through Markdown.
 class TerminalCodePreview extends StatelessWidget {
   const TerminalCodePreview({required this.text, super.key});
 
@@ -210,13 +151,25 @@ class TerminalCodePreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    var fenceLength = 3;
-    for (final match in RegExp('`+').allMatches(text)) {
-      if (match.group(0)!.length >= fenceLength) {
-        fenceLength = match.group(0)!.length + 1;
-      }
-    }
-    final fence = '`' * fenceLength;
-    return TerminalAiMessage(text: '$fence\n$text\n$fence');
+    final palette = context.appTheme;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: palette.chrome,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: SelectionArea(
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Text(
+            text,
+            softWrap: false,
+            style: context.ianvsTypography.code.copyWith(
+              color: palette.textPrimary,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

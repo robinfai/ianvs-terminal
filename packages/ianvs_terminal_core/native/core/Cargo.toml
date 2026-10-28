@@ -8,6 +8,9 @@ build = "build.rs"
 [lib]
 crate-type = ["cdylib", "staticlib", "rlib"]
 
+[profile.dev]
+strip = "none"
+
 [profile.release]
 # Rust's implicit debuginfo stripping can misalign the Mach-O LINKEDIT string
 # pool, which macOS 27 rejects at dlopen. Explicit "none" also prevents Cargo's

@@ -44,11 +44,39 @@ copies credentials into a private temporary Codex home, sets file permissions to
 user's Codex configuration. Authentication missing from these files is reported
 explicitly; interactive login is not launched automatically.
 
-This profile runs on desktop. Mobile hosting and a remote ACP gateway are not
+This profile currently runs on macOS using the shared native ACP runtime.
+Mobile hosting, Windows/Linux hosting and a remote ACP gateway are not
 implemented. The agent process is local even when its bound terminal is SSH.
-The current implementation is verified on macOS; Windows/Linux are not claimed
-as tested. OAuth refresh in an isolated home is not synchronized back to the
+OAuth refresh in an isolated home is not synchronized back to the
 original login file.
+
+## Shared packages and build
+
+The workspace consumes `ianvs_acp_runtime` and `ianvs_agent_chat` from the sibling
+`../ianvs-acp/packages` checkout. Clone both repositories beside each other and
+run `flutter pub get` at the terminal workspace root. There is no second Dart
+JSON-RPC implementation or compatibility backend.
+
+The macOS Runner's **Bundle ACP Runtime** phase builds the resolved package,
+embeds `libianvs_acp_ffi.dylib`, and signs it before the application is signed.
+Rust build outputs belong to the consuming project's build directory. Dart and
+native sources must match (currently ABI 12 and event schema 5).
+
+`AcpRuntimeConnection` correlates host requests with runtime completion events;
+Rust owns the protocol lifecycle. Trail launches with `environmentPolicy: replace`
+and `maxRestartAttempts: 0`, preserving its explicit environment allowlist and
+preventing automatic recovery from replaying a terminal task. The backend checks
+the adapter identity, exact model config and bounded prompt `resultMeta` quota.
+Model-specific quota interpretation remains in Trail.
+
+`TerminalAiMessage` embeds the shared `ChatMessageBody`. Trail retains its role
+frame, unified terminal timeline, composer, evidence and execution receipts.
+Links are host callbacks, images are blocked by default, and Mermaid uses source
+fallback without a native Mermaid dependency. Whole-message selection uses the
+shared Markdown copy behavior: exact source for whole-document copy, with rich
+HTML on supported clipboard platforms. No terminal-specific Markdown parser is
+maintained. CocoaPods supplements SPM for the Markdown clipboard plugins; Pod
+deployment targets follow macOS 14.0/iOS 17.0 in the Apple compatibility document.
 
 ## Ownership and protocol
 
@@ -75,17 +103,21 @@ flowchart LR
 - A delayed cwd notification from an already accepted command can advance the
   active task's directory only when its Block, session and shell node match.
   Manual input or an unrelated Block cannot authorize a directory change.
-- ACP permission events only grant one-time access to a correlated Trail MCP
-  call. They cannot approve terminal writes or native host tools.
+- ACP permission control requests only grant an offered one-time option for a
+  current-session Trail MCP tool, using the original request ID and raw input.
+  Duplicate requests are rejected; display events cannot authorize access.
+  These permissions cannot approve terminal writes or native host tools.
 - The MCP server binds only to loopback, requires a fresh bearer token and
   rejects browser-origin requests. Its target cannot be selected by the agent.
 - Codex native shell, file-writing paths, apps, plugins, web, browser, computer
   use, skills and multi-agent features are disabled for this profile. The client
   does not advertise filesystem or terminal creation callbacks. This is a
   constrained official-adapter profile, not a sandbox for arbitrary executables.
-- Manual input, rejection and pause revoke queued input. Cancellation sends ACP
-  cancellation and closes its owned process; it does not send Ctrl+C to the
-  user's running command.
+- Manual input, rejection and pause revoke queued input. Prompt cancellation
+  sends ACP cancellation and waits for the original request's final result;
+  after four seconds without a result it disconnects. Initialization cancellation
+  closes the connection immediately. Neither path sends Ctrl+C to the user's
+  running command or interprets a cancelled agent turn as a terminal receipt.
 
 Tasks retain ACP session IDs and resume with `session/load` after cancellation
 or transport loss while the task remains in memory. Replay notifications during
@@ -96,6 +128,28 @@ resume against the replacement agent. API and ACP model selections are kept
 separately while editing connection settings.
 
 ## Validation and accounting
+
+The shared-runtime migration was validated on macOS 27.0.1 on 2026-10-28:
+all 696 AI tests passed, the affected Dart sources passed static analysis, and
+the macOS Debug application built and passed strict recursive signature checks.
+The native fixture exercises ACP alongside a live PTY (including normal PTY
+exit), initialization/session/config/restore cancellation, environment isolation,
+0600 credential-file permissions, exact model selection and quota propagation.
+These tests use a local protocol fixture; they do not establish a new live-model
+or Terminal-Bench result. Phone/desktop light/dark rendering was checked through
+widget captures; no mobile device or older supported OS was tested in this run.
+
+To reproduce the native fixture and full AI suite, after `flutter pub get` run
+the following from `example/` with Flutter, Dart and Cargo on PATH. Building the
+application supplies the current terminal core as well as the ACP library:
+
+```sh
+flutter build macos --debug
+TRAIL_ACP_HOST_ONLY=sentinel \
+IANVS_CORE_LIB="$PWD/build/macos/Build/Products/Debug/Trail Development.app/Contents/Frameworks/ianvs_core.framework/ianvs_core" \
+IANVS_ACP_RUST_LIBRARY="$PWD/build/macos/Build/Products/Debug/Trail Development.app/Contents/Frameworks/libianvs_acp_ffi.dylib" \
+flutter test --no-pub test/ai
+```
 
 Automatic discovery was verified on macOS 27.0.1 on 2026-10-03, with both the
 terminal environment and a Finder-style minimal PATH. Both found adapter 2.1.1;

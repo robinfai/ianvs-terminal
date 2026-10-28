@@ -44,6 +44,9 @@ Future<void> loadVisualCaptureFonts({bool productionIcons = false}) async {
     visualCaptureMonoFont: [mono],
     // Code/path widgets explicitly request this generic family.
     'monospace': [mono],
+    // Shared Ianvs Markdown requests SF Mono directly. Widget tests do not
+    // resolve system fonts, so map it to the same deterministic mono fixture.
+    'SF Mono': [mono],
     'MaterialIcons': [
       if (productionIcons)
         '${repository.path}/example/assets/fonts/TrailLightIcons.ttf'

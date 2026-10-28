@@ -1,11 +1,16 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ffi';
 import 'dart:io';
+
+import 'package:ffi/ffi.dart';
+import 'package:ianvs_acp_runtime/ianvs_acp_runtime.dart';
 
 import '../ai_models.dart';
 import 'acp_environment.dart';
 import 'acp_installation.dart';
-import 'acp_rpc.dart';
+
+import 'acp_runtime_connection.dart';
 import 'agent_backend.dart';
 import 'bridge_permissions.dart';
 import 'terminal_mcp_server.dart';
@@ -16,7 +21,7 @@ class CodexAcpBackend implements AgentBackend {
   CodexAcpBackend(this.configuration, {this.reviewOnly = false});
   final AiConfiguration configuration;
   final bool reviewOnly;
-  AcpRpc? _rpc;
+  AcpRuntimeConnection? _rpc;
   TerminalMcpServer? _bridge;
   Directory? _directory;
   String? _session;
@@ -79,7 +84,7 @@ class CodexAcpBackend implements AgentBackend {
     }
 
     check();
-    if (Platform.isIOS || Platform.isAndroid) {
+    if (!Platform.isMacOS) {
       throw const AiFailure('acp_desktop_only');
     }
     configuration.validate();
@@ -107,7 +112,7 @@ class CodexAcpBackend implements AgentBackend {
       }
       await credentials.copy(isolatedAuth.path);
       check();
-      await Process.run('/bin/chmod', ['600', isolatedAuth.path]);
+      _restrictAuthentication(isolatedAuth.path);
       check();
     }
     final bridge = reviewOnly
@@ -121,90 +126,74 @@ class CodexAcpBackend implements AgentBackend {
     _bridge = bridge;
     await bridge?.start();
     check();
-    final process = await Process.start(
-      configuration.agentCommand,
-      configuration.agentArguments,
-      workingDirectory: cwd.path,
-      environment: {
-        // Do not inherit provider overrides, plugin config, or logging secrets.
-        ...readAcpProcessEnvironment(),
-        'CODEX_HOME': home.path,
-        'CODEX_CONFIG': jsonEncode(profile(configuration.model)),
-        'INITIAL_AGENT_MODE': 'read-only',
-        'NO_BROWSER': '1',
-      },
-      includeParentEnvironment: false,
-      runInShell: false,
-    );
-    final rpc = _rpc = AcpRpc(
-      process,
-      (method, params) {
-        if (method != 'session/update' || params['sessionId'] != _session) {
+    final rpc = _rpc = AcpRuntimeConnection(
+      onUpdate: (update) {
+        if (!_running || !_acceptUpdates || update['sessionId'] != _session) {
           return;
         }
-        final update = (params['update'] as Map? ?? {}).cast<String, Object?>();
-        if (_running && _acceptUpdates) _bridgePermissions.observe(update);
-        if (_running && _acceptUpdates) _events?.call(update);
+        if (update['kind'] == 'assistant_text') {
+          _events?.call({
+            'sessionUpdate': 'agent_message_chunk',
+            'content': {'type': 'text', 'text': update['text'] ?? ''},
+          });
+        }
       },
-      permissionOption: (params) => reviewOnly
+      permissionOption: (request) => reviewOnly
           ? null
           : _bridgePermissions.option(
-              params,
+              request,
               session: _session ?? '',
               active: _running && _acceptUpdates,
             ),
     );
-    // Adopt a process that finished starting after cancellation before checking
-    // the token, so this turn's cleanup still owns and closes it.
-    check();
-    final initialized = await rpc.request('initialize', {
-      'protocolVersion': 1,
-      'clientInfo': {'name': 'trail', 'version': '1.0.0'},
-      'clientCapabilities': {
-        'fs': {'readTextFile': false, 'writeTextFile': false},
-        'terminal': false,
-      },
-    });
-    check();
-    if (initialized['protocolVersion'] != 1 ||
-        (initialized['agentInfo'] as Map?)?['name'] !=
-            '@agentclientprotocol/codex-acp' ||
-        ((initialized['agentCapabilities'] as Map?)?['mcpCapabilities']
-                as Map?)?['http'] !=
-            true) {
-      throw const AiFailure('acp_capability');
-    }
-    final session = await rpc.request(
-      _session == null ? 'session/new' : 'session/load',
-      {
-        if (_session != null) 'sessionId': _session,
-        'cwd': cwd.path,
-        'mcpServers': [
+    final initialized = await rpc.start(
+      () => rpc.runtime.startAgent(
+        agentName: 'Trail Codex',
+        command: configuration.agentCommand,
+        args: configuration.agentArguments,
+        processCwd: cwd.path,
+        environmentPolicy: AcpEnvironmentPolicy.replace,
+        maxRestartAttempts: 0,
+        environment: {
+          ...readAcpProcessEnvironment(),
+          'CODEX_HOME': home.path,
+          'CODEX_CONFIG': jsonEncode(profile(configuration.model)),
+          'INITIAL_AGENT_MODE': 'read-only',
+          'NO_BROWSER': '1',
+        },
+        mcpServers: [
           if (bridge != null)
             {
               'name': 'trail_terminal',
               'type': 'http',
               'url': bridge.url,
-              'headers': [
-                {'name': 'Authorization', 'value': 'Bearer ${bridge.token}'},
-              ],
+              'headers': {'Authorization': 'Bearer ${bridge.token}'},
             },
         ],
-      },
+      ),
     );
     check();
-    _session ??= session['sessionId']! as String;
+    if (initialized['protocolVersion'] != 1 ||
+        (initialized['agentInfo'] as Map?)?['name'] !=
+            '@agentclientprotocol/codex-acp' ||
+        initialized['mcpHttp'] != true) {
+      throw const AiFailure('acp_capability');
+    }
+    final reconnected = _session != null;
+    final session = await rpc.session(cwd: cwd.path, sessionId: _session);
+    check();
+    _session = session['sessionId']! as String;
     final options = (session['configOptions'] as List? ?? [])
         .cast<Map<Object?, Object?>>();
     final model = options
         .where((o) => o['category'] == 'model' || o['id'] == 'model')
         .firstOrNull;
     if (model == null) throw const AiFailure('acp_model');
-    final configured = await rpc.request('session/set_config_option', {
-      'sessionId': _session,
-      'configId': model['id'],
-      'value': configuration.model,
-    });
+    final configured = await rpc.configure(
+      sessionId: _session!,
+      configId: model['id']! as String,
+      value: configuration.model,
+    );
     check();
     final verified = (configured['configOptions'] as List? ?? [])
         .cast<Map<Object?, Object?>>()
@@ -219,7 +208,7 @@ class CodexAcpBackend implements AgentBackend {
       'session_id': _session,
       'model': verified!['currentValue'],
       'reasoning_effort': 'high',
-      'reconnected': session['sessionId'] == null,
+      'reconnected': reconnected,
     });
   }
 
@@ -248,25 +237,30 @@ class CodexAcpBackend implements AgentBackend {
     cancellation.onCancel(turn.cancellation.cancel);
     turn.cancellation.onCancel(() {
       if (turn.finished.isCompleted) return;
-      if (!turn.cancelled.isCompleted) turn.cancelled.complete();
+      final prompting = _acceptUpdates;
       _acceptUpdates = false;
       _tools = null;
       _events = null;
       final rpc = _rpc;
-      if (rpc != null && !rpc.closed && _session != null) {
-        try {
-          rpc.notify('session/cancel', {'sessionId': _session});
-        } on Object {
-          // Closing the transport also cancels a prompt if notification fails.
-        }
-      }
-      if (rpc != null) {
+      void disconnect() {
+        if (rpc == null || !identical(_rpc, rpc)) return;
         _rpc = null;
         final closing = _closing = rpc.dispose();
-        // Closing the RPC rejects even session-less initialize/new requests.
-        // Keep the bridge until _connect has drained: start() may still own an
-        // in-flight bind that needs to finish before it can be closed.
         unawaited(closing.then<void>((_) {}, onError: (Object _) {}));
+      }
+
+      if (prompting && rpc != null && !rpc.closed && _session != null) {
+        try {
+          rpc.cancel(_session!);
+          // A cancellation notification is not completion. Let the original
+          // request settle; a non-responsive agent is forcibly disconnected.
+          turn.cancelTimer = Timer(const Duration(seconds: 4), disconnect);
+        } on Object {
+          disconnect();
+        }
+      } else {
+        // There is no prompt to cancel during initialize/new/config/load.
+        disconnect();
       }
     });
     try {
@@ -274,15 +268,7 @@ class CodexAcpBackend implements AgentBackend {
       turn.cancellation.check();
       _acceptUpdates = true;
       final rpc = _rpc!;
-      final result = await Future.any<Map<String, Object?>>([
-        rpc.request('session/prompt', {
-          'sessionId': _session,
-          'prompt': [
-            {'type': 'text', 'text': prompt},
-          ],
-        }, timeout: const Duration(hours: 2)),
-        turn.cancelled.future.then((_) => throw const AiFailure('cancelled')),
-      ]);
+      final result = await rpc.prompt(_session!, prompt);
       turn.cancellation.check();
       final quota = (result['_meta'] as Map?)?['quota'] as Map?;
       final models = quota?['model_usage'] as List?;
@@ -302,6 +288,7 @@ class CodexAcpBackend implements AgentBackend {
       turn.cancellation.check();
       rethrow;
     } finally {
+      turn.cancelTimer?.cancel();
       _acceptUpdates = false;
       _bridgePermissions.clear();
       _tools = null;
@@ -342,6 +329,24 @@ class CodexAcpBackend implements AgentBackend {
 
 class _AcpPromptTurn {
   final cancellation = AiCancellation();
-  final cancelled = Completer<void>();
+  Timer? cancelTimer;
   final finished = Completer<void>();
+}
+
+// Do not spawn a Dart child while native ACP/PTY children are alive: Dart's
+// macOS child reaper can consume their exit statuses. chmod needs no process.
+void _restrictAuthentication(String path) {
+  final chmod = DynamicLibrary.process()
+      .lookupFunction<
+        Int32 Function(Pointer<Utf8>, Uint16),
+        int Function(Pointer<Utf8>, int)
+      >('chmod');
+  final nativePath = path.toNativeUtf8();
+  try {
+    if (chmod(nativePath, 384) != 0) {
+      throw const AiFailure('acp_authentication');
+    }
+  } finally {
+    malloc.free(nativePath);
+  }
 }

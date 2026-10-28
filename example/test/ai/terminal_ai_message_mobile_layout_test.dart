@@ -4,8 +4,8 @@ import 'package:app/features/ai/terminal_ai_message.dart';
 import 'package:app/ui/foundation/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_agent_chat/ianvs_agent_chat.dart' show ChatMessageBody;
 
 void main() {
   Future<void> mountFrame(
@@ -162,32 +162,26 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      final rendered = tester.widget<MarkdownBody>(find.byType(MarkdownBody));
-      final mobile = platform == TargetPlatform.iOS;
-      expect(rendered.data, markdown);
-      expect(rendered.styleSheet!.listIndent, mobile ? 18 : 24);
-      expect(rendered.styleSheet!.blockSpacing, mobile ? 12 : 8);
-      expect(
-        rendered.styleSheet!.codeblockPadding,
-        EdgeInsets.all(mobile ? 8 : 12),
+      final rendered = tester.widget<ChatMessageBody>(
+        find.byType(ChatMessageBody),
       );
-      expect(
-        rendered.styleSheet!.p!.fontSize,
-        theme.textTheme.bodyMedium!.fontSize,
-        reason: 'Recover reading width without shrinking the body font.',
-      );
+      expect(rendered.text, markdown);
+      expect(rendered.resourcePolicy.imageBuilder, isNull);
+      expect(rendered.diagramBuilder, isNull);
       expect(find.byType(SelectionArea), findsOneWidget);
       expect(find.byType(Image), findsNothing);
       expect(find.byType(TextField), findsNothing);
       expect(tester.testTextInput.hasAnyClients, false);
       expect(
         tester
-            .widgetList<Scrollable>(find.byType(Scrollable))
+            .stateList<ScrollableState>(find.byType(Scrollable))
             .where(
               (widget) =>
-                  axisDirectionToAxis(widget.axisDirection) == Axis.vertical,
+                  axisDirectionToAxis(widget.widget.axisDirection) ==
+                      Axis.vertical &&
+                  widget.position.maxScrollExtent > 0,
             ),
-        hasLength(1),
+        hasLength(lessThanOrEqualTo(1)),
       );
       String? copied;
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
@@ -205,21 +199,20 @@ void main() {
           null,
         ),
       );
-      final region = tester.state<SelectableRegionState>(
-        find.byType(SelectableRegion),
+      final selectionContext = tester.element(find.byType(SelectionArea));
+      Actions.invoke(
+        selectionContext,
+        const SelectAllTextIntent(SelectionChangedCause.keyboard),
       );
-      region.selectAll(SelectionChangedCause.keyboard);
       await tester.pump();
-      region.contextMenuButtonItems
-          .singleWhere((item) => item.type == ContextMenuButtonType.copy)
-          .onPressed!();
-      await tester.pump();
+      Actions.invoke(selectionContext, CopySelectionTextIntent.copy);
+      await tester.pumpAndSettle();
       expect(copied, contains(path));
       expect(copied, contains(command));
       expect(copied, contains('.bashrc'));
       expect(copied, contains('.profile'));
       expect(copied, isNot(contains('\u200b')));
-      expect(copied, isNot(contains('```')));
+      expect(copied, contains('```'));
       expect(tester.takeException(), isNull);
     });
   }

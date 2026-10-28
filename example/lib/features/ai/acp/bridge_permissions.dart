@@ -2,22 +2,8 @@ import 'terminal_mcp_server.dart';
 
 /// Access to the scoped MCP bridge is not approval to write terminal input.
 class BridgePermissions {
-  final _calls = <String>{};
-  void clear() => _calls.clear();
-  void observe(Map<String, Object?> event) {
-    final input = event['rawInput'] as Map?;
-    final id = event['toolCallId'];
-    if (id is String &&
-        input?['server'] == 'trail_terminal' &&
-        TerminalMcpServer.toolDefinitions.any(
-          (t) => t['name'] == input?['tool'],
-        )) {
-      _calls.add(id);
-    }
-    if (event['status'] == 'completed' || event['status'] == 'failed') {
-      _calls.remove(id);
-    }
-  }
+  final _answered = <String>{};
+  void clear() => _answered.clear();
 
   String? option(
     Map<String, Object?> request, {
@@ -25,8 +11,22 @@ class BridgePermissions {
     required bool active,
   }) {
     if (!active || request['sessionId'] != session) return null;
-    final call = request['toolCall'] as Map?;
-    if (!_calls.remove(call?['toolCallId'])) return null;
+    // Use the runtime's control request, not a lossy render projection. Runtime
+    // owns permission expiry; this policy only grants access to the MCP bridge.
+    final id = request['requestId'];
+    final toolCallId = request['toolCallId'];
+    final input = request['rawInput'] as Map?;
+    if (id is! String ||
+        id.isEmpty ||
+        toolCallId is! String ||
+        toolCallId.isEmpty ||
+        input?['server'] != 'trail_terminal' ||
+        !TerminalMcpServer.toolDefinitions.any(
+          (t) => t['name'] == input?['tool'],
+        ) ||
+        !_answered.add(id)) {
+      return null;
+    }
     for (final option in request['options'] as List? ?? []) {
       if ((option as Map)['kind'] == 'allow_once') {
         return option['optionId'] as String?;
