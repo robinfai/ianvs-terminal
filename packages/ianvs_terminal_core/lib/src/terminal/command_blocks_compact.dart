@@ -38,6 +38,7 @@ extension _CommandBlocksCompact on _CommandBlocksViewState {
               block.running &&
               !c.readingStates.containsKey(id),
       onOpenLinkTarget: widget.onOpenLinkTarget,
+      onLinkContextMenu: widget.onLinkContextMenu,
       onAttachRange: widget.onAttachRange,
     );
     if (!mounted) return;
@@ -145,6 +146,7 @@ extension _CommandBlocksCompact on _CommandBlocksViewState {
                 child: CommandBlockTerminal(
                   key: ValueKey('block-terminal-${block.id}'),
                   block: block,
+                  semanticContext: _semanticContextForBlock(c, block),
                   font: widget.font,
                   previewLines: 6,
                   scrollOutput: false,
@@ -160,6 +162,7 @@ extension _CommandBlocksCompact on _CommandBlocksViewState {
                       : TerminalFrameModes.empty,
                   onMeasuredCellSizeChanged: widget.onMeasuredCellSizeChanged,
                   onOpenLinkTarget: widget.onOpenLinkTarget,
+                  onLinkContextMenu: widget.onLinkContextMenu,
                 ),
               ),
             if (failed && widget.onAskAi != null)

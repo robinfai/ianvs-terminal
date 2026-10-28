@@ -14,6 +14,115 @@ import 'support/terminal_frame_from_json.dart';
 import 'support/terminal_runtime_signal_streams.dart';
 
 void main() {
+  testWidgets(
+    'frame occurrence ownership requires the displayed token and session generation across scroll resize and close',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final session = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      final epoch = runtime.sessionEpochFor(session)!;
+      TerminalFrameDiff snapshot(String? token, {bool owned = true}) =>
+          TerminalFrameDiff(
+            semanticSnapshotToken: token,
+            semanticBlocks: owned
+                ? const {
+                    'old-command': TerminalFrameCommandContext(
+                      id: 'old-command',
+                      cwd: '/historical',
+                      contextId: 'root',
+                      sftpContextId: 'nested@1',
+                      shellHostname: 'declared-host',
+                    ),
+                  }
+                : const {},
+            semanticRowContexts: owned ? const {60: 'old-command'} : const {},
+            rows: const [TerminalRow(index: 60, text: 'same diagnostic')],
+            cursor: const TerminalCursor(row: 0, col: 0, visible: false),
+            viewportRows: 80,
+            viewportCols: 80,
+            dirtyRanges: const [],
+            scrollbackOffset: 0,
+            scrollbackMaxOffset: 100,
+          );
+      CommandOccurrence? resolve(
+        String token, {
+        int? generation,
+        int row = 60,
+      }) => runtime.occurrenceForFrameRow(
+        session,
+        sessionEpoch: generation ?? epoch,
+        frameRevision: token,
+        viewportRow: row,
+      );
+      runtime.viewportFor(session).updateFrame(snapshot('1'));
+      final occurrence = resolve('1')!;
+      expect(occurrence.cwd, '/historical');
+      expect(occurrence.shellHostname, 'declared-host');
+      expect(occurrence.sftpContextId, 'nested@1');
+      expect(occurrence.scope.transport.kind, CommandTransportKind.local);
+      expect(occurrence.lifecycle, CommandOccurrenceLifecycle.unknown);
+      expect(occurrence.outputRetention, CommandOutputRetention.unknown);
+      expect(resolve('1', generation: epoch + 1), isNull);
+      expect(resolve('1', row: 59), isNull);
+      expect(resolve('2'), isNull);
+      // A native output arrival without a new displayed frame does not change
+      // this frozen mapping; resolution performs no backend request.
+      final requests = backend.jsonRequests.length;
+      expect(resolve('1')!.id, occurrence.id);
+      expect(backend.jsonRequests.length, requests);
+      runtime.viewportFor(session).updateFrame(snapshot('2'));
+      expect(resolve('1'), isNull);
+      expect(resolve('2'), isNotNull);
+      runtime.scrollViewport(session, 1);
+      expect(resolve('2'), isNull);
+      runtime.viewportFor(session).updateFrame(snapshot('3'));
+      expect(resolve('3'), isNotNull);
+      runtime.resizeSessionCells(session, cols: 90, rows: 81);
+      expect(resolve('3'), isNull);
+      runtime.viewportFor(session).updateFrame(snapshot('4', owned: false));
+      expect(resolve('4'), isNull);
+      runtime.viewportFor(session).updateFrame(snapshot(null));
+      expect(resolve('4'), isNull);
+      for (final (token, mutate) in <(String, void Function())>[
+        ('10', () => runtime.clearBuffer(session)),
+        ('11', () => runtime.clearScrollback(session)),
+        ('12', () => runtime.setBlockFolded(session, 'x', folded: true)),
+        ('13', () => runtime.setBlockRendered(session, 'x', rendered: true)),
+      ]) {
+        runtime.viewportFor(session).updateFrame(snapshot(token));
+        expect(resolve(token), isNotNull);
+        mutate();
+        expect(resolve(token), isNull);
+      }
+      runtime.viewportFor(session).updateFrame(snapshot('5'));
+      runtime.closeSession(session);
+      expect(resolve('5'), isNull);
+      backend.forcedSessionId = session;
+      final reused = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      expect(reused, session);
+      runtime.viewportFor(session).updateFrame(snapshot('5'));
+      expect(resolve('5'), isNull);
+      expect(
+        resolve('5', generation: runtime.sessionEpochFor(session)),
+        isNotNull,
+      );
+    },
+  );
+
   test(
     'terminal viewport controller normalizes delta fallback state as a snapshot',
     () {
@@ -5897,6 +6006,151 @@ void main() {
     expect(event.rawPayload['hook'], ' command_finished ');
     expect(blank.hook, isNull);
   });
+
+  testWidgets(
+    'live output requires a current subscription and rejects stale payloads',
+    (tester) async {
+      final backend = _FakePtyBackend();
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final session = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        ),
+      );
+      final seen = <TerminalSessionOutputTextEvent>[];
+      final listener = terminalSessionEvents(runtime)
+          .where((e) => e is TerminalSessionOutputTextEvent)
+          .cast<TerminalSessionOutputTextEvent>()
+          .listen(seen.add);
+      addTearDown(listener.cancel);
+      void enqueue(
+        String subscription, {
+        Map<String, Object?> extra = const {},
+      }) {
+        backend.enqueueEvent(
+          session,
+          PtyEvent(
+            kind: 'output_text',
+            sessionId: session,
+            payload: {
+              'subscription': subscription,
+              'lineId': '1',
+              'revision': '1',
+              'text': 'Password:',
+              'complete': false,
+              'dropped': 0,
+              ...extra,
+            },
+          ),
+        );
+      }
+
+      enqueue('1');
+      runtime.refreshSession(session);
+      await tester.pump();
+      expect(seen, isEmpty);
+      runtime.setOutputObservation(session, enabled: true);
+      enqueue('1');
+      enqueue('1', extra: {'unknown': true});
+      enqueue('1', extra: {'text': 'bad\u001btext'});
+      runtime.refreshSession(session);
+      await tester.pump();
+      expect(seen, hasLength(1));
+      final queued = seen.single;
+      var resyncErrors = 0;
+      final resync = terminalSessionEvents(runtime).listen((event) {
+        if (event is TerminalSessionBackendErrorEvent) {
+          resyncErrors++;
+          runtime.setOutputObservation(session, enabled: true);
+        }
+      });
+      addTearDown(resync.cancel);
+      backend.returnNullJsonRequests = true;
+      runtime.setOutputObservation(session, enabled: false);
+      expect(resyncErrors, 1);
+      expect(runtime.isCurrentOutputObservation(queued), isFalse);
+      runtime.setOutputObservation(session, enabled: true);
+      expect(runtime.isCurrentOutputObservation(queued), isFalse);
+      backend.returnNullJsonRequests = false;
+      // A failed disable must be reconciled before enabling a new generation.
+      runtime.setOutputObservation(session, enabled: true);
+      expect(
+        backend.jsonRequests
+            .skip(backend.jsonRequests.length - 2)
+            .map((request) => request['enabled']),
+        [false, true],
+      );
+      expect(runtime.isCurrentOutputObservation(queued), isFalse);
+      runtime.setOutputObservation(session, enabled: false);
+      enqueue('1');
+      runtime.setOutputObservation(session, enabled: true);
+      enqueue('5');
+      runtime.refreshSession(session);
+      await tester.pump();
+      expect(seen.map((e) => e.subscription), ['1', '5']);
+    },
+  );
+
+  testWidgets(
+    'command occurrence scope captures actual launch transport independently of shell claims',
+    (tester) async {
+      final backend = _FakePtyBackend()
+        ..runtimeCapabilities = PtyRuntimeCapabilities.fromJson(const {
+          'schema_version': ptyRuntimeCapabilitiesSchemaVersion,
+          'runtime_contract': ptyRuntimeContractV1,
+          'frame_schema_versions': <String>[],
+          'recording_schema_versions': <int>[],
+          'features': ['ssh-session.v1'],
+        });
+      final runtime = TerminalRuntimeController(
+        backend: backend,
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        enableSessionPolling: false,
+      );
+      addTearDown(runtime.dispose);
+      final session = runtime.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+          connection: TerminalConnectionConfig.ssh(
+            host: 'actual-server',
+            user: 'login',
+            port: 2222,
+          ),
+        ),
+      );
+      final scope = runtime.commandOccurrenceScopeFor(session)!;
+      expect(scope.sessionEpoch, runtime.sessionEpochFor(session));
+      expect(scope.transport.kind, CommandTransportKind.ssh);
+      expect(scope.transport.host, 'actual-server');
+      expect(scope.transport.user, 'login');
+      expect(scope.transport.port, 2222);
+      backend.enqueueEvent(
+        session,
+        PtyEvent(
+          kind: 'shell_context',
+          sessionId: session,
+          payload: const {
+            'hostname': 'declared-other-host',
+            'username': 'root',
+            'cwd': '/other',
+          },
+        ),
+      );
+      runtime.refreshSession(session);
+      await tester.pump();
+      expect(runtime.commandOccurrenceScopeFor(session), same(scope));
+      expect(scope.transport.host, 'actual-server');
+      runtime.closeSession(session);
+      expect(runtime.commandOccurrenceScopeFor(session), isNull);
+    },
+  );
 
   testWidgets('terminal runtime controller emits bell events', (tester) async {
     final runtimeBackend = _FakePtyBackend();
@@ -13697,6 +13951,58 @@ void main() {
     },
   );
 
+  for (final listing in [true, false]) {
+    testWidgets(
+      'SFTP ${listing ? 'listing' : 'mutation'} waiter never polls or cancels a reused session',
+      (tester) async {
+        final backend = _FakePtyBackend()
+          ..forcedSessionId = 'reused-sftp'
+          ..runtimeCapabilities = PtyRuntimeCapabilities.fromJson(const {
+            'schema_version': ptyRuntimeCapabilitiesSchemaVersion,
+            'runtime_contract': ptyRuntimeContractV1,
+            'frame_schema_versions': <String>[],
+            'recording_schema_versions': <int>[],
+            'features': [
+              ptyRuntimeFeatureSftpDirectoryListingV1,
+              ptyRuntimeFeatureSftpFileOperationsV1,
+            ],
+          });
+        final runtime = TerminalRuntimeController(
+          backend: backend,
+          copyToClipboard: (_) async {},
+          readClipboard: () async => '',
+          enableSessionPolling: false,
+        );
+        addTearDown(runtime.dispose);
+        const config = TerminalSessionConfig(
+          launch: TerminalLaunchConfig(program: '/bin/sh'),
+        );
+        final id = runtime.createSession(config);
+        final oldEpoch = runtime.sessionEpochFor(id);
+        final Future<Object?> pending = listing
+            ? runtime.listSftpDirectory(id, '/')
+            : runtime.uploadSftpFile(id, '/tmp/source', '/remote/file');
+        final rejected = expectLater(
+          pending,
+          throwsA(isA<TerminalSftpException>()),
+        );
+        await tester.pump();
+        runtime.closeSession(id);
+        expect(runtime.createSession(config), id);
+        expect(runtime.sessionEpochFor(id), isNot(oldEpoch));
+        backend.jsonRequests.clear();
+        await tester.pump(const Duration(milliseconds: 100));
+        await rejected;
+        expect(
+          backend.jsonRequests.where(
+            (request) => (request['kind']! as String).startsWith('ssh.sftp.'),
+          ),
+          isEmpty,
+        );
+      },
+    );
+  }
+
   testWidgets(
     'SFTP API rejects runtimes that do not advertise the capability',
     (tester) async {
@@ -14037,6 +14343,8 @@ class _FakePtyBackend
     scrollToCalls.add((sessionId, offset));
   }
 
+  final Map<String, int> _observationGenerations = {};
+
   @override
   String? requestSessionV1Json(String sessionId, String requestJson) {
     final envelope = (jsonDecode(requestJson) as Map).cast<String, Object?>();
@@ -14051,6 +14359,11 @@ class _FakePtyBackend
       return null;
     }
     final payload = switch (request['kind']) {
+      'terminal.observe_output' => jsonEncode({
+        'enabled': request['enabled'],
+        'subscription':
+            '${_observationGenerations.update(sessionId, (n) => n + 1, ifAbsent: () => 1)}',
+      }),
       'terminal.search_text' =>
         searchRawResponse ??
             jsonEncode(<String, Object?>{

@@ -18,6 +18,7 @@ import 'terminal_graphics_diagnostics.dart';
 import 'terminal_graphics_sync.dart';
 import 'terminal_input_controller.dart';
 import 'terminal_models.dart';
+import 'terminal_semantic_target.dart';
 import 'terminal_text_document_style.dart';
 import 'terminal_viewport_colors.dart';
 
@@ -108,6 +109,8 @@ class TerminalLinkTarget {
     this.visibleText,
     this.explicitHyperlink = false,
     this.protocolId,
+    this.fileTarget,
+    this.semanticContext,
   });
 
   final String uri;
@@ -115,6 +118,8 @@ class TerminalLinkTarget {
   final String? visibleText;
   final bool explicitHyperlink;
   final String? protocolId;
+  final TerminalSemanticFileTarget? fileTarget;
+  final TerminalSemanticContext? semanticContext;
 
   bool get hasMismatchedVisibleText {
     final text = visibleText?.trim();
@@ -306,6 +311,7 @@ class TerminalViewport extends StatefulWidget {
     this.onPointerDown,
     this.onOpenLink,
     this.onOpenLinkTarget,
+    this.semanticContextForRow,
     this.onLinkHoverChanged,
     this.onLinkContextMenu,
     this.onPasteClipboard,
@@ -388,6 +394,9 @@ class TerminalViewport extends StatefulWidget {
   final ValueChanged<PointerDownEvent>? onPointerDown;
   final ValueChanged<String>? onOpenLink;
   final ValueChanged<TerminalLinkTarget>? onOpenLinkTarget;
+
+  /// Must resolve provenance of this output row, never the current shell cwd.
+  final TerminalSemanticContextResolver? semanticContextForRow;
   final ValueChanged<TerminalLinkTarget?>? onLinkHoverChanged;
   final ValueChanged<TerminalLinkTarget>? onLinkContextMenu;
   final Future<void> Function()? onPasteClipboard;
@@ -1340,7 +1349,8 @@ class _TerminalViewportState extends State<TerminalViewport>
     }
     if (!_terminalMouseEnabled) {
       if (_isSecondaryButton(event.buttons)) {
-        _showLinkContextMenuAt(event.position);
+        // Link context menus participate in the gesture arena below. Opening
+        // from this raw event would also let an ancestor open its own menu.
         return;
       }
       if (!_isPrimarySelectionButton(event.buttons) ||
@@ -1977,15 +1987,17 @@ class _TerminalViewportState extends State<TerminalViewport>
     onOpenLink!(target.uri);
   }
 
-  void _showLinkContextMenuAt(Offset globalPosition) {
-    if (_scrollbarContainsGlobalPosition(globalPosition) ||
+  TerminalLinkTarget? _contextMenuTargetAt(Offset globalPosition) {
+    if (_terminalMouseEnabled ||
+        widget.onLinkContextMenu == null ||
+        _scrollbarContainsGlobalPosition(globalPosition) ||
         !_surfaceContainsGlobalPosition(globalPosition)) {
-      return;
+      return null;
     }
-    final target = _linkTargetAt(globalPosition);
-    if (target == null) {
-      return;
-    }
+    return _linkTargetAt(globalPosition);
+  }
+
+  void _showLinkContextMenu(TerminalLinkTarget target) {
     _cancelPendingLinkOpen();
     _focusNode.requestFocus();
     widget.onLinkContextMenu?.call(target);
@@ -2181,12 +2193,21 @@ class _TerminalViewportState extends State<TerminalViewport>
       return;
     }
     _cancelPendingLinkOpen();
+    final target = _linkTargetAt(globalPosition);
+    if (target == null) return;
+    final sessionId = widget.inputController.sessionId;
     _pendingLinkOpenTimer = Timer(kDoubleTapTimeout, () {
       _pendingLinkOpenTimer = null;
       if (!mounted) {
         return;
       }
-      _openLinkAt(globalPosition);
+      if (widget.inputController.sessionId != sessionId) return;
+      final callback = widget.onOpenLinkTarget;
+      if (callback != null) {
+        callback(target);
+      } else if (target.fileTarget == null) {
+        widget.onOpenLink?.call(target.uri);
+      }
     });
   }
 
@@ -2211,35 +2232,36 @@ class _TerminalViewportState extends State<TerminalViewport>
           visibleText: _visibleTextForHyperlink(frame, hyperlink),
           explicitHyperlink: true,
           protocolId: hyperlink.protocolId,
+          semanticContext: _semanticContextAtRow(frame, cell.row),
         );
       }
     }
 
-    TerminalRow? row;
-    for (final candidate in frame.rows) {
-      if (candidate.index == cell.row) {
-        row = candidate;
-        break;
-      }
-    }
-    final text = row?.text;
-    if (text == null || text.isEmpty) {
-      return null;
-    }
-    final textCells = TerminalTextCells.fromText(text);
-    final codeUnit = textCells.codeUnitForColumn(cell.col);
-    for (final match in _visibleUrlPattern.allMatches(text)) {
-      if (codeUnit >= match.start && codeUnit < match.end) {
-        final uri = match.group(0);
-        if (uri == null) {
-          continue;
-        }
-        return TerminalLinkTarget(
-          uri: uri,
-          globalPosition: globalPosition,
-          visibleText: uri,
-        );
-      }
+    final target = terminalSemanticTargetAt(
+      rows: frame.rows,
+      row: cell.row,
+      column: cell.col,
+      contextForRow: widget.onOpenLinkTarget == null
+          ? null
+          : widget.semanticContextForRow,
+    );
+    if (target == null) return null;
+    return TerminalLinkTarget(
+      uri: target.text,
+      visibleText: target.text,
+      globalPosition: globalPosition,
+      fileTarget: target.fileTarget,
+      semanticContext:
+          target.fileTarget?.context ?? _semanticContextAtRow(frame, cell.row),
+    );
+  }
+
+  TerminalSemanticContext? _semanticContextAtRow(
+    TerminalFrameDiff frame,
+    int index,
+  ) {
+    for (final row in frame.rows) {
+      if (row.index == index) return widget.semanticContextForRow?.call(row);
     }
     return null;
   }
@@ -2785,161 +2807,184 @@ class _TerminalViewportState extends State<TerminalViewport>
       autofocus: widget.autofocus ?? !widget.readOnly,
       focusNode: _focusNode,
       onKeyEvent: (_, event) => _handleTerminalKeyEvent(event),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: _focusTerminalFromTap,
-        onTapUp: _handleTerminalTapUp,
-        onLongPressStart: _handleTerminalLongPressStart,
-        onLongPressMoveUpdate: _handleTerminalLongPressMoveUpdate,
-        onLongPressEnd: _handleTerminalLongPressEnd,
-        onScaleStart: widget.handleScrollGestures ? _handleScaleStart : null,
-        onScaleUpdate: widget.handleScrollGestures ? _handleScaleUpdate : null,
-        onScaleEnd: widget.handleScrollGestures ? _handleScaleEnd : null,
-        child: MouseRegion(
-          cursor: _effectivePointerCursor,
-          onExit: (_) {
-            _lastHoverGlobalPosition = null;
-            _setHoveredLinkTarget(null);
-          },
-          child: Listener(
-            behavior: HitTestBehavior.opaque,
-            onPointerDown: _handlePointerDown,
-            onPointerMove: _handlePointerMove,
-            onPointerHover: _handlePointerHover,
-            onPointerUp: _handlePointerUp,
-            onPointerCancel: _handlePointerCancel,
-            onPointerSignal: widget.handleScrollGestures
-                ? _handlePointerSignal
-                : null,
-            onPointerPanZoomStart: widget.handleScrollGestures
-                ? _handlePanZoomStart
-                : null,
-            onPointerPanZoomUpdate: widget.handleScrollGestures
-                ? _handlePanZoomUpdate
-                : null,
-            onPointerPanZoomEnd: widget.handleScrollGestures
-                ? _handlePanZoomEnd
-                : null,
-            child: AnimatedBuilder(
-              animation: widget.controller,
-              builder: (context, _) {
-                final frame = widget.controller.frame;
-                final graphics = frame.graphics;
-                final effectiveColors = _effectiveColorsForFrame(colors, frame);
-                return LayoutBuilder(
-                  builder: (context, constraints) {
-                    final contentPadding = widget.contentPadding;
-                    final graphicViewportSize = Size(
-                      constraints.maxWidth.isFinite
-                          ? math.max(
-                              0.0,
-                              constraints.maxWidth - contentPadding.horizontal,
-                            )
-                          : double.infinity,
-                      constraints.maxHeight.isFinite
-                          ? math.max(
-                              0.0,
-                              constraints.maxHeight - contentPadding.vertical,
-                            )
-                          : double.infinity,
-                    );
-                    final trackHeight = math.max(
-                      0.0,
-                      constraints.maxHeight - 16,
-                    );
-                    return DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: effectiveColors.canvasBackground,
-                      ),
-                      child: Stack(
-                        children: [
-                          ..._buildGraphicOverlays(
-                            frame,
-                            graphics,
-                            contentPadding,
-                            graphicViewportSize,
-                            belowText: true,
-                          ),
-                          Positioned.fill(
-                            child: Padding(
-                              padding: contentPadding,
-                              child: _TerminalViewportSurface(
-                                key: _surfaceKey,
-                                controller: widget.controller,
-                                selectionController: widget.selectionController,
-                                cursorVisible:
-                                    _canDisplayFrameCursor && _cursorVisible,
-                                font: _effectiveFont,
-                                cursor: widget.cursor,
-                                colors: effectiveColors,
-                                useFrameDefaultColors:
-                                    widget.useFrameDefaultColors,
-                                searchMatches: widget.searchMatches,
-                                activeSearchMatchIndex:
-                                    widget.activeSearchMatchIndex,
-                                searchHighlightStyle:
-                                    widget.searchHighlightStyle ??
-                                    const TerminalSearchHighlightStyle(),
-                                benchmarkEventSink: widget.benchmarkEventSink,
+      child: RawGestureDetector(
+        gestures: <Type, GestureRecognizerFactory>{
+          _TerminalLinkSecondaryTapRecognizer:
+              GestureRecognizerFactoryWithHandlers<
+                _TerminalLinkSecondaryTapRecognizer
+              >(_TerminalLinkSecondaryTapRecognizer.new, (recognizer) {
+                recognizer.resolveTarget = _contextMenuTargetAt;
+                recognizer.onSecondaryTapUp = (_) {
+                  final target = recognizer.target;
+                  if (target != null) _showLinkContextMenu(target);
+                };
+              }),
+        },
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _focusTerminalFromTap,
+          onTapUp: _handleTerminalTapUp,
+          onLongPressStart: _handleTerminalLongPressStart,
+          onLongPressMoveUpdate: _handleTerminalLongPressMoveUpdate,
+          onLongPressEnd: _handleTerminalLongPressEnd,
+          onScaleStart: widget.handleScrollGestures ? _handleScaleStart : null,
+          onScaleUpdate: widget.handleScrollGestures
+              ? _handleScaleUpdate
+              : null,
+          onScaleEnd: widget.handleScrollGestures ? _handleScaleEnd : null,
+          child: MouseRegion(
+            cursor: _effectivePointerCursor,
+            onExit: (_) {
+              _lastHoverGlobalPosition = null;
+              _setHoveredLinkTarget(null);
+            },
+            child: Listener(
+              behavior: HitTestBehavior.opaque,
+              onPointerDown: _handlePointerDown,
+              onPointerMove: _handlePointerMove,
+              onPointerHover: _handlePointerHover,
+              onPointerUp: _handlePointerUp,
+              onPointerCancel: _handlePointerCancel,
+              onPointerSignal: widget.handleScrollGestures
+                  ? _handlePointerSignal
+                  : null,
+              onPointerPanZoomStart: widget.handleScrollGestures
+                  ? _handlePanZoomStart
+                  : null,
+              onPointerPanZoomUpdate: widget.handleScrollGestures
+                  ? _handlePanZoomUpdate
+                  : null,
+              onPointerPanZoomEnd: widget.handleScrollGestures
+                  ? _handlePanZoomEnd
+                  : null,
+              child: AnimatedBuilder(
+                animation: widget.controller,
+                builder: (context, _) {
+                  final frame = widget.controller.frame;
+                  final graphics = frame.graphics;
+                  final effectiveColors = _effectiveColorsForFrame(
+                    colors,
+                    frame,
+                  );
+                  return LayoutBuilder(
+                    builder: (context, constraints) {
+                      final contentPadding = widget.contentPadding;
+                      final graphicViewportSize = Size(
+                        constraints.maxWidth.isFinite
+                            ? math.max(
+                                0.0,
+                                constraints.maxWidth -
+                                    contentPadding.horizontal,
+                              )
+                            : double.infinity,
+                        constraints.maxHeight.isFinite
+                            ? math.max(
+                                0.0,
+                                constraints.maxHeight - contentPadding.vertical,
+                              )
+                            : double.infinity,
+                      );
+                      final trackHeight = math.max(
+                        0.0,
+                        constraints.maxHeight - 16,
+                      );
+                      return DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: effectiveColors.canvasBackground,
+                        ),
+                        child: Stack(
+                          children: [
+                            ..._buildGraphicOverlays(
+                              frame,
+                              graphics,
+                              contentPadding,
+                              graphicViewportSize,
+                              belowText: true,
+                            ),
+                            Positioned.fill(
+                              child: Padding(
+                                padding: contentPadding,
+                                child: _TerminalViewportSurface(
+                                  key: _surfaceKey,
+                                  controller: widget.controller,
+                                  selectionController:
+                                      widget.selectionController,
+                                  cursorVisible:
+                                      _canDisplayFrameCursor && _cursorVisible,
+                                  font: _effectiveFont,
+                                  cursor: widget.cursor,
+                                  colors: effectiveColors,
+                                  useFrameDefaultColors:
+                                      widget.useFrameDefaultColors,
+                                  searchMatches: widget.searchMatches,
+                                  activeSearchMatchIndex:
+                                      widget.activeSearchMatchIndex,
+                                  searchHighlightStyle:
+                                      widget.searchHighlightStyle ??
+                                      const TerminalSearchHighlightStyle(),
+                                  benchmarkEventSink: widget.benchmarkEventSink,
+                                ),
                               ),
                             ),
-                          ),
-                          ..._buildInlineImageOverlays(
-                            frame,
-                            contentPadding,
-                            effectiveColors,
-                          ),
-                          ..._buildGraphicOverlays(
-                            frame,
-                            graphics,
-                            contentPadding,
-                            graphicViewportSize,
-                            belowText: false,
-                          ),
-                          if (widget.showLineTimestamps)
-                            ..._buildTimestampOverlays(
+                            ..._buildInlineImageOverlays(
                               frame,
                               contentPadding,
                               effectiveColors,
                             ),
-                          ..._buildInlineButtonOverlays(
-                            frame,
-                            contentPadding,
-                            effectiveColors,
-                          ),
-                          ..._buildBlockOverlays(
-                            frame,
-                            contentPadding,
-                            effectiveColors,
-                          ),
-                          if (frame.scrollbackMaxOffset > 0 && trackHeight > 0)
-                            Positioned(
-                              top: 8,
-                              right: 6,
-                              bottom: 8,
-                              child: _TerminalScrollbar(
-                                viewportRows: frame.viewportRows,
-                                scrollbackOffset: frame.scrollbackOffset,
-                                scrollbackMaxOffset: frame.scrollbackMaxOffset,
-                                trackHeight: trackHeight,
-                                colors: effectiveColors,
-                                onScrollToOffset: widget.onScrollToOffset,
-                              ),
+                            ..._buildGraphicOverlays(
+                              frame,
+                              graphics,
+                              contentPadding,
+                              graphicViewportSize,
+                              belowText: false,
                             ),
-                          ?_buildComposingOverlay(
-                            effectiveColors,
-                            viewportWidth: constraints.maxWidth,
-                          ),
-                          ?_buildLinkTooltipOverlay(
-                            constraints: constraints,
-                            colors: effectiveColors,
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                );
-              },
+                            if (widget.showLineTimestamps)
+                              ..._buildTimestampOverlays(
+                                frame,
+                                contentPadding,
+                                effectiveColors,
+                              ),
+                            ..._buildInlineButtonOverlays(
+                              frame,
+                              contentPadding,
+                              effectiveColors,
+                            ),
+                            ..._buildBlockOverlays(
+                              frame,
+                              contentPadding,
+                              effectiveColors,
+                            ),
+                            if (frame.scrollbackMaxOffset > 0 &&
+                                trackHeight > 0)
+                              Positioned(
+                                top: 8,
+                                right: 6,
+                                bottom: 8,
+                                child: _TerminalScrollbar(
+                                  viewportRows: frame.viewportRows,
+                                  scrollbackOffset: frame.scrollbackOffset,
+                                  scrollbackMaxOffset:
+                                      frame.scrollbackMaxOffset,
+                                  trackHeight: trackHeight,
+                                  colors: effectiveColors,
+                                  onScrollToOffset: widget.onScrollToOffset,
+                                ),
+                              ),
+                            ?_buildComposingOverlay(
+                              effectiveColors,
+                              viewportWidth: constraints.maxWidth,
+                            ),
+                            ?_buildLinkTooltipOverlay(
+                              constraints: constraints,
+                              colors: effectiveColors,
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
             ),
           ),
         ),
@@ -5102,5 +5147,21 @@ class _TerminalScrollbarState extends State<_TerminalScrollbar> {
         ],
       ),
     );
+  }
+}
+
+/// Only a link hit joins the secondary-button arena, leaving the surrounding
+/// command block's menu available for all other cells.
+class _TerminalLinkSecondaryTapRecognizer extends TapGestureRecognizer {
+  TerminalLinkTarget? Function(Offset)? resolveTarget;
+  TerminalLinkTarget? target;
+
+  @override
+  bool isPointerAllowed(PointerDownEvent event) {
+    if (event.buttons != kSecondaryMouseButton) return false;
+    final candidate = resolveTarget?.call(event.position);
+    if (candidate == null || !super.isPointerAllowed(event)) return false;
+    target = candidate;
+    return true;
   }
 }

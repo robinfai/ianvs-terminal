@@ -51,9 +51,13 @@ TerminalFrameDiff _terminalFrameDiffFromProtobuf(
   );
   final scrollbackMaxOffset = proto.scrollbackMaxOffset;
   final scrollbackOffset = proto.scrollbackOffset.clamp(0, scrollbackMaxOffset);
+  final semantics = _semanticSnapshotFromProtobuf(proto, viewportRows);
   return TerminalFrameDiff(
     frameSchemaVersion: proto.frameSchemaVersion,
     frameKind: _terminalFrameKindFromProtobuf(proto.frameKind),
+    semanticSnapshotToken: semantics.$1,
+    semanticBlocks: semantics.$2,
+    semanticRowContexts: semantics.$3,
     rows: _rowsFromProtobuf(proto.rows, viewportRows, viewportCols),
     cursor: proto.hasCursor()
         ? _terminalCursorFromProtobuf(proto.cursor)
@@ -148,6 +152,87 @@ TerminalFrameDiff _terminalFrameDiffFromProtobuf(
       maxEntries: TerminalFrameValidationLimits.maxInlineButtonsPerFrame,
     ),
   );
+}
+
+(String?, Map<String, TerminalFrameCommandContext>, Map<int, String>)
+_semanticSnapshotFromProtobuf(
+  frame_pb.TerminalFrameDiff proto,
+  int viewportRows,
+) {
+  Never invalid() =>
+      throw const FormatException('Invalid terminal frame semantic snapshot');
+  if (!proto.hasSemanticSnapshotToken()) {
+    if (proto.semanticBlocks.isNotEmpty ||
+        proto.semanticRowContexts.isNotEmpty) {
+      invalid();
+    }
+    return (null, const {}, const {});
+  }
+  final token = proto.semanticSnapshotToken;
+  if (!RegExp(r'^[1-9][0-9]{0,19}$').hasMatch(token) ||
+      BigInt.parse(token) > BigInt.parse('18446744073709551615') ||
+      proto.semanticBlocks.length > 128 ||
+      proto.semanticRowContexts.length > 512) {
+    invalid();
+  }
+  var bytes = token.length;
+  String field(String value, int limit, {bool nonEmpty = false}) {
+    if ((nonEmpty && value.isEmpty) ||
+        value.length > limit ||
+        value.runes.any((r) => r < 32 || (r >= 127 && r <= 159))) {
+      invalid();
+    }
+    final encodedLength = utf8.encode(value).length;
+    if (encodedLength > limit) invalid();
+    bytes += encodedLength;
+    if (bytes > 256 * 1024) invalid();
+    return value;
+  }
+
+  final blocks = <String, TerminalFrameCommandContext>{};
+  for (final block in proto.semanticBlocks) {
+    if (!block.hasId() || !block.hasCwd()) invalid();
+    final id = field(block.id, 128, nonEmpty: true);
+    if (blocks.containsKey(id)) invalid();
+    final lease = block.hasSftpContextId()
+        ? field(block.sftpContextId, 85, nonEmpty: true)
+        : null;
+    if (lease != null && !RegExp(r'^[A-Za-z0-9@-]+$').hasMatch(lease)) {
+      invalid();
+    }
+    blocks[id] = TerminalFrameCommandContext(
+      id: id,
+      cwd: field(block.cwd, 4096, nonEmpty: true),
+      contextId: block.hasContextId()
+          ? field(block.contextId, 128, nonEmpty: true)
+          : null,
+      sftpContextId: lease,
+      shellHostname: block.hasShellHostname()
+          ? field(block.shellHostname, 255, nonEmpty: true)
+          : null,
+      shellUsername: block.hasShellUsername()
+          ? field(block.shellUsername, 255, nonEmpty: true)
+          : null,
+    );
+  }
+  final rows = <int, String>{};
+  for (final row in proto.semanticRowContexts) {
+    // viewport_row is a non-optional proto3 scalar. Native prost omits its
+    // default zero, so absence denotes the first viewport row, not bad data.
+    if (!row.hasBlockId()) invalid();
+    final index = row.viewportRow;
+    final id = field(row.blockId, 128, nonEmpty: true);
+    bytes += 4;
+    if (index < 0 ||
+        index >= viewportRows ||
+        rows.containsKey(index) ||
+        !blocks.containsKey(id) ||
+        bytes > 256 * 1024) {
+      invalid();
+    }
+    rows[index] = id;
+  }
+  return (token, Map.unmodifiable(blocks), Map.unmodifiable(rows));
 }
 
 TerminalFrameKind _terminalFrameKindFromProtobuf(

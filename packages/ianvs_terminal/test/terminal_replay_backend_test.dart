@@ -15,7 +15,7 @@ void main() {
       final replayBackend = TerminalReplayBackend(
         delegate: delegate,
         recording: _recording(),
-        timingMode: TerminalReplayTimingMode.noDelay,
+        timingMode: TerminalReplayTimingMode.manual,
       );
       final runtime = TerminalRuntimeController(
         backend: replayBackend,
@@ -37,6 +37,36 @@ void main() {
 
       expect(sessionId, 'replay-1');
       expect(delegate.calls.first, 'create:replay-1');
+      runtime
+          .viewportFor(sessionId)
+          .updateFrame(
+            const TerminalFrameDiff(
+              semanticSnapshotToken: '1',
+              semanticBlocks: {
+                'recorded': TerminalFrameCommandContext(
+                  id: 'recorded',
+                  cwd: '/old',
+                ),
+              },
+              semanticRowContexts: {0: 'recorded'},
+              rows: [TerminalRow(index: 0, text: 'file.txt')],
+              cursor: TerminalCursor(row: 0, col: 0, visible: false),
+              viewportRows: 1,
+              viewportCols: 80,
+              dirtyRanges: [],
+              scrollbackOffset: 0,
+              scrollbackMaxOffset: 0,
+            ),
+          );
+      expect(
+        runtime.occurrenceForFrameRow(
+          sessionId,
+          sessionEpoch: runtime.sessionEpochFor(sessionId)!,
+          frameRevision: '1',
+          viewportRow: 0,
+        ),
+        isNull,
+      );
     });
 
     test('replay-capable live backends still require SSH capability', () {

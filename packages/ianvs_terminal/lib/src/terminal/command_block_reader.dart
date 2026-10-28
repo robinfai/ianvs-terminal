@@ -388,6 +388,7 @@ Future<String?> showCommandBlockReader(
   FocusNode? returnFocus,
   ValueChanged<CommandBlock>? onAttachRange,
   ValueChanged<TerminalLinkTarget>? onOpenLinkTarget,
+  ValueChanged<TerminalLinkTarget>? onLinkContextMenu,
 }) async {
   final host = CommandBlockReaderHost.maybeOf(context);
   final hostRevision = host?.revision;
@@ -417,6 +418,7 @@ Future<String?> showCommandBlockReader(
         keyboardFocus: host._readerContentFocus,
         onAttachRange: onAttachRange,
         onOpenLinkTarget: onOpenLinkTarget,
+        onLinkContextMenu: onLinkContextMenu,
       ),
     );
   }
@@ -433,6 +435,7 @@ Future<String?> showCommandBlockReader(
         followTail: followTail,
         onAttachRange: onAttachRange,
         onOpenLinkTarget: onOpenLinkTarget,
+        onLinkContextMenu: onLinkContextMenu,
       ),
     ),
   );
@@ -474,6 +477,7 @@ class _CommandBlockReader extends StatefulWidget {
     this.initialRow,
     this.initialRange,
     this.onOpenLinkTarget,
+    this.onLinkContextMenu,
     this.onAttachRange,
     this.onClose,
     this.canInteract,
@@ -487,6 +491,7 @@ class _CommandBlockReader extends StatefulWidget {
   final double? initialRow;
   final CommandBlockReadRange? initialRange;
   final ValueChanged<TerminalLinkTarget>? onOpenLinkTarget;
+  final ValueChanged<TerminalLinkTarget>? onLinkContextMenu;
   final ValueChanged<CommandBlock>? onAttachRange;
   final ValueChanged<String?>? onClose;
   final bool Function()? canInteract;
@@ -868,8 +873,12 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
     widget.onAttachRange?.call(
       CommandBlock(
         id: source.id,
+        sourceBlockId: source.sourceBlockId,
         command: source.command,
         cwd: source.cwd,
+        shellHostname: source.shellHostname,
+        shellUsername: source.shellUsername,
+        sftpContextId: source.sftpContextId,
         exitCode: source.exitCode,
         submissionId: source.submissionId,
         contextId: source.contextId,
@@ -1104,8 +1113,12 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
         ? null
         : CommandBlock(
             id: '${widget.id}-reader-$index',
+            sourceBlockId: source.sourceBlockId,
             command: source.command,
             cwd: source.cwd,
+            shellHostname: source.shellHostname,
+            shellUsername: source.shellUsername,
+            sftpContextId: source.sftpContextId,
             columns: source.columns,
             lines: rows,
             hyperlinks: links,
@@ -1760,6 +1773,7 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
             child: CommandBlockTerminal(
               key: ValueKey(page.id),
               block: page,
+              semanticContext: _semanticContextForBlock(c, page),
               font: widget.font,
               scrollOutput: false,
               scrollHorizontally: false,
@@ -1772,6 +1786,11 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
               onScrollLines: _scrollSelectionLines,
               captureSelectionText: _captureSelectionText,
               onMeasuredCellSizeChanged: _measured,
+              onLinkContextMenu: widget.onLinkContextMenu == null
+                  ? null
+                  : (target) {
+                      if (_canInteract) widget.onLinkContextMenu!(target);
+                    },
               onOpenLinkTarget: widget.onOpenLinkTarget == null
                   ? null
                   : (target) {

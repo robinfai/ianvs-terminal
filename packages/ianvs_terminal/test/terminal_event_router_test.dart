@@ -69,6 +69,7 @@ void main() {
         'ssh_host_key_prompt': TerminalImmediateEventKind.sshHostKeyPrompt,
         'bell': TerminalImmediateEventKind.bell,
         'shell_hook': TerminalImmediateEventKind.shellHook,
+        'output_text': TerminalImmediateEventKind.outputText,
         'shell_context': TerminalImmediateEventKind.shellContext,
         'shell_command': TerminalImmediateEventKind.shellCommand,
         'shell_user_var': TerminalImmediateEventKind.shellUserVar,

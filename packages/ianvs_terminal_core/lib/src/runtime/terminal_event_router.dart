@@ -14,6 +14,7 @@ enum TerminalImmediateEventKind {
   sshHostKeyPrompt,
   bell,
   shellHook,
+  outputText,
   shellContext,
   shellCommand,
   shellUserVar,
@@ -122,6 +123,10 @@ final class TerminalEventRouter {
       ),
       'bell' => TerminalImmediateEventRoute(
         kind: TerminalImmediateEventKind.bell,
+        payload: event.payload,
+      ),
+      'output_text' => TerminalImmediateEventRoute(
+        kind: TerminalImmediateEventKind.outputText,
         payload: event.payload,
       ),
       'shell_hook' => TerminalImmediateEventRoute(

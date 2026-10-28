@@ -13,6 +13,8 @@ class CommandBlockTerminal extends StatefulWidget {
     this.font = const TerminalFontConfig(),
     this.onMeasuredCellSizeChanged,
     this.onOpenLinkTarget,
+    this.onLinkContextMenu,
+    this.semanticContext,
     this.onScrollLines,
     this.maxHeight = double.infinity,
     this.previewLines,
@@ -37,6 +39,8 @@ class CommandBlockTerminal extends StatefulWidget {
   final TerminalFontConfig font;
   final ValueChanged<Size>? onMeasuredCellSizeChanged;
   final ValueChanged<TerminalLinkTarget>? onOpenLinkTarget;
+  final ValueChanged<TerminalLinkTarget>? onLinkContextMenu;
+  final TerminalSemanticContext? semanticContext;
   final ValueChanged<int>? onScrollLines;
 
   /// A viewport budget, rounded down to whole terminal rows after measuring
@@ -341,6 +345,8 @@ class _CommandBlockTerminalState extends State<CommandBlockTerminal>
                 widget.block.suspended ||
                 widget.liveInput == null,
             child: TerminalViewport(
+              semanticContextForRow: (_) =>
+                  _matchingBlockContext(widget.block, widget.semanticContext),
               controller: _viewport,
               selectionController: _selection,
               searchMatches: [
@@ -379,6 +385,7 @@ class _CommandBlockTerminalState extends State<CommandBlockTerminal>
                 }
               },
               onOpenLinkTarget: widget.onOpenLinkTarget,
+              onLinkContextMenu: widget.onLinkContextMenu,
               useFrameDefaultColors: false,
               altClickMovesCursor: false,
               // The enclosing scrollables own pixel deltas and inertia. This

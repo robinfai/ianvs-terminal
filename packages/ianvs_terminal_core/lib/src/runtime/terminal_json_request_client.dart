@@ -34,6 +34,21 @@ final class TerminalJsonRequestClient {
   final TerminalSessionRequestTransport _transport;
   final TerminalBackendRequestErrorHandler? _onRequestError;
 
+  String? observeOutput(String sessionId, bool enabled) {
+    final result = _requestJsonObject(sessionId, 'terminal.observe_output', {
+      'enabled': enabled,
+    });
+    final subscription = result?['subscription'];
+    if (result?.length != 2 ||
+        result?['enabled'] != enabled ||
+        subscription is! String ||
+        !RegExp(r'^(0|[1-9][0-9]{0,19})$').hasMatch(subscription) ||
+        BigInt.parse(subscription) > BigInt.parse('18446744073709551615')) {
+      return null;
+    }
+    return subscription;
+  }
+
   Map<String, Object?>? commandBlocks(
     String sessionId,
     Map<String, Object?> payload,

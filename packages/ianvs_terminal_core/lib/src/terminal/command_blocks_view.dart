@@ -16,6 +16,7 @@ import 'selection_controller.dart';
 import 'terminal_input_controller.dart';
 import 'terminal_input_sink.dart';
 import 'terminal_models.dart';
+import 'terminal_semantic_target.dart';
 import 'terminal_viewport.dart';
 import 'terminal_viewport_colors.dart';
 
@@ -67,6 +68,7 @@ class TerminalCommandBlocksView extends StatefulWidget {
     this.font = const TerminalFontConfig(),
     this.onMeasuredCellSizeChanged,
     this.onOpenLinkTarget,
+    this.onLinkContextMenu,
     this.onAskAi,
     this.onAttachBlocks,
     this.onAttachRange,
@@ -88,6 +90,7 @@ class TerminalCommandBlocksView extends StatefulWidget {
   final TerminalFontConfig font;
   final ValueChanged<Size>? onMeasuredCellSizeChanged;
   final ValueChanged<TerminalLinkTarget>? onOpenLinkTarget;
+  final ValueChanged<TerminalLinkTarget>? onLinkContextMenu;
   final ValueChanged<CommandBlock>? onAskAi;
   final ValueChanged<List<CommandBlock>>? onAttachBlocks;
   final ValueChanged<CommandBlock>? onAttachRange;
@@ -810,7 +813,7 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
       label: '${t('Command block', '命令块')}: ${block.command}',
       child: GestureDetector(
         key: _keys.putIfAbsent(block.id, GlobalKey.new),
-        onSecondaryTapDown: (details) {
+        onSecondaryTapUp: (details) {
           _select(block.id);
           unawaited(_menu(block, details.globalPosition));
         },
@@ -1132,6 +1135,7 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
   Widget _blockTerminal(CommandBlock block) => CommandBlockTerminal(
     key: ValueKey('block-terminal-${block.id}'),
     block: block,
+    semanticContext: _semanticContextForBlock(c, block),
     font: widget.font,
     liveInput: block.running && !block.suspended ? widget.liveInput : null,
     liveFocus: block.running && !block.suspended ? widget.liveFocus : null,
@@ -1146,6 +1150,7 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
       }
     },
     onOpenLinkTarget: widget.onOpenLinkTarget,
+    onLinkContextMenu: widget.onLinkContextMenu,
   );
 
   Widget _blockSummary(
@@ -1356,4 +1361,32 @@ class _BlockCommandTitleState extends State<_BlockCommandTitle> {
       child: widget.child,
     );
   }
+}
+
+TerminalSemanticContext? _semanticContextForBlock(
+  CommandBlockController controller,
+  CommandBlock block,
+) {
+  final occurrence = controller.occurrenceFor(block.id);
+  return _matchingBlockContext(
+    block,
+    occurrence == null
+        ? null
+        : TerminalSemanticContext.fromOccurrence(occurrence),
+  );
+}
+
+TerminalSemanticContext? _matchingBlockContext(
+  CommandBlock block,
+  TerminalSemanticContext? context,
+) {
+  // A retained reader page must not inherit a refreshed command's metadata.
+  if (context == null ||
+      block.cwd != context.cwd ||
+      block.contextId != context.contextId ||
+      block.shellHostname != context.shellHostname ||
+      block.sftpContextId != context.sftpContextId) {
+    return null;
+  }
+  return context;
 }

@@ -9,6 +9,7 @@ import 'package:ianvs_pty/ianvs_pty.dart';
 import '../config/terminal_config.dart';
 import '../config/terminal_session_config_v1.dart';
 import '../recording/terminal_replay_backend.dart';
+import '../terminal/command_occurrence.dart';
 import '../terminal/selection_controller.dart';
 import '../terminal/terminal_graphics_cache.dart';
 import '../terminal/terminal_graphics_diagnostics.dart';
@@ -106,6 +107,75 @@ sealed class TerminalSessionEvent {
   const TerminalSessionEvent(this.sessionId);
 
   final String sessionId;
+}
+
+/// Live, bounded, self-contained logical output; never reconstructed from frames.
+final class TerminalSessionOutputTextEvent extends TerminalSessionEvent {
+  const TerminalSessionOutputTextEvent(
+    super.sessionId, {
+    required this.sessionEpoch,
+    required this.subscription,
+    required this.lineId,
+    required this.revision,
+    required this.text,
+    required this.complete,
+    required this.dropped,
+  });
+  final int sessionEpoch;
+  final String subscription;
+  final String lineId;
+  final String revision;
+  final String text;
+  final bool complete;
+  final int dropped;
+
+  static TerminalSessionOutputTextEvent? parse(
+    String sessionId,
+    int epoch,
+    Map<String, Object?>? value,
+  ) {
+    if (value == null ||
+        value.length != 6 ||
+        !value.keys.toSet().containsAll({
+          'subscription',
+          'lineId',
+          'revision',
+          'text',
+          'complete',
+          'dropped',
+        })) {
+      return null;
+    }
+    bool identity(Object? v) =>
+        v is String &&
+        RegExp(r'^(0|[1-9][0-9]{0,19})$').hasMatch(v) &&
+        BigInt.parse(v) <= BigInt.parse('18446744073709551615');
+    final text = value['text'];
+    final dropped = value['dropped'];
+    if (!identity(value['subscription']) ||
+        !identity(value['lineId']) ||
+        !identity(value['revision']) ||
+        text is! String ||
+        utf8.encode(text).length > 4096 ||
+        text.runes.any((r) => r < 32 && r != 9 || r >= 127 && r <= 159) ||
+        value['complete'] is! bool ||
+        dropped is! int ||
+        dropped < 0 ||
+        dropped > 1048576 ||
+        (dropped > 0 && text.isNotEmpty)) {
+      return null;
+    }
+    return TerminalSessionOutputTextEvent(
+      sessionId,
+      sessionEpoch: epoch,
+      subscription: value['subscription']! as String,
+      lineId: value['lineId']! as String,
+      revision: value['revision']! as String,
+      text: text,
+      complete: value['complete']! as bool,
+      dropped: dropped,
+    );
+  }
 }
 
 final class TerminalSessionFrameEvent extends TerminalSessionEvent {
@@ -1610,6 +1680,57 @@ class TerminalRuntimeController implements TerminalProtocolInputSink {
   /// incarnation in this controller.
   int? sessionEpochFor(String sessionId) => _sessionEpochs[sessionId];
 
+  final Map<String, CommandOccurrenceScope> _commandOccurrenceScopes = {};
+  final Map<String, String> _invalidatedSemanticSnapshotTokens = {};
+
+  /// Actual launch transport, unaffected by shell OSC declarations or UI profile switches.
+  CommandOccurrenceScope? commandOccurrenceScopeFor(String sessionId) =>
+      _commandOccurrenceScopes[sessionId];
+
+  /// Resolves only provenance frozen with the currently displayed frame.
+  /// No current cwd, preview row, or matching text can substitute for identity.
+  CommandOccurrence? occurrenceForFrameRow(
+    String sessionId, {
+    required int sessionEpoch,
+    required String frameRevision,
+    required int viewportRow,
+  }) {
+    if (!_productEventWorkAllowed(sessionId, sessionEpoch)) return null;
+    final scope = commandOccurrenceScopeFor(sessionId);
+    if (scope == null ||
+        scope.sessionEpoch != sessionEpoch ||
+        scope.transport.kind == CommandTransportKind.replay) {
+      return null;
+    }
+    final frame = existingViewportFor(sessionId)?.frame;
+    if (frame == null ||
+        frameRevision.isEmpty ||
+        frame.semanticSnapshotToken != frameRevision ||
+        _invalidatedSemanticSnapshotTokens[sessionId] == frameRevision ||
+        frame.modes.alternateScreen ||
+        viewportRow < 0 ||
+        viewportRow >= frame.viewportRows) {
+      return null;
+    }
+    final blockId = frame.semanticRowContexts[viewportRow];
+    final context = frame.semanticBlocks[blockId];
+    if (context == null || context.id != blockId) return null;
+    // This is an ownership projection, not a new command-history entry.
+    return CommandOccurrence(
+      scope: scope,
+      blockId: context.id,
+      presentationBlockId: context.id,
+      command: '',
+      cwd: context.cwd,
+      contextId: context.contextId,
+      sftpContextId: context.sftpContextId,
+      shellHostname: context.shellHostname,
+      shellUsername: context.shellUsername,
+      lifecycle: CommandOccurrenceLifecycle.unknown,
+      outputRetention: CommandOutputRetention.unknown,
+    );
+  }
+
   bool get _productOperationsAllowed => !_shutdownStarted && !_disposed;
 
   bool _productSessionAvailable(String sessionId) {
@@ -1689,6 +1810,7 @@ class TerminalRuntimeController implements TerminalProtocolInputSink {
   String createSession(
     TerminalSessionConfig config, {
     Set<int> retainExitCodes = const {},
+    bool observeOutput = false,
   }) {
     _requireProductOperationsAllowed();
     final resolvedConfig = _resolveColorsForRuntime(config);
@@ -1726,15 +1848,34 @@ class TerminalRuntimeController implements TerminalProtocolInputSink {
       ).toJsonString(),
     );
     _sessions.register(sessionId);
+    _outputObservation.remove(sessionId);
+    _outputObservationNeedsReset.remove(sessionId);
     _retainExitCodes[sessionId] = Set.unmodifiable(retainExitCodes);
     _sessionEpochSeed += 1;
     _sessionEpochs[sessionId] = _sessionEpochSeed;
+    final connection = resolvedConfig.connection;
+    _commandOccurrenceScopes[sessionId] = CommandOccurrenceScope(
+      sessionId: sessionId,
+      sessionEpoch: _sessionEpochSeed,
+      transport: CommandTransportIdentity(
+        kind: backend is TerminalReplayBackend
+            ? CommandTransportKind.replay
+            : connection.isSsh
+            ? CommandTransportKind.ssh
+            : CommandTransportKind.local,
+        host: connection.isSsh ? connection.host : null,
+        user: connection.isSsh ? connection.user : null,
+        port: connection.isSsh ? connection.port : null,
+      ),
+    );
+
     _framePumpController.reset(
       sessionId,
       now: _monotonicNow,
       reason: TerminalFramePumpResetReason.activation,
       active: true,
     );
+    if (observeOutput) setOutputObservation(sessionId, enabled: true);
     _requestRefreshSession(sessionId, immediate: true);
     if (enableSessionPolling) {
       _startPolling();
@@ -1742,6 +1883,74 @@ class TerminalRuntimeController implements TerminalProtocolInputSink {
       _scheduleWarmUpRefreshes(sessionId);
     }
     return sessionId;
+  }
+
+  final Map<String, ({bool enabled, String subscription})> _outputObservation =
+      {};
+  final Set<String> _outputObservationNeedsReset = {};
+  final Set<String> _outputObservationChanging = {};
+  final Set<String> _outputObservationInvalidatedDuringChange = {};
+
+  /// Recheck at effect execution: a UI queue may outlive a subscription change.
+  bool isCurrentOutputObservation(TerminalSessionOutputTextEvent event) {
+    final observation = _outputObservation[event.sessionId];
+    return _productEventWorkAllowed(event.sessionId, event.sessionEpoch) &&
+        observation?.enabled == true &&
+        observation?.subscription == event.subscription;
+  }
+
+  void setOutputObservation(String sessionId, {required bool enabled}) {
+    if (!_productSessionAvailable(sessionId) ||
+        _backend is TerminalReplayBackend) {
+      return;
+    }
+    if (!_outputObservationChanging.add(sessionId)) {
+      // Backend errors emit synchronous signals. A listener can resync rules
+      // here; revoke without recursively retrying the failing operation.
+      _outputObservation.remove(sessionId);
+      _outputObservationNeedsReset.add(sessionId);
+      _outputObservationInvalidatedDuringChange.add(sessionId);
+      return;
+    }
+    try {
+      _changeOutputObservation(sessionId, enabled: enabled);
+    } finally {
+      _outputObservationChanging.remove(sessionId);
+      _outputObservationInvalidatedDuringChange.remove(sessionId);
+    }
+  }
+
+  void _changeOutputObservation(String sessionId, {required bool enabled}) {
+    final epoch = _sessionEpochs[sessionId]!;
+    if (_outputObservationNeedsReset.contains(sessionId)) {
+      // An unknown native outcome cannot safely reuse its old subscription.
+      // Reconcile disabled before asking for a fresh enabled generation.
+      final reset = _jsonRequestClient.observeOutput(sessionId, false);
+      if (!_productEventWorkAllowed(sessionId, epoch) ||
+          _outputObservationInvalidatedDuringChange.contains(sessionId) ||
+          reset == null) {
+        return;
+      }
+      _outputObservationNeedsReset.remove(sessionId);
+      _outputObservation[sessionId] = (enabled: false, subscription: reset);
+    }
+    if ((_outputObservation[sessionId]?.enabled ?? false) == enabled) return;
+    // Revoke queued actions before crossing the backend boundary, even when
+    // disabling fails or its response is lost.
+    _outputObservation.remove(sessionId);
+    final subscription = _jsonRequestClient.observeOutput(sessionId, enabled);
+    if (!_productEventWorkAllowed(sessionId, epoch) ||
+        _outputObservationInvalidatedDuringChange.contains(sessionId)) {
+      return;
+    }
+    if (subscription != null) {
+      _outputObservation[sessionId] = (
+        enabled: enabled,
+        subscription: subscription,
+      );
+    } else {
+      _outputObservationNeedsReset.add(sessionId);
+    }
   }
 
   void setSessionActive(String sessionId, {required bool active}) {
@@ -2511,6 +2720,7 @@ class TerminalRuntimeController implements TerminalProtocolInputSink {
     // The native core owns scrollback. A successful request clears the Rust
     // emulator buffer and schedules an authoritative full frame; do not blank
     // visible Dart rows as a substitute for that native operation.
+    _invalidateSemanticSnapshot(sessionId);
     return _jsonRequestClient.clearScrollback(sessionId);
   }
 
@@ -2571,6 +2781,7 @@ class TerminalRuntimeController implements TerminalProtocolInputSink {
         'The SFTP directory request was cancelled.',
       );
     }
+    final sessionEpoch = _sessionEpochs[sessionId]!;
     final jobId = _jsonRequestClient.startSftpDirectoryListing(
       sessionId,
       path,
@@ -2590,13 +2801,16 @@ class TerminalRuntimeController implements TerminalProtocolInputSink {
             'The SFTP directory request was cancelled.',
           );
         }
-        if (!_productSessionAvailable(sessionId)) {
+        if (!_productEventWorkAllowed(sessionId, sessionEpoch)) {
           throw const TerminalSftpException('The SSH session was closed.');
         }
         final result = _jsonRequestClient.pollSftpDirectoryListing(
           sessionId,
           jobId,
         );
+        if (!_productEventWorkAllowed(sessionId, sessionEpoch)) {
+          throw const TerminalSftpException('The SSH session was closed.');
+        }
         switch (result?.status) {
           case TerminalSftpDirectoryPollStatus.pending:
             final cancelled = await _waitForSftpPollOrCancellation(
@@ -2625,7 +2839,7 @@ class TerminalRuntimeController implements TerminalProtocolInputSink {
         'The SFTP directory request timed out.',
       );
     } finally {
-      if (!completed && hasSession(sessionId)) {
+      if (!completed && _productEventWorkAllowed(sessionId, sessionEpoch)) {
         _jsonRequestClient.cancelSftpDirectoryListing(sessionId, jobId);
       }
     }
@@ -2733,6 +2947,7 @@ class TerminalRuntimeController implements TerminalProtocolInputSink {
     if (cancellation?.isCancelled == true) {
       throw const TerminalSftpException('The SFTP file request was cancelled.');
     }
+    final sessionEpoch = _sessionEpochs[sessionId]!;
     final jobId = _jsonRequestClient.startSftpOperation(
       sessionId,
       action: action,
@@ -2755,10 +2970,13 @@ class TerminalRuntimeController implements TerminalProtocolInputSink {
             'The SFTP file request was cancelled.',
           );
         }
-        if (!_productSessionAvailable(sessionId)) {
+        if (!_productEventWorkAllowed(sessionId, sessionEpoch)) {
           throw const TerminalSftpException('The SSH session was closed.');
         }
         final result = _jsonRequestClient.pollSftpOperation(sessionId, jobId);
+        if (!_productEventWorkAllowed(sessionId, sessionEpoch)) {
+          throw const TerminalSftpException('The SSH session was closed.');
+        }
         switch (result?.status) {
           case TerminalSftpOperationPollStatus.pending:
             final cancelled = await _waitForSftpPollOrCancellation(
@@ -2785,7 +3003,7 @@ class TerminalRuntimeController implements TerminalProtocolInputSink {
       }
       throw const TerminalSftpException('The SFTP file request timed out.');
     } finally {
-      if (!completed && hasSession(sessionId)) {
+      if (!completed && _productEventWorkAllowed(sessionId, sessionEpoch)) {
         _jsonRequestClient.cancelSftpOperation(sessionId, jobId);
       }
     }
@@ -2814,6 +3032,7 @@ class TerminalRuntimeController implements TerminalProtocolInputSink {
     if (!_productSessionAvailable(sessionId)) {
       return false;
     }
+    _invalidateSemanticSnapshot(sessionId);
     return _jsonRequestClient.clearBuffer(sessionId);
   }
 
@@ -2828,6 +3047,7 @@ class TerminalRuntimeController implements TerminalProtocolInputSink {
     if (!_productSessionAvailable(sessionId) || id.isEmpty) {
       return false;
     }
+    _invalidateSemanticSnapshot(sessionId);
     if (!_jsonRequestClient.setBlockFolded(sessionId, id, folded: folded)) {
       return false;
     }
@@ -2844,6 +3064,7 @@ class TerminalRuntimeController implements TerminalProtocolInputSink {
     if (!_productSessionAvailable(sessionId) || id.isEmpty) {
       return false;
     }
+    _invalidateSemanticSnapshot(sessionId);
     if (!_jsonRequestClient.setBlockRendered(
       sessionId,
       id,
@@ -3354,6 +3575,14 @@ class TerminalRuntimeController implements TerminalProtocolInputSink {
     );
   }
 
+  void _invalidateSemanticSnapshot(String sessionId) {
+    final token = _sessions
+        .existingViewportFor(sessionId)
+        ?.frame
+        .semanticSnapshotToken;
+    if (token != null) _invalidatedSemanticSnapshotTokens[sessionId] = token;
+  }
+
   bool _runBackendOperation(
     String sessionId,
     String operation,
@@ -3361,6 +3590,11 @@ class TerminalRuntimeController implements TerminalProtocolInputSink {
   ) {
     if (!_productOperationsAllowed) {
       return false;
+    }
+    if (operation == 'resizeSession' ||
+        operation == 'scrollViewport' ||
+        operation == 'scrollViewportTo') {
+      _invalidateSemanticSnapshot(sessionId);
     }
     try {
       run();
@@ -4294,6 +4528,19 @@ class TerminalRuntimeController implements TerminalProtocolInputSink {
           sessionEpoch,
           TerminalSessionBellEvent(sessionId),
         );
+      case TerminalImmediateEventKind.outputText:
+        if (_backend is TerminalReplayBackend) return;
+        final event = TerminalSessionOutputTextEvent.parse(
+          sessionId,
+          sessionEpoch,
+          route.payload,
+        );
+        final observation = _outputObservation[sessionId];
+        if (event != null &&
+            observation?.enabled == true &&
+            observation?.subscription == event.subscription) {
+          _emitEventIfCurrent(sessionId, sessionEpoch, event);
+        }
       case TerminalImmediateEventKind.shellHook:
         _emitEventIfCurrent(
           sessionId,
@@ -6093,6 +6340,10 @@ class TerminalRuntimeController implements TerminalProtocolInputSink {
     );
     _refreshIdSeeds.remove(sessionId);
     _sessionEpochs.remove(sessionId);
+    _commandOccurrenceScopes.remove(sessionId);
+    _invalidatedSemanticSnapshotTokens.remove(sessionId);
+    _outputObservation.remove(sessionId);
+    _outputObservationNeedsReset.remove(sessionId);
     _lastFrameAppliedAt.remove(sessionId);
     _osc5522RememberedPasswords.remove(sessionId);
     _osc5522PasteTokens.remove(sessionId);
