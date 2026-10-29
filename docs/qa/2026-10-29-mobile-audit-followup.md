@@ -177,3 +177,11 @@ Build 4 独立真机评审新增：
 截图：`54-build4-replay-banner-title.png`、`55-build4-replay-search-early.png`、`56-build4-replay-search-next.png`，均在此前本机临时截图目录。另实测 2x 回放从 0:00 推进至 0:35，显示 `REPLAYQA`，此基础路径通过。
 
 全部录制及移动会话生命周期测试 90 项通过，example 静态分析无问题；补充同一错误隔离测试验证回放自身读取错误可见。build 5 真机复验尚待交付，不将单元/widget 结果升级为真机通过。评审已确认无运行命令或录制，可更新下一包。
+
+### Build 5 交付状态
+
+从隔离提交 `678d2980ab42b1c7f563c3fb81c843175039ad2d` 构建 **0.1.0（5）**，Markdown 仍为 `36b956e`。深度签名、同 bundle/钥匙串组、provisioning 有效期和目标设备授权通过；devicectl 确认同一 iPhone 17 原位安装成功（database sequence 3000）。未卸载清数据或读取修改 Key，未推送合并。
+
+安装后设备连接随即异常，启动返回 CoreDevice 4000，版本查询及一次重试返回 4016。因此目前仅确认构建包版本和安装成功，**未确认安装后启动、只读版本查询或 M08–M10 真机复验通过**。已通知独立评审恢复镜像连接并手动打开 Trail，未重复安装。
+
+包指纹与来源：`/private/tmp/trail-build5-package-verified.json`；成功安装证据：`/private/tmp/trail-build5-phone-install.json`。补充的录制错误显示测试按真实手机交互打开错误详情后通过；此前直接查找完整消息的断言不符合手机折叠摘要行为，已修正。
