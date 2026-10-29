@@ -84,3 +84,16 @@ M06 构建交付后仍待独立模拟器 UI 复验；真机未更新。截图继
 - M05 未包含在本包，继续待交付，不发布上游其他未发布改动。
 
 安装包签名与 SHA256 指纹留存 `/private/tmp/trail-phone-update-package-verified.json`；安装、启动和安装后版本证据分别为 `/private/tmp/trail-phone-update-install.json`、`trail-phone-update-launch.json`、`trail-phone-update-after.json`。这些本机临时证据未作为长期附件随仓库提交。签名工具默认输出未能解析，改用 `--xml` 后正确读取并校验；未通过重新签名或放宽验证绕过检查。
+
+### 真机 build 2 黑盒复验通过（17:42–17:44）
+
+独立评审在已原位更新的 iPhone 17 / Trail 0.1.0（2）上确认：
+
+- 原 SSH 连接和任务历史保留；新任务 Shell 就绪。既有 AI 配置无需重新录入，即成功生成 `printf PHONE_UPDATE_OK` 提案。这是配置可用性的黑盒证据，未读取凭据内容。
+- **M04 核心路径通过：** 完整审批页显示正确的 `user@host:port`，没有内部 `root` 标签。
+- **M06 核心路径通过：** 连续两次编辑，依次追加 `1`、`2`；每次保存均立即留在最新完整审批页，用户修改及原始目的待核对提示正常。
+- 仅对最终 `printf PHONE_UPDATE_OK12` 明确执行一次；证据显示一行 `PHONE_UPDATE_OK12`，退出码 0。真实 AI 明确将其识别为用户编辑后批准的命令，正确归因且未重跑原版。
+
+证据位于 `/private/tmp/trail-mobile-audit-20261029/`：`36-iphone-build2-m04-fixed.png`、`37-iphone-build2-m06-review.png`、`38-iphone-build2-ai-edit-source.png`、`39-iphone-build2-output.png`。
+
+本段结论限定为上述真机 build 2 的数据/配置保留验证及 M04/M06 核心路径，不扩展为全量真机功能验收。M01–M03 的模拟器验收结论保持不变，不自动升级为真机通过；M05 仍未进入安装包，保持待交付、未关闭。
