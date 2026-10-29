@@ -49,3 +49,5 @@
 本地 macOS 27：example 全量 3,916 passed / 2 skipped；共享 terminal_core 包全量 1,109 passed / 1 skipped；native/core 全量 cargo test 通过。example 静态分析无问题，规范源码与 standalone 镜像一致，差异空白检查通过。12 张有意变化的视觉基线逐张检查后更新 macOS 27 版本；macOS 26 版本须使用对应 CI 产物验证。原生新会话颜色传递由既有新/旧会话隔离回归测试验证，未将此项描述为新增实机复验。
 
 合入主分支已有修复时，保留窗口缩放按钮位置修复，并整合部分恢复的两条保存路径：未操作时保护旧快照；布局变化自动恢复保存，或用户明确采用当前布局。125 项控制器/界面回归通过，包括关闭时不覆盖未改变的旧意图、重排后重启恢复，以及显式采用当前布局。
+
+macOS 26 的 12 张基线来自 Verify run 40828064640（提交 deb71b3b，artifact visual-comparison-failures / 12878370633）的实际 testImage；逐张审核后映射到对应 Profile/终端布局基线，未复制 macOS 27 图片或放宽比较阈值。覆盖七个 Profile 页签、深色/放大文字紧凑布局及三种终端分屏布局。最终新提交须重新通过远端视觉比较。
