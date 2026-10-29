@@ -15,3 +15,11 @@ dev_dependencies:
   test: ^1.26.0
   very_good_analysis: ^10.3.0
   yaml: 3.1.3
+
+# M05: published 0.3.1 plus only the measured ordered-marker backport.
+# Pin the commit until the patch is included in a reviewed package release.
+dependency_overrides:
+  ianvs_markdown:
+    git:
+      url: https://github.com/robinfai/ianvs-markdown.git
+      ref: 36b956e920d3c9d0e5199731deadfc9664a6e50a
