@@ -5746,33 +5746,129 @@ void main() {
     },
   );
 
-  test(
-    'terminal layout relaunch failure is retained as a visible state error',
-    () async {
-      final workspaceRepository = _TestLocalTerminalLayoutRepository(
-        TerminalLayout(
-          activeTabId: 'old-tab',
-          tabs: [
-            TerminalLayoutTab(
-              id: 'old-tab',
-              activePaneId: 'old-pane',
-              root: TerminalPaneNode.leaf(
-                id: 'old-pane',
-                sessionIntent: const TerminalRelaunchSpec(
-                  profileId: 'removed-profile',
-                  cwd: '/workspace',
+  for (final acceptCurrentLayout in [false, true]) {
+    test(
+      'terminal layout relaunch failure preserves intent unless accepted: $acceptCurrentLayout',
+      () async {
+        final workspaceRepository = _TestLocalTerminalLayoutRepository(
+          TerminalLayout(
+            activeTabId: 'old-tab',
+            tabs: [
+              TerminalLayoutTab(
+                id: 'old-tab',
+                activePaneId: 'old-pane',
+                root: TerminalPaneNode.leaf(
+                  id: 'old-pane',
+                  sessionIntent: const TerminalRelaunchSpec(
+                    profileId: 'removed-profile',
+                    cwd: '/workspace',
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+        final container = ProviderContainer(
+          overrides: [
+            ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
+            profileRepositoryProvider.overrideWithValue(
+              _TestProfileRepository(
+                TerminalProfilesDocument(profiles: [defaultProfile]),
+              ),
+            ),
+            appPreferencesRepositoryProvider.overrideWithValue(
+              _TestAppPreferencesRepository(null),
+            ),
+            localTerminalConfigRepositoryProvider.overrideWithValue(
+              _TestLocalTerminalConfigRepository(
+                const LocalTerminalConfigDocument(
+                  layout: LocalTerminalLayoutConfig(restoreLayout: true),
                 ),
               ),
             ),
+            localTerminalLayoutRepositoryProvider.overrideWithValue(
+              workspaceRepository,
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        container.read(sessionControllerProvider.notifier);
+        await _waitForCondition(
+          condition: () => container.read(sessionControllerProvider).isReady,
+          description: 'fallback after terminal layout relaunch failure',
+        );
+
+        final state = container.read(sessionControllerProvider);
+        expect(state.tabs, hasLength(1));
+        expect(state.tabs.single.profileId, defaultProfile.id);
+        expect(
+          state.lastError,
+          contains('Terminal layout restore skipped 1 pane'),
+        );
+        expect(state.lastError, contains('removed-profile'));
+        await container
+            .read(sessionControllerProvider.notifier)
+            .flushLayoutPersistence();
+        if (!acceptCurrentLayout) {
+          await container
+              .read(appShutdownCoordinatorProvider)
+              .shutdown(bounded: false);
+          expect(workspaceRepository.savedDocuments, isEmpty);
+          return;
+        }
+        final controller = container.read(sessionControllerProvider.notifier);
+        expect(controller.canReplaceFailedLayout, isTrue);
+        await controller.flushLayoutPersistence();
+        expect(workspaceRepository.savedDocuments, isEmpty);
+        await controller.useCurrentLayoutAfterRestoreFailure();
+        expect(controller.canReplaceFailedLayout, isFalse);
+        expect(container.read(sessionControllerProvider).lastError, isNull);
+        expect(workspaceRepository.savedDocuments, hasLength(1));
+        expect(
+          workspaceRepository
+              .document!
+              .tabs
+              .single
+              .root
+              .relaunchSpec!
+              .profileId,
+          defaultProfile.id,
+        );
+        await controller.flushLayoutPersistence();
+        expect(workspaceRepository.savedDocuments, hasLength(2));
+      },
+    );
+  }
+
+  test(
+    'partially restored layout saves reordered tabs and restores the new order',
+    () async {
+      final workspaceRepository = _TestLocalTerminalLayoutRepository(
+        TerminalLayout(
+          activeTabId: 'default',
+          tabs: [
+            for (final profileId in ['default', 'removed-profile', 'ssh'])
+              TerminalLayoutTab(
+                id: profileId,
+                activePaneId: 'old-pane',
+                root: TerminalPaneNode.leaf(
+                  id: 'old-pane',
+                  sessionIntent: TerminalRelaunchSpec(
+                    profileId: profileId,
+                    cwd: '/workspace',
+                  ),
+                ),
+              ),
           ],
         ),
       );
-      final container = ProviderContainer(
+      ProviderContainer makeContainer() => ProviderContainer(
         overrides: [
           ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
           profileRepositoryProvider.overrideWithValue(
             _TestProfileRepository(
-              TerminalProfilesDocument(profiles: [defaultProfile]),
+              TerminalProfilesDocument(profiles: [defaultProfile, sshProfile]),
             ),
           ),
           appPreferencesRepositoryProvider.overrideWithValue(
@@ -5790,37 +5886,53 @@ void main() {
           ),
         ],
       );
+      final container = makeContainer();
       addTearDown(container.dispose);
 
-      container.read(sessionControllerProvider.notifier);
+      final controller = container.read(sessionControllerProvider.notifier);
       await _waitForCondition(
         condition: () => container.read(sessionControllerProvider).isReady,
         description: 'fallback after terminal layout relaunch failure',
       );
 
-      final state = container.read(sessionControllerProvider);
-      expect(state.tabs, hasLength(1));
-      expect(state.tabs.single.profileId, defaultProfile.id);
-      expect(
-        state.lastError,
-        contains('Terminal layout restore skipped 1 pane'),
-      );
-      expect(state.lastError, contains('removed-profile'));
-      expect(workspaceRepository.savedDocuments, isEmpty);
-      final controller = container.read(sessionControllerProvider.notifier);
-      expect(controller.canReplaceFailedLayout, isTrue);
+      expect(container.read(sessionControllerProvider).tabs, hasLength(2));
       await controller.flushLayoutPersistence();
-      expect(workspaceRepository.savedDocuments, isEmpty);
-      await controller.useCurrentLayoutAfterRestoreFailure();
-      expect(controller.canReplaceFailedLayout, isFalse);
-      expect(container.read(sessionControllerProvider).lastError, isNull);
-      expect(workspaceRepository.savedDocuments, hasLength(1));
       expect(
-        workspaceRepository.document!.tabs.single.root.relaunchSpec!.profileId,
-        defaultProfile.id,
+        workspaceRepository.savedDocuments,
+        isEmpty,
+        reason: 'An unchanged partial restore must preserve the old intent',
       );
-      await controller.flushLayoutPersistence();
-      expect(workspaceRepository.savedDocuments, hasLength(2));
+
+      controller.reorderTab(oldIndex: 0, newIndex: 1);
+      await _waitForCondition(
+        condition: () => workspaceRepository.savedDocuments.isNotEmpty,
+        description: 'automatic save after reordering partially restored tabs',
+      );
+      await container
+          .read(appShutdownCoordinatorProvider)
+          .shutdown(bounded: false);
+      expect(
+        workspaceRepository.document!.tabs.map(
+          (tab) => tab.root.sessionIntent!.profileId,
+        ),
+        ['ssh', 'default'],
+      );
+
+      final restarted = makeContainer();
+      addTearDown(restarted.dispose);
+      restarted.read(sessionControllerProvider.notifier);
+      await _waitForCondition(
+        condition: () => restarted.read(sessionControllerProvider).isReady,
+        description: 'restore latest reordered layout',
+      );
+      expect(
+        restarted
+            .read(sessionControllerProvider)
+            .tabs
+            .map((tab) => tab.profileId),
+        ['ssh', 'default'],
+      );
+      expect(restarted.read(sessionControllerProvider).lastError, isNull);
     },
   );
 

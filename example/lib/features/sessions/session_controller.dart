@@ -516,6 +516,7 @@ class SessionController extends Notifier<SessionState> {
   bool _layoutPersistenceEnabled = false;
   bool _layoutPersistenceBlocked = false;
   bool _layoutRestoreHasFailures = false;
+  bool _layoutAwaitingChangeAfterRestore = false;
 
   bool get canReplaceFailedLayout => _layoutRestoreHasFailures;
   Timer? _layoutPersistenceTimer;
@@ -755,6 +756,7 @@ class SessionController extends Notifier<SessionState> {
   Future<void> _bootstrap() async {
     _layoutPersistenceBlocked = false;
     _layoutRestoreHasFailures = false;
+    _layoutAwaitingChangeAfterRestore = false;
     final demoFixture = ref.read(sessionDemoFixtureProvider);
     if (demoFixture != null) {
       for (final tab in demoFixture.tabs) {
@@ -854,7 +856,9 @@ class SessionController extends Notifier<SessionState> {
           initialSessionId = restored.activeSessionId;
           if (restored.failures.isNotEmpty) {
             _layoutRestoreHasFailures = true;
-            _layoutPersistenceBlocked = true;
+            // Preserve the saved intent until the live layout changes, but do
+            // not permanently disable saving because a profile was removed.
+            _layoutAwaitingChangeAfterRestore = true;
             layoutRestoreError = _layoutRestoreFailureMessage(
               restored.failures,
             );
@@ -1049,6 +1053,7 @@ class SessionController extends Notifier<SessionState> {
     if (snapshot == _lastLayoutSnapshot) {
       return;
     }
+    _layoutAwaitingChangeAfterRestore = false;
     _lastLayoutSnapshot = snapshot;
     _layoutPersistenceTimer?.cancel();
     _layoutPersistenceTimer = Timer(_layoutPersistenceDebounce, () {
@@ -1069,6 +1074,7 @@ class SessionController extends Notifier<SessionState> {
   Future<void> useCurrentLayoutAfterRestoreFailure() async {
     if (!_layoutRestoreHasFailures || !state.isReady) return;
     final previousError = state.lastError;
+    _layoutAwaitingChangeAfterRestore = false;
     _layoutPersistenceBlocked = false;
     _enableLayoutPersistence();
     final intended = jsonEncode(
@@ -1090,7 +1096,9 @@ class SessionController extends Notifier<SessionState> {
       await (_sessionShutdownFuture ?? _layoutSaveChain);
       return;
     }
-    if (!_layoutPersistenceEnabled || !state.isReady) {
+    if (!_layoutPersistenceEnabled ||
+        _layoutAwaitingChangeAfterRestore ||
+        !state.isReady) {
       return;
     }
     _layoutPersistenceTimer?.cancel();
@@ -2793,7 +2801,10 @@ class SessionController extends Notifier<SessionState> {
     _layoutRetryTimer = null;
 
     final pendingLayoutWrites = _layoutSaveChain;
-    final finalLayout = _layoutPersistenceEnabled && state.isReady
+    final finalLayout =
+        _layoutPersistenceEnabled &&
+            !_layoutAwaitingChangeAfterRestore &&
+            state.isReady
         ? LocalSessionLayoutCodec.capture(state)
         : null;
     if (finalLayout != null) {
@@ -5845,6 +5856,7 @@ class SessionController extends Notifier<SessionState> {
       }
     }
     _layoutPersistenceEnabled = restoreLayout && !_layoutPersistenceBlocked;
+    _layoutAwaitingChangeAfterRestore = false;
     _lastLayoutSnapshot = null;
     if (restoreLayout && state.isReady) {
       await flushLayoutPersistence();
