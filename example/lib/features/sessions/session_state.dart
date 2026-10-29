@@ -43,6 +43,16 @@ class TerminalPane {
       ? shellIntegration.connectionChain
       : ShellConnectionHop.forProfile(profileSnapshot);
 
+  /// Human-readable destination, never the internal shell context identifier.
+  String get executionTargetLabel {
+    final destination = shellConnectionChain.lastOrNull;
+    if (destination?.kind == ShellConnectionHopKind.sshShell &&
+        destination?.host?.isNotEmpty == true) {
+      return destination!.address;
+    }
+    return title;
+  }
+
   /// Effective activation for this pane, including its current policy gates.
   ShellIntegrationCapabilities get shellCapabilities =>
       shellIntegration.capabilities.withPolicy(

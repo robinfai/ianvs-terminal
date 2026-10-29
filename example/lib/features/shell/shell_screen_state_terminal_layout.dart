@@ -388,7 +388,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
       return _aiOverlay(
         pane.sessionId,
         palette,
-        targetLabel: pane.title,
+        targetLabel: pane.executionTargetLabel,
         paneContext: context,
         active: isActive,
       );
@@ -1210,7 +1210,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                   child: ComposerPane(
                                     key: ValueKey('composer-$sessionId'),
                                     session: composerSession,
-                                    targetLabel: pane.title,
+                                    targetLabel: pane.executionTargetLabel,
                                     active:
                                         isActive &&
                                         !_manualInputBlocked(sessionId),
@@ -1237,7 +1237,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                       sessionId,
                       palette,
                       paneContext: context,
-                      targetLabel: pane.title,
+                      targetLabel: pane.executionTargetLabel,
                       active: isActive && !readerController.blocksInput,
                       font: effectiveTerminalFont,
                       colors: terminalColors,

@@ -1201,7 +1201,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
             ],
             const SizedBox(height: 8),
             Text(
-              '${t('Target: ', '执行目标：')}${entry.target?.targetLabel.isNotEmpty == true ? entry.target!.targetLabel : entry.target?.sessionId ?? ''} · ${entry.target?.contextId ?? ''}\n${t('Directory: ', '目录：')}${entry.target?.cwd ?? ''}',
+              '${t('Target: ', '执行目标：')}${entry.target?.targetLabel.isNotEmpty == true ? entry.target!.targetLabel : entry.target?.sessionId ?? ''}\n${t('Directory: ', '目录：')}${entry.target?.cwd ?? ''}',
               key: const Key('ai-action-target'),
               style: Theme.of(context).textTheme.bodySmall,
             ),

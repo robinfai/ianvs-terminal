@@ -948,6 +948,11 @@ void main() {
             .maxLines,
         isNull,
       );
+      final target = tester
+          .widget<Text>(find.byKey(const Key('ai-action-target')))
+          .data!;
+      expect(target, isNot(contains(' · root')));
+      expect(target, contains('Directory:'));
       expect(find.byKey(const Key('ai-approve')).hitTestable(), findsOneWidget);
       expect(terminal.writes, isEmpty);
       terminal.context = contextFor(guard: 'changed');

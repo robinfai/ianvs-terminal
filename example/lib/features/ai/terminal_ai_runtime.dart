@@ -221,7 +221,7 @@ class TerminalAiRuntime
     return AiTerminalContext(
       sessionId: sessionId,
       contextId: contextId,
-      targetLabel: pane.title,
+      targetLabel: pane.executionTargetLabel,
       commandNames: {
         if (state?['commandNames'] case final List<Object?> names)
           ...names.whereType<String>(),

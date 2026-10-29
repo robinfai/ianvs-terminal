@@ -7578,6 +7578,32 @@ void main() {
     },
   );
 
+  test('background SSH failure remains in its source pane', () async {
+    final bindings = _SshEventfulPtyBackend(FakePtyBackend());
+    final profile = TerminalProfile(
+      id: 'ssh-background',
+      name: 'Background SSH',
+      shell: '',
+      connection: const terminal.TerminalConnectionConfig.ssh(
+        host: 'fixture.example',
+        user: 'trailqa',
+      ),
+    );
+    final container = _sshReconnectionContainer(bindings, profile);
+    addTearDown(container.dispose);
+    final controller = container.read(sessionControllerProvider.notifier);
+    final background = controller.createSession(profile)!;
+    final active = controller.createSession(profile)!;
+    await _retainSshExit(bindings, container, background);
+    final state = container.read(sessionControllerProvider);
+    expect(state.activeSessionId, active);
+    expect(state.lastError, isNull);
+    expect(
+      state.tabs.first.activePane.runtimeError?.message,
+      contains('trailqa@fixture.example'),
+    );
+  });
+
   test('closing diagnostics clears only the matching source error', () async {
     for (final closeAsTab in [false, true]) {
       final bindings = _SshEventfulPtyBackend(FakePtyBackend());
@@ -7602,8 +7628,10 @@ void main() {
 
       final first = controller.createSession(profile)!;
       final second = controller.createSession(profile)!;
+      controller.activateSession(first);
       await _retainSshExit(bindings, container, first);
       final firstError = container.read(sessionControllerProvider).lastError;
+      controller.activateSession(second);
       await _retainSshExit(bindings, container, second);
       final currentError = container.read(sessionControllerProvider).lastError;
       // Identical endpoint text must not make the first record own the second error.
@@ -7718,11 +7746,17 @@ void main() {
         container.read(sessionControllerProvider).lastError,
         expectedFailure,
       );
-      controller.createSession(otherSshProfile);
-      expect(
-        container.read(sessionControllerProvider).lastError,
-        expectedFailure,
-      );
+      final healthySessionId = controller.createSession(otherSshProfile)!;
+      expect(container.read(sessionControllerProvider).lastError, isNull);
+      final failedPane = container
+          .read(sessionControllerProvider)
+          .tabs
+          .expand((tab) => tab.effectivePanes)
+          .singleWhere((pane) => pane.sessionId == failedSessionId);
+      expect(failedPane.runtimeError?.message, expectedFailure);
+      controller.activateSession(failedSessionId);
+      controller.activateSession(healthySessionId);
+      expect(container.read(sessionControllerProvider).lastError, isNull);
       await controller.closeSession(failedSessionId);
       expect(container.read(sessionControllerProvider).lastError, isNull);
 

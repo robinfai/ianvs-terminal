@@ -6,6 +6,34 @@ import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
 void main() {
   test(
+    'execution destination uses the SSH account, not the root context ID',
+    () {
+      final pane = TerminalPane(
+        sessionId: 'ssh',
+        title: '127.0.0.1',
+        profileId: 'ssh',
+        profileSnapshot: defaultTerminalProfile().copyWith(
+          connection: const terminal.TerminalConnectionConfig.ssh(
+            host: '127.0.0.1',
+            user: 'trailqa',
+            port: 22222,
+          ),
+        ),
+      );
+      expect(pane.executionTargetLabel, 'trailqa@127.0.0.1:22222');
+      expect(pane.shellConnectionChain.last.contextId, 'root');
+      expect(
+        const TerminalPane(
+          sessionId: 'local',
+          title: 'Local Shell',
+          profileId: 'local',
+        ).executionTargetLabel,
+        'Local Shell',
+      );
+    },
+  );
+
+  test(
     'closed nested pane restores its side and ratio without resetting other splits',
     () {
       TerminalPane pane(String id) =>

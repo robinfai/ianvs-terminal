@@ -38,6 +38,7 @@ class _SettingsFixture {
     WidgetTester tester, {
     required TargetPlatform platform,
     AiConfiguration? saved,
+    Locale locale = const Locale('en'),
   }) async {
     store.value = saved;
     await settings.loaded;
@@ -72,6 +73,7 @@ class _SettingsFixture {
         ),
       ),
       platform: platform,
+      locale: locale,
     );
     await tester.tap(find.text('Configure AI'));
     await tester.pumpAndSettle();
@@ -103,6 +105,45 @@ void main() {
     tearDown(() => fixture.dispose());
 
     for (final platform in [TargetPlatform.iOS, TargetPlatform.android]) {
+      testWidgets(
+        '$platform empty save focuses a visible localized field error',
+        (tester) async {
+          await fixture.mount(
+            tester,
+            platform: platform,
+            locale: const Locale('zh'),
+          );
+          await tester.tap(find.byKey(const Key('ai-save-settings')));
+          await tester.pumpAndSettle();
+          final endpoint = find.byKey(const Key('ai-endpoint'));
+          expect(
+            tester.widget<TextField>(endpoint).focusNode!.hasFocus,
+            isTrue,
+          );
+          expect(
+            find.text('请输入有效的 HTTP 或 HTTPS 地址。').hitTestable(),
+            findsOneWidget,
+          );
+          expect(fixture.store.saves, 0);
+          await tester.enterText(endpoint, 'https://api.example.test/v1');
+          await tester.tap(find.byKey(const Key('ai-save-settings')));
+          await tester.pumpAndSettle();
+          expect(
+            tester
+                .widget<TextField>(find.byKey(const Key('ai-api-key')))
+                .focusNode!
+                .hasFocus,
+            isTrue,
+          );
+          expect(
+            find.text('请输入 API Key，且不要包含换行。').hitTestable(),
+            findsOneWidget,
+          );
+          expect(fixture.store.saves, 0);
+          fixture.expectNoTaskSent();
+        },
+      );
+
       testWidgets('$platform saves sensitivity and restores it on reopen', (
         tester,
       ) async {
