@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:app/app.dart';
+import 'package:app/features/ai/terminal_ai_history_repository.dart';
 import 'package:app/features/ai/terminal_ai_workspace.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/profiles/profile_models.dart';
@@ -52,6 +53,10 @@ void main() {
       );
       final container = ProviderContainer(
         overrides: [
+          // Keep native fixture history separate from the development app.
+          terminalAiHistoryRepositoryProvider.overrideWithValue(
+            LocalTerminalAiHistoryRepository(directory: () async => home),
+          ),
           ptySessionBackendProvider.overrideWithValue(NativePtyBackend.load()),
           profileRepositoryProvider.overrideWithValue(
             MemoryProfileRepository(
@@ -180,7 +185,9 @@ void main() {
       expect(
         commandWidth('iiiiiiii'),
         closeTo(commandWidth('WWWWWWWW'), .01),
-        reason: 'Native Composer command text must resolve to a monospace font',
+        reason:
+            'Native Composer command text must resolve to a monospace font; '
+            'intent=${ai.inputIntentDecision().intent}; style=$commandStyle',
       );
       final surface = find.byKey(const Key('ai-command-surface'));
       final emptyHeight = tester.getSize(surface).height;
@@ -998,7 +1005,7 @@ void main() {
       await tester.tap(
         find.byWidgetPredicate(
           (widget) =>
-              widget is CheckedPopupMenuItem<InputIntentChoice> &&
+              widget is PopupMenuItem<InputIntentChoice> &&
               widget.value == InputIntentChoice.command,
         ),
       );
