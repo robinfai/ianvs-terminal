@@ -2507,6 +2507,10 @@ class LocalSessionRecordingRepository {
   ) async {
     final file = File(recordingPath.trim()).absolute;
     final recording = await load(file.path);
+    final root = await _recordingRoot();
+    final savedName = await _withIndexLock(
+      () async => (await _loadLibraryIndex(root)).index.names[file.path],
+    );
     final stat = await file.stat();
     final duration = recording.events.isEmpty
         ? Duration.zero
@@ -2514,7 +2518,8 @@ class LocalSessionRecordingRepository {
     return LocalSessionOpenedRecording(
       entry: LocalSessionRecordingEntry(
         path: file.path,
-        displayName: _basenameWithoutExtension(file.uri.pathSegments.last),
+        displayName:
+            savedName ?? _basenameWithoutExtension(file.uri.pathSegments.last),
         createdAtUtc: recording.metadata.createdAtUtc,
         duration: duration,
         fileSizeBytes: stat.size,
@@ -2881,7 +2886,12 @@ class LocalSessionRecordingRepository {
       final namesJson = rawNames is Map ? rawNames : const <Object?, Object?>{};
       for (final entry in namesJson.entries) {
         if (entry case MapEntry(:final String key, :final String value)) {
-          names[key] = value;
+          final path =
+              '${root.absolute.path}${Platform.pathSeparator}${_pathBasename(key)}';
+          // Persisted keys are library-relative. Also recover names written
+          // before an iOS container relocation, without changing their value.
+          if (!names.containsKey(path) || key == path) names[path] = value;
+          if (key != _pathBasename(key)) needsWrite = true;
         } else {
           needsWrite = true;
         }
@@ -2897,7 +2907,12 @@ class LocalSessionRecordingRepository {
       for (final entry in entriesJson.entries) {
         final parsed = _RecordingIndexedMetadata.tryFromJson(entry.value);
         if (entry case MapEntry(:final String key) when parsed != null) {
-          metadata[key] = parsed;
+          final path =
+              '${root.absolute.path}${Platform.pathSeparator}${_pathBasename(key)}';
+          if (!metadata.containsKey(path) || key == path) {
+            metadata[path] = parsed;
+          }
+          if (key != _pathBasename(key)) needsWrite = true;
         } else {
           needsWrite = true;
         }
@@ -3009,14 +3024,19 @@ class LocalSessionRecordingRepository {
     _RecordingLibraryIndex index,
   ) async {
     final sortedNames = Map<String, String>.fromEntries(
-      index.names.entries.toList()
+      index.names.entries
+          .map((entry) => MapEntry(_pathBasename(entry.key), entry.value))
+          .toList()
         ..sort((left, right) => left.key.compareTo(right.key)),
     );
     final entryList = index.entries.entries.toList()
       ..sort((left, right) => left.key.compareTo(right.key));
     final sortedEntries = Map<String, Object?>.fromEntries(
       entryList.map(
-        (entry) => MapEntry<String, Object?>(entry.key, entry.value.toJson()),
+        (entry) => MapEntry<String, Object?>(
+          _pathBasename(entry.key),
+          entry.value.toJson(),
+        ),
       ),
     );
     await writeStringAtomically(

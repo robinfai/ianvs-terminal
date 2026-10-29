@@ -928,6 +928,69 @@ void main() {
       );
     });
 
+    for (final legacyAbsoluteKeys in [false, true]) {
+      test(
+        'preserves custom names after container move (legacy=$legacyAbsoluteKeys)',
+        () async {
+          final parent = await Directory.systemTemp.createTemp(
+            'recording-relocation',
+          );
+          addTearDown(() => parent.delete(recursive: true));
+          final original = Directory('${parent.path}/old')..createSync();
+          final repository = LocalSessionRecordingRepository(
+            directoryResolver: () async => original,
+          );
+          final recording = _recording('relocated');
+          final destination = await repository.reserve(
+            runtimeSessionId: 'relocated',
+            createdAtUtc: recording.metadata.createdAtUtc,
+          );
+          await repository.save(
+            destination,
+            recording,
+            displayName: 'cloud readable title',
+          );
+          await repository.renameRecording(
+            destination.file.path,
+            'My custom recording',
+          );
+          final root = await repository.ensureRecordingDirectory();
+          if (legacyAbsoluteKeys) {
+            final file = File('${root.path}/library.json');
+            final data =
+                jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+            for (final section in ['names', 'entries']) {
+              final values = data[section] as Map<String, dynamic>;
+              data[section] = {
+                for (final entry in values.entries)
+                  '${root.path}/${entry.key}': entry.value,
+              };
+            }
+            await file.writeAsString(jsonEncode(data));
+          }
+          final moved = await original.rename('${parent.path}/new');
+          final reopened = LocalSessionRecordingRepository(
+            directoryResolver: () async => moved,
+          );
+          final entries = await reopened.listRecordings();
+          expect(entries.single.displayName, 'My custom recording');
+          expect(
+            (await reopened.openRecording(
+              entries.single.path,
+            )).entry.displayName,
+            'My custom recording',
+          );
+          final restarted = LocalSessionRecordingRepository(
+            directoryResolver: () async => moved,
+          );
+          expect(
+            (await restarted.listRecordings()).single.displayName,
+            'My custom recording',
+          );
+        },
+      );
+    }
+
     test('lists, renames, imports, and exports validated recordings', () async {
       final directory = await Directory.systemTemp.createTemp(
         'ianvs terminal-recording-library',

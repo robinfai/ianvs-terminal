@@ -1238,6 +1238,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             instantReplaySession != null ||
             _selectedRecording != null ||
             _isSftpPanelOpen);
+    final showingLocalReplay =
+        _recordingShelfOpen || _selectedRecording != null;
+    final hideSessionErrorForReplay =
+        showingLocalReplay &&
+        activePane?.runtimeError?.message != null &&
+        activePane!.runtimeError!.message == _sessionState.lastError;
     // Scaffold consumes body insets; read the keyboard above that boundary.
     final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
 
@@ -1389,13 +1395,17 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                       });
                     },
                   ),
-                if (_sessionState.isReady && _sessionState.lastError != null)
+                if (_sessionState.isReady &&
+                    _sessionState.lastError != null &&
+                    !hideSessionErrorForReplay)
                   _ShellRuntimeErrorBanner(
                     palette: palette,
                     message: _sessionState.lastError!,
                     summary:
                         activePane?.isExited == true &&
-                            activePane?.profileSnapshot?.isSsh == true
+                            activePane?.profileSnapshot?.isSsh == true &&
+                            activePane?.runtimeError?.message ==
+                                _sessionState.lastError
                         ? context.l10n.mobileSessionDisconnectedTitle
                         : null,
                     onDismiss: sessionController.dismissLastError,
@@ -1408,7 +1418,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   ),
                 if (_sessionState.isReady &&
                     _sessionState.lastError == null &&
-                    _runtimeErrorNotice != null)
+                    _runtimeErrorNotice != null &&
+                    !showingLocalReplay)
                   _ShellRuntimeErrorBanner(
                     palette: palette,
                     message: _runtimeErrorNoticeMessage(

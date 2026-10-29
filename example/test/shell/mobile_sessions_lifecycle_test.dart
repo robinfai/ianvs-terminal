@@ -474,6 +474,29 @@ void main() {
     },
   );
 
+  testWidgets('local recording library hides only the current SSH error', (
+    tester,
+  ) async {
+    final fixture = await _pump(tester);
+    await fixture.exit(tester, fixture.first);
+    final error = fixture.state.lastError;
+    expect(error, isNotNull);
+    expect(_key('shell-runtime-error'), findsOneWidget);
+    await _tap(tester, 'shell-open-recording');
+    expect(_key('shell-runtime-error'), findsNothing);
+    expect(fixture.state.lastError, error);
+    await _tap(tester, 'recording-library-close');
+    expect(_key('shell-runtime-error'), findsOneWidget);
+    expect(fixture.state.lastError, error);
+    await _tap(tester, 'shell-open-recording');
+    fixture.controller.reportRuntimeError('Recording could not be read');
+    await tester.pumpAndSettle();
+    expect(_key('shell-runtime-error'), findsOneWidget);
+    await _tap(tester, 'shell-runtime-error-details');
+    expect(find.text('Recording could not be read'), findsOneWidget);
+    await _unmount(tester);
+  });
+
   testWidgets('removing the last diagnostic from the more menu returns home', (
     tester,
   ) async {
