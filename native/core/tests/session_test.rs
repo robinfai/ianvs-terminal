@@ -22912,7 +22912,7 @@ fn live_output_observations_are_opt_in_and_independent_of_frames() {
         "/bin/sh",
         vec![
             "-c".to_string(),
-            "read first; printf '\\nOBSERVED_TRIGGER\\n'; read second".to_string(),
+            "read first; printf '\\n\\033[?2004l\\r\\033Phook;7b22686f6f6b223a2270726565786563227d\\033\\\\OBSERVED_TRIGGER\\n'; read second".to_string(),
         ],
         BTreeMap::new(),
         TerminalEmulation::Xterm256,

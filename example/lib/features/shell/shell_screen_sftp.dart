@@ -97,7 +97,11 @@ extension _ShellScreenStateSftp on _ShellScreenState {
       _isSftpPanelOpen = true;
       _sftpPanelSessionId = target.sessionId;
       _sftpPanelPinnedTarget = null;
-      _sftpPanelInitialPath = '/';
+      final cwd = _paneForSession(
+        sessionState,
+        sessionId!,
+      )?.shellIntegration.currentDirectory;
+      _sftpPanelInitialPath = cwd != null && cwd.startsWith('/') ? cwd : '/';
       _sftpPanelHighlightedName = null;
     });
   }

@@ -447,13 +447,12 @@ void main() {
                 );
                 await tester.pumpAndSettle();
                 expect(
-                  tester
-                      .widget<TextField>(
-                        find.byKey(const Key('color-picker-hex')),
-                      )
-                      .decoration
-                      ?.errorText,
-                  isNotEmpty,
+                  find.text(
+                    AppLocalizations.of(
+                      tester.element(find.byKey(const Key('color-picker-hex'))),
+                    )!.hexColorValidation,
+                  ),
+                  findsOneWidget,
                 );
               }
             }

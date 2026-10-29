@@ -896,7 +896,10 @@ class _DefaultsAndAppearanceDialogState
                   popUpAnimationStyle: appDialogAnimation(context),
                   key: const Key('shortcut-editor-mobile-menu'),
                   tooltip: context.l10n.moreShortcutActions,
-                  icon: const Icon(Icons.more_vert_rounded),
+                  icon: Icon(
+                    Icons.more_vert_rounded,
+                    semanticLabel: context.l10n.moreShortcutActions,
+                  ),
                   onSelected: (_) {
                     setState(() {
                       _selectedKeybindings =
@@ -2037,35 +2040,41 @@ class _DefaultsAndAppearanceDialogState
                                           .labelMedium
                                           ?.copyWith(color: theme.textPrimary),
                                     ),
-                                    child: Slider(
-                                      key: const Key(
-                                        'default-terminal-viewport-padding',
-                                      ),
-                                      value: _selectedTerminalViewportPadding,
-                                      min: TerminalAppAppearance
-                                          .minTerminalViewportPadding,
-                                      max: TerminalAppAppearance
-                                          .maxTerminalViewportPadding,
-                                      divisions:
-                                          (TerminalAppAppearance
-                                                      .maxTerminalViewportPadding -
-                                                  TerminalAppAppearance
-                                                      .minTerminalViewportPadding)
+                                    // Contain the slider's value-indicator semantics.
+                                    // https://github.com/flutter/flutter/issues/190357
+                                    child: Overlay.wrap(
+                                      alwaysSizeToContent: true,
+                                      clipBehavior: Clip.none,
+                                      child: Slider(
+                                        key: const Key(
+                                          'default-terminal-viewport-padding',
+                                        ),
+                                        value: _selectedTerminalViewportPadding,
+                                        min: TerminalAppAppearance
+                                            .minTerminalViewportPadding,
+                                        max: TerminalAppAppearance
+                                            .maxTerminalViewportPadding,
+                                        divisions:
+                                            (TerminalAppAppearance
+                                                        .maxTerminalViewportPadding -
+                                                    TerminalAppAppearance
+                                                        .minTerminalViewportPadding)
+                                                .round(),
+                                        label: context.l10n.pixelCount(
+                                          _selectedTerminalViewportPadding
                                               .round(),
-                                      label: context.l10n.pixelCount(
-                                        _selectedTerminalViewportPadding
-                                            .round(),
+                                        ),
+                                        semanticFormatterCallback: (value) =>
+                                            context.l10n.pixelCount(
+                                              value.round(),
+                                            ),
+                                        onChanged: (value) {
+                                          setState(() {
+                                            _selectedTerminalViewportPadding =
+                                                value;
+                                          });
+                                        },
                                       ),
-                                      semanticFormatterCallback: (value) =>
-                                          context.l10n.pixelCount(
-                                            value.round(),
-                                          ),
-                                      onChanged: (value) {
-                                        setState(() {
-                                          _selectedTerminalViewportPadding =
-                                              value;
-                                        });
-                                      },
                                     ),
                                   ),
                                 ),
@@ -2234,7 +2243,10 @@ class _DefaultsAndAppearanceDialogState
                           : 'defaults-reset-menu',
                     ),
                     tooltip: context.l10n.reset,
-                    icon: const Icon(Icons.more_horiz_rounded),
+                    icon: Icon(
+                      Icons.more_horiz_rounded,
+                      semanticLabel: context.l10n.reset,
+                    ),
                     onSelected: (index) => resets[index].onPressed?.call(),
                     itemBuilder: (context) => [
                       for (var index = 0; index < resets.length; index++)

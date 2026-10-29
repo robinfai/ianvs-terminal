@@ -1487,13 +1487,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get triggers => '触发器';
 
   @override
-  String get triggerExamples => '示例：ERROR => notify，Password: => send: secret';
+  String get triggerExamples =>
+      '每行一条：区分大小写的正则表达式 => 动作。省略 => 动作时默认 notify。notify 发送通知；send: 向当前会话写入文字，不会自动回车。用 \\r 表示回车、\\n 表示换行、\\\\ 表示反斜杠。文字会保存在 Profile 中，请勿填写密码。\n示例：\n^ERROR => notify\n^READY\$ => send: hello';
 
   @override
   String get automaticProfileSwitching => '自动切换 Profile';
 
   @override
-  String get automaticProfileSwitchingHelp => '主机、用户或目录更改后切换此 Profile。';
+  String get automaticProfileSwitchingHelp =>
+      'Shell 集成报告主机、用户或目录变化时，任意一条规则匹配即应用当前 Profile。多个 Profile 同时匹配时，采用列表中排在前面的一个；离开所有匹配条件后恢复原 Profile。';
 
   @override
   String get advanced => '高级';
@@ -2167,7 +2169,7 @@ class AppLocalizationsZh extends AppLocalizations {
       'special_foreground': '前景色',
       'special_background': '背景色',
       'special_cursor': '光标颜色',
-      'special_selection': '选择颜色',
+      'special_selection': '选区颜色',
       'special_tab': '标签页颜色',
       'normal_black': '黑色',
       'normal_red': '红色',
@@ -5169,4 +5171,110 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get shellCapabilityProviderReady => '已提供实现';
+
+  @override
+  String get profileSwitchRuleExamples =>
+      '每行一条：host:、user: 或 dir: 后接匹配内容，忽略大小写。* 表示任意字符，这里不是正则表达式。不含 * 的目录规则匹配该本地目录及其子目录，远程主机不应用目录规则。请使用 Shell 报告的目录路径。\n示例：\ndir: /tmp/UX_AUDIT\nhost: build-*\nuser: developer';
+
+  @override
+  String profileRuleLineError(int line, String reason) {
+    return '第 $line 行：$reason';
+  }
+
+  @override
+  String get profileTriggerPatternRequired => '请输入正则表达式。';
+
+  @override
+  String get profileTriggerPatternInvalid => '正则表达式无效。';
+
+  @override
+  String get profileTriggerTextRequired => '请在 send: 后填写要发送的文字。';
+
+  @override
+  String get profileTriggerActionInvalid => '动作只能是 notify 或 send: 文字。';
+
+  @override
+  String get profileSwitchPrefixRequired => '请在匹配内容前添加 host:、user: 或 dir:。';
+
+  @override
+  String get profileSwitchKindInvalid => '规则类型只能是 host、user 或 dir。';
+
+  @override
+  String get profileSwitchPatternRequired => '请填写匹配内容。';
+
+  @override
+  String profileTriggerLimit(int count) {
+    return '触发器最多 $count 条。';
+  }
+
+  @override
+  String profileSwitchLimit(int count) {
+    return '切换规则最多 $count 条。';
+  }
+
+  @override
+  String get profileSpecialColorsHelp => '前景、背景、光标、选区和标签页颜色。';
+
+  @override
+  String get profileNormalColorsHelp => '标准 ANSI 0–7 终端颜色。';
+
+  @override
+  String get profileBrightColorsHelp => '高亮 ANSI 8–15 终端颜色。';
+
+  @override
+  String get terminalColorPreviewText => '终端正文预览';
+
+  @override
+  String get terminalColorPreviewSelection => '选区文字';
+
+  @override
+  String get reopenedPanePlacementFallback => '原窗格位置已不可用，已在当前窗格旁重新打开。';
+
+  @override
+  String sftpDownloaded(String name) {
+    return '已下载 $name';
+  }
+
+  @override
+  String sftpEditingLocally(String name) {
+    return '正在本地编辑 $name，保存后自动上传。';
+  }
+
+  @override
+  String sftpUploaded(String name) {
+    return '$name 的更改已上传。';
+  }
+
+  @override
+  String sftpDirectoryReadFailed(String path) {
+    return '无法打开 $path。请检查目录是否存在、账户是否有访问权限，以及 SSH 连接是否可用。';
+  }
+
+  @override
+  String get sftpLocationChanged => '远程位置已改变，请关闭此窗口后重试。';
+
+  @override
+  String sftpCreateFailed(String name) {
+    return '无法创建 $name。请检查是否已有同名项目、目录写入权限及连接状态。';
+  }
+
+  @override
+  String get sftpValidDirectoryName => '请输入有效的单个目录名称，不含斜杠或控制字符。';
+
+  @override
+  String get layoutRestoreIncomplete => '部分窗格未能恢复，原布局已保留。可改用当前布局，恢复自动保存。';
+
+  @override
+  String get useCurrentLayout => '使用当前布局';
+
+  @override
+  String get sshNotificationConnectionFailed => 'SSH 连接失败';
+
+  @override
+  String get sshNotificationConnectionInterrupted => 'SSH 连接中断';
+
+  @override
+  String triggerMatchedInSession(String session) {
+    return '$session · 规则已触发';
+  }
 }

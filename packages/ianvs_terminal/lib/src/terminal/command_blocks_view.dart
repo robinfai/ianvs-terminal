@@ -920,6 +920,7 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
                               tooltip: t('Block actions', '命令块操作'),
                               icon: Icon(
                                 Icons.more_horiz,
+                                semanticLabel: t('Block actions', '命令块操作'),
                                 size: 18,
                                 color: tokens.muted,
                               ),
@@ -1242,7 +1243,12 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
                   popUpAnimationStyle: ComposerTheme.overlayAnimation(context),
                   key: ValueKey('block-actions-${block.id}'),
                   tooltip: t('Block actions', '命令块操作'),
-                  icon: Icon(Icons.more_horiz, size: 17, color: tokens.muted),
+                  icon: Icon(
+                    Icons.more_horiz,
+                    semanticLabel: t('Block actions', '命令块操作'),
+                    size: 17,
+                    color: tokens.muted,
+                  ),
                   onSelected: (action) => _action(block, action),
                   itemBuilder: (_) => _menuItems(block),
                 ),

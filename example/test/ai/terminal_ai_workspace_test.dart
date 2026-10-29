@@ -45,7 +45,9 @@ Future<void> _capture(WidgetTester tester, String name) async {
 
 void main() {
   ConfigurationCaptureBinding();
-  if (_evidence.isNotEmpty) setUpAll(loadVisualCaptureFonts);
+  // Width-dependent navigation uses measured text. Keep the same real font
+  // metrics with and without screenshot output (the test Ahem font is wider).
+  setUpAll(loadVisualCaptureFonts);
   late AiSettingsController settings;
   late FakeTerminal terminal;
   late FakeApi api;
@@ -78,6 +80,7 @@ void main() {
     double scale = 1,
     Brightness brightness = Brightness.light,
     bool highContrast = false,
+    bool? reducedMotion,
     AiTimelineBuilder? timelineBuilder,
     VoidCallback? close,
     VoidCallback? observe,
@@ -98,7 +101,7 @@ void main() {
           platform ??
           (size.width < 600 ? TargetPlatform.iOS : TargetPlatform.macOS),
     );
-    if (_evidence.isNotEmpty) theme = withVisualCaptureFonts(theme);
+    theme = withVisualCaptureFonts(theme);
     await tester.pumpWidget(
       MaterialApp(
         theme: theme,
@@ -109,6 +112,7 @@ void main() {
           data: MediaQuery.of(context).copyWith(
             textScaler: TextScaler.linear(scale),
             highContrast: highContrast,
+            disableAnimations: reducedMotion,
           ),
           child: RepaintBoundary(
             key: const Key('workspace-capture'),
@@ -128,8 +132,124 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    if (controller.busy) {
+      // Live activity deliberately animates until the request completes.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
+    } else {
+      await tester.pumpAndSettle();
+    }
   }
+
+  testWidgets('history menu distinguishes command and draft tasks safely', (
+    tester,
+  ) async {
+    await prepare();
+    await controller.refreshContext();
+    await controller.runUserCommand('printf private-argument');
+    controller.newTask();
+    controller.setDraft('private draft content');
+    controller.newTask();
+    await mount(tester);
+    await tester.tap(find.byTooltip('Session tasks'));
+    await tester.pumpAndSettle();
+    expect(find.text('printf'), findsOneWidget);
+    expect(find.text('Draft'), findsOneWidget);
+    expect(find.textContaining('Task 1'), findsOneWidget);
+    expect(find.textContaining('Task 2'), findsOneWidget);
+    expect(find.textContaining('Task 3'), findsOneWidget);
+    expect(find.textContaining('private-argument'), findsNothing);
+    expect(find.textContaining('private draft content'), findsNothing);
+    await tester.tap(find.text('printf'));
+    await tester.pumpAndSettle();
+    expect(
+      controller.transcript.single.action?.command,
+      'printf private-argument',
+    );
+  });
+
+  for (final scene in [
+    (name: 'light', size: const Size(1728, 1084), dark: false, reduced: false),
+    (name: 'dark', size: const Size(1100, 850), dark: true, reduced: false),
+    (name: 'narrow', size: const Size(520, 800), dark: false, reduced: false),
+    (name: 'reduced', size: const Size(960, 850), dark: false, reduced: true),
+  ]) {
+    testWidgets(
+      'submitted draft clears while inline activity animates ${scene.name}',
+      (tester) async {
+        await prepare();
+        final reply = Completer<AiReply>();
+        api.respond = (_) => reply.future;
+        await mount(
+          tester,
+          size: scene.size,
+          platform: TargetPlatform.macOS,
+          brightness: scene.dark ? Brightness.dark : Brightness.light,
+          reducedMotion: scene.reduced,
+          locale: const Locale('zh'),
+        );
+        final prompt = find.byKey(const Key('ai-prompt'));
+        await tester.enterText(prompt, '允许执行');
+        await tester.pump();
+        await tester.tap(find.byKey(const Key('ai-send')));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+        expect(controller.transcript.last.text, '允许执行');
+        expect(tester.widget<TextField>(prompt).controller!.text, isEmpty);
+        final activity = find.byKey(const Key('ai-inline-activity'));
+        expect(activity, findsOneWidget);
+        expect(find.byKey(const Key('ai-task-status')), findsOneWidget);
+        expect(
+          tester.getTopLeft(activity).dy,
+          lessThan(tester.getTopLeft(prompt).dy),
+        );
+        final dots = find.descendant(
+          of: activity,
+          matching: find.byType(Opacity),
+        );
+        final first = tester.widget<Opacity>(dots.first).opacity;
+        await tester.pump(const Duration(milliseconds: 250));
+        expect(
+          tester.widget<Opacity>(dots.first).opacity,
+          scene.reduced ? first : isNot(first),
+        );
+        await _capture(tester, 'inline-activity-${scene.name}');
+        await tester.enterText(prompt, '保留新的补充');
+        reply.complete(const AiReply(text: '收到，继续检查。'));
+        await tester.pumpAndSettle();
+        expect(activity, findsNothing);
+        expect(tester.widget<TextField>(prompt).controller!.text, '保留新的补充');
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets('history failure does not mask activity and offers retry', (
+    tester,
+  ) async {
+    await prepare();
+    final reply = Completer<AiReply>();
+    api.respond = (_) => reply.future;
+    controller.setHistoryError('history_save_failed');
+    controller.retryHistory = () async => controller.setHistoryError(null);
+    await mount(
+      tester,
+      platform: TargetPlatform.macOS,
+      locale: const Locale('zh'),
+    );
+    await tester.enterText(find.byKey(const Key('ai-prompt')), 'Hello');
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('ai-send')));
+    await tester.pump();
+    expect(find.text('正在思考…'), findsOneWidget);
+    expect(find.text('最近的内容尚未保存，请保留此窗口并重试。'), findsOneWidget);
+    await tester.tap(find.text('重试'));
+    await tester.pump();
+    expect(controller.historyError, isNull);
+    expect(find.text('正在思考…'), findsOneWidget);
+    reply.complete(const AiReply(text: 'Done'));
+    await tester.pumpAndSettle();
+  });
 
   for (final size in [const Size(320, 568), const Size(390, 520)]) {
     testWidgets('phone declines from timeline without entering review $size', (
@@ -165,8 +285,20 @@ void main() {
     ),
     (name: 'desktop-dark', size: const Size(1100, 900), dark: true, scale: 1.0),
     (
+      name: 'desktop-narrow',
+      size: const Size(520, 850),
+      dark: false,
+      scale: 1.0,
+    ),
+    (
       name: 'desktop-wide',
       size: const Size(1728, 1000),
+      dark: false,
+      scale: 1.0,
+    ),
+    (
+      name: 'desktop-reference',
+      size: const Size(1440, 1024),
       dark: false,
       scale: 1.0,
     ),
@@ -209,6 +341,18 @@ void main() {
       );
       await controller.ask('分析磁盘占用，给出清理建议，先不执行清理。');
       await tester.pumpAndSettle();
+      if (scene.name.startsWith('desktop')) {
+        final gutter = scene.size.width < 600 ? 12.0 : 24.0;
+        final width = (scene.size.width - gutter * 2).clamp(0.0, 880.0);
+        final timeline = tester.getRect(find.byType(CommandTimelineView));
+        final composer = tester.getRect(
+          find.byKey(const Key('ai-command-surface')),
+        );
+        expect(timeline.width, closeTo(width, .1));
+        expect(composer.width, closeTo(width, .1));
+        expect(timeline.center.dx, closeTo(scene.size.width / 2, .1));
+        expect(composer.center.dx, closeTo(timeline.center.dx, .1));
+      }
       await _capture(tester, 'roles-${scene.name}-first');
       await controller.ask('哪些内容通常值得先检查？');
       await tester.pumpAndSettle();
@@ -239,6 +383,30 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('desktop reading column resize retains draft and input owner', (
+    tester,
+  ) async {
+    await prepare();
+    await mount(tester, size: const Size(1728, 900));
+    final prompt = find.byKey(const Key('ai-prompt'));
+    await tester.enterText(prompt, 'Keep this draft while resizing');
+    await tester.pumpAndSettle();
+    final field = tester.widget<TextField>(prompt);
+    for (final width in [640.0, 520.0, 1728.0]) {
+      tester.view.physicalSize = Size(width, 900);
+      await tester.pumpAndSettle();
+      final resized = tester.widget<TextField>(prompt);
+      expect(resized.controller, same(field.controller));
+      expect(resized.focusNode, same(field.focusNode));
+      expect(resized.focusNode!.hasFocus, isTrue);
+      expect(controller.draft, 'Keep this draft while resizing');
+      final rect = tester.getRect(find.byType(CommandTimelineView));
+      expect(rect.center.dx, closeTo(width / 2, .1));
+      expect(rect.width, lessThanOrEqualTo(880));
+      expect(tester.takeException(), isNull);
+    }
+  });
 
   for (final locale in [const Locale('en'), const Locale('zh')]) {
     testWidgets('manual approval explains how to enable smart review $locale', (
@@ -407,7 +575,7 @@ void main() {
           await tester.tap(
             find.byWidgetPredicate(
               (w) =>
-                  w is CheckedPopupMenuItem<InputIntentChoice> &&
+                  w is PopupMenuItem<InputIntentChoice> &&
                   w.value == InputIntentChoice.command,
             ),
           );
@@ -2439,7 +2607,7 @@ void main() {
       );
       api.respond = (_) async => commandReply('pwd', id: 'fresh-target');
       await tester.tap(find.byKey(const Key('ai-target-dialog-continue')));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 250));
       expect(api.requests, hasLength(2));
       expect(controller.pending!.id, isNot(oldProposal.id));
       expect(controller.context!.contextId, 'ssh:second');
@@ -2481,7 +2649,7 @@ void main() {
       final answer = Completer<AiReply>();
       api.respond = (_) => answer.future;
       await tester.tap(find.byKey(const Key('ai-target-dialog-continue')));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 250));
       expect(api.requests, hasLength(2));
       expect(terminal.writes, isEmpty);
       expect(controller.draft, 'Keep my next question');
@@ -2548,7 +2716,7 @@ void main() {
       );
       continueButton.onPressed!();
       continueButton.onPressed!();
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 250));
       expect(api.requests, hasLength(2));
       answer.complete(commandReply('pwd', id: 'inline'));
       await tester.pumpAndSettle();

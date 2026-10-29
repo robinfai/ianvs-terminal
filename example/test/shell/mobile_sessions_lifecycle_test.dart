@@ -279,7 +279,13 @@ void main() {
       expect(_sheet, findsNothing);
       expect(fixture.state.activeSessionId, id);
       expect(_key('mobile-disconnected-notice-$id'), findsOneWidget);
-      expect(find.text('Connection ended'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: _key('mobile-disconnected-notice-$id'),
+          matching: find.text('Connection ended'),
+        ),
+        findsOneWidget,
+      );
       final terminal = tester.widget<TerminalViewport>(
         find.byType(TerminalViewport),
       );

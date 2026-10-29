@@ -227,6 +227,7 @@ struct PendingHostKeyResponse {
 
 #[derive(Default)]
 struct SshAuthBroker {
+    session_established: AtomicBool,
     next_challenge_id: AtomicU64,
     prompts: StdMutex<VecDeque<SshAuthPrompt>>,
     responses: StdMutex<HashMap<u64, PendingAuthResponse>>,
@@ -264,6 +265,11 @@ impl fmt::Debug for SshAuthClient {
 }
 
 impl SshAuthClient {
+    /// True only after transport, authentication and the session channel are ready.
+    pub fn session_established(&self) -> bool {
+        self.broker.session_established.load(Ordering::Acquire)
+    }
+
     fn begin_interaction(&self) -> SshInteractionGuard {
         self.broker
             .pending_interactions
@@ -1854,6 +1860,9 @@ async fn run_ssh_session(
             return Err(error);
         }
     };
+    auth.broker
+        .session_established
+        .store(true, Ordering::Release);
     let PreparedSshSession {
         mut session,
         jump_sessions,
@@ -6182,6 +6191,7 @@ mod tests {
         accepted_receiver
             .recv_timeout(Duration::from_secs(2))
             .expect("transport did not connect");
+        assert!(!runtime.auth.session_established());
         let SshRuntime { mut child, .. } = runtime;
         child.kill().expect("cancel SSH");
         let status = wait_for_child_exit(child.as_mut(), Duration::from_secs(2));

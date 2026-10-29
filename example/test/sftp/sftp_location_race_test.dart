@@ -9,6 +9,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _Source implements SftpDirectoryDataSource, SftpFileDataSource {
+  bool failCreate = false;
+  bool empty = false;
   final mutations = <SftpEntryMutationRequest>[];
   final downloads = <SftpFileTransferRequest>[];
   @override
@@ -18,12 +20,14 @@ class _Source implements SftpDirectoryDataSource, SftpFileDataSource {
         future: Future.value(
           SftpDirectorySnapshot(
             path: request.path,
-            entries: const [
-              SftpDirectoryEntry(
-                name: 'notes.txt',
-                kind: SftpDirectoryEntryKind.file,
-              ),
-            ],
+            entries: empty
+                ? const []
+                : const [
+                    SftpDirectoryEntry(
+                      name: 'notes.txt',
+                      kind: SftpDirectoryEntryKind.file,
+                    ),
+                  ],
           ),
         ),
       );
@@ -36,6 +40,7 @@ class _Source implements SftpDirectoryDataSource, SftpFileDataSource {
   Future<void> uploadFile(SftpFileTransferRequest request) async {}
   @override
   Future<void> createDirectory(SftpEntryMutationRequest request) async {
+    if (failCreate) throw StateError('Test failure');
     mutations.add(request);
   }
 
@@ -109,6 +114,26 @@ Future<void> _menu(WidgetTester tester) async {
 
 void main() {
   testWidgets(
+    'SFTP empty desktop directory offers creation without an entry menu',
+    (tester) async {
+      final source = _Source()..empty = true;
+      await _pump(tester, ValueNotifier(1), source, _Platform());
+      expect(find.byKey(const Key('sftp-create-folder')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('sftp-empty-create-directory')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('sftp-create-directory-name')),
+        'new folder',
+      );
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('sftp-create-directory-confirm')));
+      await tester.pumpAndSettle();
+      expect(source.mutations.single.remotePath, '/directory1/new folder');
+      expect(find.byKey(const Key('sftp-create-directory-name')), findsNothing);
+    },
+  );
+
+  testWidgets(
     'SFTP queued delete rechecks location when remote operation starts',
     (tester) async {
       final version = ValueNotifier(1);
@@ -133,6 +158,34 @@ void main() {
       expect(source.mutations, isEmpty);
     },
   );
+
+  testWidgets('SFTP create failure retains name and allows retry', (
+    tester,
+  ) async {
+    final version = ValueNotifier(1);
+    final source = _Source()..failCreate = true;
+    await _pump(tester, version, source, _Platform());
+    await _menu(tester);
+    await tester.tap(find.byKey(const Key('sftp-context-create-directory')));
+    await tester.pumpAndSettle();
+    final confirm = find.byKey(const Key('sftp-create-directory-confirm'));
+    expect(tester.widget<FilledButton>(confirm).onPressed, isNull);
+    await tester.enterText(
+      find.byKey(const Key('sftp-create-directory-name')),
+      'child',
+    );
+    await tester.pump();
+    await tester.tap(confirm);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('sftp-create-directory-name')), findsOneWidget);
+    expect(find.text('child'), findsOneWidget);
+    expect(source.mutations, isEmpty);
+    source.failCreate = false;
+    await tester.tap(confirm);
+    await tester.pumpAndSettle();
+    expect(source.mutations, hasLength(1));
+    expect(find.byKey(const Key('sftp-create-directory-name')), findsNothing);
+  });
 
   testWidgets('SFTP create dialog expires when location changes', (
     tester,

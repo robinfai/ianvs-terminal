@@ -4566,6 +4566,7 @@ impl TerminalSession {
                             "code": exit.exit_code(),
                             "success": exit.success(),
                             "signal": exit.signal(),
+                            "ssh_session_established": self.ssh_auth.as_ref().map(|auth| auth.session_established()),
                         }),
                     });
                     self.exited.store(true, Ordering::SeqCst);

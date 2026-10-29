@@ -37,6 +37,7 @@ import 'terminal_event_coordinator.dart';
 import 'terminal_session_launch_policy.dart';
 
 const Object _recordingLastErrorNoChange = Object();
+typedef _ClosedPane = ({TerminalPane pane, TerminalPaneLayoutNode layout});
 
 final ptySessionBackendProvider = Provider<PtySessionBackend>((ref) {
   if (ref.watch(sessionDemoFixtureProvider) != null) {
@@ -466,8 +467,8 @@ class SessionController extends Notifier<SessionState> {
   _pendingProgressEvents =
       <String, ({int order, TerminalSessionProgressEvent event})>{};
   final List<TerminalTab> _recentlyClosedTabs = <TerminalTab>[];
-  final Map<String, List<TerminalPane>> _recentlyClosedPanesByTab =
-      <String, List<TerminalPane>>{};
+  final Map<String, List<_ClosedPane>> _recentlyClosedPanesByTab =
+      <String, List<_ClosedPane>>{};
   final Map<String, LocalSessionRecordingDestination> _recordingDestinations =
       <String, LocalSessionRecordingDestination>{};
   final Map<String, Future<String>> _recordingFinalizationFutures =
@@ -514,6 +515,9 @@ class SessionController extends Notifier<SessionState> {
   int _progressEventOrder = 0;
   bool _layoutPersistenceEnabled = false;
   bool _layoutPersistenceBlocked = false;
+  bool _layoutRestoreHasFailures = false;
+
+  bool get canReplaceFailedLayout => _layoutRestoreHasFailures;
   Timer? _layoutPersistenceTimer;
   Timer? _layoutRetryTimer;
   int _layoutRetryAttempt = 0;
@@ -750,6 +754,7 @@ class SessionController extends Notifier<SessionState> {
 
   Future<void> _bootstrap() async {
     _layoutPersistenceBlocked = false;
+    _layoutRestoreHasFailures = false;
     final demoFixture = ref.read(sessionDemoFixtureProvider);
     if (demoFixture != null) {
       for (final tab in demoFixture.tabs) {
@@ -848,6 +853,7 @@ class SessionController extends Notifier<SessionState> {
           initialTabs = restored.tabs;
           initialSessionId = restored.activeSessionId;
           if (restored.failures.isNotEmpty) {
+            _layoutRestoreHasFailures = true;
             _layoutPersistenceBlocked = true;
             layoutRestoreError = _layoutRestoreFailureMessage(
               restored.failures,
@@ -1057,6 +1063,26 @@ class SessionController extends Notifier<SessionState> {
     final previousSave = _layoutSaveChain;
     final repository = ref.read(localTerminalLayoutRepositoryProvider);
     _layoutSaveChain = _saveLayoutAfter(previousSave, layout, repository);
+  }
+
+  /// Explicitly replaces a partially restored snapshot with the current layout.
+  Future<void> useCurrentLayoutAfterRestoreFailure() async {
+    if (!_layoutRestoreHasFailures || !state.isReady) return;
+    final previousError = state.lastError;
+    _layoutPersistenceBlocked = false;
+    _enableLayoutPersistence();
+    final intended = jsonEncode(
+      LocalSessionLayoutCodec.capture(state).toJson(),
+    );
+    await flushLayoutPersistence();
+    if (!ref.mounted ||
+        jsonEncode(_layoutDocument.value?.toJson()) != intended) {
+      return;
+    }
+    _layoutRestoreHasFailures = false;
+    state = state.copyWith(
+      lastError: state.lastError == previousError ? null : state.lastError,
+    );
   }
 
   Future<void> flushLayoutPersistence() async {
@@ -1395,6 +1421,7 @@ class SessionController extends Notifier<SessionState> {
       );
       final viewportColors = resolveTerminalColorsForScheme(
         theme.colorScheme,
+        profileAppearance: launchProfile.appearance,
       ).viewport;
       final config = launchProfile.toSessionConfig();
       return _runtime.createSession(
@@ -3303,6 +3330,7 @@ class SessionController extends Notifier<SessionState> {
 
   String? reopenClosedPane({
     TerminalSplitAxis axis = TerminalSplitAxis.horizontal,
+    VoidCallback? onPlacementFallback,
   }) {
     if (ref.read(sessionDemoFixtureProvider) != null) {
       return null;
@@ -3322,7 +3350,8 @@ class SessionController extends Notifier<SessionState> {
       return null;
     }
 
-    final sourcePane = closedPanes.first;
+    final closed = closedPanes.first;
+    final sourcePane = closed.pane;
     final profile = _profileForClosedPane(sourcePane);
     if (profile == null) {
       return null;
@@ -3348,20 +3377,41 @@ class SessionController extends Notifier<SessionState> {
         launchProfile: launchProfile,
       ),
     );
-    final nextPaneLayout = activeTab.effectivePaneLayout.splitPane(
-      sessionId: activeSessionId,
-      newPane: reopenedPane,
-      axis: axis,
+    final restoredLayout = activeTab.effectivePaneLayout.restoreClosedPane(
+      previousLayout: closed.layout,
+      closedSessionId: sourcePane.sessionId,
+      reopenedPane: reopenedPane,
     );
+    final nextPaneLayout =
+        restoredLayout ??
+        activeTab.effectivePaneLayout.splitPane(
+          sessionId: activeSessionId,
+          newPane: reopenedPane,
+          axis: axis,
+        );
     final nextTabs = <TerminalTab>[...state.tabs];
     nextTabs[tabIndex] = activeTab.copyWith(
       panes: nextPaneLayout.panes,
       paneLayout: nextPaneLayout,
       activePaneSessionId: sessionId,
-      splitAxis: axis,
+      splitAxis: nextPaneLayout.splitAxis ?? activeTab.splitAxis,
     );
 
     closedPanes.removeAt(0);
+    // Remaining history may refer to a neighbour which has just received a
+    // fresh runtime session ID. Keep those restoration anchors valid.
+    for (final history in _recentlyClosedPanesByTab.values) {
+      for (var index = 0; index < history.length; index++) {
+        final entry = history[index];
+        history[index] = (
+          pane: entry.pane,
+          layout: entry.layout.replacePane(
+            reopenedPane,
+            replacingSessionId: sourcePane.sessionId,
+          ),
+        );
+      }
+    }
     if (closedPanes.isEmpty) {
       _recentlyClosedPanesByTab.remove(activeTab.sessionId);
     }
@@ -3369,6 +3419,7 @@ class SessionController extends Notifier<SessionState> {
     state = state.copyWith(tabs: nextTabs, activeSessionId: sessionId);
     _syncRuntimeSessionActivation();
     _setWindowTitle(reopenedPane.title);
+    if (restoredLayout == null) onPlacementFallback?.call();
     return sessionId;
   }
 
@@ -5352,7 +5403,7 @@ class SessionController extends Notifier<SessionState> {
       if (!runtimeAlreadyClosed) {
         final closingPane = tab.paneFor(sessionId);
         if (closingPane != null) {
-          _recordClosedPane(tab.sessionId, closingPane);
+          _recordClosedPane(tab, closingPane);
         }
       }
       final nextPaneLayout = tab.effectivePaneLayout.removePane(sessionId);
@@ -5485,14 +5536,14 @@ class SessionController extends Notifier<SessionState> {
     }
   }
 
-  void _recordClosedPane(String tabSessionId, TerminalPane pane) {
+  void _recordClosedPane(TerminalTab tab, TerminalPane pane) {
     final closedPanes = _recentlyClosedPanesByTab.putIfAbsent(
-      tabSessionId,
-      () => <TerminalPane>[],
+      tab.sessionId,
+      () => <_ClosedPane>[],
     );
     closedPanes
-      ..removeWhere((closedPane) => closedPane.sessionId == pane.sessionId)
-      ..insert(0, pane);
+      ..removeWhere((closedPane) => closedPane.pane.sessionId == pane.sessionId)
+      ..insert(0, (pane: pane, layout: tab.effectivePaneLayout));
     if (closedPanes.length > 10) {
       closedPanes.removeRange(10, closedPanes.length);
     }

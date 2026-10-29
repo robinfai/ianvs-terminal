@@ -29,6 +29,21 @@ void main() {
       expect((malformed as TerminalExitEventRoute).exitCode, isNull);
     });
 
+    test('SSH setup state only accepts native booleans', () {
+      for (final value in [true, false, null, 'true', 1]) {
+        final route =
+            router.route(
+                  PtyEvent(
+                    kind: 'exit',
+                    sessionId: 'ssh',
+                    payload: {'code': 255, 'ssh_session_established': value},
+                  ),
+                )
+                as TerminalExitEventRoute;
+        expect(route.sshSessionEstablished, value is bool ? value : null);
+      }
+    });
+
     test('routes side-effecting events as async work', () {
       expect(
         router.route(const PtyEvent(kind: 'resize', sessionId: 'session-a')),

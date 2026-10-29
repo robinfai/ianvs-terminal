@@ -29,9 +29,6 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
   }
 
   String get _mobileStatus {
-    if (c.historyError != null) {
-      return t('History storage unavailable', '历史存储暂不可用');
-    }
     if (c.restoredHistory) {
       return t('Restored history · read-only snapshot', '已恢复历史 · 只读快照');
     }

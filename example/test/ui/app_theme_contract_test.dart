@@ -16,6 +16,41 @@ void main() {
     return (lighter + 0.05) / (darker + 0.05);
   }
 
+  test('terminal presets keep readable scrollbars across app themes', () {
+    for (final brightness in Brightness.values) {
+      for (final preset in terminalThemePresets) {
+        final colors = resolveTerminalColorsForScheme(
+          buildIanvsTerminalTheme(brightness).colorScheme,
+          profileAppearance: TerminalProfileAppearance(colors: preset.palette),
+          highContrast: true,
+        ).viewport;
+        expect(
+          colors.canvasBackground.toARGB32(),
+          int.parse(
+            'FF${preset.palette.special.background!.substring(1)}',
+            radix: 16,
+          ),
+          reason: '${preset.name} on $brightness',
+        );
+        expect(
+          colors.foreground.toARGB32(),
+          int.parse(
+            'FF${preset.palette.special.foreground!.substring(1)}',
+            radix: 16,
+          ),
+        );
+        final track = Color.alphaBlend(
+          colors.scrollbarTrack,
+          colors.canvasBackground,
+        );
+        final thumb = Color.alphaBlend(colors.scrollbarThumb, track);
+        expect(contrastRatio(thumb, track), greaterThanOrEqualTo(3));
+        expect(colors.preserveExplicitForegroundColors, isFalse);
+        expect(colors.minimumContrastRatio, 4.5);
+      }
+    }
+  });
+
   test('Trail retains the shared design theme and terminal surfaces', () {
     for (final brightness in Brightness.values) {
       for (final platform in [TargetPlatform.macOS, TargetPlatform.iOS]) {
@@ -239,7 +274,7 @@ void main() {
   );
 
   testWidgets(
-    'terminal color bridge follows the app theme and keeps interaction overrides',
+    'terminal color bridge follows the app theme unless a profile overrides it',
     (tester) async {
       await tester.pumpWidget(
         Theme(
@@ -279,11 +314,11 @@ void main() {
       ).viewport;
       expect(
         overridden.canvasBackground.toARGB32(),
-        lightDefaults.canvasBackground.toARGB32(),
+        const Color(0xFF445566).toARGB32(),
       );
       expect(
         overridden.foreground.toARGB32(),
-        lightDefaults.foreground.toARGB32(),
+        const Color(0xFF112233).toARGB32(),
       );
       expect(overridden.cursor.toARGB32(), const Color(0xFF778899).toARGB32());
       expect(

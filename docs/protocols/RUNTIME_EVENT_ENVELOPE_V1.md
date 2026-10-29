@@ -98,3 +98,7 @@ discard user input.
 `ianvs_session_poll_event_envelopes_json` is the required native event entrypoint, advertised by
 `event-envelope.json.v1` in Runtime Capabilities. The predecessor event-array symbol is removed;
 `NativePtyBackend` does not fall back when the current contract is absent or malformed.
+
+## SSH exit phase
+
+Native `exit` payloads include nullable boolean `ssh_session_established`: false when SSH setup did not complete, true after transport, authentication and session channel preparation succeeded, and null for non-SSH sessions. It remains true through shutdown. With transport failure exit code 255, the UI can distinguish setup failure from interruption without inspecting terminal text. This flag is not a claim that shell bootstrap or a remote command succeeded.

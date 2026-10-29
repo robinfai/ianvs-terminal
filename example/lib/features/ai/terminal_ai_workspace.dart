@@ -10,6 +10,7 @@ import 'package:ianvs_design/ianvs_design.dart' show IanvsTypographyContext;
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 
 import '../../ui/app_ui.dart';
+import '../terminal_composer/command_shortcuts_dialog.dart';
 import '../terminal_composer/composer_pane.dart';
 import '../terminal_composer/terminal_mode.dart';
 import 'ai_approval_notice.dart';
@@ -27,6 +28,9 @@ export 'ai_models.dart' show AiEvidenceReference;
 part 'terminal_ai_workspace_preview_adapter.dart';
 part 'terminal_ai_workspace_mobile.dart';
 part 'terminal_ai_workspace_composer.dart';
+
+// One reading measure for the conversation, status and composer in each pane.
+const _aiReadingWidth = 880.0;
 
 typedef AiTimelineBuilder =
     Widget Function(
@@ -678,9 +682,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     },
   );
 
-  String get _status => c.historyError != null
-      ? t('History could not be saved or restored', '历史记录保存或恢复失败')
-      : c.restoredHistory
+  String get _status => c.restoredHistory
       ? t(
           'Restored history · read-only snapshots; running outcomes unverified',
           '已恢复历史 · 只读快照；原运行结果需核对',
@@ -1614,7 +1616,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ),
-                if (compact)
+                if (compact && !_inlineActivity)
                   Semantics(
                     container: true,
                     liveRegion: true,
@@ -1640,7 +1642,11 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
             PopupMenuButton<String>(
               popUpAnimationStyle: appDialogAnimation(context),
               tooltip: t('Session tasks', '会话任务'),
-              icon: const Icon(Icons.history, size: 20),
+              icon: Icon(
+                Icons.history,
+                size: 20,
+                semanticLabel: t('Session tasks', '会话任务'),
+              ),
               onSelected: (id) {
                 if (id == 'settings') {
                   unawaited(_openSettings());
@@ -1650,14 +1656,32 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                 }
               },
               itemBuilder: (_) => [
-                for (final task in c.tasks)
-                  CheckedPopupMenuItem(
+                for (final (index, task) in c.tasks.indexed)
+                  PopupMenuItem(
                     value: task.id,
-                    checked: task.id == c.taskId,
-                    child: Text(
-                      '${task.title.isEmpty ? t('New task', '新任务') : task.title}${task.followUpEnded ? t(' · Follow-up ended', ' · 已结束跟进') : ''}',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          task.title.isNotEmpty
+                              ? task.title
+                              : task.commandName.isNotEmpty
+                              ? task.commandName
+                              : task.draft.isNotEmpty
+                              ? t('Draft', '草稿')
+                              : t('New task', '新任务'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          '${t('Task', '任务')} ${index + 1}${task.followUpEnded ? t(' · Follow-up ended', ' · 已结束跟进') : ''}${task.id == c.taskId ? t(' · Current', ' · 当前') : ''}',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: context.appTheme.textMuted),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
                   ),
                 if (compact) ...[
@@ -2000,7 +2024,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
         popUpAnimationStyle: appDialogAnimation(context),
         key: const Key('ai-task-actions'),
         tooltip: t('Task actions', '任务操作'),
-        icon: const Icon(Icons.more_horiz),
+        icon: Icon(Icons.more_horiz, semanticLabel: t('Task actions', '任务操作')),
         onSelected: (action) {
           if (!_paneInteractive) return;
           if (action == 'new-task') {
@@ -2085,8 +2109,64 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
           key: key,
           tooltip: label,
           onPressed: onPressed,
-          icon: Icon(icon),
+          icon: Icon(icon, semanticLabel: label),
         );
+
+  bool get _inlineActivity => !_mobile && c.busy && !widget.fullScreenTerminal;
+
+  Widget _activity() => TerminalAiMessageFrame(
+    entryId: 'activity',
+    isUser: false,
+    child: Semantics(
+      container: true,
+      liveRegion: true,
+      label: _announcedStatus,
+      excludeSemantics: true,
+      child: Row(
+        key: const Key('ai-inline-activity'),
+        children: [
+          Flexible(
+            child: Text(
+              _status,
+              key: const Key('ai-task-status'),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: context.appTheme.textMuted,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          AiRequestIndicator(controller: c, pulse: true),
+        ],
+      ),
+    ),
+  );
+
+  Widget _historyNotice() => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(
+      children: [
+        const Icon(Icons.info_outline, size: 16),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(switch (c.historyError) {
+            'history_invalid' => t(
+              'Some history could not be restored. Original files are preserved.',
+              '部分历史记录无法恢复，原文件已保留。',
+            ),
+            'history_load_failed' => t(
+              'History could not be loaded. Current conversations still work.',
+              '历史记录读取失败，当前对话仍可使用。',
+            ),
+            _ => t(
+              'Recent changes could not be saved. Keep this window open and retry.',
+              '最近的内容尚未保存，请保留此窗口并重试。',
+            ),
+          }, style: Theme.of(context).textTheme.bodySmall),
+        ),
+        TextButton(onPressed: c.retryHistory, child: Text(t('Retry', '重试'))),
+      ],
+    ),
+  );
 
   Widget _statusBar(bool compact, {bool collapsed = false}) => collapsed
       ? _taskActions(includeInlineActions: true)
@@ -2136,8 +2216,9 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                         labelWidth(returnLabel);
             return Row(
               children: [
-                AiRequestIndicator(controller: c),
-                if (!compact)
+                if (_inlineActivity) const Spacer(),
+                if (!_inlineActivity) AiRequestIndicator(controller: c),
+                if (!compact && !_inlineActivity)
                   Expanded(
                     child: Semantics(
                       container: true,
@@ -2163,14 +2244,23 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                       '暂停 AI，命令继续运行',
                     ),
                     onPressed: c.takeOver,
-                    icon: const Icon(Icons.pause_circle_outline),
+                    icon: Icon(
+                      Icons.pause_circle_outline,
+                      semanticLabel: t(
+                        'Pause AI; keep command running',
+                        '暂停 AI，命令继续运行',
+                      ),
+                    ),
                   ),
                 if (c.canResume)
                   IconButton(
                     key: const Key('ai-resume'),
                     tooltip: _resumeLabel,
                     onPressed: _resuming ? null : _resume,
-                    icon: const Icon(Icons.play_arrow_outlined),
+                    icon: Icon(
+                      Icons.play_arrow_outlined,
+                      semanticLabel: _resumeLabel,
+                    ),
                   ),
                 if (!compact && c.canInterrupt)
                   IconButton(
@@ -2180,7 +2270,10 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                       '中断 ${c.context?.runningCommand} · Ctrl+C',
                     ),
                     onPressed: c.interruptCommand,
-                    icon: const Icon(Icons.stop_circle_outlined),
+                    icon: Icon(
+                      Icons.stop_circle_outlined,
+                      semanticLabel: t('Interrupt command', '中断命令'),
+                    ),
                   ),
                 if (compact &&
                     (c.canInterrupt ||
@@ -2211,7 +2304,13 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     final ios = Theme.of(context).platform == TargetPlatform.iOS;
     final field = _promptContent(
       maxLines: maxLines,
-      hintText: hintText ?? (ios ? _mobileDraftHint : null),
+      hintText:
+          hintText ??
+          (!_mobile && c.busy && !_commandIntent
+              ? t('Add requirement…', '补充要求…')
+              : ios
+              ? _mobileDraftHint
+              : null),
       dense: dense,
     );
     if (!ios) return field;
@@ -2415,6 +2514,13 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
         },
       );
     }
+    Widget optionLabel(String text, InputIntentChoice choice) => Row(
+      children: [
+        Expanded(child: Text(text)),
+        if (c.inputIntentChoice == choice)
+          Icon(Icons.check, size: 18, semanticLabel: t('Current', '当前')),
+      ],
+    );
     return PopupMenuButton<InputIntentChoice>(
       key: const Key('ai-input-intent'),
       enabled: _paneInteractive && !c.followUpEnded,
@@ -2426,29 +2532,30 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
         _focus.requestFocus();
       },
       itemBuilder: (_) => [
-        CheckedPopupMenuItem(
+        PopupMenuItem(
           value: InputIntentChoice.automatic,
-          checked: c.inputIntentChoice == InputIntentChoice.automatic,
-          child: Text(t('Automatic', '自动识别')),
+          child: optionLabel(
+            t('Automatic', '自动识别'),
+            InputIntentChoice.automatic,
+          ),
         ),
-        CheckedPopupMenuItem(
+        PopupMenuItem(
           value: InputIntentChoice.command,
           enabled:
               !c.busy &&
               c.pending == null &&
               c.attachments.isEmpty &&
               !widget.fullScreenTerminal,
-          checked: c.inputIntentChoice == InputIntentChoice.command,
-          child: Text(
+          child: optionLabel(
             c.attachments.isEmpty
                 ? t('Command', '命令')
                 : t('Command · remove sources first', '命令 · 请先移除来源'),
+            InputIntentChoice.command,
           ),
         ),
-        CheckedPopupMenuItem(
+        PopupMenuItem(
           value: InputIntentChoice.ai,
-          checked: c.inputIntentChoice == InputIntentChoice.ai,
-          child: const Text('AI'),
+          child: optionLabel('AI', InputIntentChoice.ai),
         ),
       ],
       child: ConstrainedBox(
@@ -2499,7 +2606,11 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     tooltip: t('Expand editor', '展开编辑'),
     onPressed: c.followUpEnded || !_paneInteractive ? null : _expandDraft,
     constraints: const BoxConstraints.tightFor(width: 44, height: 44),
-    icon: Icon(Icons.open_in_full, size: _useCompactMobile ? 18 : 20),
+    icon: Icon(
+      Icons.open_in_full,
+      size: _useCompactMobile ? 18 : 20,
+      semanticLabel: t('Expand editor', '展开编辑'),
+    ),
   );
 
   Widget _hideKeyboardButton() => IconButton(
@@ -2632,8 +2743,15 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     }
     return Padding(
       key: const Key('ai-command-surface'),
-      padding: EdgeInsets.all(
-        singleRow
+      padding: EdgeInsets.symmetric(
+        horizontal: _mobile
+            ? (singleRow
+                  ? 4
+                  : compact
+                  ? 6
+                  : 12)
+            : 0,
+        vertical: singleRow
             ? 4
             : compact
             ? 6
@@ -2659,8 +2777,20 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                     child: Tooltip(
                       message:
                           '${widget.targetLabel} · ${c.context?.cwd ?? ''}',
-                      child: Text(
-                        '${widget.targetLabel.isEmpty ? t('Current terminal', '当前终端') : widget.targetLabel} · ${c.context?.cwd ?? ''}',
+                      child: Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: widget.targetLabel.isEmpty
+                                  ? t('Current terminal', '当前终端')
+                                  : widget.targetLabel,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            TextSpan(text: ' · ${c.context?.cwd ?? ''}'),
+                          ],
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -2699,7 +2829,12 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
         ),
         editor: singleRow
             ? const SizedBox.shrink()
-            : _prompt(maxLines: maxLines),
+            : Padding(
+                padding: EdgeInsets.symmetric(
+                  vertical: _mobile || short ? 0 : 6,
+                ),
+                child: _prompt(maxLines: maxLines),
+              ),
         actions: LayoutBuilder(
           builder: (context, bounds) => Row(
             children: [
@@ -2719,6 +2854,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                 ),
               if (_commandEditor != null) _commandActions(),
               _expandDraftButton(),
+              if (!_mobile && !singleRow) const SizedBox(width: 8),
               if (singleRow)
                 _sendButton(iconOnly: bounds.maxWidth < 480)
               else
@@ -2751,6 +2887,30 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
       ),
     );
   }
+
+  Widget _readingColumn(Widget child) => LayoutBuilder(
+    builder: (context, bounds) => Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: _mobile || widget.fullScreenTerminal
+            ? 0
+            : bounds.maxWidth < 600
+            ? 12
+            : 24,
+      ),
+      child: Align(
+        alignment: Alignment.topCenter,
+        heightFactor: 1,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: _mobile || widget.fullScreenTerminal
+                ? double.infinity
+                : _aiReadingWidth,
+          ),
+          child: SizedBox(width: double.infinity, child: child),
+        ),
+      ),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -2836,7 +2996,15 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
       for (final source in c.attachments) {
         addSource(source);
       }
-      if (c.transcript.isEmpty && c.attachments.isEmpty) {
+      if (_inlineActivity) {
+        items.add(
+          CommandBlockTimelineItem.content(
+            'ai-activity-${c.taskId}',
+            (_) => _activity(),
+          ),
+        );
+      }
+      if (c.transcript.isEmpty && c.attachments.isEmpty && !_inlineActivity) {
         items.add(
           CommandBlockTimelineItem.content('empty', (_) => _emptyState()),
         );
@@ -2883,7 +3051,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
             itemBuilder: (context, index) =>
                 items[index].builder?.call(context) ?? const SizedBox.shrink(),
           );
-      return Material(
+      final workspace = Material(
         key: const Key('terminal-ai-workspace'),
         color: context.appTheme.panel,
         child: ExcludeFocus(
@@ -2951,12 +3119,14 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                                     _replyFocusAllowed = false,
                                 child: KeyedSubtree(
                                   key: ValueKey(_taskId),
-                                  child: timeline,
+                                  child: _readingColumn(timeline),
                                 ),
                               ),
                             ),
                           ),
-                          if (!compact) _statusBar(false),
+                          if (c.historyError != null)
+                            _readingColumn(_historyNotice()),
+                          if (!compact) _readingColumn(_statusBar(false)),
                           if (!_mobile && short)
                             // At large desktop text sizes keep reading space;
                             // the composer retains all controls in its scroll.
@@ -2964,16 +3134,26 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                               constraints: BoxConstraints(
                                 maxHeight: bounds.maxHeight * .5,
                               ),
-                              child: SingleChildScrollView(child: composer),
+                              child: SingleChildScrollView(
+                                child: _readingColumn(composer),
+                              ),
                             )
                           else
-                            composer,
+                            _readingColumn(composer),
                         ],
                       ),
               ),
             ),
           ),
         ),
+      );
+      return ChatTheme(
+        data: ChatThemeData(
+          colors: ChatTheme.of(context).colors,
+          bodyFontSize: ChatTheme.of(context).bodyFontSize,
+          contentMaxWidth: _aiReadingWidth,
+        ),
+        child: workspace,
       );
     },
   );

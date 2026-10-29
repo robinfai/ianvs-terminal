@@ -30,11 +30,20 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
       if (!mounted || !_notificationFailureCodesShown.add(error.code)) {
         return;
       }
+      final chinese = Localizations.localeOf(context).languageCode == 'zh';
       final message = switch (error.code) {
         'notification_authorization_failed' =>
-          'macOS notifications are blocked for Trail. Enable them in System Settings > Notifications.',
+          chinese
+              ? 'Trail 的 macOS 通知被系统关闭。请前往“系统设置 → 通知 → Trail”开启；终端仍可正常使用。'
+              : 'macOS notifications are blocked for Trail. Enable them in System Settings > Notifications.',
+        'notification_authorization_request_failed' =>
+          chinese
+              ? '暂时无法确认 macOS 通知权限，请稍后重试；终端仍可正常使用。'
+              : 'Trail could not check macOS notification permission right now. Try again later; the terminal remains available.',
         'notification_delivery_failed' =>
-          'Trail could not deliver a macOS notification right now.',
+          chinese
+              ? '暂时无法发送 macOS 通知，终端仍可正常使用。'
+              : 'Trail could not deliver a macOS notification right now.',
         _ => null,
       };
       if (message == null) {

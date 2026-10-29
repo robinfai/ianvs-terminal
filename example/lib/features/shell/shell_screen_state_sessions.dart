@@ -178,6 +178,11 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       _lastOsc1337FireworksAt.remove(sessionId);
       _osc1337FireworksSerials.remove(sessionId);
       _lastActivityNotificationAt.remove(sessionId);
+      _lastActivityNotificationAt.remove('activity-tab.$sessionId');
+      _pendingActivityNotificationSessions.remove(sessionId);
+      for (final pending in _pendingActivityNotificationSessions.values) {
+        pending.remove(sessionId);
+      }
       _activityNotificationTrailingTimers.remove(sessionId)?.cancel();
       _lastActivityFramePreviews.remove(sessionId);
       _lastNewOutputFramePreviews.remove(sessionId);
@@ -451,8 +456,10 @@ extension _ShellScreenStateSessions on _ShellScreenState {
         ?.frame;
     if (frame == null) return;
     final preview = _framePreview(frame);
-    _sessionsSeenForActivityNotifications.add(previousActiveSessionId);
-    _lastActivityFramePreviews[previousActiveSessionId] = preview;
+    if (preview != null) {
+      _sessionsSeenForActivityNotifications.add(previousActiveSessionId);
+      _lastActivityFramePreviews[previousActiveSessionId] = preview;
+    }
     _sessionsSeenForNewOutputBadges.add(previousActiveSessionId);
     _lastNewOutputFramePreviews[previousActiveSessionId] = preview;
   }
@@ -826,6 +833,11 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       return null;
     }
     final activeTab = _tabForSession(sessionState, activeSessionId);
+    // Exit is renderable recovery state even when SSH failed before its first frame.
+    if (activeTab?.paneFor(activeSessionId)?.isExited == true) {
+      _lastRenderableSessionId = activeSessionId;
+      return activeSessionId;
+    }
     final retainedSessionId = _lastRenderableSessionId;
     final retainedTab = _tabForSession(sessionState, retainedSessionId);
     if (activeTab != null &&
@@ -1031,6 +1043,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
   }
 
   Future<Directory?> _exportDiagnosticsBundle(SessionState state) async {
+    final languageCode = Localizations.localeOf(context).languageCode;
     final runtime = ref.read(terminalRuntimeControllerProvider);
     final seenSessionIds = <String>{};
     final exports = <terminal.TerminalDiagnosticsExport>[];
@@ -1067,6 +1080,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
       directory: exportDirectory,
       basename: basename,
       exports: exports,
+      languageCode: languageCode,
     );
   }
 
@@ -1123,6 +1137,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
   }
 
   void _toggleReadOnlySession(String sessionId) {
+    if (_paneForSession(_sessionState, sessionId)?.isExited == true) return;
     _mutateState(() {
       if (!_readOnlySessionIds.add(sessionId)) {
         _readOnlySessionIds.remove(sessionId);

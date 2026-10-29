@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show FileSystemException;
+import 'dart:ui' show SemanticsAction, SemanticsFlag;
 
 import 'package:app/data/configuration/data_api_configuration.dart';
 import 'package:app/data/configuration/data_api_configuration_providers.dart';
@@ -40,14 +41,17 @@ import 'support/no_io_local_terminal_layout_repository.dart';
 class _EventfulPtyBackend extends FakePtyBackend {
   final Map<String, List<PtyEvent>> _queuedEvents = <String, List<PtyEvent>>{};
 
-  void enqueueExit(String sessionId, {int? code}) {
+  void enqueueExit(String sessionId, {int? code, bool? sshSessionEstablished}) {
     _queuedEvents
         .putIfAbsent(sessionId, () => <PtyEvent>[])
         .add(
           PtyEvent(
             kind: 'exit',
             sessionId: sessionId,
-            payload: code == null ? null : <String, Object?>{'code': code},
+            payload: <String, Object?>{
+              'code': ?code,
+              'ssh_session_established': ?sshSessionEstablished,
+            },
           ),
         );
   }
@@ -79,6 +83,17 @@ class _SshEventfulPtyBackend extends _EventfulPtyBackend
   String createSessionV1(String sessionConfigV1Json) {
     return createSession(sessionConfigV1Json);
   }
+}
+
+class _InitiallyFailedSshBackend extends _SshEventfulPtyBackend {
+  bool allowFrames = false;
+  @override
+  Uint8List? takeFramePacketV1Protobuf(
+    String sessionId, {
+    required int? afterSequence,
+  }) => allowFrames
+      ? super.takeFramePacketV1Protobuf(sessionId, afterSequence: afterSequence)
+      : null;
 }
 
 final class _EmptySshProfileImportService implements SshProfileImportService {
@@ -2149,6 +2164,47 @@ void main() {
     expect(fakeBindings.writes, isEmpty);
   });
 
+  testWidgets(
+    'native paste immediately after pane click uses the new pane before rebuild',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async => call.method == 'Clipboard.getData'
+            ? <String, dynamic>{'text': 'PANE_A'}
+            : null,
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+      await _openTabContextMenu(tester);
+      await tester.tap(find.text('Split right'));
+      await tester.pumpAndSettle();
+      _expectActivePane(tester, '2');
+      fakeBindings.writesBySession.clear();
+      await tester.tap(find.byKey(const Key('shell-pane-1')));
+      // Deliberately dispatch before a frame can rebuild action bindings.
+      await _dispatchNativeWindowBridge(
+        tester,
+        const MethodCall('nativePaste'),
+      );
+      await tester.pumpAndSettle();
+      expect(fakeBindings.writesBySession, isNotEmpty);
+      expect(fakeBindings.writesBySession.last.key, '1');
+      expect(fakeBindings.writesBySession.last.value, utf8.encode('PANE_A'));
+    },
+  );
+
   testWidgets('native paste sends clipboard text to the active session', (
     tester,
   ) async {
@@ -2424,9 +2480,9 @@ void main() {
 
       await tester.tap(find.byType(TerminalViewport));
       await tester.pump();
+      final semantics = tester.ensureSemantics();
       await _sendMetaAltShortcut(tester, LogicalKeyboardKey.keyB);
 
-      final semantics = tester.ensureSemantics();
       expect(find.byKey(const Key('instant-replay-sheet')), findsNothing);
       expect(find.byKey(const Key('instant-replay-layout')), findsOneWidget);
       expect(
@@ -2510,6 +2566,40 @@ void main() {
       var timeline = tester.widget<Slider>(timelineFinder);
       final startingTimelineValue = timeline.value;
       expect(startingTimelineValue, lessThan(timeline.max));
+      final sliderNode = find.semantics
+          .byFlag(SemanticsFlag.isSlider)
+          .evaluate()
+          .single;
+      expect(
+        sliderNode.getSemanticsData().hasAction(SemanticsAction.increase),
+        isTrue,
+      );
+      sliderNode.owner!.performAction(sliderNode.id, SemanticsAction.increase);
+      await tester.pump();
+      expect(
+        tester.widget<Slider>(timelineFinder).value,
+        greaterThan(startingTimelineValue),
+      );
+      sliderNode.owner!.performAction(sliderNode.id, SemanticsAction.decrease);
+      await tester.pump();
+      bool sliderHasFocus() =>
+          FocusManager.instance.primaryFocus?.context
+              ?.findAncestorWidgetOfExactType<Slider>() !=
+          null;
+      for (var index = 0; index < 24 && !sliderHasFocus(); index++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+      }
+      expect(sliderHasFocus(), isTrue);
+      final keyboardStart = tester.widget<Slider>(timelineFinder).value;
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+      expect(
+        tester.widget<Slider>(timelineFinder).value,
+        greaterThan(keyboardStart),
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pump();
       expect(timeline.max, greaterThanOrEqualTo(2000.0));
       expect(timeline.max, lessThan(2200.0));
       expect(
@@ -3981,6 +4071,72 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
+  for (final established in [false, true, null]) {
+    testWidgets('SSH exit notification uses native setup state $established', (
+      tester,
+    ) async {
+      final backend = _EventfulPtyBackend();
+      final titles = <String>[];
+      await _pumpShellScreen(
+        tester,
+        bindings: backend,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+        notificationSender:
+            ({required title, body, identifier, expiresAfterMs}) async {
+              titles.add(title);
+            },
+      );
+      backend.enqueueExit('1', code: 255, sshSessionEstablished: established);
+      await tester.pump(const Duration(milliseconds: 80));
+      await tester.pumpAndSettle();
+      expect(
+        titles,
+        contains(switch (established) {
+          false => 'SSH connection failed',
+          true => 'SSH connection interrupted',
+          null => 'Session ended',
+        }),
+      );
+    });
+  }
+
+  testWidgets('command menu hides empty groups and shows no-match feedback', (
+    tester,
+  ) async {
+    await _pumpShellScreen(
+      tester,
+      bindings: FakePtyBackend(),
+      repository: MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      ),
+    );
+    await _openCommandMenu(tester);
+    await tester.enterText(
+      find.byKey(const Key('shell-command-search-field')),
+      'zz_no_action_928317',
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('shell-command-no-results')), findsOneWidget);
+    for (final heading in [
+      'Quick actions',
+      'App actions',
+      'Session actions',
+      'Replay',
+      'Shell tools',
+    ]) {
+      expect(find.text(heading), findsNothing);
+    }
+    await tester.enterText(
+      find.byKey(const Key('shell-command-search-field')),
+      '',
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('shell-command-no-results')), findsNothing);
+    expect(find.byKey(const Key('shell-top-new-tab')), findsOneWidget);
+  });
+
   testWidgets('shell posts notifications for command completion and bells', (
     tester,
   ) async {
@@ -4030,6 +4186,42 @@ void main() {
     expect(notifications[1]['title'], startsWith('Bell in '));
     expect(notifications[1]['body'], 'The terminal requested attention.');
   });
+
+  testWidgets(
+    'activity ignores empty startup frames but not subsequent output',
+    (tester) async {
+      final backend = _DelayedNewTabPtyBackend()..emitPlaceholderFrame = true;
+      final notifications = <String>[];
+      await _pumpShellScreen(
+        tester,
+        bindings: backend,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+        notificationSender:
+            ({required title, body, identifier, expiresAfterMs}) async {
+              notifications.add(title);
+            },
+      );
+      final controller = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      ).read(sessionControllerProvider.notifier);
+      controller.createSession(defaultTerminalProfile());
+      await tester.pump(const Duration(milliseconds: 200));
+      controller.activateSession('1');
+      backend.releaseNewTabFrame = true;
+      await tester.pump(const Duration(milliseconds: 80));
+      await tester.pump(const Duration(seconds: 1));
+      expect(notifications, isEmpty);
+      backend.setFrame('2', _terminalFrameWithTitle('real background output'));
+      await _pumpUntilCondition(
+        tester,
+        condition: () => notifications.isNotEmpty,
+        description: 'output after startup baseline',
+      );
+      expect(notifications, hasLength(1));
+    },
+  );
 
   testWidgets('inactive session activity posts a notification', (tester) async {
     final fakeBindings = FakePtyBackend();
@@ -4090,8 +4282,110 @@ void main() {
   });
 
   testWidgets(
-    'notification authorization failures surface actionable feedback once',
+    'activity notifications aggregate split panes without internal IDs',
     (tester) async {
+      final fakeBindings = FakePtyBackend();
+      final notifications = <Map<String, String?>>[];
+      const sensitiveOutput = 'TOKEN=super-secret-output';
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+        notificationSender:
+            ({required title, body, identifier, expiresAfterMs}) async {
+              notifications.add({
+                'title': title,
+                'body': body,
+                'identifier': identifier,
+              });
+            },
+      );
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      container
+          .read(sessionControllerProvider.notifier)
+          .splitSession(
+            '1',
+            defaultTerminalProfile(),
+            TerminalSplitAxis.horizontal,
+          );
+      await tester.pumpAndSettle();
+      await _openCommandMenu(tester);
+      await tester.tap(find.text('New tab'));
+      await _chooseDefaultLocalSession(tester);
+
+      fakeBindings.setFrame(1, {
+        'rows': [
+          {
+            'index': 0,
+            'text': sensitiveOutput,
+            'style_runs': const <Object?>[],
+          },
+        ],
+        'cursor': {'row': 0, 'col': sensitiveOutput.length, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 0, 'end': 1},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+      });
+      fakeBindings.setFrame(2, {
+        'rows': [
+          {
+            'index': 0,
+            'text': sensitiveOutput,
+            'style_runs': const <Object?>[],
+          },
+        ],
+        'cursor': {'row': 0, 'col': sensitiveOutput.length, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 0, 'end': 1},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+      });
+      await _pumpUntilCondition(
+        tester,
+        description: 'inactive session activity notification',
+        condition: () => notifications.isNotEmpty,
+      );
+
+      expect(notifications, hasLength(1));
+      expect(notifications.single['title'], startsWith('Activity in '));
+      expect(notifications.single['title'], contains('Local Shell'));
+      expect(notifications.single['title'], isNot(contains('pane')));
+      expect(notifications.single['title'], isNot(contains('(1)')));
+      expect(notifications.single['body'], 'New terminal output is available.');
+      expect(notifications.single['identifier'], 'ianvs-terminal.activity.1');
+      for (final field in const <String>['title', 'body', 'identifier']) {
+        final value = notifications.single[field] ?? '';
+        expect(value, isNot(contains(sensitiveOutput)));
+        expect(value, isNot(contains('TOKEN')));
+        expect(value, isNot(contains('secret')));
+      }
+    },
+  );
+
+  for (final failure in <String, String>{
+    'notification_authorization_failed':
+        'macOS notifications are blocked for Trail. Enable them in System Settings > Notifications.',
+    'notification_authorization_request_failed':
+        'Trail could not check macOS notification permission right now. Try again later; the terminal remains available.',
+  }.entries) {
+    testWidgets('${failure.key} surfaces accurate feedback once', (
+      tester,
+    ) async {
       final fakeBindings = FakePtyBackend();
 
       await _pumpShellScreen(
@@ -4103,7 +4397,7 @@ void main() {
         notificationSender:
             ({required title, body, identifier, expiresAfterMs}) async {
               throw PlatformException(
-                code: 'notification_authorization_failed',
+                code: failure.key,
                 message: 'Denied by system',
               );
             },
@@ -4160,12 +4454,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 40));
       await tester.pumpAndSettle();
 
-      expect(
-        find.text(
-          'macOS notifications are blocked for Trail. Enable them in System Settings > Notifications.',
-        ),
-        findsOneWidget,
-      );
+      expect(find.text(failure.value), findsOneWidget);
 
       fakeBindings.enqueueEvent(
         1,
@@ -4174,14 +4463,9 @@ void main() {
       await tester.pump(const Duration(milliseconds: 40));
       await tester.pumpAndSettle();
 
-      expect(
-        find.text(
-          'macOS notifications are blocked for Trail. Enable them in System Settings > Notifications.',
-        ),
-        findsOneWidget,
-      );
-    },
-  );
+      expect(find.text(failure.value), findsOneWidget);
+    });
+  }
 
   testWidgets(
     'inactive session activity notifications redact immediate and trailing output',
@@ -4290,6 +4574,9 @@ void main() {
         'scrollback_offset': 0,
         'scrollback_max_offset': 0,
       });
+      await tester.pump(const Duration(seconds: 1));
+      expect(notifications, hasLength(1));
+      await tester.pump(const Duration(seconds: 30));
       await _pumpUntilCondition(
         tester,
         description: 'trailing inactive session activity notification',
@@ -5073,6 +5360,53 @@ void main() {
     );
   });
 
+  testWidgets(
+    'SSH failure before its first frame leaves loading and exposes reconnect',
+    (tester) async {
+      final backend = _InitiallyFailedSshBackend();
+      final profile = TerminalProfile(
+        id: 'initial-failure',
+        name: 'Initial failure',
+        shell: '/usr/bin/ssh',
+        connection: const terminal.TerminalConnectionConfig.ssh(
+          host: 'example.test',
+          user: 'tester',
+        ),
+      );
+      await _pumpShellScreen(
+        tester,
+        bindings: backend,
+        settle: false,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [profile]),
+        ),
+      );
+      await _pumpUntilCondition(
+        tester,
+        condition: () => ProviderScope.containerOf(
+          tester.element(find.byType(ShellScreen)),
+        ).read(sessionControllerProvider).isReady,
+        description: 'SSH launch prepared without frame',
+      );
+      backend.enqueueExit('1', code: 255);
+      await tester.pump(const Duration(milliseconds: 80));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('shell-session-loading-1')), findsNothing);
+      final reconnect = find.byKey(
+        const Key('mobile-disconnected-reconnect-1'),
+      );
+      expect(reconnect, findsOneWidget);
+      backend.allowFrames = true;
+      await tester.tap(reconnect);
+      await tester.pumpAndSettle();
+      final state = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      ).read(sessionControllerProvider);
+      expect(state.activeSessionId, '2');
+      expect(state.liveReconnectionFor('1'), '2');
+    },
+  );
+
   testWidgets('SSH transport failure keeps history until its tab is closed', (
     tester,
   ) async {
@@ -5127,8 +5461,15 @@ void main() {
       container.read(sessionControllerProvider).tabs.single.activePane.isExited,
       isTrue,
     );
+    expect(
+      find.byKey(const Key('mobile-disconnected-reconnect-1')),
+      findsOneWidget,
+    );
     expect(eventfulBindings.closedSessionIds, isEmpty);
     expect(find.byKey(const Key('shell-runtime-error')), findsOneWidget);
+    expect(find.textContaining('SSH connection “client”'), findsNothing);
+    await tester.tap(find.byKey(const Key('shell-runtime-error-details')));
+    await tester.pumpAndSettle();
     expect(
       find.textContaining(
         'SSH connection “client” to root@client.example.test:36000 failed',
@@ -5140,6 +5481,13 @@ void main() {
       findsOneWidget,
     );
 
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.byType(TextButton),
+      ),
+    );
+    await tester.pumpAndSettle();
     final semantics = tester.ensureSemantics();
     expect(
       find.bySemanticsLabel(RegExp(r'^Terminal runtime error\.')),

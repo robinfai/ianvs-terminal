@@ -122,14 +122,17 @@ class DesktopSessionStatus extends StatelessWidget {
         state,
       ].join('\n');
       final palette = context.appTheme;
-      return Semantics(
-        key: const Key('desktop-session-status'),
-        label: detail,
-        button: onDetails != null,
-        excludeSemantics: true,
-        onTap: onDetails,
-        child: Tooltip(
-          message: detail,
+      // Keep the tooltip portal outside the deliberately flattened status
+      // semantics; otherwise its overlay can serialize an orphan on macOS.
+      return Tooltip(
+        message: detail,
+        excludeFromSemantics: true,
+        child: Semantics(
+          key: const Key('desktop-session-status'),
+          label: detail,
+          button: onDetails != null,
+          excludeSemantics: true,
+          onTap: onDetails,
           child: Material(
             color: palette.chrome,
             child: InkWell(

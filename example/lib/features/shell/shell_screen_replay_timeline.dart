@@ -577,6 +577,8 @@ class _ReplaySemanticTimeline extends StatelessWidget {
     final visiblePosition = displayPosition ?? position;
     final visibleDuration = displayDuration ?? duration;
     return Semantics(
+      container: true,
+      explicitChildNodes: true,
       label: context.l10n.replayTimelineSemantics(
         contextLabel,
         _formatRecordingDuration(visiblePosition),
@@ -735,11 +737,18 @@ class _ReplaySemanticTimeline extends StatelessWidget {
                             overlayRadius: 15,
                           ),
                         ),
-                        child: Slider(
-                          key: timelineKey,
-                          value: safeValue,
-                          max: safeMax,
-                          onChanged: onChanged,
+                        // Keep the value-indicator portal in this subtree so
+                        // incremental native semantics updates remain connected.
+                        // https://github.com/flutter/flutter/issues/190357
+                        child: Overlay.wrap(
+                          alwaysSizeToContent: true,
+                          clipBehavior: Clip.none,
+                          child: Slider(
+                            key: timelineKey,
+                            value: safeValue,
+                            max: safeMax,
+                            onChanged: onChanged,
+                          ),
                         ),
                       ),
                     ),
@@ -886,6 +895,7 @@ class _ReplaySegmentLane extends StatelessWidget {
             context.l10n.exitCode(segment.exitCode!),
         ].join(' · '),
         child: Semantics(
+          container: true,
           button: onSeek != null,
           label: context.l10n.jumpToReplaySegment(
             segmentLabel,

@@ -564,7 +564,10 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
           if (!_loaded) Text(t('Loading saved configuration…', '正在读取已保存的配置…')),
           if (_tested)
             Text(
-              t('Connection succeeded. Not saved yet.', '连接成功，尚未保存。'),
+              jsonEncode(widget.settings.configuration?.toJson()) ==
+                      jsonEncode(_value.toJson())
+                  ? t('Connection succeeded.', '连接成功。')
+                  : t('Connection succeeded. Not saved yet.', '连接成功，尚未保存。'),
               key: const Key('ai-connection-ok'),
             ),
           if (_error != null)

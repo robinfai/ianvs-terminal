@@ -15,6 +15,7 @@ class _ShellCommandMenu extends StatefulWidget {
     required this.isActiveRecordingPendingSave,
     required this.isActiveRecordingBusy,
     this.modeSelection,
+    this.isActiveSessionExited = false,
   });
 
   final String launcherShortcutLabel;
@@ -23,6 +24,7 @@ class _ShellCommandMenu extends StatefulWidget {
   final String clearBufferShortcutLabel;
   final bool hasDefaultProfile;
   final bool hasActiveSession;
+  final bool isActiveSessionExited;
   final bool isActiveSessionSsh;
   final bool canReopenClosedTab;
   final bool isActiveSessionReadOnly;
@@ -121,6 +123,13 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
           onTap: onTap,
         ),
       );
+    }
+
+    List<Widget> visibleGroup(String title, List<Widget> children) {
+      if (!children.any((child) => child is FocusTraversalOrder)) {
+        return const [];
+      }
+      return [sectionLabel(title), ...children];
     }
 
     final menu = Material(
@@ -223,192 +232,217 @@ class _ShellCommandMenuState extends State<_ShellCommandMenu> {
                           ),
                         ),
                       ),
-                      sectionLabel(context.l10n.quickActions),
-                      commandTile(
-                        key: const Key('shell-search-scrollback-top'),
-                        actionId: TerminalActionId.search,
-                        icon: Icons.search_rounded,
-                        title: context.l10n.searchTerminalOutput,
-                        subtitle: context.l10n.searchTerminalOutputDescription,
-                        shortcutLabel: searchShortcutLabel,
-                        enabled: hasActiveSession,
-                        disabledReason: activeSessionRequired,
-                        onTap: () =>
-                            Navigator.of(context).pop(TerminalActionId.search),
-                      ),
-                      commandTile(
-                        key: const Key('shell-top-new-tab'),
-                        actionId: TerminalActionId.newTab,
-                        icon: Icons.add_box_outlined,
-                        title: context.l10n.newTab,
-                        subtitle: context.l10n.newTabDescription,
-                        shortcutLabel: newTabShortcutLabel,
-                        enabled: hasDefaultProfile,
-                        disabledReason: defaultProfileRequired,
-                        onTap: () =>
-                            Navigator.of(context).pop(TerminalActionId.newTab),
-                      ),
+                      ...visibleGroup(context.l10n.quickActions, [
+                        commandTile(
+                          key: const Key('shell-search-scrollback-top'),
+                          actionId: TerminalActionId.search,
+                          icon: Icons.search_rounded,
+                          title: context.l10n.searchTerminalOutput,
+                          subtitle:
+                              context.l10n.searchTerminalOutputDescription,
+                          shortcutLabel: searchShortcutLabel,
+                          enabled: hasActiveSession,
+                          disabledReason: activeSessionRequired,
+                          onTap: () => Navigator.of(
+                            context,
+                          ).pop(TerminalActionId.search),
+                        ),
+                        commandTile(
+                          key: const Key('shell-top-new-tab'),
+                          actionId: TerminalActionId.newTab,
+                          icon: Icons.add_box_outlined,
+                          title: context.l10n.newTab,
+                          subtitle: context.l10n.newTabDescription,
+                          shortcutLabel: newTabShortcutLabel,
+                          enabled: hasDefaultProfile,
+                          disabledReason: defaultProfileRequired,
+                          onTap: () => Navigator.of(
+                            context,
+                          ).pop(TerminalActionId.newTab),
+                        ),
+                      ]),
+                      ...visibleGroup(context.l10n.appActions, [
+                        commandTile(
+                          key: const Key('shell-command-defaults'),
+                          actionId: TerminalActionId.defaults,
+                          icon: Icons.tune_rounded,
+                          title: context.l10n.defaultsAppearance,
+                          subtitle: context.l10n.defaultsAppearanceDescription,
+                          enabled: true,
+                          onTap: () => Navigator.of(
+                            context,
+                          ).pop(TerminalActionId.defaults),
+                        ),
+                        commandTile(
+                          key: const Key('shell-reopen-closed-tab'),
+                          actionId: TerminalActionId.reopenClosedTab,
+                          icon: Icons.restore_rounded,
+                          title: context.l10n.reopenClosedTab,
+                          subtitle: context.l10n.reopenClosedTabDescription,
+                          enabled: canReopenClosedTab,
+                          disabledReason: closedTabRequired,
+                          onTap: () => Navigator.of(
+                            context,
+                          ).pop(TerminalActionId.reopenClosedTab),
+                        ),
 
-                      sectionLabel(context.l10n.appActions),
-                      commandTile(
-                        key: const Key('shell-command-defaults'),
-                        actionId: TerminalActionId.defaults,
-                        icon: Icons.tune_rounded,
-                        title: context.l10n.defaultsAppearance,
-                        subtitle: context.l10n.defaultsAppearanceDescription,
-                        enabled: true,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.defaults),
-                      ),
-                      commandTile(
-                        key: const Key('shell-reopen-closed-tab'),
-                        actionId: TerminalActionId.reopenClosedTab,
-                        icon: Icons.restore_rounded,
-                        title: context.l10n.reopenClosedTab,
-                        subtitle: context.l10n.reopenClosedTabDescription,
-                        enabled: canReopenClosedTab,
-                        disabledReason: closedTabRequired,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.reopenClosedTab),
-                      ),
-
-                      commandTile(
-                        key: const Key('shell-command-profiles'),
-                        actionId: TerminalActionId.profiles,
-                        icon: Icons.folder_open_rounded,
-                        title: context.l10n.profilesEllipsis,
-                        subtitle: context.l10n.profilesDescription,
-                        enabled: true,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.profiles),
-                      ),
-                      sectionLabel(context.l10n.sessionActions),
-                      if (!hasActiveSession)
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              context.l10n.requiresActiveShellSession,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: palette.textSubtle),
+                        commandTile(
+                          key: const Key('shell-command-profiles'),
+                          actionId: TerminalActionId.profiles,
+                          icon: Icons.folder_open_rounded,
+                          title: context.l10n.profilesEllipsis,
+                          subtitle: context.l10n.profilesDescription,
+                          enabled: true,
+                          onTap: () => Navigator.of(
+                            context,
+                          ).pop(TerminalActionId.profiles),
+                        ),
+                      ]),
+                      ...visibleGroup(context.l10n.sessionActions, [
+                        if (!hasActiveSession)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                context.l10n.requiresActiveShellSession,
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: palette.textSubtle),
+                              ),
                             ),
                           ),
+                        commandTile(
+                          key: const Key('shell-toggle-read-only'),
+                          actionId: TerminalActionId.toggleReadOnly,
+                          icon: Icons.lock_outline_rounded,
+                          title: widget.isActiveSessionExited
+                              ? context.l10n.mobileSessionDisconnectedTitle
+                              : context.l10n.readOnlyMode(
+                                  isActiveSessionReadOnly.toString(),
+                                ),
+                          subtitle: widget.isActiveSessionExited
+                              ? context.l10n.mobileSessionDisconnectedDetail
+                              : context.l10n.readOnlyModeDescription,
+                          enabled:
+                              hasActiveSession && !widget.isActiveSessionExited,
+                          disabledReason: widget.isActiveSessionExited
+                              ? context.l10n.mobileSessionDisconnectedDetail
+                              : activeSessionRequired,
+                          onTap: () => Navigator.of(
+                            context,
+                          ).pop(TerminalActionId.toggleReadOnly),
                         ),
-                      commandTile(
-                        key: const Key('shell-toggle-read-only'),
-                        actionId: TerminalActionId.toggleReadOnly,
-                        icon: Icons.lock_outline_rounded,
-                        title: context.l10n.readOnlyMode(
-                          isActiveSessionReadOnly.toString(),
+                        commandTile(
+                          key: const Key('shell-clear-buffer'),
+                          actionId: TerminalActionId.clearBuffer,
+                          icon: Icons.clear_all_rounded,
+                          title: context.l10n.clearBuffer,
+                          subtitle: context.l10n.clearBufferDescription,
+                          shortcutLabel: clearBufferShortcutLabel,
+                          enabled: hasActiveSession,
+                          disabledReason: activeSessionRequired,
+                          onTap: () => Navigator.of(
+                            context,
+                          ).pop(TerminalActionId.clearBuffer),
                         ),
-                        subtitle: context.l10n.readOnlyModeDescription,
-                        enabled: hasActiveSession,
-                        disabledReason: activeSessionRequired,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.toggleReadOnly),
-                      ),
-                      commandTile(
-                        key: const Key('shell-clear-buffer'),
-                        actionId: TerminalActionId.clearBuffer,
-                        icon: Icons.clear_all_rounded,
-                        title: context.l10n.clearBuffer,
-                        subtitle: context.l10n.clearBufferDescription,
-                        shortcutLabel: clearBufferShortcutLabel,
-                        enabled: hasActiveSession,
-                        disabledReason: activeSessionRequired,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.clearBuffer),
-                      ),
-                      commandTile(
-                        key: const Key('shell-open-sftp-panel'),
-                        actionId: TerminalActionId.openSftpPanel,
-                        icon: Icons.folder_open_rounded,
-                        title: context.l10n.openSftpPanel,
-                        subtitle: context.l10n.openSftpPanelDescription,
-                        enabled: isActiveSessionSsh,
-                        disabledReason: context.l10n.requiresActiveSshSession,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.openSftpPanel),
-                      ),
-                      commandTile(
-                        key: const Key('shell-export-scrollback'),
-                        actionId: TerminalActionId.exportScrollback,
-                        icon: Icons.ios_share_rounded,
-                        title: context.l10n.exportTerminalHistory,
-                        subtitle: context.l10n.exportTerminalHistoryDescription,
-                        enabled: hasActiveSession,
-                        disabledReason: activeSessionRequired,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.exportScrollback),
-                      ),
-                      commandTile(
-                        key: const Key('shell-capabilities'),
-                        actionId: TerminalActionId.showShellCapabilities,
-                        icon: Icons.fact_check_outlined,
-                        title: context.l10n.shellCapabilities,
-                        subtitle: context.l10n.shellCapabilitiesMenuDescription,
-                        enabled: hasActiveSession,
-                        disabledReason: activeSessionRequired,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.showShellCapabilities),
-                      ),
-                      commandTile(
-                        key: const Key('shell-export-diagnostics'),
-                        actionId: TerminalActionId.exportDiagnostics,
-                        icon: Icons.bug_report_rounded,
-                        title: context.l10n.exportDiagnostics,
-                        subtitle: context.l10n.exportDiagnosticsDescription,
-                        enabled: hasActiveSession,
-                        disabledReason: activeSessionRequired,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.exportDiagnostics),
-                      ),
-                      sectionLabel(context.l10n.replay),
-                      commandTile(
-                        key: const Key('shell-toggle-session-recording'),
-                        actionId: TerminalActionId.toggleSessionRecording,
-                        icon: isActiveSessionRecording
-                            ? Icons.stop_circle_outlined
-                            : isActiveRecordingPendingSave
-                            ? Icons.save_outlined
-                            : Icons.fiber_manual_record_outlined,
-                        title: isActiveSessionRecording
-                            ? context.l10n.stopAndSaveRecording
-                            : isActiveRecordingPendingSave
-                            ? context.l10n.retrySavingRecording
-                            : context.l10n.startRecordingForReplay,
-                        subtitle: context.l10n.recordingDescription,
-                        subtitleMaxLines: 2,
-                        enabled: hasActiveSession && !isActiveRecordingBusy,
-                        disabledReason: hasActiveSession
-                            ? context.l10n.recordingOperationInProgress
-                            : activeSessionRequired,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.toggleSessionRecording),
-                      ),
-                      commandTile(
-                        key: const Key('shell-open-recording'),
-                        actionId: TerminalActionId.openRecording,
-                        icon: Icons.video_file_outlined,
-                        title: context.l10n.replayHubTitle,
-                        subtitle: context.l10n.replayHubDescription,
-                        enabled: true,
-                        onTap: () => Navigator.of(
-                          context,
-                        ).pop(TerminalActionId.openRecording),
-                      ),
-                      sectionLabel(context.l10n.shellTools),
+                        commandTile(
+                          key: const Key('shell-open-sftp-panel'),
+                          actionId: TerminalActionId.openSftpPanel,
+                          icon: Icons.folder_open_rounded,
+                          title: context.l10n.openSftpPanel,
+                          subtitle: context.l10n.openSftpPanelDescription,
+                          enabled: isActiveSessionSsh,
+                          disabledReason: context.l10n.requiresActiveSshSession,
+                          onTap: () => Navigator.of(
+                            context,
+                          ).pop(TerminalActionId.openSftpPanel),
+                        ),
+                        commandTile(
+                          key: const Key('shell-export-scrollback'),
+                          actionId: TerminalActionId.exportScrollback,
+                          icon: Icons.ios_share_rounded,
+                          title: context.l10n.exportTerminalHistory,
+                          subtitle:
+                              context.l10n.exportTerminalHistoryDescription,
+                          enabled: hasActiveSession,
+                          disabledReason: activeSessionRequired,
+                          onTap: () => Navigator.of(
+                            context,
+                          ).pop(TerminalActionId.exportScrollback),
+                        ),
+                        commandTile(
+                          key: const Key('shell-capabilities'),
+                          actionId: TerminalActionId.showShellCapabilities,
+                          icon: Icons.fact_check_outlined,
+                          title: context.l10n.shellCapabilities,
+                          subtitle:
+                              context.l10n.shellCapabilitiesMenuDescription,
+                          enabled: hasActiveSession,
+                          disabledReason: activeSessionRequired,
+                          onTap: () => Navigator.of(
+                            context,
+                          ).pop(TerminalActionId.showShellCapabilities),
+                        ),
+                        commandTile(
+                          key: const Key('shell-export-diagnostics'),
+                          actionId: TerminalActionId.exportDiagnostics,
+                          icon: Icons.bug_report_rounded,
+                          title: context.l10n.exportDiagnostics,
+                          subtitle: context.l10n.exportDiagnosticsDescription,
+                          enabled: hasActiveSession,
+                          disabledReason: activeSessionRequired,
+                          onTap: () => Navigator.of(
+                            context,
+                          ).pop(TerminalActionId.exportDiagnostics),
+                        ),
+                      ]),
+                      ...visibleGroup(context.l10n.replay, [
+                        commandTile(
+                          key: const Key('shell-toggle-session-recording'),
+                          actionId: TerminalActionId.toggleSessionRecording,
+                          icon: isActiveSessionRecording
+                              ? Icons.stop_circle_outlined
+                              : isActiveRecordingPendingSave
+                              ? Icons.save_outlined
+                              : Icons.fiber_manual_record_outlined,
+                          title: isActiveSessionRecording
+                              ? context.l10n.stopAndSaveRecording
+                              : isActiveRecordingPendingSave
+                              ? context.l10n.retrySavingRecording
+                              : context.l10n.startRecordingForReplay,
+                          subtitle: context.l10n.recordingDescription,
+                          subtitleMaxLines: 2,
+                          enabled: hasActiveSession && !isActiveRecordingBusy,
+                          disabledReason: hasActiveSession
+                              ? context.l10n.recordingOperationInProgress
+                              : activeSessionRequired,
+                          onTap: () => Navigator.of(
+                            context,
+                          ).pop(TerminalActionId.toggleSessionRecording),
+                        ),
+                        commandTile(
+                          key: const Key('shell-open-recording'),
+                          actionId: TerminalActionId.openRecording,
+                          icon: Icons.video_file_outlined,
+                          title: context.l10n.replayHubTitle,
+                          subtitle: context.l10n.replayHubDescription,
+                          enabled: true,
+                          onTap: () => Navigator.of(
+                            context,
+                          ).pop(TerminalActionId.openRecording),
+                        ),
+                      ]),
+                      if (commandTileTraversalOrder == 1.0)
+                        Padding(
+                          key: const Key('shell-command-no-results'),
+                          padding: EdgeInsets.all(palette.spacing.lg),
+                          child: Text(
+                            context.l10n.noActionMatches(_query),
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: palette.textMuted),
+                          ),
+                        ),
 
                       Padding(
                         padding: const EdgeInsets.fromLTRB(12, 4, 12, 2),

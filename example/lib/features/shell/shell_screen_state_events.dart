@@ -212,6 +212,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         _notifySessionExit(
           event.sessionId,
           event.exitCode,
+          sshSessionEstablished: event.sshSessionEstablished,
           exitContext: exitContext,
         );
       case terminal.TerminalSessionBellEvent():
@@ -1871,6 +1872,9 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       return;
     }
     final preview = _framePreview(frame);
+    // Empty placeholder frames do not establish the initial content baseline.
+    // Keep the last meaningful baseline when a session temporarily clears.
+    if (preview == null) return;
     final hasSeenSession = !_sessionsSeenForActivityNotifications.add(
       sessionId,
     );
@@ -1878,51 +1882,57 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     _lastActivityFramePreviews[sessionId] = preview;
     if (hasSeenSession &&
         previousPreview != preview &&
-        _notificationSessionIsInactive(sessionId) &&
-        preview != null) {
+        _notificationSessionIsInactive(sessionId)) {
       _sendOrScheduleActivityNotification(sessionId);
     }
   }
 
   void _sendOrScheduleActivityNotification(String sessionId) {
-    if (_activityNotificationAllowed(sessionId)) {
-      _activityNotificationTrailingTimers.remove(sessionId)?.cancel();
+    final state = ref.read(sessionControllerProvider);
+    final tab = _tabForSession(state, sessionId);
+    if (tab == null) return;
+    final group = tab.sessionId;
+    final pending = _pendingActivityNotificationSessions.putIfAbsent(
+      group,
+      () => <String>{},
+    );
+    pending.add(sessionId);
+    // One trailing delivery per tab. Do not reset the timer for every frame:
+    // sustained output must neither flood notifications nor postpone forever.
+    if (_activityNotificationTrailingTimers.containsKey(group)) return;
+    final last = _lastActivityNotificationAt['activity-tab.$group'];
+    final elapsed = last == null ? null : DateTime.now().difference(last);
+    final delay = elapsed == null || elapsed >= const Duration(seconds: 30)
+        ? _ShellScreenState._activityNotificationTrailingDelay
+        : const Duration(seconds: 30) - elapsed;
+    _activityNotificationTrailingTimers[group] = Timer(delay, () {
+      _activityNotificationTrailingTimers.remove(group);
+      final sessions = _pendingActivityNotificationSessions.remove(group) ?? {};
+      if (!mounted || !_activityNotificationsEnabled) return;
+      final latestState = ref.read(sessionControllerProvider);
+      final inactive = sessions
+          .where(
+            (id) =>
+                _paneForSession(latestState, id) != null &&
+                _notificationSessionIsInactive(id) &&
+                _lastActivityFramePreviews[id] != null,
+          )
+          .toList();
+      if (inactive.isEmpty) return;
+      final latestTab = _tabForSession(latestState, inactive.first);
+      if (latestTab == null) return;
+      _lastActivityNotificationAt['activity-tab.$group'] = DateTime.now();
       _sendShellNotification(
         title: context.l10n.notificationInSession(
           context.l10n.activity,
-          _sessionTitleForNotification(sessionId),
+          latestTab.title.trim().isEmpty
+              ? context.l10n.sessionNamed(group)
+              : latestTab.title.trim(),
         ),
         body: context.l10n.newTerminalOutputAvailable,
-        identifier: 'ianvs-terminal.activity.$sessionId',
+        identifier: 'ianvs-terminal.activity.$group',
       );
-      return;
-    }
-
-    _activityNotificationTrailingTimers.remove(sessionId)?.cancel();
-    _activityNotificationTrailingTimers[sessionId] = Timer(
-      _ShellScreenState._activityNotificationTrailingDelay,
-      () {
-        _activityNotificationTrailingTimers.remove(sessionId);
-        if (!mounted ||
-            !_activityNotificationsEnabled ||
-            !_notificationSessionIsInactive(sessionId)) {
-          return;
-        }
-        final latestPreview = _lastActivityFramePreviews[sessionId];
-        if (latestPreview == null) {
-          return;
-        }
-        _lastActivityNotificationAt[sessionId] = DateTime.now();
-        _sendShellNotification(
-          title: context.l10n.notificationInSession(
-            context.l10n.activity,
-            _sessionTitleForNotification(sessionId),
-          ),
-          body: context.l10n.newTerminalOutputAvailable,
-          identifier: 'ianvs-terminal.activity.$sessionId',
-        );
-      },
-    );
+    });
   }
 
   void _markNewOutputBadge(String sessionId, terminal.TerminalFrameDiff frame) {
@@ -1951,7 +1961,13 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     String sessionId,
     int? exitCode, {
     TerminalSessionExitUiContext? exitContext,
+    bool? sshSessionEstablished,
   }) {
+    if (kDebugMode && sshSessionEstablished != null) {
+      debugPrint(
+        '[ssh-exit] session=$sessionId established=$sshSessionEstablished code=$exitCode',
+      );
+    }
     final sessionTitle = switch (exitContext) {
       TerminalSessionExitUiContext(
         :final title,
@@ -1967,7 +1983,13 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       null => _sessionTitleForNotification(sessionId),
     };
     _sendShellNotification(
-      title: context.l10n.sessionEnded,
+      title: exitCode == 255
+          ? switch (sshSessionEstablished) {
+              false => context.l10n.sshNotificationConnectionFailed,
+              true => context.l10n.sshNotificationConnectionInterrupted,
+              null => context.l10n.sessionEnded,
+            }
+          : context.l10n.sessionEnded,
       body: context.l10n.sessionExitedBody(
         sessionTitle,
         exitCode?.toString() ?? 'none',
@@ -1990,9 +2012,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
           : trimmedTitle;
     }
     final paneLabel = context.l10n.paneNamed(paneIndex + 1);
-    return trimmedTitle.isEmpty
-        ? '$paneLabel ($sessionId)'
-        : '$trimmedTitle $paneLabel ($sessionId)';
+    return trimmedTitle.isEmpty ? paneLabel : '$trimmedTitle · $paneLabel';
   }
 
   void _notifyBell(String sessionId) {

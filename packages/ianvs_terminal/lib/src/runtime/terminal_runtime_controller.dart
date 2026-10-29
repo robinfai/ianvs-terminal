@@ -189,9 +189,13 @@ final class TerminalSessionExitEvent extends TerminalSessionEvent {
     super.sessionId, {
     this.exitCode,
     this.finalFrame,
+    this.sshSessionEstablished,
   });
 
   final int? exitCode;
+
+  /// Native SSH setup outcome; null for local, replay, or older event sources.
+  final bool? sshSessionEstablished;
 
   /// The last rendered frame captured before the runtime releases the session.
   ///
@@ -4270,12 +4274,22 @@ class TerminalRuntimeController implements TerminalProtocolInputSink {
           _flushDeferredProtocolReplies(sessionId, sessionEpoch);
         }
         if (pendingAsyncWork == null) {
-          _emitExitIfCurrent(sessionId, sessionEpoch, route.exitCode);
+          _emitExitIfCurrent(
+            sessionId,
+            sessionEpoch,
+            route.exitCode,
+            sshSessionEstablished: route.sshSessionEstablished,
+          );
           return null;
         }
         return pendingAsyncWork.then((_) {
           if (_productEventWorkAllowed(sessionId, sessionEpoch)) {
-            _emitExitIfCurrent(sessionId, sessionEpoch, route.exitCode);
+            _emitExitIfCurrent(
+              sessionId,
+              sessionEpoch,
+              route.exitCode,
+              sshSessionEstablished: route.sshSessionEstablished,
+            );
           }
         });
       }
@@ -4336,7 +4350,12 @@ class TerminalRuntimeController implements TerminalProtocolInputSink {
     return pendingAsyncWork;
   }
 
-  void _emitExitIfCurrent(String sessionId, int sessionEpoch, int? exitCode) {
+  void _emitExitIfCurrent(
+    String sessionId,
+    int sessionEpoch,
+    int? exitCode, {
+    bool? sshSessionEstablished,
+  }) {
     if (!_productEventWorkAllowed(sessionId, sessionEpoch) ||
         _retainedExitedSessions.contains(sessionId)) {
       return;
@@ -4363,6 +4382,7 @@ class TerminalRuntimeController implements TerminalProtocolInputSink {
         sessionId,
         exitCode: exitCode,
         finalFrame: finalFrame,
+        sshSessionEstablished: sshSessionEstablished,
       ),
     );
     if (!retain) _closeExitedSessionIfCurrent(sessionId, sessionEpoch);

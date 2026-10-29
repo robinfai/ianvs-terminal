@@ -125,6 +125,12 @@ class LocalSessionLayoutCodec {
       if (pane.isExited) {
         return null;
       }
+      // Unsaved SSH sessions have no persisted profile/credentials to relaunch.
+      // Do not turn the user's temporary-session choice into a startup error.
+      if (pane.profileSnapshot?.isSsh == true &&
+          !profilesById.containsKey(pane.profileId)) {
+        return null;
+      }
       final priorSpec = pane.relaunchSpec;
       final spec = TerminalRelaunchSpec(
         profileId: pane.profileId,

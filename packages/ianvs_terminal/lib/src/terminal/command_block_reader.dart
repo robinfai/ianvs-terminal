@@ -1416,10 +1416,13 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
               ),
               child: Row(
                 children: [
-                  BackButton(
-                    key: const Key('block-reader-close'),
-                    color: tokens.foreground,
-                    onPressed: _close,
+                  Semantics(
+                    label: t('Back', '返回'),
+                    child: BackButton(
+                      key: const Key('block-reader-close'),
+                      color: tokens.foreground,
+                      onPressed: _close,
+                    ),
                   ),
                   Expanded(
                     child: Tooltip(
@@ -1529,7 +1532,11 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
                     tooltip: t('Block actions', '命令块操作'),
                     icon: showActionLabels
                         ? null
-                        : Icon(Icons.more_horiz, color: tokens.muted),
+                        : Icon(
+                            Icons.more_horiz,
+                            semanticLabel: t('Block actions', '命令块操作'),
+                            color: tokens.muted,
+                          ),
                     onSelected: _action,
                     itemBuilder: (_) => [
                       PopupMenuItem(
@@ -1576,6 +1583,7 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
                               children: [
                                 Icon(
                                   Icons.more_horiz,
+                                  semanticLabel: t('Block actions', '命令块操作'),
                                   color: tokens.muted,
                                   size: 18,
                                 ),
@@ -1890,19 +1898,25 @@ class _CommandBlockReaderState extends State<_CommandBlockReader> {
                 onPressed: count == 0 || _find.busy
                     ? null
                     : () => _moveFind(-1),
-                icon: const Icon(Icons.keyboard_arrow_up),
+                icon: Icon(
+                  Icons.keyboard_arrow_up,
+                  semanticLabel: t('Previous matching line', '上一匹配行'),
+                ),
               ),
               IconButton(
                 key: const Key('block-reader-find-next'),
                 tooltip: t('Next matching line', '下一匹配行'),
                 onPressed: count == 0 || _find.busy ? null : () => _moveFind(1),
-                icon: const Icon(Icons.keyboard_arrow_down),
+                icon: Icon(
+                  Icons.keyboard_arrow_down,
+                  semanticLabel: t('Next matching line', '下一匹配行'),
+                ),
               ),
               IconButton(
                 key: const Key('block-reader-find-close'),
                 tooltip: t('Close find', '关闭查找'),
                 onPressed: _closeFind,
-                icon: const Icon(Icons.close),
+                icon: Icon(Icons.close, semanticLabel: t('Close find', '关闭查找')),
               ),
             ],
           ),

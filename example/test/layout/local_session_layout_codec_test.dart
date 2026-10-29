@@ -5,10 +5,36 @@ import 'package:app/features/layout/local_terminal_layout_models.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_state.dart';
+import 'package:app/features/terminal/terminal.dart' as terminal;
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('LocalSessionLayoutCodec', () {
+    test('does not persist unsaved SSH sessions as restart intent', () {
+      final profile = defaultTerminalProfile().copyWith(
+        id: 'temporary-ssh',
+        connection: const terminal.TerminalConnectionConfig.ssh(
+          host: 'example.test',
+          user: 'test',
+        ),
+      );
+      final state = _state(
+        profiles: [defaultTerminalProfile()],
+        tabs: [
+          TerminalTab(
+            sessionId: 'temporary',
+            title: 'Temporary SSH',
+            profileId: profile.id,
+            profileSnapshot: profile,
+          ),
+        ],
+        activeSessionId: 'temporary',
+      );
+      expect(LocalSessionLayoutCodec.capture(state).tabs, isEmpty);
+      final saved = state.copyWith(profiles: [profile]);
+      expect(LocalSessionLayoutCodec.capture(saved).tabs, hasLength(1));
+    });
+
     test('captures topology and only fresh-launch intent', () {
       final profile = defaultTerminalProfile().copyWith(
         shell: '/bin/zsh',

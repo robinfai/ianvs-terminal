@@ -19,6 +19,7 @@ class AppDropdownFormField<T> extends StatelessWidget {
     this.borderRadius,
     this.selectedItemBuilder,
     this.hint,
+    this.fieldHeight,
   });
   final List<DropdownMenuItem<T>>? items;
   final ValueChanged<T?>? onChanged;
@@ -33,6 +34,7 @@ class AppDropdownFormField<T> extends StatelessWidget {
   final BorderRadius? borderRadius;
   final DropdownButtonBuilder? selectedItemBuilder;
   final Widget? hint;
+  final double? fieldHeight;
 
   @override
   Widget build(BuildContext context) =>
@@ -261,6 +263,7 @@ class _AppDropdownFieldState<T> extends FormFieldState<T> {
                 borderRadius: radius,
                 excludeFromSemantics: true,
                 child: InputDecorator(
+                  textAlignVertical: TextAlignVertical.center,
                   decoration: config.decoration
                       .applyDefaults(theme.inputDecorationTheme)
                       .copyWith(enabled: widget.enabled),
@@ -274,26 +277,29 @@ class _AppDropdownFieldState<T> extends FormFieldState<T> {
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    child: Row(
-                      mainAxisSize: config.isExpanded
-                          ? MainAxisSize.max
-                          : MainAxisSize.min,
-                      children: [
-                        Flexible(
-                          fit: config.isExpanded
-                              ? FlexFit.tight
-                              : FlexFit.loose,
-                          child: selectedChild,
-                        ),
-                        SizedBox(width: tokens.spacing.md),
-                        Icon(
-                          Icons.arrow_drop_down,
-                          size: config.iconSize ?? theme.iconTheme.size ?? 24,
-                          color: widget.enabled
-                              ? tokens.textMuted
-                              : tokens.textSubtle,
-                        ),
-                      ],
+                    child: SizedBox(
+                      height: config.fieldHeight,
+                      child: Row(
+                        mainAxisSize: config.isExpanded
+                            ? MainAxisSize.max
+                            : MainAxisSize.min,
+                        children: [
+                          Flexible(
+                            fit: config.isExpanded
+                                ? FlexFit.tight
+                                : FlexFit.loose,
+                            child: selectedChild,
+                          ),
+                          SizedBox(width: tokens.spacing.md),
+                          Icon(
+                            Icons.arrow_drop_down,
+                            size: config.iconSize ?? theme.iconTheme.size ?? 24,
+                            color: widget.enabled
+                                ? tokens.textMuted
+                                : tokens.textSubtle,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

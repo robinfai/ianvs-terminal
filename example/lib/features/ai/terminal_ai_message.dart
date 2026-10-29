@@ -18,10 +18,13 @@ class TerminalAiMessageFrame extends StatelessWidget {
   Widget build(BuildContext context) {
     final zh = Localizations.localeOf(context).languageCode == 'zh';
     final theme = ChatTheme.of(context);
+    final platform = Theme.of(context).platform;
+    final mobile =
+        platform == TargetPlatform.iOS || platform == TargetPlatform.android;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+      padding: EdgeInsets.symmetric(horizontal: mobile ? 4 : 0, vertical: 8),
       child: Align(
-        alignment: AlignmentDirectional.centerStart,
+        alignment: Alignment.topCenter,
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: theme.contentMaxWidth),
           child: ChatMessageFrame(

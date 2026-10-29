@@ -45,6 +45,7 @@ class LocalTerminalDiagnosticsExporter {
     required Directory directory,
     required String basename,
     required List<terminal.TerminalDiagnosticsExport> exports,
+    String languageCode = 'en',
   }) async {
     if (exports.isEmpty) {
       throw StateError('At least one diagnostics export is required.');
@@ -110,7 +111,7 @@ class LocalTerminalDiagnosticsExporter {
     );
     await File(
       '${target.path}/summary.md',
-    ).writeAsString(_summaryMarkdown(boundedExports));
+    ).writeAsString(_summaryMarkdown(boundedExports, languageCode));
 
     return target;
   }
@@ -162,77 +163,159 @@ class LocalTerminalDiagnosticsExporter {
 
   static String _summaryMarkdown(
     List<terminal.TerminalDiagnosticsExport> exports,
+    String languageCode,
   ) {
+    String t(String en, String zh) => languageCode == 'zh' ? zh : en;
+    String session(terminal.TerminalDiagnosticsExport export) =>
+        '${t('Session', '会话')} ${export.manifest['session_id'] ?? '?'}';
     final buffer = StringBuffer()
-      ..writeln('# Terminal Diagnostics Summary')
+      ..writeln('# ${t('Terminal diagnostics summary', '终端诊断摘要')}')
       ..writeln()
-      ..writeln('## 结论')
+      ..writeln('## ${t('Conclusion', '结论')}')
+      ..writeln();
+    for (final export in exports) {
+      final conclusion = switch (export.conclusion) {
+        'user-command' => t(
+          'Command workload may be the bottleneck.',
+          '命令工作负载可能是瓶颈。',
+        ),
+        'native-parser-pty' => t(
+          'Terminal parsing or output processing may be the bottleneck.',
+          '终端解析或输出处理可能是瓶颈。',
+        ),
+        'flutter-ui-render' => t(
+          'Interface rendering may be the bottleneck.',
+          '界面渲染可能是瓶颈。',
+        ),
+        'mixed' => t(
+          'Several components show signs of a bottleneck.',
+          '多个环节出现瓶颈迹象。',
+        ),
+        _ => _insufficientExplanation(export, t),
+      };
+      buffer.writeln('- ${session(export)}: $conclusion');
+    }
+    buffer
+      ..writeln()
+      ..writeln('## ${t('Next steps', '建议下一步')}')
+      ..writeln();
+    for (final export in exports) {
+      final count = _validSampleCount(export);
+      final next = switch (export.conclusion) {
+        'user-command' => t(
+          'Inspect the running command and its child processes during the slowdown.',
+          '在卡顿时检查正在运行的命令及其子进程负载。',
+        ),
+        'native-parser-pty' => t(
+          'Export immediately after reproducing a short burst of output; inspect parsing and scrolling costs.',
+          '短时间复现大量输出后立即导出，检查解析和滚动耗时。',
+        ),
+        'flutter-ui-render' => t(
+          'Capture frame build and painting performance while the interface is slow.',
+          '在界面卡顿时采集帧构建和绘制性能。',
+        ),
+        'mixed' => t(
+          'Reproduce command load, output processing and interface rendering separately.',
+          '分别复现命令负载、输出处理和界面渲染，区分各环节影响。',
+        ),
+        _ when count != null && count < 2 => t(
+          'Keep the session running until at least two valid resource samples have been collected, then export again. These are resource samples, not frames.',
+          '保持会话运行，等采集到至少两个有效资源样本后再导出；这里统计的是资源样本，不是画面帧数。',
+        ),
+        _
+            when export.manifest.containsKey('child_pid') &&
+                export.manifest['child_pid'] == null =>
+          t(
+            'Open a running terminal session, reproduce the issue, then export from that session.',
+            '打开一个正在运行的终端会话，复现问题后从该会话再次导出。',
+          ),
+        _ => t(
+          'If the slowdown persists, reproduce it and export immediately while it is happening. More idle samples alone will not identify the cause. No action is needed if there is no slowdown.',
+          '若仍有卡顿，请在卡顿发生时立即导出；单纯增加空闲期样本不能确定原因。没有卡顿时无需处理。',
+        ),
+      };
+      buffer.writeln('- ${session(export)}: $next');
+    }
+    buffer
+      ..writeln()
+      ..writeln('## ${t('Technical evidence', '技术证据')}')
       ..writeln();
     for (final export in exports) {
       buffer.writeln(
-        '- session ${export.manifest['session_id'] ?? 'unknown'}: ${export.conclusion ?? 'insufficient-evidence'}',
+        '- ${session(export)}: conclusion=${export.conclusion ?? 'unknown'}',
       );
-    }
-
-    buffer
-      ..writeln()
-      ..writeln('## 证据摘要')
-      ..writeln();
-    for (final export in exports) {
-      final evidence = _stringList(export.summary['evidence']);
-      if (evidence.isEmpty) {
-        buffer.writeln(
-          '- session ${export.manifest['session_id'] ?? 'unknown'}: no evidence summary provided',
-        );
-        continue;
+      for (final evidence in _stringList(export.summary['evidence'])) {
+        buffer.writeln('- ${session(export)}: $evidence');
       }
-      for (final item in evidence) {
-        buffer.writeln(
-          '- session ${export.manifest['session_id'] ?? 'unknown'}: $item',
-        );
-      }
-    }
-
-    buffer
-      ..writeln()
-      ..writeln('## 归因分数')
-      ..writeln();
-    for (final export in exports) {
       final scores = export.summary['attribution_scores'];
       buffer.writeln(
-        '- session ${export.manifest['session_id'] ?? 'unknown'}: ${scores is Map ? jsonEncode(scores) : '{}'}',
+        '- ${session(export)}: attribution_scores=${scores is Map ? jsonEncode(scores) : '{}'}',
       );
     }
-
     buffer
       ..writeln()
-      ..writeln('## 隐私处理')
+      ..writeln('## ${t('Privacy', '隐私处理')}')
       ..writeln()
       ..writeln(
-        '- 默认不导出 scrollback、env、完整 command line、原始 cwd、username、hostname。',
+        t(
+          '- Scrollback, environment variables, full command lines, raw working directories, usernames and hostnames are excluded by default.',
+          '- 默认不导出滚动历史、环境变量、完整命令行、原始工作目录、用户名和主机名。',
+        ),
       )
-      ..writeln('- 命令和路径只允许摘要、计数、类别或 salted hash 进入基础包。');
-
-    buffer
-      ..writeln()
-      ..writeln('## 建议下一步')
-      ..writeln();
-    for (final export in exports) {
-      final nextSteps = _stringList(export.summary['next_steps']);
-      if (nextSteps.isEmpty) {
-        buffer.writeln(
-          '- session ${export.manifest['session_id'] ?? 'unknown'}: reproduce while active for at least two samples, then export again.',
-        );
-        continue;
-      }
-      for (final item in nextSteps) {
-        buffer.writeln(
-          '- session ${export.manifest['session_id'] ?? 'unknown'}: $item',
-        );
-      }
-    }
-
+      ..writeln(
+        t(
+          '- Commands and paths are limited to summaries, counts, categories or salted hashes in the basic bundle.',
+          '- 基础包中的命令和路径仅保留摘要、计数、类别或加盐哈希。',
+        ),
+      );
     return buffer.toString();
+  }
+
+  static int? _validSampleCount(terminal.TerminalDiagnosticsExport export) {
+    for (final evidence in _stringList(export.summary['evidence'])) {
+      final match = RegExp(
+        r'valid_resource_samples=(\d+)',
+      ).firstMatch(evidence);
+      if (match != null) return int.tryParse(match.group(1)!);
+    }
+    return null;
+  }
+
+  static String _insufficientExplanation(
+    terminal.TerminalDiagnosticsExport export,
+    String Function(String, String) t,
+  ) {
+    final count = _validSampleCount(export);
+    if (count != null && count < 2) {
+      return t(
+        'Only $count valid resource samples were collected; at least two are required for attribution.',
+        '仅采集到 $count 个有效资源样本，归因至少需要两个。',
+      );
+    }
+    if (export.manifest.containsKey('child_pid') &&
+        export.manifest['child_pid'] == null) {
+      return t(
+        'No terminal child-process evidence is available, so the cause cannot be determined.',
+        '缺少终端子进程证据，暂时无法判断原因。',
+      );
+    }
+    final scores = export.summary['attribution_scores'];
+    if (scores is Map &&
+        scores['insufficient_evidence'] == 0 &&
+        [
+          'user_command',
+          'native_parser_pty',
+          'flutter_ui_render',
+        ].every((key) => scores[key] is num && (scores[key] as num) < 0.5)) {
+      return t(
+        '${count == null ? 'The collected' : '$count valid'} resource samples did not capture a clear bottleneck: no attribution score reached its threshold. This is not a shortage of samples and does not prove that no slowdown occurred.',
+        '${count == null ? '已采集的资源样本' : '$count 个有效资源样本'}未捕获明显瓶颈：各项归因分数均未达到阈值。这不是样本数量不足，也不能证明从未发生卡顿。',
+      );
+    }
+    return t(
+      'The available evidence is insufficient to identify a cause; see the technical evidence below.',
+      '现有证据不足以确定原因，请结合下方技术证据检查。',
+    );
   }
 
   static List<String> _stringList(Object? value) {

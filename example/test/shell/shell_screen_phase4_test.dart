@@ -5050,7 +5050,7 @@ void main() {
     expect(notifications, hasLength(1));
     expect(
       notifications.single['title'],
-      'Command finished on deploy@remote.example in $paneOneTitle pane 1 (1)',
+      'Command finished on deploy@remote.example in $paneOneTitle · pane 1',
     );
     expect(notifications.single['body'], 'Exit code 0');
     expect(
@@ -5120,8 +5120,7 @@ void main() {
         (pane) => pane.sessionId == inactiveSessionId,
       );
       final inactivePaneLabel =
-          '${inactivePane.title} pane ${inactivePaneIndex + 1} '
-          '($inactiveSessionId)';
+          '${inactivePane.title} · pane ${inactivePaneIndex + 1}';
 
       fakeBindings.setFrame(
         inactiveSessionId,
@@ -5140,6 +5139,7 @@ void main() {
           .refreshSession(inactiveSessionId);
       await tester.pump(const Duration(milliseconds: 40));
 
+      await tester.pump(const Duration(milliseconds: 250));
       fakeBindings.enqueueEvent(
         inactiveSessionId,
         PtyEvent(kind: 'bell', sessionId: inactiveSessionId),
@@ -5165,9 +5165,9 @@ void main() {
       final activityNotifications = notifications
           .where(
             (notification) =>
-                notification['title'] == 'Activity in $inactivePaneLabel' &&
+                notification['title'] == 'Activity in ${tab.title}' &&
                 notification['identifier'] ==
-                    'ianvs-terminal.activity.$inactiveSessionId',
+                    'ianvs-terminal.activity.${tab.sessionId}',
           )
           .toList(growable: false);
       expect(activityNotifications, hasLength(1));

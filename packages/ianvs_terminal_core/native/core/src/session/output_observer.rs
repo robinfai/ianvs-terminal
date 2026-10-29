@@ -26,6 +26,8 @@ struct OutputText {
     generation: u64,
     seen_content: bool,
     changed: bool,
+    shell_hook_bytes: Option<usize>,
+    metadata_terminator: bool,
     events: Vec<Value>,
 }
 
@@ -85,6 +87,7 @@ impl OutputText {
 
 impl Perform for OutputText {
     fn print(&mut self, ch: char) {
+        self.metadata_terminator = false;
         self.seen_content = true;
         if self.pending_cr {
             self.suppress();
@@ -101,6 +104,7 @@ impl Perform for OutputText {
         self.changed = true;
     }
     fn execute(&mut self, byte: u8) {
+        self.metadata_terminator = false;
         match byte {
             b'\n' => {
                 self.publish(true);
@@ -113,7 +117,9 @@ impl Perform for OutputText {
             // CR is commonly followed by LF. Preserve the preceding text for
             // that LF, but any following printable update is suppressed below.
             b'\r' => {
-                self.pending_cr = true;
+                // Returning to column zero on an empty logical line cannot
+                // overwrite text. zsh does this before command output.
+                self.pending_cr = !self.value.is_empty() || self.suppressed;
             }
             b'\t' => self.print('\t'),
             8 | 11 | 12 => self.suppress(),
@@ -121,6 +127,15 @@ impl Perform for OutputText {
         }
     }
     fn csi_dispatch(&mut self, params: &Params, intermediates: &[u8], ignore: bool, action: char) {
+        self.metadata_terminator = false;
+        if !ignore
+            && intermediates == b"?"
+            && matches!(action, 'h' | 'l')
+            && params.iter().eq([&[2004][..]])
+        {
+            // Bracketed-paste input mode does not edit output or move the cursor.
+            return;
+        }
         if !ignore && intermediates == b"?" && matches!(action, 'h' | 'l') {
             for param in params.iter() {
                 if matches!(param.first(), Some(47 | 1047 | 1049)) {
@@ -134,19 +149,64 @@ impl Perform for OutputText {
             self.suppress();
         }
     }
-    fn hook(&mut self, _: &Params, _: &[u8], _: bool, _: char) {
-        self.suppress();
-    }
-    fn osc_dispatch(&mut self, params: &[&[u8]], _: bool) {
-        // Only metadata and hyperlinks are known not to alter cursor contents.
-        if !matches!(
-            params.first().copied(),
-            Some(b"0" | b"1" | b"2" | b"7" | b"8" | b"133" | b"633")
-        ) {
+    fn hook(&mut self, params: &Params, intermediates: &[u8], ignore: bool, action: char) {
+        self.metadata_terminator = false;
+        self.shell_hook_bytes = None;
+        if !ignore
+            && action == 'h'
+            && intermediates.is_empty()
+            && params.iter().all(|param| param == [0])
+        {
+            // DCS hook;<hex> is Shell metadata, not screen output. Validate
+            // its prefix and hex stream without retaining command payloads.
+            self.shell_hook_bytes = Some(0);
+        } else {
             self.suppress();
         }
     }
-    fn esc_dispatch(&mut self, _: &[u8], _: bool, byte: u8) {
+    fn put(&mut self, byte: u8) {
+        let Some(count) = self.shell_hook_bytes else {
+            return;
+        };
+        let valid = if count < 4 {
+            byte == b"ook;"[count]
+        } else {
+            byte.is_ascii_hexdigit()
+        };
+        if valid {
+            self.shell_hook_bytes = Some(count.saturating_add(1));
+        } else {
+            self.shell_hook_bytes = None;
+            self.suppress();
+        }
+    }
+    fn unhook(&mut self) {
+        self.metadata_terminator = self
+            .shell_hook_bytes
+            .take()
+            .is_some_and(|count| count >= 6 && (count - 4) % 2 == 0);
+        if !self.metadata_terminator {
+            self.suppress();
+        }
+    }
+    fn osc_dispatch(&mut self, params: &[&[u8]], bell_terminated: bool) {
+        // Only metadata and hyperlinks are known not to alter cursor contents.
+        let metadata = matches!(
+            params.first().copied(),
+            Some(b"0" | b"1" | b"2" | b"7" | b"8" | b"133" | b"633")
+        );
+        self.metadata_terminator = metadata && !bell_terminated;
+        if !metadata {
+            self.suppress();
+        }
+    }
+    fn esc_dispatch(&mut self, intermediates: &[u8], ignore: bool, byte: u8) {
+        let metadata = std::mem::take(&mut self.metadata_terminator);
+        if metadata && !ignore && intermediates.is_empty() && byte == b'\\' {
+            // ST only terminates a control string. Its payload handler has
+            // already decided whether that string invalidated this line.
+            return;
+        }
         if byte == b'c' {
             self.alternate = false;
         }
@@ -157,6 +217,46 @@ impl Perform for OutputText {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn shell_preexec_metadata_preserves_the_first_output_line() {
+        let mut observer = OutputObserver::default();
+        observer.set_enabled(true);
+        // zsh leaves bracketed paste, emits a metadata-only shell hook, then
+        // prints the command's first line without an intervening newline.
+        let events = observer.observe(b"\r\n\x1b[?2004l\r\x1bPhook;7b22686f6f6b223a2270726565786563227d\x1b\\UX_REPLY_PROMPT\r\n");
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0]["text"], "UX_REPLY_PROMPT");
+    }
+    #[test]
+    fn split_shell_metadata_never_exposes_payload_or_hides_output() {
+        let bytes = b"\x1bPhook;7b22686f6f6b223a2270726565786563227d\x1b\\READY\n";
+        for split in 0..=bytes.len() {
+            let mut observer = OutputObserver::default();
+            observer.set_enabled(true);
+            let mut events = observer.observe(&bytes[..split]);
+            events.extend(observer.observe(&bytes[split..]));
+            assert_eq!(events.last().unwrap()["text"], "READY", "split={split}");
+            assert!(
+                events
+                    .iter()
+                    .all(|event| "READY".starts_with(event["text"].as_str().unwrap()))
+            );
+        }
+    }
+    #[test]
+    fn malformed_hook_and_metadata_followed_by_graphics_remain_suppressed() {
+        for bytes in [
+            b"Pass\x1bPhook;not-hex\x1b\\word:".as_slice(),
+            b"Pass\x1bPhook;123\x1b\\word:",
+            b"Pass\x1b]0;title\x07\x1b_Gimage\x1b\\word:",
+            b"Pass\x1bPhook;1234\x1b\\\x1b_Gimage\x1b\\word:",
+            b"Pass\x1bPhook;1234\x1b\\\rword:",
+        ] {
+            let mut observer = OutputObserver::default();
+            observer.set_enabled(true);
+            assert!(observer.observe(bytes).is_empty(), "{bytes:?}");
+        }
+    }
     #[test]
     fn enabling_during_split_utf8_does_not_include_pre_subscription_bytes() {
         let mut observer = OutputObserver::default();

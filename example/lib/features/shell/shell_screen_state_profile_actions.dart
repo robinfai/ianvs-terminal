@@ -310,6 +310,17 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
             ),
           );
         }
+      case NativeAppMenuAction.closeTab:
+        if (_shellModalInputBlocked) return Future<void>.value();
+        final state = ref.read(sessionControllerProvider);
+        final tab = _tabForSession(state, state.activeSessionId);
+        if (tab != null) {
+          _closeTab(
+            ref.read(sessionControllerProvider.notifier),
+            state,
+            tab.sessionId,
+          );
+        }
       case NativeAppMenuAction.newSshSession:
         final sessionState = ref.read(sessionControllerProvider);
         if (_canOpenNewSessionLauncher(sessionState)) {
@@ -486,7 +497,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
             animationStyle: appDialogAnimation(context),
             barrierColor: Colors.black.withValues(alpha: 0.34),
             barrierDismissible: true,
-            barrierLabel: 'Close defaults',
+            barrierLabel: context.l10n.closeDefaults,
             requestFocus: true,
             builder: buildDefaults,
           );

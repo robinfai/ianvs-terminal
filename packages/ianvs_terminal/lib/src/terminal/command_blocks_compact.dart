@@ -134,7 +134,12 @@ extension _CommandBlocksCompact on _CommandBlocksViewState {
                 PopupMenuButton<String>(
                   popUpAnimationStyle: ComposerTheme.overlayAnimation(context),
                   tooltip: t('Block actions', '命令块操作'),
-                  icon: Icon(Icons.more_horiz, size: 18, color: tokens.muted),
+                  icon: Icon(
+                    Icons.more_horiz,
+                    semanticLabel: t('Block actions', '命令块操作'),
+                    size: 18,
+                    color: tokens.muted,
+                  ),
                   onSelected: (action) => _action(block, action),
                   itemBuilder: (_) => _menuItems(block),
                 ),

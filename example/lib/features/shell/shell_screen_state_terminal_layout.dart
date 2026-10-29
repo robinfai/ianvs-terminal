@@ -393,6 +393,19 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
         active: isActive,
       );
     }
+    if (pane.isExited && pane.profileSnapshot?.isSsh == true) {
+      return Align(
+        alignment: Alignment.topCenter,
+        child: MobileDisconnectedSessionNotice(
+          key: Key('mobile-disconnected-notice-${pane.sessionId}'),
+          sessionId: pane.sessionId,
+          reconnected:
+              _sessionState.liveReconnectionFor(pane.sessionId) != null,
+          exitCode: pane.exitCode,
+          onReconnect: () => unawaited(_reconnectMobileSession(pane.sessionId)),
+        ),
+      );
+    }
     final chinese = Localizations.localeOf(context).languageCode == 'zh';
     return Center(
       key: Key('terminal-unavailable-${pane.sessionId}'),
@@ -711,7 +724,9 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                       child: Column(
                         children: [
                           ?paneHeader,
-                          if (pane.isExited && context.usesMobileNavigation)
+                          if (pane.isExited &&
+                              (context.usesMobileNavigation ||
+                                  pane.profileSnapshot?.isSsh == true))
                             ConstrainedBox(
                               constraints: BoxConstraints(
                                 maxHeight:
@@ -724,7 +739,9 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                     'mobile-disconnected-notice-$sessionId',
                                   ),
                                   sessionId: sessionId,
-                                  compact: compactDisconnected,
+                                  compact:
+                                      !context.usesMobileNavigation ||
+                                      compactDisconnected,
                                   exitCode: pane.exitCode,
                                   reconnected:
                                       sessionState.liveReconnectionFor(
@@ -1071,7 +1088,9 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                         ),
                                       ),
                                     ?attentionBurst,
-                                    if (isActive && _isSearchOpen)
+                                    if (isActive &&
+                                        _isSearchOpen &&
+                                        !_openAiSessions.contains(sessionId))
                                       Positioned(
                                         top: _ShellScreenState
                                             ._terminalOverlayPadding

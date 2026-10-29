@@ -357,17 +357,94 @@ class TerminalPaneLayoutNode {
     return first!.paneFor(sessionId) ?? second!.paneFor(sessionId);
   }
 
-  TerminalPaneLayoutNode replacePane(TerminalPane replacement) {
+  TerminalPaneLayoutNode replacePane(
+    TerminalPane replacement, {
+    String? replacingSessionId,
+  }) {
+    final sourceId = replacingSessionId ?? replacement.sessionId;
     if (isLeaf) {
-      return pane!.sessionId == replacement.sessionId
+      return pane!.sessionId == sourceId
           ? TerminalPaneLayoutNode.leaf(replacement)
           : this;
     }
     return TerminalPaneLayoutNode.split(
       id: id,
       splitAxis: splitAxis!,
-      first: first!.replacePane(replacement),
-      second: second!.replacePane(replacement),
+      first: first!.replacePane(replacement, replacingSessionId: sourceId),
+      second: second!.replacePane(replacement, replacingSessionId: sourceId),
+      ratio: ratio,
+    );
+  }
+
+  /// Restore beside the nearest surviving original neighbour, without undoing
+  /// splits or resizes elsewhere in the current tree.
+  TerminalPaneLayoutNode? restoreClosedPane({
+    required TerminalPaneLayoutNode previousLayout,
+    required String closedSessionId,
+    required TerminalPane reopenedPane,
+  }) {
+    final slots =
+        <
+          ({
+            TerminalPaneLayoutNode parent,
+            TerminalPaneLayoutNode sibling,
+            bool before,
+          })
+        >[];
+    void collect(TerminalPaneLayoutNode node) {
+      if (node.isLeaf) return;
+      final before = node.first!.containsSession(closedSessionId);
+      final branch = before ? node.first! : node.second!;
+      if (!branch.containsSession(closedSessionId)) return;
+      collect(branch);
+      slots.add((
+        parent: node,
+        sibling: before ? node.second! : node.first!,
+        before: before,
+      ));
+    }
+
+    collect(previousLayout);
+    for (final slot in slots) {
+      var anchor = _nodeWithId(slot.sibling.id);
+      for (final siblingPane in slot.sibling.panes) {
+        anchor ??= _nodeWithId(siblingPane.sessionId);
+      }
+      if (anchor == null) continue;
+      final restored = TerminalPaneLayoutNode.leaf(reopenedPane);
+      return _replaceNode(
+        anchor.id,
+        TerminalPaneLayoutNode.split(
+          id: _nodeWithId(slot.parent.id) == null
+              ? slot.parent.id
+              : _terminalPaneSplitNodeId(anchor.id, reopenedPane.sessionId),
+          splitAxis: slot.parent.splitAxis!,
+          first: slot.before ? restored : anchor,
+          second: slot.before ? anchor : restored,
+          ratio: slot.parent.ratio,
+        ),
+      );
+    }
+    return null;
+  }
+
+  TerminalPaneLayoutNode? _nodeWithId(String nodeId) => id == nodeId
+      ? this
+      : isLeaf
+      ? null
+      : first!._nodeWithId(nodeId) ?? second!._nodeWithId(nodeId);
+
+  TerminalPaneLayoutNode _replaceNode(
+    String nodeId,
+    TerminalPaneLayoutNode replacement,
+  ) {
+    if (id == nodeId) return replacement;
+    if (isLeaf) return this;
+    return TerminalPaneLayoutNode.split(
+      id: id,
+      splitAxis: splitAxis!,
+      first: first!._replaceNode(nodeId, replacement),
+      second: second!._replaceNode(nodeId, replacement),
       ratio: ratio,
     );
   }

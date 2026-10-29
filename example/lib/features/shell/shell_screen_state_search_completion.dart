@@ -6,6 +6,9 @@ extension _ShellScreenStateSearchCompletion on _ShellScreenState {
     if (activeSessionId == null) {
       return;
     }
+    if (_openAiSessions.contains(activeSessionId)) {
+      _observeAiTerminal(activeSessionId);
+    }
     _mutateState(() {
       _isSearchOpen = true;
       _searchFocusRequestSerial += 1;

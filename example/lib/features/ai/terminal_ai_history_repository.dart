@@ -37,7 +37,11 @@ class LocalTerminalAiHistoryRepository implements TerminalAiHistoryRepository {
       Directory('${(await _directory()).path}/ai-history');
 
   @override
-  Future<List<Map<String, Object?>>> load() => _startupHistory ??= _load();
+  Future<List<Map<String, Object?>>> load() =>
+      _startupHistory ??= _load().catchError((Object error, StackTrace stack) {
+        _startupHistory = null;
+        Error.throwWithStackTrace(error, stack);
+      });
 
   Future<List<Map<String, Object?>>> _load() async {
     final root = await _root();

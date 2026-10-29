@@ -108,8 +108,9 @@ extension _ShellScreenStateTriggers on _ShellScreenState {
     switch (trigger.action) {
       case TerminalProfileTriggerAction.notify:
         _sendShellNotification(
-          title:
-              'Trigger matched in ${_sessionTitleForNotification(sessionId)}',
+          title: context.l10n.triggerMatchedInSession(
+            _sessionTitleForNotification(sessionId),
+          ),
           body: rowText.trim(),
           identifier:
               'ianvs-terminal.trigger.$sessionId.${trigger.pattern.hashCode}.${DateTime.now().microsecondsSinceEpoch}',
@@ -167,18 +168,15 @@ extension _ShellScreenStateTriggers on _ShellScreenState {
       final panes = tab.effectivePanes;
       final paneIndex = panes.indexWhere((pane) => pane.sessionId == sessionId);
       if (paneIndex >= 0) {
-        final pane = panes[paneIndex];
-        final title = pane.title.trim();
-        if (panes.length < 2) {
-          return title.isEmpty ? 'Session $sessionId' : title;
-        }
-        final paneLabel = 'pane ${paneIndex + 1}';
-        return title.isEmpty
-            ? '$paneLabel ($sessionId)'
-            : '$title $paneLabel ($sessionId)';
+        return _exitSessionTitle(
+          sessionId: sessionId,
+          title: panes[paneIndex].title,
+          paneIndex: paneIndex,
+          paneCount: panes.length,
+        );
       }
     }
-    return 'Session $sessionId';
+    return context.l10n.sessionNamed(sessionId);
   }
 
   String _zmodemRecoverySourceLabel(String sessionId) {

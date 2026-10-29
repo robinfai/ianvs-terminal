@@ -6,6 +6,48 @@ import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
 void main() {
   test(
+    'closed nested pane restores its side and ratio without resetting other splits',
+    () {
+      TerminalPane pane(String id) =>
+          TerminalPane(sessionId: id, title: id, profileId: 'local');
+      TerminalPaneLayoutNode leaf(String id) =>
+          TerminalPaneLayoutNode.leaf(pane(id));
+      final original = TerminalPaneLayoutNode.split(
+        id: 'root',
+        splitAxis: TerminalSplitAxis.horizontal,
+        first: TerminalPaneLayoutNode.split(
+          id: 'left',
+          splitAxis: TerminalSplitAxis.vertical,
+          first: leaf('a'),
+          second: leaf('c'),
+          ratio: .3,
+        ),
+        second: leaf('b'),
+        ratio: .65,
+      );
+      final current = original.removePane('c')!.resizeSplit('root', .7);
+      final restored = current.restoreClosedPane(
+        previousLayout: original,
+        closedSessionId: 'c',
+        reopenedPane: pane('c2'),
+      )!;
+      expect(restored.ratio, .7);
+      expect(restored.second!.pane!.sessionId, 'b');
+      expect(restored.first!.splitAxis, TerminalSplitAxis.vertical);
+      expect(restored.first!.ratio, .3);
+      expect(restored.first!.panes.map((p) => p.sessionId), ['a', 'c2']);
+      expect(
+        leaf('unrelated').restoreClosedPane(
+          previousLayout: original,
+          closedSessionId: 'c',
+          reopenedPane: pane('c2'),
+        ),
+        isNull,
+      );
+    },
+  );
+
+  test(
     'SSH connection chain includes jumps with independent host overrides',
     () {
       final profile = defaultTerminalProfile().copyWith(

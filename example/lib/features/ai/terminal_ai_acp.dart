@@ -91,6 +91,14 @@ extension _TerminalAiAcp on TerminalAiController {
               final content = event['content'] as Map?;
               if (content?['type'] != 'text') return;
               final text = content?['text'] as String? ?? '';
+              if (text.isNotEmpty &&
+                  {
+                    AiPhase.thinking,
+                    AiPhase.connecting,
+                    AiPhase.waitingForFirstToken,
+                  }.contains(phase)) {
+                phase = AiPhase.generating;
+              }
               final index = task.transcript.indexWhere(
                 (e) => e.id == task.agentTextId,
               );

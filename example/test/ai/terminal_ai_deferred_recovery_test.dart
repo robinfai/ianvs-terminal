@@ -262,9 +262,9 @@ void main() {
       await tap(tester, find.byTooltip('Session tasks'));
       await tap(
         tester,
-        find.ancestor(
-          of: find.text('Run original command once · Follow-up ended'),
-          matching: find.byType(CheckedPopupMenuItem<String>),
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is PopupMenuItem<String> && widget.value == originalTask,
         ),
       );
       expect(controller.taskId, originalTask);

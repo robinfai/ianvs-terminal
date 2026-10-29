@@ -115,7 +115,33 @@ extension _ShellScreenAiObserver on _ShellScreenState {
                     .read(terminalRuntimeControllerProvider)
                     .scrollViewportTo(source, offset),
                 onBack: dual ? null : back,
-                autofocus: observing,
+                autofocus: observing && !_isSearchOpen,
+                searchMatches: _isSearchOpen
+                    ? _searchMatchesForSession(source)
+                    : const [],
+                activeSearchMatchIndex: _isSearchOpen
+                    ? _activeSearchMatchIndexForSession(source)
+                    : -1,
+                searchBar: _isSearchOpen
+                    ? _TerminalSearchBar(
+                        query: _searchQuery,
+                        matches: _searchHits.length,
+                        activeIndex: _activeSearchIndex,
+                        searchScope: _searchScope,
+                        searchMode: _searchMode,
+                        errorText: _searchErrorText,
+                        palette: context.appTheme,
+                        focusNode: _searchFocusNode,
+                        focusRequestSerial: _searchFocusRequestSerial,
+                        onChanged: _searchScrollback,
+                        onClear: _clearSearch,
+                        onScopeChanged: _setSearchScope,
+                        onModeChanged: _setSearchMode,
+                        onPrevious: () => _moveSearchMatch(1),
+                        onNext: () => _moveSearchMatch(-1),
+                        onClose: _closeSearch,
+                      )
+                    : null,
                 onTakeOver: sourcePane == null || sourcePane.isExited
                     ? null
                     : () {

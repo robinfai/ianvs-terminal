@@ -11,6 +11,38 @@ void main(List<String> arguments) {
   const session = 'fixture-session';
   final activePrompts = <Object>{};
   final cancelledPrompts = <Object>{};
+  final permissions = <String, Completer<Map<String, Object?>>>{};
+  Map<String, Object?>? bridge;
+
+  Future<Map<String, Object?>> tool(
+    String name,
+    Map<String, Object?> args,
+  ) async {
+    final request = await client.postUrl(Uri.parse(bridge!['url']! as String));
+    for (final header
+        in (bridge!['headers']! as List).cast<Map<String, Object?>>()) {
+      request.headers.set(
+        header['name']! as String,
+        header['value']! as String,
+      );
+    }
+    request.headers.contentType = ContentType.json;
+    request.write(
+      jsonEncode({
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'tools/call',
+        'params': {'name': name, 'arguments': args},
+      }),
+    );
+    final response = await request.close();
+    final body = jsonDecode(await utf8.decoder.bind(response).join()) as Map;
+    final result = body['result'] as Map;
+    final content = (result['content'] as List).first as Map;
+    return (jsonDecode(content['text'] as String) as Map)
+        .cast<String, Object?>();
+  }
+
   Map<String, Object?> modelOption() => {
     'id': 'model',
     'name': 'Model',
@@ -29,6 +61,12 @@ void main(List<String> arguments) {
     final input = (jsonDecode(line) as Map).cast<String, Object?>();
     final method = input['method'];
     final id = input['id'];
+    if (method == null && permissions.containsKey(id)) {
+      permissions
+          .remove(id)!
+          .complete((input['result']! as Map).cast<String, Object?>());
+      return;
+    }
     if (method == 'session/cancel') {
       for (final prompt in activePrompts.toList()) {
         cancelledPrompts.add(prompt);
@@ -86,6 +124,8 @@ void main(List<String> arguments) {
         };
       case 'session/new':
       case 'session/load':
+        bridge = ((params['mcpServers']! as List).firstOrNull as Map?)
+            ?.cast<String, Object?>();
         result = {
           'sessionId': session,
           'configOptions': [modelOption()],
@@ -96,6 +136,63 @@ void main(List<String> arguments) {
           'configOptions': [modelOption()],
         };
       case 'session/prompt':
+        if (jsonEncode(
+          params['prompt'],
+        ).contains('sparse-permission-fixture')) {
+          final observation = await tool('get_terminal_state', {});
+          final args = <String, Object?>{
+            'command': 'ls',
+            'reason': 'Inspect files',
+            'operation_id': 'sparse-operation',
+            'context_version': observation['context_version'],
+          };
+          send({
+            'method': 'session/update',
+            'params': {
+              'sessionId': session,
+              'update': {
+                'sessionUpdate': 'tool_call',
+                'toolCallId': 'sparse-call',
+                'kind': 'execute',
+                'status': 'pending',
+                'title': 'mcp.trail_terminal.run_command',
+                'rawInput': {
+                  'server': 'trail_terminal',
+                  'tool': 'run_command',
+                  'arguments': args,
+                },
+              },
+            },
+          });
+          final permission = Completer<Map<String, Object?>>();
+          permissions['sparse-permission'] = permission;
+          // Codex ACP 2.1.1 ElicitationReporter omits rawInput/title when the
+          // permission can be correlated to the preceding MCP tool call.
+          send({
+            'id': 'sparse-permission',
+            'method': 'session/request_permission',
+            'params': {
+              'sessionId': session,
+              'toolCall': {
+                'toolCallId': 'sparse-call',
+                'kind': 'execute',
+                'status': 'pending',
+              },
+              'options': [
+                {
+                  'optionId': 'allow',
+                  'name': 'Allow once',
+                  'kind': 'allow_once',
+                },
+                {'optionId': 'reject', 'name': 'Reject', 'kind': 'reject_once'},
+              ],
+            },
+          });
+          final decision = await permission.future;
+          if ((decision['outcome'] as Map?)?['optionId'] == 'allow') {
+            await tool('run_command', args);
+          }
+        }
         send({
           'method': 'session/update',
           'params': {

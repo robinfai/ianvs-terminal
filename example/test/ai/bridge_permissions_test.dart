@@ -24,6 +24,63 @@ void main() {
   String? choose(Map<String, Object?> value, {bool active = true}) =>
       permissions.option(value, session: 'current', active: active);
 
+  void observe({
+    String session = 'current',
+    String server = 'trail_terminal',
+    String status = 'pending',
+  }) => permissions.observeTool({
+    'sessionId': session,
+    'kind': 'tool_call',
+    'metadata': {
+      'toolCallId': 'call',
+      'status': status,
+      'rawInput': {'server': server, 'tool': 'run_command'},
+    },
+  });
+
+  Map<String, Object?> sparse() => request()
+    ..remove('rawInput')
+    ..['toolKind'] = 'execute';
+
+  test(
+    'Codex 2.1.1 sparse permission correlates preceding MCP tool identity',
+    () {
+      observe();
+      permissions.observeTool({
+        'sessionId': 'current',
+        'kind': 'tool_call',
+        'metadata': {'toolCallId': 'call', 'status': 'in_progress'},
+      });
+      expect(choose(sparse()), 'once');
+      expect(choose(sparse()), isNull);
+    },
+  );
+
+  test('sparse permission needs a live same-session call and execute kind', () {
+    expect(choose(sparse()), isNull);
+    observe(session: 'other');
+    expect(choose(sparse()), isNull);
+    observe();
+    expect(choose(sparse()..['toolKind'] = 'other'), isNull);
+    expect(choose(sparse(), active: false), isNull);
+    observe(status: 'completed');
+    expect(choose(sparse()), isNull);
+    observe();
+    permissions.clear();
+    expect(choose(sparse()), isNull);
+  });
+
+  test(
+    'explicit conflicting or malformed input cannot use cached bridge identity',
+    () {
+      observe();
+      expect(choose(request(server: 'host')), isNull);
+      expect(choose(request()..['rawInput'] = 'trail_terminal'), isNull);
+      observe(server: 'host');
+      expect(choose(sparse()), isNull);
+    },
+  );
+
   test(
     'control request grants only offered once option without render events',
     () {

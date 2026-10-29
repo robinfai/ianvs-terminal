@@ -20,6 +20,9 @@ class TerminalAiObserver extends StatefulWidget {
     required this.onTakeOver,
     this.onBack,
     this.autofocus = false,
+    this.searchBar,
+    this.searchMatches = const [],
+    this.activeSearchMatchIndex = -1,
     this.font = const TerminalFontConfig(),
     this.colors,
     this.graphicsCache,
@@ -35,6 +38,9 @@ class TerminalAiObserver extends StatefulWidget {
   final VoidCallback? onTakeOver;
   final VoidCallback? onBack;
   final bool autofocus;
+  final Widget? searchBar;
+  final List<TerminalSearchMatch> searchMatches;
+  final int activeSearchMatchIndex;
   final TerminalFontConfig font;
   final TerminalViewportColors? colors;
   final TerminalGraphicsCache? graphicsCache;
@@ -155,7 +161,10 @@ class _TerminalAiObserverState extends State<TerminalAiObserver> {
                   ),
                   onPressed: widget.onBack,
                   tooltip: t('Return to task', '返回任务'),
-                  icon: const Icon(Icons.arrow_back),
+                  icon: Icon(
+                    Icons.arrow_back,
+                    semanticLabel: t('Return to task', '返回任务'),
+                  ),
                 ),
               Expanded(
                 child: Padding(
@@ -173,7 +182,10 @@ class _TerminalAiObserverState extends State<TerminalAiObserver> {
                 constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
                 tooltip: t('Terminal target details', '终端目标详情'),
                 onPressed: _showTarget,
-                icon: const Icon(Icons.info_outline),
+                icon: Icon(
+                  Icons.info_outline,
+                  semanticLabel: t('Terminal target details', '终端目标详情'),
+                ),
               ),
               Tooltip(
                 message: widget.onTakeOver == null
@@ -188,6 +200,7 @@ class _TerminalAiObserverState extends State<TerminalAiObserver> {
               ),
             ],
           ),
+          if (widget.searchBar != null) widget.searchBar!,
           Expanded(
             child: TerminalViewport(
               key: const Key('ai-observer-viewport'),
@@ -196,6 +209,8 @@ class _TerminalAiObserverState extends State<TerminalAiObserver> {
               inputController: input,
               focusNode: _focus,
               readOnly: true,
+              searchMatches: widget.searchMatches,
+              activeSearchMatchIndex: widget.activeSearchMatchIndex,
               autofocus: widget.autofocus,
               altClickMovesCursor: false,
               useFrameDefaultColors: false,

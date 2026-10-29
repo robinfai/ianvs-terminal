@@ -131,6 +131,7 @@ class CodexAcpBackend implements AgentBackend {
         if (!_running || !_acceptUpdates || update['sessionId'] != _session) {
           return;
         }
+        _bridgePermissions.observeTool(update);
         if ({'tool_call', 'plan', 'thought'}.contains(update['kind'])) {
           _events?.call({'sessionUpdate': 'trail_content', ...update});
         } else if (update['kind'] == 'assistant_text') {

@@ -298,8 +298,11 @@ class _NotificationCardState extends State<_NotificationCard> {
             duration: MediaQuery.disableAnimationsOf(context)
                 ? Duration.zero
                 : const Duration(milliseconds: 150),
-            builder: (context, opacity, child) =>
-                Opacity(opacity: opacity, child: child),
+            builder: (context, opacity, child) => Opacity(
+              opacity: opacity,
+              alwaysIncludeSemantics: true,
+              child: child,
+            ),
             child: AppPanel(
               key: notice.key,
               tone: AppPanelTone.overlay,
@@ -349,7 +352,13 @@ class _NotificationCardState extends State<_NotificationCard> {
                       visualDensity: VisualDensity.compact,
                       onPressed: () =>
                           widget.onClose(SnackBarClosedReason.dismiss),
-                      icon: const Icon(Icons.close, size: 16),
+                      icon: Icon(
+                        Icons.close,
+                        size: 16,
+                        semanticLabel: MaterialLocalizations.of(
+                          context,
+                        ).closeButtonTooltip,
+                      ),
                     ),
                   ],
                 ),

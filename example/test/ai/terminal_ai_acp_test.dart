@@ -134,6 +134,39 @@ void main() {
       settings.dispose();
     });
 
+    test(
+      'accepted ACP prompt publishes cleared draft before the first agent event',
+      () async {
+        final started = Completer<void>();
+        final finish = Completer<void>();
+        late AgentEventHandler publish;
+        agent.run = (_, events) async {
+          publish = events;
+          started.complete();
+          await finish.future;
+        };
+        final visible = <(String, String)>[];
+        controller.addListener(() {
+          if (controller.transcript.isNotEmpty) {
+            visible.add((controller.transcript.last.text, controller.draft));
+          }
+        });
+        controller.setDraft('允许执行');
+        final turn = controller.ask('允许执行');
+        await started.future;
+        expect(visible, contains(('允许执行', '')));
+        publish({
+          'sessionUpdate': 'agent_message_chunk',
+          'content': {'type': 'text', 'text': '开始检查'},
+        });
+        expect(controller.phase, AiPhase.generating);
+        controller.setDraft('下一条补充');
+        finish.complete();
+        await turn;
+        expect(controller.draft, '下一条补充');
+      },
+    );
+
     for (final finishDuring in ['approval', 'execution', 'review']) {
       test(
         'finished ACP prompt preserves $finishDuring and resumes once',

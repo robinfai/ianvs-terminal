@@ -195,6 +195,71 @@ Future<void> _probeOldBridge(Map<String, Object?> bridge) async {
 
 void main() {
   test(
+    'sparse ACP permission reaches host review without executing before approval',
+    () async {
+      final fixture = await Directory.systemTemp.createTemp(
+        'trail-acp-permission-',
+      );
+      final authentication = File('${fixture.path}/auth.json');
+      await authentication.writeAsString('{"fixture":true}');
+      final observer = _ProtocolObserver(
+        await HttpServer.bind(InternetAddress.loopbackIPv4, 0),
+      );
+      final configuration = AiConfiguration.acp(
+        agentCommand: _dart(),
+        agentArguments: [
+          File('test/fixtures/acp_connection_agent.dart').absolute.path,
+          observer.uri.toString(),
+        ],
+        model: 'fixture-model',
+      );
+      try {
+        await IOOverrides.runWithIOOverrides(() async {
+          final backend = _ObservedBackend(CodexAcpBackend(configuration));
+          final settings = AiSettingsController(MemoryAiStore(configuration));
+          await settings.loaded;
+          final terminal = FakeTerminal();
+          final controller = TerminalAiController(
+            settings: settings,
+            terminal: terminal,
+            agentFactory: (_) => backend,
+          );
+          try {
+            await controller
+                .ask('sparse-permission-fixture')
+                .timeout(const Duration(seconds: 15));
+            expect(controller.error, isNull);
+            expect(controller.pending?.command, 'ls');
+            expect(controller.canApprove, isTrue);
+            expect(terminal.writes, isEmpty);
+            expect(
+              controller.transcript.where(
+                (entry) => entry.state == AiEntryState.proposed,
+              ),
+              hasLength(1),
+            );
+            await controller
+                .approve(revision: controller.proposalRevision)
+                .timeout(const Duration(seconds: 15));
+            expect(await backend.settled.single.future, isNull);
+            expect(terminal.writes, hasLength(1));
+            expect(terminal.writes.single.command, 'ls');
+            expect(controller.pending, isNull);
+          } finally {
+            controller.dispose();
+            await backend.dispose();
+            settings.dispose();
+            terminal.dispose();
+          }
+        }, _SyntheticAuthentication(authentication.path));
+      } finally {
+        await observer.dispose();
+        await fixture.delete(recursive: true);
+      }
+    },
+  );
+
+  test(
     'shared native runtime preserves isolation and coexists with native PTY',
     () async {
       final fixture = await Directory.systemTemp.createTemp(

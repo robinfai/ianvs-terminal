@@ -288,6 +288,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Set<String> _readOnlySessionIds = {};
   final Map<String, DateTime> _lastActivityNotificationAt = {};
   final Map<String, Timer> _activityNotificationTrailingTimers = {};
+  final Map<String, Set<String>> _pendingActivityNotificationSessions = {};
   final Map<String, String?> _lastActivityFramePreviews = {};
   final Map<String, String?> _lastNewOutputFramePreviews = {};
   final Map<String, Set<String>> _triggerMatchesBySession = {};
@@ -510,6 +511,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       timer.cancel();
     }
     _activityNotificationTrailingTimers.clear();
+    _pendingActivityNotificationSessions.clear();
     for (final timer in _osc1337FireworksTimers.values) {
       timer.cancel();
     }
@@ -744,14 +746,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     final displayedProfile = displayedPane == null
         ? null
         : _profileForPane(displayedPane, _sessionState.profiles);
-    final shellChromeBackground = displayedProfile == null
-        ? activeTab == null
-              ? _terminalColorsForProfile(
-                  context,
-                  defaultProfile,
-                ).canvasBackground
-              : _tabTerminalBackgroundColor(context, _sessionState, activeTab)
-        : _terminalColorsForProfile(context, displayedProfile).canvasBackground;
+    final shellChromeBackground = resolveTerminalColors(
+      context,
+    ).viewport.canvasBackground;
     final instantReplaySession = _instantReplayLayoutSession;
     final instantReplayPane = instantReplaySession == null
         ? null
@@ -898,7 +895,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 'No recently closed pane is available for this tab.',
               );
             }
-            final reopenedSessionId = sessionController.reopenClosedPane();
+            final reopenedSessionId = sessionController.reopenClosedPane(
+              onPlacementFallback: () => _showShellSnackBar(
+                context.l10n.reopenedPanePlacementFallback,
+              ),
+            );
             if (reopenedSessionId == null) {
               return const ShellActionBindingResult.skipped(
                 'No recently closed pane could be reopened.',
@@ -1392,7 +1393,18 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   _ShellRuntimeErrorBanner(
                     palette: palette,
                     message: _sessionState.lastError!,
+                    summary:
+                        activePane?.isExited == true &&
+                            activePane?.profileSnapshot?.isSsh == true
+                        ? context.l10n.mobileSessionDisconnectedTitle
+                        : null,
                     onDismiss: sessionController.dismissLastError,
+                    onUseCurrentLayout: sessionController.canReplaceFailedLayout
+                        ? () => unawaited(
+                            sessionController
+                                .useCurrentLayoutAfterRestoreFailure(),
+                          )
+                        : null,
                   ),
                 if (_sessionState.isReady &&
                     _sessionState.lastError == null &&

@@ -92,6 +92,8 @@ extension TerminalAiHistory on TerminalAiController {
     'state': entry.state.name,
     'revision': entry.revision,
     'action': entry.action?.rawCall,
+    if (entry.action case final action? when action.rawCall.isEmpty)
+      'humanCommand': {'id': action.id, 'command': action.command},
     'target': entry.target == null
         ? null
         : {
@@ -246,7 +248,21 @@ extension TerminalAiHistory on TerminalAiController {
       data['role']! as String,
       data['text']! as String,
       id: data['id']! as String,
-      action: data['action'] is Map
+      action:
+          data['humanCommand'] is Map ||
+              (data['action'] is Map && (data['action']! as Map).isEmpty)
+          ? AiAction(
+              id:
+                  (data['humanCommand'] as Map?)?['id'] as String? ??
+                  'archived-${data['id']}',
+              kind: AiActionKind.runCommand,
+              reason: 'Command entered by the user',
+              command:
+                  (data['humanCommand'] as Map?)?['command'] as String? ??
+                  data['text']! as String,
+              rawCall: const {},
+            )
+          : data['action'] is Map
           ? AiAction.fromToolCall(
               Map<String, Object?>.from(data['action']! as Map),
             )

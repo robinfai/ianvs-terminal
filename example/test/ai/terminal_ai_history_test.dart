@@ -14,6 +14,73 @@ import 'terminal_ai_test.dart'
 
 void main() {
   test(
+    'manual commands round trip as read-only history without tool calls',
+    () async {
+      final settings = AiSettingsController(MemoryAiStore());
+      await settings.loaded;
+      final original = TerminalAiController(
+        settings: settings,
+        terminal: FakeTerminal(),
+        api: FakeApi(),
+      );
+      await original.refreshContext();
+      await original.runUserCommand('pwd');
+      final documents = original.exportHistory({});
+      expect(documents, hasLength(1));
+      final restored = TerminalAiController(
+        settings: settings,
+        terminal: FakeTerminal(),
+        api: FakeApi(),
+      );
+      restored.restoreHistory(documents);
+      expect(restored.historyError, isNull);
+      expect(restored.transcript.single.action?.command, 'pwd');
+      expect(restored.tasks.last.commandName, 'pwd');
+      expect(restored.canApprove, isFalse);
+      expect(restored.canRunUserCommand, isFalse);
+      // Recover records already written with an empty manual rawCall as well.
+      for (final entry in documents.single['transcript']! as List) {
+        (entry as Map).remove('humanCommand');
+      }
+      final recovered = TerminalAiController(
+        settings: settings,
+        terminal: FakeTerminal(),
+        api: FakeApi(),
+      );
+      recovered.restoreHistory(documents);
+      expect(recovered.historyError, isNull);
+      expect(recovered.transcript.single.action?.command, 'pwd');
+      expect(recovered.tasks.last.commandName, 'pwd');
+      expect(recovered.canApprove, isFalse);
+      original.dispose();
+      restored.dispose();
+      recovered.dispose();
+      settings.dispose();
+    },
+  );
+
+  test('history retry recovers a transient load failure', () async {
+    final settings = AiSettingsController(MemoryAiStore());
+    await settings.loaded;
+    final controller = TerminalAiController(
+      settings: settings,
+      terminal: FakeTerminal(),
+      api: FakeApi(),
+    );
+    final repository = _ControlledHistoryRepository()..loadFails = true;
+    final binding = TerminalAiHistoryBinding(controller, repository);
+    await binding.loaded;
+    expect(controller.historyError, 'history_load_failed');
+    repository.loadFails = false;
+    await controller.retryHistory!();
+    expect(controller.historyError, isNull);
+    binding.dispose();
+    await binding.flush();
+    controller.dispose();
+    settings.dispose();
+  });
+
+  test(
     'two restored sessions merge view changes without stale flush overwrite',
     () async {
       final directory = await Directory.systemTemp.createTemp(

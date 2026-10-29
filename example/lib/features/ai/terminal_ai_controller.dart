@@ -172,6 +172,7 @@ class AiTaskSummary {
     this.draft = '',
     this.draftRevision = 0,
     this.proposalRevision = 0,
+    this.commandName = '',
   });
   final String id;
   final String title;
@@ -184,6 +185,9 @@ class AiTaskSummary {
   final String draft;
   final int draftRevision;
   final int proposalRevision;
+
+  /// A command name only: arguments and environment values stay out of menus.
+  final String commandName;
 }
 
 class _AiDraftAttachment {
@@ -264,6 +268,7 @@ class TerminalAiController extends ChangeNotifier {
   final String historyNamespace =
       'saved-${DateTime.now().microsecondsSinceEpoch}-${++_historySerial}';
   String? historyError;
+  Future<void> Function()? retryHistory;
   bool get restoredHistory => _task.restoredHistory;
   Set<String> get restoredSourceIds => Set.unmodifiable(_task.historySourceIds);
   void setHistoryError(String? value) {
@@ -362,9 +367,27 @@ class TerminalAiController extends ChangeNotifier {
         draft: task.draft,
         draftRevision: task.draftRevision,
         proposalRevision: task.revision,
+        commandName: _taskCommandName(task),
       ),
     ),
   );
+
+  String _taskCommandName(_AiTask task) {
+    for (final entry in task.transcript) {
+      final action = entry.action;
+      if (action?.kind != AiActionKind.runCommand) continue;
+      final first = (action?.command ?? '')
+          .trimLeft()
+          .split(RegExp(r'\s+'))
+          .first;
+      // Do not turn an assignment, path, interpolation, or argument into a
+      // more widely visible summary. The full command remains in its receipt.
+      return RegExp(r'^[a-zA-Z][a-zA-Z0-9_.+-]{0,39}$').hasMatch(first)
+          ? first
+          : '';
+    }
+    return '';
+  }
 
   /// UI-only focus request; it never submits or changes the draft.
   int draftFocusRequest = 0;
@@ -1233,6 +1256,10 @@ class TerminalAiController extends ChangeNotifier {
           target: fresh,
         ),
       );
+      // Publish the accepted message and cleared draft together, before ACP
+      // connects or waits for its first event. Never clear a later user edit.
+      _emit();
+      cancellation.check();
       if (settings.configuration!.backend == AiBackendKind.acp) {
         await _runAcpTurn(cancellation);
       } else {

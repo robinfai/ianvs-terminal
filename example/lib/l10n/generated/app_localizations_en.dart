@@ -1569,14 +1569,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get triggerExamples =>
-      'Examples: ERROR => notify, Password: => send: secret';
+      'One rule per line: case-sensitive regular expression => action. A pattern without => defaults to notify. notify shows a notification; send: writes text to this session without adding Enter. Use \\r for Enter, \\n for a newline, and \\\\ for a backslash. Text is stored in the Profile; do not put passwords here.\nExamples:\n^ERROR => notify\n^READY\$ => send: hello';
 
   @override
   String get automaticProfileSwitching => 'Automatic profile switching';
 
   @override
   String get automaticProfileSwitchingHelp =>
-      'Change this profile after host, user, or directory changes.';
+      'When Shell integration reports a host, user or directory change, any matching rule applies this Profile. If several Profiles match, the first in the Profile list wins. Leaving all matching rules restores the original Profile.';
 
   @override
   String get advanced => 'Advanced';
@@ -5539,4 +5539,118 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get shellCapabilityProviderReady => 'Implementation provided';
+
+  @override
+  String get profileSwitchRuleExamples =>
+      'One rule per line: host:, user:, or dir: followed by a pattern. Matching ignores case. * matches any characters; these are not regular expressions. A directory without * matches that local directory and its subdirectories; directory rules do not match remote hosts. Use the directory reported by the Shell.\nExamples:\ndir: /tmp/UX_AUDIT\nhost: build-*\nuser: developer';
+
+  @override
+  String profileRuleLineError(int line, String reason) {
+    return 'Line $line: $reason';
+  }
+
+  @override
+  String get profileTriggerPatternRequired => 'Enter a regular expression.';
+
+  @override
+  String get profileTriggerPatternInvalid => 'Invalid regular expression.';
+
+  @override
+  String get profileTriggerTextRequired => 'Enter text after send:.';
+
+  @override
+  String get profileTriggerActionInvalid => 'Use notify or send: text.';
+
+  @override
+  String get profileSwitchPrefixRequired =>
+      'Add host:, user:, or dir: before the pattern.';
+
+  @override
+  String get profileSwitchKindInvalid =>
+      'The rule type must be host, user, or dir.';
+
+  @override
+  String get profileSwitchPatternRequired => 'Enter a matching pattern.';
+
+  @override
+  String profileTriggerLimit(int count) {
+    return 'Use $count triggers or fewer.';
+  }
+
+  @override
+  String profileSwitchLimit(int count) {
+    return 'Use $count switching rules or fewer.';
+  }
+
+  @override
+  String get profileSpecialColorsHelp =>
+      'Foreground, background, cursor, selection, and tab.';
+
+  @override
+  String get profileNormalColorsHelp => 'Standard ANSI 0–7 terminal colors.';
+
+  @override
+  String get profileBrightColorsHelp => 'Bright ANSI 8–15 terminal colors.';
+
+  @override
+  String get terminalColorPreviewText => 'Terminal text preview';
+
+  @override
+  String get terminalColorPreviewSelection => 'Selected text';
+
+  @override
+  String get reopenedPanePlacementFallback =>
+      'The original pane position is no longer available. Reopened beside the active pane.';
+
+  @override
+  String sftpDownloaded(String name) {
+    return 'Downloaded $name';
+  }
+
+  @override
+  String sftpEditingLocally(String name) {
+    return 'Editing $name locally. Save to upload changes.';
+  }
+
+  @override
+  String sftpUploaded(String name) {
+    return 'Changes to $name uploaded.';
+  }
+
+  @override
+  String sftpDirectoryReadFailed(String path) {
+    return 'Cannot open $path. Check that the directory exists, your account has access, and the SSH connection is available.';
+  }
+
+  @override
+  String get sftpLocationChanged =>
+      'The remote location changed. Close this dialog and try again.';
+
+  @override
+  String sftpCreateFailed(String name) {
+    return 'Could not create $name. Check for an existing item with that name, directory permissions, and the connection.';
+  }
+
+  @override
+  String get sftpValidDirectoryName =>
+      'Enter one valid directory name without slashes or control characters.';
+
+  @override
+  String get layoutRestoreIncomplete =>
+      'Some panes could not be restored. The previous layout is preserved. You can replace it with the current layout to resume saving.';
+
+  @override
+  String get useCurrentLayout => 'Use current layout';
+
+  @override
+  String get sshNotificationConnectionFailed => 'SSH connection failed';
+
+  @override
+  String get sshNotificationConnectionInterrupted =>
+      'SSH connection interrupted';
+
+  @override
+  String triggerMatchedInSession(String session) {
+    return 'Trigger matched in $session';
+  }
 }

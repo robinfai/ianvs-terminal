@@ -178,10 +178,11 @@ void main() {
 
     final appTop = tester.getTopLeft(find.text('App actions')).dy;
     final sessionTop = tester.getTopLeft(find.text('Session actions')).dy;
-    final toolsTop = tester.getTopLeft(find.text('Shell tools')).dy;
+    final replayTop = tester.getTopLeft(find.text('Replay').first).dy;
+    expect(find.text('Shell tools'), findsNothing);
 
     expect(appTop, lessThan(sessionTop));
-    expect(sessionTop, lessThan(toolsTop));
+    expect(sessionTop, lessThan(replayTop));
   });
 
   testWidgets('command menu does not repeat pinned top actions in sections', (

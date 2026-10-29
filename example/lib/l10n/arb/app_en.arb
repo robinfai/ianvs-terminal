@@ -1655,9 +1655,9 @@
   "automationProfileDescription": "Match terminal output, then notify you or type a fixed reply.",
   "rules": "Rules",
   "triggers": "Triggers",
-  "triggerExamples": "Examples: ERROR => notify, Password: => send: secret",
+  "triggerExamples": "One rule per line: case-sensitive regular expression => action. A pattern without => defaults to notify. notify shows a notification; send: writes text to this session without adding Enter. Use \\r for Enter, \\n for a newline, and \\\\ for a backslash. Text is stored in the Profile; do not put passwords here.\nExamples:\n^ERROR => notify\n^READY$ => send: hello",
   "automaticProfileSwitching": "Automatic profile switching",
-  "automaticProfileSwitchingHelp": "Change this profile after host, user, or directory changes.",
+  "automaticProfileSwitchingHelp": "When Shell integration reports a host, user or directory change, any matching rule applies this Profile. If several Profiles match, the first in the Profile list wins. Leaving all matching rules restores the original Profile.",
   "advanced": "Advanced",
   "advancedProfileDescription": "Control shell-aware profile behavior for new sessions.",
   "integration": "Integration",
@@ -2451,7 +2451,9 @@
   "terminalPaneCount": "{count} panes",
   "@terminalPaneCount": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "panePosition": "Pane {index}/{count}",
@@ -3939,7 +3941,13 @@
   "shellCapabilityUnchecked": "No registration check for this capability",
   "shellConnectionChain": "Connection chain",
   "shellChainJumpCount": "{count} SSH hops",
-  "@shellChainJumpCount": {"placeholders": {"count": {"type": "int"}}},
+  "@shellChainJumpCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "shellChainScope": "Capabilities below apply to the current shell.",
   "shellChainIntermediate": "Intermediate shell",
   "shellConnectionChainHelp": "Shows detected shell layers and configured jump hosts. Capabilities below belong to the current shell; forwarding hops do not run its hooks.",
@@ -4075,9 +4083,13 @@
   "terminalModeNormal": "Normal terminal",
   "terminalModeBlocks": "Block + AI",
   "terminalModeRecheck": "Recheck Command Block support",
-  "@terminalModeRecheck": {"description": "Read the current session capability without reconnecting or changing display mode."},
+  "@terminalModeRecheck": {
+    "description": "Read the current session capability without reconnecting or changing display mode."
+  },
   "terminalModeSupportAvailable": "The current node supports Command Blocks.",
-  "@terminalModeSupportAvailable": {"description": "Result of a user-requested capability check; this does not switch terminal mode."},
+  "@terminalModeSupportAvailable": {
+    "description": "Result of a user-requested capability check; this does not switch terminal mode."
+  },
   "preferredTerminalMode": "Preferred terminal mode",
   "terminalModePlatformDefault": "Follow platform default",
   "aiConfigurationLoading": "Loading saved configuration…",
@@ -4138,5 +4150,64 @@
   "shellCapabilityAwaitingEventHelp": "The current Shell provides this capability. It will be confirmed when valid data arrives.",
   "shellCapabilityNotProvided": "Not provided",
   "shellCapabilityNotProvidedHelp": "The current Shell integration does not provide this capability. Waiting will not enable it; a compatible integration can still supply it.",
-  "shellCapabilityProviderReady": "Implementation provided"
+  "shellCapabilityProviderReady": "Implementation provided",
+  "profileSwitchRuleExamples": "One rule per line: host:, user:, or dir: followed by a pattern. Matching ignores case. * matches any characters; these are not regular expressions. A directory without * matches that local directory and its subdirectories; directory rules do not match remote hosts. Use the directory reported by the Shell.\nExamples:\ndir: /tmp/UX_AUDIT\nhost: build-*\nuser: developer",
+  "profileRuleLineError": "Line {line}: {reason}",
+  "profileTriggerPatternRequired": "Enter a regular expression.",
+  "profileTriggerPatternInvalid": "Invalid regular expression.",
+  "profileTriggerTextRequired": "Enter text after send:.",
+  "profileTriggerActionInvalid": "Use notify or send: text.",
+  "profileSwitchPrefixRequired": "Add host:, user:, or dir: before the pattern.",
+  "profileSwitchKindInvalid": "The rule type must be host, user, or dir.",
+  "profileSwitchPatternRequired": "Enter a matching pattern.",
+  "profileTriggerLimit": "Use {count} triggers or fewer.",
+  "profileSwitchLimit": "Use {count} switching rules or fewer.",
+  "@profileRuleLineError": {
+    "placeholders": {
+      "line": {
+        "type": "int"
+      },
+      "reason": {
+        "type": "String"
+      }
+    }
+  },
+  "@profileTriggerLimit": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@profileSwitchLimit": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "profileSpecialColorsHelp": "Foreground, background, cursor, selection, and tab.",
+  "profileNormalColorsHelp": "Standard ANSI 0–7 terminal colors.",
+  "profileBrightColorsHelp": "Bright ANSI 8–15 terminal colors.",
+  "terminalColorPreviewText": "Terminal text preview",
+  "terminalColorPreviewSelection": "Selected text",
+  "reopenedPanePlacementFallback": "The original pane position is no longer available. Reopened beside the active pane.",
+  "sftpDownloaded": "Downloaded {name}",
+  "@sftpDownloaded": {"placeholders": {"name": {"type": "String"}}},
+  "sftpEditingLocally": "Editing {name} locally. Save to upload changes.",
+  "@sftpEditingLocally": {"placeholders": {"name": {"type": "String"}}},
+  "sftpUploaded": "Changes to {name} uploaded.",
+  "@sftpUploaded": {"placeholders": {"name": {"type": "String"}}},
+  "sftpDirectoryReadFailed": "Cannot open {path}. Check that the directory exists, your account has access, and the SSH connection is available.",
+  "@sftpDirectoryReadFailed": {"placeholders": {"path": {"type": "String"}}},
+  "sftpLocationChanged": "The remote location changed. Close this dialog and try again.",
+  "sftpCreateFailed": "Could not create {name}. Check for an existing item with that name, directory permissions, and the connection.",
+ "@sftpCreateFailed": {"placeholders":{"name":{"type":"String"}}},
+  "sftpValidDirectoryName": "Enter one valid directory name without slashes or control characters.",
+ "layoutRestoreIncomplete": "Some panes could not be restored. The previous layout is preserved. You can replace it with the current layout to resume saving.",
+ "useCurrentLayout": "Use current layout",
+  "sshNotificationConnectionFailed": "SSH connection failed",
+  "sshNotificationConnectionInterrupted": "SSH connection interrupted",
+  "triggerMatchedInSession": "Trigger matched in {session}",
+  "@triggerMatchedInSession": {"placeholders": {"session": {"type": "String"}}}
 }

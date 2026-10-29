@@ -2651,7 +2651,7 @@ abstract class AppLocalizations {
   /// No description provided for @triggerExamples.
   ///
   /// In en, this message translates to:
-  /// **'Examples: ERROR => notify, Password: => send: secret'**
+  /// **'One rule per line: case-sensitive regular expression => action. A pattern without => defaults to notify. notify shows a notification; send: writes text to this session without adding Enter. Use \\r for Enter, \\n for a newline, and \\\\ for a backslash. Text is stored in the Profile; do not put passwords here.\nExamples:\n^ERROR => notify\n^READY\$ => send: hello'**
   String get triggerExamples;
 
   /// No description provided for @automaticProfileSwitching.
@@ -2663,7 +2663,7 @@ abstract class AppLocalizations {
   /// No description provided for @automaticProfileSwitchingHelp.
   ///
   /// In en, this message translates to:
-  /// **'Change this profile after host, user, or directory changes.'**
+  /// **'When Shell integration reports a host, user or directory change, any matching rule applies this Profile. If several Profiles match, the first in the Profile list wins. Leaving all matching rules restores the original Profile.'**
   String get automaticProfileSwitchingHelp;
 
   /// No description provided for @advanced.
@@ -8737,6 +8737,180 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Implementation provided'**
   String get shellCapabilityProviderReady;
+
+  /// No description provided for @profileSwitchRuleExamples.
+  ///
+  /// In en, this message translates to:
+  /// **'One rule per line: host:, user:, or dir: followed by a pattern. Matching ignores case. * matches any characters; these are not regular expressions. A directory without * matches that local directory and its subdirectories; directory rules do not match remote hosts. Use the directory reported by the Shell.\nExamples:\ndir: /tmp/UX_AUDIT\nhost: build-*\nuser: developer'**
+  String get profileSwitchRuleExamples;
+
+  /// No description provided for @profileRuleLineError.
+  ///
+  /// In en, this message translates to:
+  /// **'Line {line}: {reason}'**
+  String profileRuleLineError(int line, String reason);
+
+  /// No description provided for @profileTriggerPatternRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a regular expression.'**
+  String get profileTriggerPatternRequired;
+
+  /// No description provided for @profileTriggerPatternInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid regular expression.'**
+  String get profileTriggerPatternInvalid;
+
+  /// No description provided for @profileTriggerTextRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter text after send:.'**
+  String get profileTriggerTextRequired;
+
+  /// No description provided for @profileTriggerActionInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Use notify or send: text.'**
+  String get profileTriggerActionInvalid;
+
+  /// No description provided for @profileSwitchPrefixRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Add host:, user:, or dir: before the pattern.'**
+  String get profileSwitchPrefixRequired;
+
+  /// No description provided for @profileSwitchKindInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'The rule type must be host, user, or dir.'**
+  String get profileSwitchKindInvalid;
+
+  /// No description provided for @profileSwitchPatternRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a matching pattern.'**
+  String get profileSwitchPatternRequired;
+
+  /// No description provided for @profileTriggerLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'Use {count} triggers or fewer.'**
+  String profileTriggerLimit(int count);
+
+  /// No description provided for @profileSwitchLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'Use {count} switching rules or fewer.'**
+  String profileSwitchLimit(int count);
+
+  /// No description provided for @profileSpecialColorsHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Foreground, background, cursor, selection, and tab.'**
+  String get profileSpecialColorsHelp;
+
+  /// No description provided for @profileNormalColorsHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Standard ANSI 0–7 terminal colors.'**
+  String get profileNormalColorsHelp;
+
+  /// No description provided for @profileBrightColorsHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Bright ANSI 8–15 terminal colors.'**
+  String get profileBrightColorsHelp;
+
+  /// No description provided for @terminalColorPreviewText.
+  ///
+  /// In en, this message translates to:
+  /// **'Terminal text preview'**
+  String get terminalColorPreviewText;
+
+  /// No description provided for @terminalColorPreviewSelection.
+  ///
+  /// In en, this message translates to:
+  /// **'Selected text'**
+  String get terminalColorPreviewSelection;
+
+  /// No description provided for @reopenedPanePlacementFallback.
+  ///
+  /// In en, this message translates to:
+  /// **'The original pane position is no longer available. Reopened beside the active pane.'**
+  String get reopenedPanePlacementFallback;
+
+  /// No description provided for @sftpDownloaded.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloaded {name}'**
+  String sftpDownloaded(String name);
+
+  /// No description provided for @sftpEditingLocally.
+  ///
+  /// In en, this message translates to:
+  /// **'Editing {name} locally. Save to upload changes.'**
+  String sftpEditingLocally(String name);
+
+  /// No description provided for @sftpUploaded.
+  ///
+  /// In en, this message translates to:
+  /// **'Changes to {name} uploaded.'**
+  String sftpUploaded(String name);
+
+  /// No description provided for @sftpDirectoryReadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot open {path}. Check that the directory exists, your account has access, and the SSH connection is available.'**
+  String sftpDirectoryReadFailed(String path);
+
+  /// No description provided for @sftpLocationChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'The remote location changed. Close this dialog and try again.'**
+  String get sftpLocationChanged;
+
+  /// No description provided for @sftpCreateFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not create {name}. Check for an existing item with that name, directory permissions, and the connection.'**
+  String sftpCreateFailed(String name);
+
+  /// No description provided for @sftpValidDirectoryName.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter one valid directory name without slashes or control characters.'**
+  String get sftpValidDirectoryName;
+
+  /// No description provided for @layoutRestoreIncomplete.
+  ///
+  /// In en, this message translates to:
+  /// **'Some panes could not be restored. The previous layout is preserved. You can replace it with the current layout to resume saving.'**
+  String get layoutRestoreIncomplete;
+
+  /// No description provided for @useCurrentLayout.
+  ///
+  /// In en, this message translates to:
+  /// **'Use current layout'**
+  String get useCurrentLayout;
+
+  /// No description provided for @sshNotificationConnectionFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'SSH connection failed'**
+  String get sshNotificationConnectionFailed;
+
+  /// No description provided for @sshNotificationConnectionInterrupted.
+  ///
+  /// In en, this message translates to:
+  /// **'SSH connection interrupted'**
+  String get sshNotificationConnectionInterrupted;
+
+  /// No description provided for @triggerMatchedInSession.
+  ///
+  /// In en, this message translates to:
+  /// **'Trigger matched in {session}'**
+  String triggerMatchedInSession(String session);
 }
 
 class _AppLocalizationsDelegate

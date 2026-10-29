@@ -15,6 +15,7 @@ class TerminalAiHistoryBinding {
     this.nativeBlocks,
   }) {
     controller.addListener(_changed);
+    controller.retryHistory = retry;
     loaded = _load();
     _nativeTimer = Timer.periodic(
       const Duration(seconds: 2),
@@ -75,6 +76,16 @@ class TerminalAiHistoryBinding {
     } finally {
       _loaded = true;
     }
+  }
+
+  Future<void> retry() async {
+    if (_disposed) return;
+    if (_loadError != null) {
+      _loadError = null;
+      controller.setHistoryError(null);
+      await _load();
+    }
+    await flush();
   }
 
   void _changed() {
@@ -168,6 +179,7 @@ class TerminalAiHistoryBinding {
   void dispose() {
     if (_disposed) return;
     controller.removeListener(_changed);
+    controller.retryHistory = null;
     _nativeTimer?.cancel();
     _timer?.cancel();
     unawaited(flush());

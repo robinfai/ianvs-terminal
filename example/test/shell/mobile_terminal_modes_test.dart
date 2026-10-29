@@ -852,6 +852,36 @@ void main() {
     });
   }
 
+  testWidgets('AI workspace replay shelf remains interactive and semantic', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final backend = _CompletionBackend()..owner = 'ready';
+    await _pump(
+      tester,
+      backend,
+      platform: TargetPlatform.macOS,
+      size: const Size(1400, 900),
+      preference: TerminalViewMode.blocks,
+    );
+    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+    await _settle(tester);
+    await tester.ensureVisible(find.byKey(const Key('shell-open-recording')));
+    await tester.tap(find.byKey(const Key('shell-open-recording')));
+    await _settle(tester);
+    expect(tester.takeException(), isNull);
+    final close = find.byKey(const Key('recording-library-close'));
+    expect(close, findsOneWidget);
+    expect(close.hitTestable(), findsOneWidget);
+    expect(tester.getSemantics(close).label, isNotEmpty);
+    await tester.tap(close);
+    await _settle(tester);
+    expect(close, findsNothing);
+    semantics.dispose();
+    await tester.pumpWidget(const SizedBox.shrink());
+    debugDefaultTargetPlatformOverride = null;
+  });
+
   for (final platform in [TargetPlatform.macOS, TargetPlatform.iOS]) {
     testWidgets('unified Composer action menu and empty history on $platform', (
       tester,
@@ -885,6 +915,18 @@ void main() {
         await _settle(tester);
       }
 
+      if (platform == TargetPlatform.macOS) {
+        await tester.ensureVisible(find.byKey(const Key('ai-command-actions')));
+        await tester.tap(find.byKey(const Key('ai-command-actions')));
+        await _settle(tester);
+        expect(find.byType(PopupMenuItem<String>), findsWidgets);
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await _settle(tester);
+        expect(find.byType(PopupMenuItem<String>), findsNothing);
+        expect(tester.widget<TextField>(prompt).focusNode!.hasFocus, isTrue);
+        expect(ai.draft, isEmpty);
+        expect(backend.submissions, isEmpty);
+      }
       await action('history');
       await _capture(tester, 'composer-history-${platform.name}');
       expect(
@@ -918,18 +960,19 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await _settle(tester);
       await action('help');
-      expect(find.byType(AlertDialog), findsOneWidget);
-      await tester.tap(
-        find
-            .descendant(
-              of: find.byType(AlertDialog),
-              matching: find.byType(TextButton),
-            )
-            .last,
-      );
+      expect(find.byKey(const Key('command-shortcuts-dialog')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('command-shortcuts-done')));
       await _settle(tester);
       expect(ai.draft, 'ls ./');
       expect(backend.submissions, isEmpty);
+      expect(tester.widget<TextField>(prompt).focusNode!.hasFocus, isTrue);
+      if (platform == TargetPlatform.macOS) {
+        tester.view.physicalSize = const Size(1440, 1024);
+        await _settle(tester);
+        await _capture(tester, 'composer-refined-desktop');
+        expect(ai.draft, 'ls ./');
+        expect(tester.widget<TextField>(prompt).focusNode!.hasFocus, isTrue);
+      }
       expect(backend.writes, isEmpty);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());

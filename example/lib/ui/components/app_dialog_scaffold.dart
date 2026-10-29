@@ -29,6 +29,7 @@ class AppDialogScaffold extends StatelessWidget {
     this.bodyPadding,
     this.footerPadding,
     this.titleTextStyle,
+    this.titleMaxLines,
     this.subtitleTextStyle,
     this.centerInViewport = true,
     this.borderRadius,
@@ -51,6 +52,7 @@ class AppDialogScaffold extends StatelessWidget {
   final EdgeInsetsGeometry? bodyPadding;
   final EdgeInsetsGeometry? footerPadding;
   final TextStyle? titleTextStyle;
+  final int? titleMaxLines;
   final TextStyle? subtitleTextStyle;
   final bool centerInViewport;
   final BorderRadius? borderRadius;
@@ -97,8 +99,12 @@ class AppDialogScaffold extends StatelessWidget {
                     children: [
                       Text(
                         title,
-                        maxLines: context.usesTouchControlDensity ? 2 : null,
-                        overflow: context.usesTouchControlDensity
+                        maxLines:
+                            titleMaxLines ??
+                            (context.usesTouchControlDensity ? 2 : null),
+                        overflow:
+                            titleMaxLines != null ||
+                                context.usesTouchControlDensity
                             ? TextOverflow.ellipsis
                             : null,
                         style:

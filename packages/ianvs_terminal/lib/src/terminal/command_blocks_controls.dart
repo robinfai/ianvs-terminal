@@ -77,7 +77,7 @@ extension _CommandBlocksControls on _CommandBlocksViewState {
   Widget _icon(IconData icon, String label, VoidCallback action) => IconButton(
     tooltip: label,
     onPressed: action,
-    icon: Icon(icon, size: 17),
+    icon: Icon(icon, size: 17, semanticLabel: label),
     style: IconButton.styleFrom(
       minimumSize: Size.square(ComposerTheme.of(context).controlHeight),
       padding: const EdgeInsets.all(7),

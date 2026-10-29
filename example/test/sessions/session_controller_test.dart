@@ -1609,6 +1609,66 @@ void main() {
     expect(controller.canReopenClosedPane, isFalse);
   });
 
+  test(
+    'reopening multiple closed panes restores nested layout across new session IDs',
+    () {
+      final coreClient = FakePtyBackend();
+      final container = ProviderContainer(
+        overrides: [
+          ptySessionBackendProvider.overrideWithValue(coreClient),
+          sessionControllerProvider.overrideWith(_TestSessionController.new),
+          profileRepositoryProvider.overrideWithValue(
+            _TestProfileRepository(
+              const TerminalProfilesDocument(profiles: []),
+            ),
+          ),
+          appPreferencesRepositoryProvider.overrideWithValue(
+            _TestAppPreferencesRepository(null),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final controller = container.read(sessionControllerProvider.notifier);
+      final profile = defaultTerminalProfile().copyWith(id: 'shell-1');
+
+      controller.createSession(profile);
+      final a = container.read(sessionControllerProvider).activeSessionId!;
+      controller.splitActiveSession(profile, TerminalSplitAxis.horizontal);
+      final b = container.read(sessionControllerProvider).activeSessionId!;
+      controller.activateSession(a);
+      controller.splitActiveSession(profile, TerminalSplitAxis.vertical);
+      final c = container.read(sessionControllerProvider).activeSessionId!;
+      final original = container
+          .read(sessionControllerProvider)
+          .tabs
+          .single
+          .effectivePaneLayout;
+      controller.resizeActivePaneSplit(original.first!.id, .3);
+      unawaited(controller.closeSession(c));
+      unawaited(controller.closeSession(a));
+      controller.activateSession(b);
+      var fallbackCount = 0;
+      final a2 = controller.reopenClosedPane(
+        onPlacementFallback: () => fallbackCount++,
+      );
+      controller.activateSession(b);
+      final c2 = controller.reopenClosedPane(
+        onPlacementFallback: () => fallbackCount++,
+      );
+      final restored = container
+          .read(sessionControllerProvider)
+          .tabs
+          .single
+          .effectivePaneLayout;
+      expect(restored.first!.splitAxis, TerminalSplitAxis.vertical);
+      expect(restored.first!.ratio, .3);
+      expect(restored.first!.panes.map((pane) => pane.sessionId), [a2, c2]);
+      expect(restored.second!.pane!.sessionId, b);
+      expect(fallbackCount, 0);
+    },
+  );
+
   test('reopenClosedPane restores a closed split root pane', () {
     final coreClient = FakePtyBackend();
     final container = ProviderContainer(
@@ -5747,6 +5807,20 @@ void main() {
       );
       expect(state.lastError, contains('removed-profile'));
       expect(workspaceRepository.savedDocuments, isEmpty);
+      final controller = container.read(sessionControllerProvider.notifier);
+      expect(controller.canReplaceFailedLayout, isTrue);
+      await controller.flushLayoutPersistence();
+      expect(workspaceRepository.savedDocuments, isEmpty);
+      await controller.useCurrentLayoutAfterRestoreFailure();
+      expect(controller.canReplaceFailedLayout, isFalse);
+      expect(container.read(sessionControllerProvider).lastError, isNull);
+      expect(workspaceRepository.savedDocuments, hasLength(1));
+      expect(
+        workspaceRepository.document!.tabs.single.root.relaunchSpec!.profileId,
+        defaultProfile.id,
+      );
+      await controller.flushLayoutPersistence();
+      expect(workspaceRepository.savedDocuments, hasLength(2));
     },
   );
 
