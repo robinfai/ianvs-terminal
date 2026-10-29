@@ -135,6 +135,7 @@ void main() {
             normal.textTheme.bodyMedium!.fontSize,
           );
           expect(container.read(sessionControllerProvider), same(session));
+          expect(container.read(sessionControllerProvider).lastError, isNull);
           expect(tester.takeException(), isNull);
         }
       },

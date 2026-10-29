@@ -161,6 +161,11 @@ final class SftpFileActions {
       await previous.catchError((Object _) {});
     }
     try {
+      // The service may be disposed while an earlier operation owns this path.
+      // Keep this inside try so a rejected queued operation releases its tail.
+      if (_disposed) {
+        throw StateError('SFTP file actions have been disposed.');
+      }
       return await operation();
     } finally {
       completion.complete();
@@ -224,6 +229,9 @@ final class SftpFileActions {
     required SftpDownloadToPath download,
     required SftpUploadFromPath upload,
   }) async {
+    if (_disposed) {
+      throw StateError('SFTP file actions have been disposed.');
+    }
     final key = _editKey(sessionId, remotePath);
     final existing = _editSessions[key];
     if (existing != null) {
@@ -261,6 +269,9 @@ final class SftpFileActions {
           'The downloaded edit is not a readable file.',
           localPath,
         );
+      }
+      if (_disposed) {
+        throw StateError('SFTP file actions have been disposed.');
       }
       final newSession = _SftpEditSession(
         key: key,

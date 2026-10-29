@@ -30,10 +30,10 @@ class ColorSwatchButton extends StatelessWidget {
 
     return Semantics(
       button: true,
-      label: 'Pick $label color',
+      label: context.l10n.pickNamedColor(label),
       enabled: enabled,
       child: Tooltip(
-        message: tooltip ?? 'Pick $label color',
+        message: tooltip ?? context.l10n.pickNamedColor(label),
         child: Material(
           color: Colors.transparent,
           child: InkWell(

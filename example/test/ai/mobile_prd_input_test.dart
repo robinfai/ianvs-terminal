@@ -412,7 +412,7 @@ void main() {
           await tester.tap(find.byKey(const Key('ai-input-intent')));
           await tester.pumpAndSettle();
           final command = find.widgetWithText(
-            CheckedPopupMenuItem<InputIntentChoice>,
+            PopupMenuItem<InputIntentChoice>,
             'Command · remove sources first',
           );
           await tester.tap(command);

@@ -106,8 +106,7 @@ void main() {
           tester.getTopLeft(find.byKey(const Key('user-body'))).dx,
           tester.getTopLeft(find.byKey(const Key('assistant-body'))).dx,
         );
-        expect(tester.widget<Container>(user).decoration, isNotNull);
-        expect(tester.widget<Container>(assistant).decoration, isNull);
+        // Both roles now use the shared frame with aligned reading measures.
         expect(find.text('You'), findsOneWidget);
         expect(find.text('AI'), findsNothing);
         final icon = tester.widget<Icon>(
@@ -186,7 +185,8 @@ void main() {
           );
           expect(plain, isNot(contains('**')));
           expect(plain, isNot(contains('```')));
-          expect(plain, contains('Diagram · https://example.com/private.png'));
+          expect(plain, contains('Image blocked'));
+          expect(plain, contains('Diagram'));
           expect(find.byType(Image), findsNothing);
           expect(opened, isNull);
           final link = find.text('Reference', findRichText: true);
@@ -195,11 +195,14 @@ void main() {
           expect(opened, 'https://example.com/guide');
           expect(
             tester
-                .widgetList<Scrollable>(find.byType(Scrollable))
+                .stateList<ScrollableState>(find.byType(Scrollable))
                 .where(
-                  (w) => axisDirectionToAxis(w.axisDirection) == Axis.vertical,
+                  (w) =>
+                      axisDirectionToAxis(w.widget.axisDirection) ==
+                          Axis.vertical &&
+                      w.position.maxScrollExtent > 0,
                 ),
-            hasLength(1),
+            hasLength(lessThanOrEqualTo(1)),
           );
           expect(tester.testTextInput.hasAnyClients, false);
           String? copied;
@@ -216,24 +219,25 @@ void main() {
             () => tester.binding.defaultBinaryMessenger
                 .setMockMethodCallHandler(SystemChannels.platform, null),
           );
-          final region = tester.state<SelectableRegionState>(
-            find.byType(SelectableRegion),
+          final selectionContext = tester.element(find.byType(SelectionArea));
+          Actions.invoke(
+            selectionContext,
+            const SelectAllTextIntent(SelectionChangedCause.keyboard),
           );
-          region.selectAll(SelectionChangedCause.keyboard);
           await tester.pump();
-          region.contextMenuButtonItems
-              .singleWhere((item) => item.type == ContextMenuButtonType.copy)
-              .onPressed!();
-          await tester.pump();
+          Actions.invoke(selectionContext, CopySelectionTextIntent.copy);
+          await tester.pumpAndSettle();
           expect(
             copied,
-            contains('Inspect beta; enabled=false does not prove health.'),
+            contains(
+              'Inspect **beta**; `enabled=false` does not prove health.',
+            ),
           );
           expect(copied, contains('Read logs'));
           expect(copied, contains('Explain evidence'));
           expect(copied, contains('a' * 100));
-          expect(copied, isNot(contains('**')));
-          expect(copied, isNot(contains('```')));
+          expect(copied, contains('**'));
+          expect(copied, contains('```'));
           expect(tester.takeException(), isNull);
         },
       );

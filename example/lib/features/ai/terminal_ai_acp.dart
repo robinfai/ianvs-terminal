@@ -28,6 +28,7 @@ extension _TerminalAiAcp on TerminalAiController {
     Map<String, Object?>? continuation,
   }) async {
     final task = _task;
+    final turnId = ++task.agentTurnSerial;
     final agent = task.agent ??= agentFactory(settings.configuration!);
     final turn = task.agentTurn = Object();
     final yielded = task.agentYield = Completer<void>();
@@ -77,14 +78,27 @@ extension _TerminalAiAcp on TerminalAiController {
           events: (event) {
             if (_disposed ||
                 cancellation.isCancelled ||
-                !identical(task, _task)) {
+                !identical(task, _task) ||
+                !identical(task.agentTurn, turn)) {
               return;
             }
             onAgentEvent?.call(event);
+            if (event['sessionUpdate'] == 'trail_content') {
+              _projectAgentContent(task, turnId, event);
+              return;
+            }
             if (event['sessionUpdate'] == 'agent_message_chunk') {
               final content = event['content'] as Map?;
               if (content?['type'] != 'text') return;
               final text = content?['text'] as String? ?? '';
+              if (text.isNotEmpty &&
+                  {
+                    AiPhase.thinking,
+                    AiPhase.connecting,
+                    AiPhase.waitingForFirstToken,
+                  }.contains(phase)) {
+                phase = AiPhase.generating;
+              }
               final index = task.transcript.indexWhere(
                 (e) => e.id == task.agentTextId,
               );
@@ -132,6 +146,57 @@ extension _TerminalAiAcp on TerminalAiController {
       }
     }());
     await yielded.future;
+  }
+
+  void _projectAgentContent(
+    _AiTask task,
+    int turnId,
+    Map<String, Object?> event,
+  ) {
+    final kind = switch (event['kind']) {
+      'tool_call' => ChatContentKind.tool,
+      'plan' => ChatContentKind.plan,
+      'thought' => ChatContentKind.thoughtDelta,
+      _ => null,
+    };
+    if (kind == null) return;
+    final metadata = Map<String, Object?>.from(event['metadata'] as Map? ?? {});
+    final callId = chatToolCallId(metadata);
+    if (kind == ChatContentKind.tool && callId.isEmpty) return;
+    task.agentContent.apply(
+      ChatContentUpdate(
+        identity: task.agentContent.identity,
+        turnId: turnId,
+        kind: kind,
+        text: event['text'] as String? ?? '',
+        toolCallId: callId,
+        metadata: metadata,
+      ),
+    );
+    final messages = task.agentContent.messages;
+    final message = kind == ChatContentKind.tool
+        ? messages[findChatToolMessage(messages, callId, turnId: turnId)]
+        : messages.last;
+    final key = '$turnId:${kind.name}:$callId';
+    final id = task.agentContentEntries.putIfAbsent(
+      key,
+      () => 'entry-${++_entrySerial}',
+    );
+    final index = task.transcript.indexWhere((entry) => entry.id == id);
+    final entry = AiTranscriptEntry(
+      'agent_content',
+      message.text,
+      id: id,
+      agentContent: message,
+    );
+    if (index < 0) {
+      task.transcript.add(entry);
+    } else {
+      task.transcript[index] = entry;
+    }
+    // A new content segment ends prose streaming at its current timeline slot.
+    if (index < 0) task.agentTextId = null;
+    _emit();
   }
 
   Future<Map<String, Object?>> _agentTool(

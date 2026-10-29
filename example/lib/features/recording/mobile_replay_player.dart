@@ -360,35 +360,41 @@ class _MobileReplayPlayerState extends State<MobileReplayPlayer>
       style: timeStyle,
     );
     final totalTime = Text(_time(duration), style: timeStyle);
-    final progress = Slider(
-      key: const Key('mobile-replay-progress'),
-      value: (_scrubPosition ?? position.inMicroseconds.toDouble()).clamp(
-        0,
-        maximum,
+    // Keep the value-indicator portal local on native accessibility bridges.
+    // https://github.com/flutter/flutter/issues/190357
+    final progress = Overlay.wrap(
+      alwaysSizeToContent: true,
+      clipBehavior: Clip.none,
+      child: Slider(
+        key: const Key('mobile-replay-progress'),
+        value: (_scrubPosition ?? position.inMicroseconds.toDouble()).clamp(
+          0,
+          maximum,
+        ),
+        max: maximum > 0 ? maximum : 1,
+        semanticFormatterCallback: (v) =>
+            _time(Duration(microseconds: v.round())),
+        onChangeStart: !enabled
+            ? null
+            : (_) {
+                _resumeAfterSeek = controller.state.isPlaying;
+                controller.pause();
+              },
+        onChanged: !enabled
+            ? null
+            : (value) => setState(() => _scrubPosition = value),
+        onChangeEnd: !enabled
+            ? null
+            : (value) {
+                controller.seekToPresentation(
+                  Duration(microseconds: value.round()),
+                );
+                setState(() => _scrubPosition = null);
+                if (_resumeAfterSeek && !controller.state.isEnded) {
+                  controller.play();
+                }
+              },
       ),
-      max: maximum > 0 ? maximum : 1,
-      semanticFormatterCallback: (v) =>
-          _time(Duration(microseconds: v.round())),
-      onChangeStart: !enabled
-          ? null
-          : (_) {
-              _resumeAfterSeek = controller.state.isPlaying;
-              controller.pause();
-            },
-      onChanged: !enabled
-          ? null
-          : (value) => setState(() => _scrubPosition = value),
-      onChangeEnd: !enabled
-          ? null
-          : (value) {
-              controller.seekToPresentation(
-                Duration(microseconds: value.round()),
-              );
-              setState(() => _scrubPosition = null);
-              if (_resumeAfterSeek && !controller.state.isEnded) {
-                controller.play();
-              }
-            },
     );
     return Material(
       key: const Key('mobile-replay-transport'),

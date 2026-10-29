@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import '../terminal/command_occurrence.dart';
+
 import 'completion_models.dart';
 import 'input_intent.dart';
 
@@ -182,6 +184,25 @@ final class TerminalComposerController extends ChangeNotifier {
 
   /// Newest first, per session, and never persisted by the editor. Hosts may
   /// supply the live shell's history, including commands entered through ZLE.
+  /// Reuse block execution evidence for context-local history. Shell history
+  /// remains a separate unverified suggestion source, never fabricated as an
+  /// occurrence with an exit status or output provenance.
+  void updateOccurrenceHistory(
+    Iterable<CommandOccurrence> occurrences, {
+    required CommandOccurrenceScope scope,
+    required String? contextId,
+    Iterable<String> shellHistory = const [],
+  }) {
+    updateHistory([
+      for (final occurrence in occurrences.toList().reversed)
+        if (occurrence.scope.sessionId == scope.sessionId &&
+            occurrence.scope.sessionEpoch == scope.sessionEpoch &&
+            occurrence.contextId == contextId)
+          occurrence.command,
+      ...shellHistory,
+    ]);
+  }
+
   void updateHistory(Iterable<String> commands) {
     if (_disposed) return;
     final unique = <String>{};
@@ -530,7 +551,13 @@ final class TerminalComposerController extends ChangeNotifier {
         !result.query.matches(snapshot)) {
       return;
     }
-    _batch = result;
+    // Providers may reuse their mutable working list after publishing. The
+    // editor must keep the exact candidate snapshot validated above.
+    _batch = CompletionBatch(
+      result.query,
+      List.unmodifiable(result.items),
+      status: result.status,
+    );
     _completionMenuOpen =
         _completionMenuOpen || _currentRequest?.showMenu == true;
     if (!items.any((item) => item.itemId == _selectedId)) _selectedId = null;

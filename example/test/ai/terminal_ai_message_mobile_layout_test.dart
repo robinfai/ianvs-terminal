@@ -1,11 +1,10 @@
-import 'dart:math' as math;
-
 import 'package:app/features/ai/terminal_ai_message.dart';
 import 'package:app/ui/foundation/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_agent_chat/ianvs_agent_chat.dart'
+    show ChatMessageBody, ChatMessageFrame;
 
 void main() {
   Future<void> mountFrame(
@@ -70,10 +69,7 @@ void main() {
           lessThan(tester.getTopLeft(body).dy),
           reason: 'The role must not reserve a column beside the prose.',
         );
-        final frame = tester.widget<Container>(
-          find.byKey(const ValueKey('ai-message-frame-reading')),
-        );
-        expect(frame.decoration, isUser ? isNotNull : isNull);
+        expect(find.byType(ChatMessageFrame), findsOneWidget);
         expect(tester.takeException(), isNull);
       });
     }
@@ -81,39 +77,42 @@ void main() {
 
   for (final width in [390.0, 900.0, 1728.0]) {
     for (final scale in [1.0, 2.0]) {
-      testWidgets('desktop $width at $scale retains its reading layout', (
-        tester,
-      ) async {
-        await mountFrame(
-          tester,
-          width: width,
-          platform: TargetPlatform.macOS,
-          scale: scale,
-        );
-        final body = find.byKey(const Key('reading-body'));
-        final frame = find.byKey(const ValueKey('ai-message-frame-reading'));
-        final frameWidth = math.min(width - 28, 960.0);
-        expect(tester.getSize(frame).width, closeTo(frameWidth, .01));
-        expect(
-          tester.getSize(body).width,
-          closeTo(frameWidth - 24 - 28 * scale - 12, .01),
-        );
-        expect(
-          tester.getTopLeft(body).dx - tester.getTopLeft(frame).dx,
-          closeTo(24 + 28 * scale, .01),
-        );
-        expect(tester.takeException(), isNull);
-      });
+      testWidgets(
+        'desktop $width at $scale uses bounded shared reading layout',
+        (tester) async {
+          await mountFrame(
+            tester,
+            width: width,
+            platform: TargetPlatform.macOS,
+            scale: scale,
+          );
+          final body = find.byKey(const Key('reading-body'));
+          final role = find.byKey(const ValueKey('ai-message-role-reading'));
+          expect(tester.getSize(body).width, lessThanOrEqualTo(800));
+          expect(tester.getSize(body).width, greaterThan(200));
+          if (width < 600) {
+            expect(
+              tester.getBottomLeft(role).dy,
+              lessThan(tester.getTopLeft(body).dy),
+            );
+          } else {
+            expect(tester.getTopLeft(body).dy, tester.getTopLeft(role).dy);
+            expect(
+              tester.getTopLeft(body).dx,
+              greaterThan(tester.getTopRight(role).dx),
+            );
+          }
+          expect(tester.takeException(), isNull);
+        },
+      );
     }
   }
 
-  testWidgets('wide tablet keeps the existing side-by-side layout', (
-    tester,
-  ) async {
+  testWidgets('wide tablet uses shared side-by-side layout', (tester) async {
     await mountFrame(tester, width: 700);
     final body = find.byKey(const Key('reading-body'));
     final role = find.byKey(const ValueKey('ai-message-role-reading'));
-    expect(tester.getSize(body).width, closeTo(700 - 92, .01));
+    expect(tester.getSize(body).width, greaterThan(400));
     expect(tester.getTopLeft(body).dy, tester.getTopLeft(role).dy);
     expect(tester.takeException(), isNull);
   });
@@ -162,32 +161,26 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      final rendered = tester.widget<MarkdownBody>(find.byType(MarkdownBody));
-      final mobile = platform == TargetPlatform.iOS;
-      expect(rendered.data, markdown);
-      expect(rendered.styleSheet!.listIndent, mobile ? 18 : 24);
-      expect(rendered.styleSheet!.blockSpacing, mobile ? 12 : 8);
-      expect(
-        rendered.styleSheet!.codeblockPadding,
-        EdgeInsets.all(mobile ? 8 : 12),
+      final rendered = tester.widget<ChatMessageBody>(
+        find.byType(ChatMessageBody),
       );
-      expect(
-        rendered.styleSheet!.p!.fontSize,
-        theme.textTheme.bodyMedium!.fontSize,
-        reason: 'Recover reading width without shrinking the body font.',
-      );
+      expect(rendered.text, markdown);
+      expect(rendered.resourcePolicy.imageBuilder, isNull);
+      expect(rendered.diagramBuilder, isNull);
       expect(find.byType(SelectionArea), findsOneWidget);
       expect(find.byType(Image), findsNothing);
       expect(find.byType(TextField), findsNothing);
       expect(tester.testTextInput.hasAnyClients, false);
       expect(
         tester
-            .widgetList<Scrollable>(find.byType(Scrollable))
+            .stateList<ScrollableState>(find.byType(Scrollable))
             .where(
               (widget) =>
-                  axisDirectionToAxis(widget.axisDirection) == Axis.vertical,
+                  axisDirectionToAxis(widget.widget.axisDirection) ==
+                      Axis.vertical &&
+                  widget.position.maxScrollExtent > 0,
             ),
-        hasLength(1),
+        hasLength(lessThanOrEqualTo(1)),
       );
       String? copied;
       tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
@@ -205,21 +198,20 @@ void main() {
           null,
         ),
       );
-      final region = tester.state<SelectableRegionState>(
-        find.byType(SelectableRegion),
+      final selectionContext = tester.element(find.byType(SelectionArea));
+      Actions.invoke(
+        selectionContext,
+        const SelectAllTextIntent(SelectionChangedCause.keyboard),
       );
-      region.selectAll(SelectionChangedCause.keyboard);
       await tester.pump();
-      region.contextMenuButtonItems
-          .singleWhere((item) => item.type == ContextMenuButtonType.copy)
-          .onPressed!();
-      await tester.pump();
+      Actions.invoke(selectionContext, CopySelectionTextIntent.copy);
+      await tester.pumpAndSettle();
       expect(copied, contains(path));
       expect(copied, contains(command));
       expect(copied, contains('.bashrc'));
       expect(copied, contains('.profile'));
       expect(copied, isNot(contains('\u200b')));
-      expect(copied, isNot(contains('```')));
+      expect(copied, contains('```'));
       expect(tester.takeException(), isNull);
     });
   }

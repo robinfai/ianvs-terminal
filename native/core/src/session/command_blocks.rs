@@ -321,6 +321,8 @@ fn read_block(
     }
     Ok(
         json!({"id": identity(zone), "command": zone.command, "cwd": zone.cwd,
+        "shellHostname": zone.shell_hostname, "shellUsername": zone.shell_username,
+        "sftpContextId": zone.sftp_context_id,
         "submissionId": zone.submission_id, "contextId": zone.context_id,
         "startedAt": zone.timestamp, "finishedAt": zone.finished_at,
         "exitCode": zone.exit_code, "running": zone.is_open(),
@@ -382,7 +384,8 @@ mod tests {
             );
             hook(
                 &mut term,
-                json!({"hook":"precmd.pwd", "context_id":"root", "pwd":"/parent"}),
+                json!({"hook":"precmd.pwd", "context_id":"root", "pwd":"/parent",
+                    "hostname":"parent.example", "username":"parent-user"}),
             );
             context_command(&mut term, "root", "parent", osc_first);
             term.process(b"BEFORE\r\n");
@@ -398,7 +401,8 @@ mod tests {
             );
             hook(
                 &mut term,
-                json!({"hook":"precmd.pwd", "context_id":"child", "pwd":"/child"}),
+                json!({"hook":"precmd.pwd", "context_id":"child", "pwd":"/child",
+                    "hostname":"child.example", "username":"child-user"}),
             );
             context_command(&mut term, "child", "child-command", osc_first);
             term.process(b"CHILD\r\n");
@@ -452,12 +456,16 @@ mod tests {
             let parent = &blocks[0];
             assert_eq!(parent["id"], parent_id);
             assert_eq!(parent["cwd"], "/parent");
+            assert_eq!(parent["shellHostname"], "parent.example");
+            assert_eq!(parent["shellUsername"], "parent-user");
             assert_eq!(parent["exitCode"], 0);
             assert_eq!(parent["running"], false);
             assert_eq!(parent["suspended"], false);
             assert_eq!(parent["segmented"], true);
             assert_eq!(parent["totalLines"], 2);
             assert_eq!(blocks[1]["cwd"], "/child");
+            assert_eq!(blocks[1]["shellHostname"], "child.example");
+            assert_eq!(blocks[1]["shellUsername"], "child-user");
             assert_eq!(blocks[1]["exitCode"], 0);
             assert_eq!(blocks[2]["exitCode"], 7);
             assert_eq!(blocks[2]["lines"], json!([]));
@@ -976,6 +984,80 @@ mod tests {
             0
         );
     }
+    #[test]
+    fn command_identity_is_captured_before_later_directory_and_host_changes() {
+        let mut term = Terminal::new(80, 24);
+        hook(&mut term, json!({"hook":"precmd"}));
+        hook(
+            &mut term,
+            json!({"hook":"precmd.pwd", "pwd":"/first",
+            "hostname":"first.example", "username":"alice"}),
+        );
+        hook(
+            &mut term,
+            json!({"hook":"preexec", "command":"cat same.txt"}),
+        );
+        term.process(b"same.txt:42:7\r\n");
+        hook(&mut term, json!({"hook":"command_finished", "exit_code":7}));
+        hook(&mut term, json!({"hook":"precmd"}));
+        hook(
+            &mut term,
+            json!({"hook":"precmd.pwd", "pwd":"/second",
+            "hostname":"second.example", "username":"bob"}),
+        );
+        hook(
+            &mut term,
+            json!({"hook":"preexec", "command":"cat same.txt"}),
+        );
+        let result = snapshot(&term, &json!({}));
+        let blocks = result["blocks"].as_array().unwrap();
+        assert_eq!(blocks.len(), 2);
+        assert_eq!(blocks[0]["cwd"], "/first");
+        assert_eq!(blocks[0]["shellHostname"], "first.example");
+        assert_eq!(blocks[0]["shellUsername"], "alice");
+        assert_eq!(blocks[0]["exitCode"], 7);
+        assert_eq!(blocks[1]["cwd"], "/second");
+        assert_eq!(blocks[1]["shellHostname"], "second.example");
+        assert_eq!(blocks[1]["shellUsername"], "bob");
+        assert!(blocks[1]["exitCode"].is_null());
+    }
+
+    #[test]
+    fn unknown_command_identity_stays_unknown_after_metadata_arrives() {
+        let mut term = Terminal::new(80, 24);
+        hook(&mut term, json!({"hook":"precmd"}));
+        hook(&mut term, json!({"hook":"preexec", "command":"sleep 1"}));
+        hook(
+            &mut term,
+            json!({"hook":"precmd.pwd", "pwd":"/later",
+            "hostname":"later.example", "username":"later"}),
+        );
+        let result = snapshot(&term, &json!({}));
+        let block = &result["blocks"][0];
+        assert!(block["shellHostname"].is_null());
+        assert!(block["shellUsername"].is_null());
+    }
+
+    #[test]
+    fn invalid_shell_identity_is_not_inherited_by_the_next_command() {
+        let mut term = Terminal::new(80, 24);
+        hook(
+            &mut term,
+            json!({"hook":"precmd.pwd",
+            "hostname":"previous.example", "username":"previous"}),
+        );
+        hook(
+            &mut term,
+            json!({"hook":"precmd.pwd",
+            "hostname":"x".repeat(256), "username":"bad\nuser"}),
+        );
+        hook(&mut term, json!({"hook":"precmd"}));
+        hook(&mut term, json!({"hook":"preexec", "command":"true"}));
+        let result = snapshot(&term, &json!({}));
+        assert!(result["blocks"][0]["shellHostname"].is_null());
+        assert!(result["blocks"][0]["shellUsername"].is_null());
+    }
+
     #[test]
     fn boundaries_exclude_prompt_and_preserve_unterminated_output() {
         let mut term = Terminal::with_scrollback(80, 24, 100);

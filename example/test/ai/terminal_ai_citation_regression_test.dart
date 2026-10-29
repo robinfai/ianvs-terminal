@@ -108,10 +108,10 @@ void main() {
       expect(tester.element(find.text('Evidence · 1–2')), same(first));
       // Dismiss the selection toolbar before interacting with citations.
       await tester.tap(find.byKey(const Key('ai-prompt')));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 250));
       for (final end in [2, 6, 4]) {
         await tester.ensureVisible(citation(end));
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 250));
         await tester.tap(citation(end));
         await tester.pump();
       }
@@ -129,11 +129,11 @@ void main() {
       expect(find.byKey(const Key('ai-evidence-unknown-0-2')), findsNothing);
       agent.finished.complete();
       await asking;
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 250));
       await tester.drag(find.byType(Scrollable).first, const Offset(0, -100));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 250));
       controller.newTask();
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 250));
       expect(tester.takeException(), isNull);
       expect(terminal.writes, isEmpty);
       await tester.pumpWidget(const SizedBox.shrink());

@@ -175,12 +175,26 @@ impl Terminal {
         json!({"shell": shell, "startup_registered": builtin, "runtime_verified": builtin,
             "no_command_before_input": true, "observations": observations})
     }
+    fn file_context(&self, context: &str) -> String {
+        if context == "root" {
+            return "root".into();
+        }
+        // Keep the last issued lease even after retirement: old editor calls
+        // below must reach native with the captured lease and fail there.
+        tests::events(&self.output)
+            .iter()
+            .rev()
+            .find(|event| event["context_id"] == context && event["sftp_context_id"].is_string())
+            .and_then(|event| event["sftp_context_id"].as_str())
+            .expect("missing native file-route lease")
+            .to_owned()
+    }
     fn operation(&self, context: &str, operation: SftpOperation) -> Result<(), String> {
         self.runtime
             .ssh_sftp
             .as_ref()
             .unwrap()
-            .start_operation_in_context(operation, context.into())
+            .start_operation_in_context(operation, self.file_context(context))
             .unwrap()
             .blocking_recv()
             .unwrap()
@@ -579,7 +593,7 @@ fn product_ssh_bootstrap_acceptance() {
                 .ssh_sftp
                 .as_ref()
                 .unwrap()
-                .start_list_directory_in_context("/home/lab".into(), b.clone())
+                .start_list_directory_in_context("/home/lab".into(), terminal.file_context(&b))
                 .unwrap()
                 .blocking_recv()
                 .unwrap()

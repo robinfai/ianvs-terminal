@@ -36,11 +36,15 @@ class CommandBlockReadRange {
 class CommandBlock {
   const CommandBlock({
     required this.id,
+    this.sourceBlockId,
     required this.command,
     this.cwd = '',
+    this.shellHostname,
+    this.shellUsername,
     this.exitCode,
     this.submissionId,
     this.contextId,
+    this.sftpContextId,
     this.startedAt,
     this.finishedAt,
     this.running = false,
@@ -60,11 +64,22 @@ class CommandBlock {
   }) : sourceLineCount = sourceLineCount ?? totalLines;
 
   final String id;
+
+  /// Host-only identity for a composite reader whose presentation id is namespaced.
+  /// Native block responses do not require or emit this projection field.
+  final String? sourceBlockId;
   final String command;
   final String cwd;
+
+  /// Shell declarations captured when this command started; not transport authority.
+  final String? shellHostname;
+  final String? shellUsername;
   final int? exitCode;
   final String? submissionId;
   final String? contextId;
+
+  /// Transport route lease captured at command execution, never filled live.
+  final String? sftpContextId;
   final int? startedAt;
   final int? finishedAt;
   final bool running;
@@ -108,6 +123,14 @@ class CommandBlock {
     return buffer.toString();
   }
 
+  static String? _shellIdentity(Object? value) =>
+      value is String &&
+          value.isNotEmpty &&
+          value.length <= 255 &&
+          !value.runes.any((r) => r < 32 || (r >= 127 && r <= 159))
+      ? value
+      : null;
+
   static CommandBlock? fromJson(Object? value) {
     if (value is! Map<String, Object?>) return null;
     final id = value['id'];
@@ -130,11 +153,26 @@ class CommandBlock {
     final rawLinks = value['hyperlinks'];
     return CommandBlock(
       id: id,
+      sourceBlockId:
+          value['sourceBlockId'] is String &&
+              (value['sourceBlockId']! as String).isNotEmpty &&
+              (value['sourceBlockId']! as String).length <= 128
+          ? value['sourceBlockId']! as String
+          : null,
       command: command as String? ?? '',
       cwd: value['cwd'] is String ? value['cwd']! as String : '',
+      shellHostname: _shellIdentity(value['shellHostname']),
+      shellUsername: _shellIdentity(value['shellUsername']),
       exitCode: optional('exitCode'),
       submissionId: value['submissionId'] as String?,
       contextId: value['contextId'] as String?,
+      sftpContextId:
+          value['sftpContextId'] is String &&
+              RegExp(
+                r'^[A-Za-z0-9@-]{1,85}$',
+              ).hasMatch(value['sftpContextId']! as String)
+          ? value['sftpContextId']! as String
+          : null,
       startedAt: optional('startedAt'),
       finishedAt: optional('finishedAt'),
       running: value['running'] == true,

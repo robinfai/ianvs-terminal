@@ -50,6 +50,27 @@ pub fn decode_frame_packet_v1_for_test(
 
 fn to_proto_frame(frame: &TerminalFrameDiff) -> pb::TerminalFrameDiff {
     pb::TerminalFrameDiff {
+        semantic_snapshot_token: frame.semantic_snapshot_token.clone(),
+        semantic_blocks: frame
+            .semantic_blocks
+            .iter()
+            .map(|block| pb::TerminalSemanticBlock {
+                id: block.id.clone(),
+                cwd: block.cwd.clone(),
+                context_id: block.context_id.clone(),
+                shell_hostname: block.shell_hostname.clone(),
+                shell_username: block.shell_username.clone(),
+                sftp_context_id: block.sftp_context_id.clone(),
+            })
+            .collect(),
+        semantic_row_contexts: frame
+            .semantic_row_contexts
+            .iter()
+            .map(|row| pb::TerminalSemanticRowContext {
+                viewport_row: usize_to_u32(row.viewport_row),
+                block_id: row.block_id.clone(),
+            })
+            .collect(),
         frame_schema_version: frame.frame_schema_version.clone(),
         frame_kind: match frame.frame_kind {
             TerminalFrameKind::Snapshot => pb::TerminalFrameKind::Snapshot as i32,

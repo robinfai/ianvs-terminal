@@ -76,6 +76,19 @@ AppNotificationController _show(
 );
 
 void main() {
+  testWidgets(
+    'notice controls remain accessible during their first fade frame',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      final context = await _pumpHost(tester);
+      _show(context, 'Export complete');
+      await tester.pump();
+      expect(find.bySemanticsLabel('Close'), findsOneWidget);
+      expect(find.bySemanticsLabel('Export complete'), findsOneWidget);
+      semantics.dispose();
+    },
+  );
+
   testWidgets('desktop notices stay above readline without taking focus', (
     tester,
   ) async {

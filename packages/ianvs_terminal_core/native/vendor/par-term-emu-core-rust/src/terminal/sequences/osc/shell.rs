@@ -176,6 +176,28 @@ impl Terminal {
                 {
                     self.shell_integration.set_cwd(cwd.to_owned());
                 }
+                // These are shell declarations, captured by subsequent zones;
+                // they never establish an authenticated transport identity.
+                if value.get("hostname").is_some() {
+                    self.shell_integration.set_hostname(
+                        value["hostname"]
+                            .as_str()
+                            .filter(|s| {
+                                !s.is_empty() && s.len() <= 255 && !s.chars().any(char::is_control)
+                            })
+                            .map(str::to_owned),
+                    );
+                }
+                if value.get("username").is_some() {
+                    self.shell_integration.set_username(
+                        value["username"]
+                            .as_str()
+                            .filter(|s| {
+                                !s.is_empty() && s.len() <= 255 && !s.chars().any(char::is_control)
+                            })
+                            .map(str::to_owned),
+                    );
+                }
             }
             "precmd" => {
                 self.handle_shell_marker(source, ShellIntegrationMarker::PromptStart, None, None)
@@ -250,7 +272,31 @@ impl Terminal {
                     code,
                 );
             }
+            "bootstrap.ready" | "bootstrap.updated" | "bootstrap.degraded" => {}
             _ => return,
+        }
+        // Only the active context can update its route incarnation. Missing or
+        // invalid metadata revokes the lease for future commands; existing
+        // output zones keep their captured value.
+        if matches!(
+            hook,
+            "bootstrap.checking"
+                | "bootstrap.ready"
+                | "bootstrap.updated"
+                | "bootstrap.degraded"
+                | "bootstrap.resume"
+        ) && self.shell_integration.ianvs_context() == context
+        {
+            self.shell_integration.sftp_context_id = value["sftp_context_id"]
+                .as_str()
+                .filter(|value| {
+                    !value.is_empty()
+                        && value.len() <= 85
+                        && value.bytes().all(|byte| {
+                            byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'@'
+                        })
+                })
+                .map(str::to_owned);
         }
         // DCS hooks already have a host event. Do not duplicate command/replay
         // notifications or mislabel a DCS event as OSC 133.
@@ -455,7 +501,9 @@ impl Terminal {
             if invalidates_portion {
                 self.grid.invalidate_segmented_output_rows(row, row);
             }
-            let zones = self.grid.zones_mut();
+            // Only ownership masks change here, not zone closure/topology.
+            // Preserve the grid's per-row closed-output invalidation cache.
+            let zones = &mut self.grid.zones;
             let Ok(index) = zones.binary_search_by_key(&id, |zone| zone.id) else {
                 continue;
             };
@@ -974,6 +1022,10 @@ impl Terminal {
         zone.command = command;
         zone.start_col = self.cursor.col;
         zone.cwd = self.shell_integration.cwd().map(str::to_owned);
+        zone.shell_hostname = self.shell_integration.hostname().map(str::to_owned);
+        zone.shell_username = self.shell_integration.username().map(str::to_owned);
+        zone.sftp_context_id
+            .clone_from(&self.shell_integration.sftp_context_id);
         self.grid.push_zone(zone);
         self.terminal_events.push(TerminalEvent::ZoneOpened {
             zone_id,

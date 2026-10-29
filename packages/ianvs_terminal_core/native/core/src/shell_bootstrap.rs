@@ -238,6 +238,8 @@ struct Context {
     port: u16,
     kind: &'static str,
     host_context: String,
+    route_generation: u64,
+    route_cancellation: crate::ssh::SftpOperationCancellation,
 }
 impl Context {
     fn root() -> Self {
@@ -253,6 +255,8 @@ impl Context {
             port: 22,
             kind: "root",
             host_context: "root".into(),
+            route_generation: 0,
+            route_cancellation: crate::ssh::SftpOperationCancellation::new(),
         }
     }
 }
@@ -261,11 +265,19 @@ pub(crate) struct Bootstrap {
     wrap: bool,
     pending: Vec<u8>,
     contexts: BTreeMap<String, Context>,
+    next_route_generation: u64,
     pub(crate) active: String,
     pub(crate) ready: bool,
     local_root: bool,
     input: Vec<u8>,
     pub(crate) composer: Arc<crate::remote_composer::RemoteComposer>,
+}
+impl Drop for Bootstrap {
+    fn drop(&mut self) {
+        for context in self.contexts.values() {
+            context.route_cancellation.cancel();
+        }
+    }
 }
 pub(crate) struct Processed {
     pub output: Vec<u8>,
@@ -336,6 +348,7 @@ impl Bootstrap {
             wrap,
             pending: Vec::new(),
             contexts: BTreeMap::from([("root".into(), Context::root())]),
+            next_route_generation: 1,
             active: "root".into(),
             ready: false,
             local_root: false,
@@ -387,9 +400,10 @@ impl Bootstrap {
         json!({"hook":name, "context_id":ctx, "parent_context_id":context.parent,
             "host":context.host,"user":context.user,"port":context.port,
             "context_kind":context.kind,"host_context_id":context.host_context,
+            "sftp_context_id":self.sftp_context_id(ctx),
             "sftp_route":context.available
                 && self.contexts.get(&context.host_context).is_some_and(|host| host.socket.is_some())
-                && self.route_for(&context.host_context).is_ok()})
+                && self.route_for_context(&context.host_context).is_ok()})
     }
     fn finish(&mut self, ctx: &str, source: &str, registered: bool, shell: &str) -> Vec<u8> {
         if !registered {
@@ -474,6 +488,7 @@ impl Bootstrap {
                         && fields[3] == self.active
                         && self.contexts.len() < 128
                         && !self.contexts.contains_key(ctx)
+                        && self.next_route_generation < u64::MAX
                         && !self
                             .contexts
                             .values()
@@ -498,9 +513,12 @@ impl Bootstrap {
                     let Ok(port) = fields[7].parse::<u16>() else {
                         continue;
                     };
+                    let route_generation = self.next_route_generation;
+                    self.next_route_generation += 1;
                     self.contexts.insert(
                         ctx.into(),
                         Context {
+                            route_generation,
                             parent: fields[3].into(),
                             socket: (!socket.is_empty()).then(|| socket.into()),
                             host: fields[5].into(),
@@ -616,7 +634,9 @@ impl Bootstrap {
                     }
                     // Report retired IDs before pruning; old editors must fail closed.
                     for id in &leaving {
-                        self.contexts.get_mut(id).unwrap().available = false;
+                        let context = self.contexts.get_mut(id).unwrap();
+                        context.available = false;
+                        context.route_cancellation.cancel();
                     }
                     self.active = ctx.into();
                     self.composer.activate(ctx, self.local_root);
@@ -652,7 +672,51 @@ impl Bootstrap {
         }
         self.finish("root", reason, false, "unknown")
     }
-    pub(crate) fn route_for(&self, id: &str) -> anyhow::Result<Vec<String>> {
+    fn sftp_context_id(&self, shell: &str) -> Option<String> {
+        let shell = self
+            .contexts
+            .get(shell)
+            .filter(|context| context.available && context.entered)?;
+        let host = self
+            .contexts
+            .get(&shell.host_context)
+            .filter(|context| context.available && context.entered)?;
+        if shell.host_context == "root" {
+            return Some("root".into());
+        }
+        Some(format!("{}@{}", shell.host_context, host.route_generation))
+    }
+
+    /// Public file requests carry a host-route incarnation, never just a shell
+    /// name. Retiring and reusing a context name cannot retarget an old editor.
+    pub(crate) fn route_for(&self, lease: &str) -> anyhow::Result<Vec<String>> {
+        if lease == "root" {
+            return self.route_for_context("root");
+        }
+        let (id, generation) = lease
+            .rsplit_once('@')
+            .ok_or_else(|| anyhow::anyhow!("SSH file route lease is required"))?;
+        let context = self
+            .contexts
+            .get(id)
+            .filter(|context| context.available && context.entered && context.kind == "ssh")
+            .ok_or_else(|| anyhow::anyhow!("SSH file route is no longer available"))?;
+        if generation != context.route_generation.to_string() {
+            anyhow::bail!("SSH file route lease has expired");
+        }
+        self.route_for_context(id)
+    }
+
+    pub(crate) fn bound_route_for(
+        &self,
+        lease: &str,
+    ) -> anyhow::Result<(Vec<String>, crate::ssh::SftpOperationCancellation)> {
+        let route = self.route_for(lease)?;
+        let id = lease.split('@').next().unwrap();
+        Ok((route, self.contexts[id].route_cancellation.clone()))
+    }
+
+    fn route_for_context(&self, id: &str) -> anyhow::Result<Vec<String>> {
         let host_context = self
             .contexts
             .get(&self.active)
@@ -889,13 +953,96 @@ mod tests {
         );
     }
     #[test]
+    fn emitted_bootstrap_events_freeze_file_lease_in_terminal_zones() {
+        use par_term_emu_core_rust::{terminal::Terminal, zone::ZoneType};
+        let mut bootstrap = Bootstrap::new("test".into(), true);
+        let mut terminal = Terminal::new(80, 24);
+        terminal.process(&hook(bootstrap.event("root", "bootstrap.checking")));
+        let child = bootstrap.feed(
+            b"\x1b]6973;test;a;enter;root;/tmp/a;host;user;22\x07\x1b]6973;a;a;init;bash\x07",
+        );
+        terminal.process(&child.output);
+        let ready = bootstrap.feed(b"\x1b]6973;a;a;ready;installed;1;bash\x07");
+        terminal.process(&ready.output);
+        terminal.process(&hook(
+            json!({"hook":"precmd.pwd","context_id":"a","pwd":"/remote"}),
+        ));
+        terminal.process(&hook(
+            json!({"hook":"preexec","context_id":"a","command":"cat file"}),
+        ));
+        terminal.process(b"file.txt\r\n");
+        let output = terminal
+            .get_zones()
+            .iter()
+            .find(|zone| zone.zone_type == ZoneType::Output)
+            .unwrap();
+        assert_eq!(output.sftp_context_id.as_deref(), Some("a@1"));
+        terminal.process(&hook(
+            json!({"hook":"command_finished","context_id":"a","exit_code":0}),
+        ));
+        let resumed = bootstrap.feed(b"\x1b]6973;test;root;resume;done\x07");
+        terminal.process(&resumed.output);
+        terminal.process(&hook(
+            json!({"hook":"preexec","context_id":"root","command":"root-file"}),
+        ));
+        let output = terminal
+            .get_zones()
+            .iter()
+            .rfind(|zone| zone.zone_type == ZoneType::Output)
+            .unwrap();
+        assert_eq!(output.sftp_context_id.as_deref(), Some("root"));
+        terminal.process(&hook(
+            json!({"hook":"command_finished","context_id":"root","exit_code":0}),
+        ));
+        terminal.process(&hook(
+            json!({"hook":"bootstrap.updated","context_id":"root","sftp_context_id":null}),
+        ));
+        terminal.process(&hook(
+            json!({"hook":"preexec","context_id":"root","command":"unknown-route"}),
+        ));
+        assert!(
+            terminal
+                .get_zones()
+                .iter()
+                .rfind(|zone| zone.zone_type == ZoneType::Output)
+                .unwrap()
+                .sftp_context_id
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn retired_name_reuse_gets_new_bounded_route_incarnation() {
+        let mut bootstrap = Bootstrap::new("test".into(), true);
+        let mut previous: Option<String> = None;
+        for _ in 0..300 {
+            let started = bootstrap.feed(b"\x1b]6973;test;a;enter;root;/tmp/reused;host;user;22\x07\x1b]6973;a;a;init;bash\x07");
+            let current = events(&started.output)[0]["sftp_context_id"]
+                .as_str()
+                .unwrap()
+                .to_owned();
+            assert!(bootstrap.route_for(&current).is_ok());
+            assert!(bootstrap.route_for("a").is_err());
+            if let Some(previous) = previous {
+                assert!(bootstrap.route_for(&previous).is_err());
+            }
+            bootstrap.feed(b"\x1b]6973;test;root;resume;done\x07");
+            assert!(bootstrap.route_for(&current).is_err());
+            assert_eq!(bootstrap.contexts.len(), 1);
+            previous = Some(current);
+        }
+    }
+
+    #[test]
     fn nested_routes_resume_the_parent() {
         let mut bootstrap = Bootstrap::new("test".into(), true);
         bootstrap
             .feed(b"\x1b]6973;test;a;enter;root;/tmp/a;a;user;22\x07\x1b]6973;a;a;init;bash\x07");
         bootstrap.feed(b"\x1b]6973;a;b;enter;a;/tmp/b;b;user;22\x07\x1b]6973;b;b;init;bash\x07");
         assert_eq!(
-            bootstrap.route_for(&bootstrap.active).unwrap(),
+            bootstrap
+                .route_for(&bootstrap.sftp_context_id(&bootstrap.active).unwrap())
+                .unwrap(),
             vec!["/tmp/a", "/tmp/b"]
         );
         let resumed = bootstrap.feed(b"\x1b]6973;a;a;resume;done;7\x07");
@@ -904,7 +1051,9 @@ mod tests {
         assert_eq!(event["exit_code"], 7);
         assert_eq!(event["retired_contexts"], json!(["b"]));
         assert_eq!(
-            bootstrap.route_for(&bootstrap.active).unwrap(),
+            bootstrap
+                .route_for(&bootstrap.sftp_context_id(&bootstrap.active).unwrap())
+                .unwrap(),
             vec!["/tmp/a"]
         );
     }
@@ -946,19 +1095,34 @@ mod tests {
         assert_eq!(event["context_kind"], "shell");
         assert_eq!(event["host_context_id"], "a");
         assert_eq!(event["sftp_route"], true);
-        assert_eq!(b.route_for("a").unwrap(), vec!["/tmp/a"]);
-        assert_eq!(b.route_for("shell-a").unwrap(), vec!["/tmp/a"]);
+        assert_eq!(
+            b.route_for(&b.sftp_context_id("a").unwrap()).unwrap(),
+            vec!["/tmp/a"]
+        );
+        assert_eq!(
+            b.route_for(&b.sftp_context_id("shell-a").unwrap()).unwrap(),
+            vec!["/tmp/a"]
+        );
         assert!(b.route_for("root").is_err());
         b.feed(
             b"\x1b]6973;shell-a;c;enter;shell-a;/tmp/c;c;user;22\x07\x1b]6973;c;c;init;bash\x07",
         );
-        assert_eq!(b.route_for("c").unwrap(), vec!["/tmp/a", "/tmp/c"]);
+        assert_eq!(
+            b.route_for(&b.sftp_context_id("c").unwrap()).unwrap(),
+            vec!["/tmp/a", "/tmp/c"]
+        );
         assert!(b.route_for("a").is_err());
         b.feed(b"\x1b]6973;shell-a;shell-a;resume;done\x07");
-        assert_eq!(b.route_for("a").unwrap(), vec!["/tmp/a"]);
+        assert_eq!(
+            b.route_for(&b.sftp_context_id("a").unwrap()).unwrap(),
+            vec!["/tmp/a"]
+        );
         b.feed(b"\x1b]6973;a;a;resume;done\x07");
         assert!(b.route_for("shell-a").is_err());
-        assert_eq!(b.route_for("a").unwrap(), vec!["/tmp/a"]);
+        assert_eq!(
+            b.route_for(&b.sftp_context_id("a").unwrap()).unwrap(),
+            vec!["/tmp/a"]
+        );
     }
     #[test]
     fn failed_ssh_keeps_parent_and_retires_late_frames() {
@@ -972,7 +1136,10 @@ mod tests {
             assert_eq!(b.active, "cloud");
             assert!(!b.checking());
             assert!(b.route_for(id).is_err());
-            assert_eq!(b.route_for("cloud").unwrap(), vec!["/tmp/cloud"]);
+            assert_eq!(
+                b.route_for(&b.sftp_context_id("cloud").unwrap()).unwrap(),
+                vec!["/tmp/cloud"]
+            );
             let resumed = b.feed(b"\x1b]6973;cloud;cloud;resume;done;255\x07");
             let event = events(&resumed.output).pop().unwrap();
             assert_eq!(event["exit_code"], 255);
@@ -1040,7 +1207,7 @@ mod tests {
                 .output
                 .is_empty()
         );
-        let pinned = b.route_for("a").unwrap();
+        let pinned = b.route_for(&b.sftp_context_id("a").unwrap()).unwrap();
         b.feed(b"\x1b]6973;test;root;resume;done\x07");
         assert!(b.route_for("a").is_err());
         assert_eq!(pinned, vec!["/tmp/a"]);

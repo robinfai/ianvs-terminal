@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../l10n/l10n.dart';
 import '../../ui/components/app_action_button.dart';
 import '../../ui/foundation/app_theme_tokens.dart';
+import '../configuration/data_api_configuration.dart';
+import '../services/data_api_runtime.dart';
 import 'json_three_way_merge.dart';
 import 'local_first_sync.dart';
 
@@ -33,7 +35,12 @@ class _ConnectedApiSyncPanel extends ConsumerWidget {
     final restoreTransport = ref.watch(applyApiSyncConfigurationProvider);
     final l10n = context.l10n;
     final spacing = context.appTheme.spacing;
-    final phase = sync?.phase ?? LocalFirstSyncPhase.disabled;
+    final localOnly =
+        ref.watch(dataApiRuntimeProvider)?.deployment ==
+        DataApiDeployment.local;
+    final phase = localOnly
+        ? LocalFirstSyncPhase.disabled
+        : sync?.phase ?? LocalFirstSyncPhase.disabled;
     final status = switch (phase) {
       LocalFirstSyncPhase.disabled =>
         context.usesMobileNavigation

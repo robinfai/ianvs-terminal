@@ -8,6 +8,9 @@ build = "build.rs"
 [lib]
 crate-type = ["cdylib", "staticlib", "rlib"]
 
+[profile.dev]
+strip = "none"
+
 [profile.release]
 # Rust's implicit debuginfo stripping can misalign the Mach-O LINKEDIT string
 # pool, which macOS 27 rejects at dlopen. Explicit "none" also prevents Cargo's
@@ -45,6 +48,9 @@ thiserror = "2.0"
 tokio = { version = "1.47", features = ["rt-multi-thread", "sync", "time", "net", "io-util", "process", "fs"] }
 unicode-normalization = "0.1.25"
 url = "2.5.8"
+# Reuse the bounded no-std parser already pulled by strip-ansi-escapes.
+# The screen emulator uses vte 0.15 with std (unbounded OSC storage).
+vte = { version = "0.14.1", default-features = false }
 zmodem2 = { path = "../vendor/zmodem2", version = "=0.7.2" }
 
 [target.'cfg(windows)'.dependencies]

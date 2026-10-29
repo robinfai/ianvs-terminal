@@ -64,6 +64,9 @@ pub struct Grid {
     pub(crate) scrollback_wrapped: Vec<bool>,
     /// Semantic zones tracking logical blocks (Prompt, Command, Output)
     pub(crate) zones: Vec<Zone>,
+    // Cache the last checked absolute row until zone topology changes. ASCII
+    // runs and Unicode cell writes on that row do not rescan command history.
+    pub(crate) semantic_checked_row: Option<usize>,
     /// Zones that were evicted from scrollback
     pub(crate) evicted_zones: Vec<Zone>,
     /// Total number of lines that have ever been scrolled into scrollback.
@@ -123,6 +126,7 @@ impl Grid {
             wrapped: vec![false; rows],
             scrollback_wrapped: Vec::new(),
             zones: Vec::new(),
+            semantic_checked_row: None,
             evicted_zones: Vec::new(),
             total_lines_scrolled: 0,
             damage: GridDamage::default(),
@@ -230,6 +234,7 @@ impl Grid {
         if col >= self.cols {
             return None;
         }
+        self.invalidate_closed_output_provenance(row);
         self.damage.mark_row_dirty(row);
         Some(&mut self.cells[range.start + col])
     }
@@ -254,6 +259,7 @@ impl Grid {
     /// Get a mutable row
     pub fn row_mut(&mut self, row: usize) -> Option<&mut [Cell]> {
         let range = self.physical_row_range(row)?;
+        self.invalidate_closed_output_provenance(row);
         self.damage.mark_row_dirty(row);
         Some(&mut self.cells[range])
     }
@@ -450,6 +456,7 @@ impl Grid {
         self.wrapped = snap.wrapped.clone();
         self.scrollback_wrapped = snap.scrollback_wrapped.clone();
         self.zones = snap.zones.clone();
+        self.semantic_checked_row = None;
         self.evicted_zones.clear();
         self.enforce_zone_capacity();
         self.total_lines_scrolled = snap.total_lines_scrolled;

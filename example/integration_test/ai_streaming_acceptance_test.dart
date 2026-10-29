@@ -21,6 +21,11 @@ void main() {
     'native UI receives SSE incrementally and gates tools on completion',
     (tester) async {
       ensureMacosIntegrationTestFramesEnabled(tester.binding);
+      // This SSE test injects editing values with tester.enterText. Keep one
+      // input owner: integration_test otherwise leaves the real macOS IME
+      // connected, whose delayed updates can overwrite the injected draft.
+      tester.testTextInput.register();
+      addTearDown(tester.testTextInput.unregister);
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       final responses = <HttpResponse>[];
       server.listen((request) async {
@@ -115,12 +120,23 @@ void main() {
       Future<void> ask(String text) async {
         final count = responses.length;
         await tester.pumpAndSettle();
-        await tester.tap(find.byKey(const Key('ai-prompt')));
-        // Let the native text client finish its focus handshake before the
-        // test keyboard supplies a new editing value (also used by AI E2E).
-        await tester.pump(const Duration(milliseconds: 150));
-        await tester.enterText(find.byKey(const Key('ai-prompt')), text);
+        final prompt = find.byKey(const Key('ai-prompt'));
+        await tester.tap(prompt);
+        // The same EditableText survives task changes, but its input connection
+        // can close between turns. Request a fresh connection rather than
+        // relying on WidgetTester.showKeyboard's cached focusedEditable.
+        final editor = tester.state<EditableTextState>(
+          find.descendant(of: prompt, matching: find.byType(EditableText)),
+        );
+        editor.requestKeyboard();
+        await until(
+          () =>
+              editor.widget.focusNode.hasFocus &&
+              tester.testTextInput.hasAnyClients,
+        );
+        tester.testTextInput.enterText(text);
         await tester.pumpAndSettle();
+        expect(controller.draft, text);
         expect(
           tester
               .widget<FilledButton>(find.byKey(const Key('ai-send')))

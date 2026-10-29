@@ -13,6 +13,7 @@ import 'data/services/data_api_runtime.dart';
 import 'data/services/portable_master_key.dart';
 import 'data/sync/local_first_sync.dart';
 import 'data/sync/local_first_sync_boundary.dart';
+import 'features/ai/terminal_ai_history_repository.dart';
 import 'features/profiles/profile_repository.dart';
 import 'features/pty/pty.dart';
 import 'features/sessions/session_controller.dart';
@@ -99,6 +100,12 @@ Widget buildIanvsTerminalRoot({
       ),
       dataApiRemoteFallbackControllerProvider.overrideWithValue(null),
       appShutdownCoordinatorProvider.overrideWithValue(shutdownCoordinator),
+      if (runtimeGraph != null)
+        terminalAiHistoryRepositoryProvider.overrideWithValue(
+          LocalTerminalAiHistoryRepository(
+            directory: () async => runtimeGraph.paths.appSupportDirectory,
+          ),
+        ),
       sessionPollingEnabledProvider.overrideWithValue(enableSessionPolling),
       dataApiRuntimeProvider.overrideWithValue(effectiveDataApiRuntime),
       dataApiStartupWarningProvider.overrideWithValue(

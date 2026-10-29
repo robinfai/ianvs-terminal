@@ -63,6 +63,7 @@ void main() {
     final directory = await LocalTerminalDiagnosticsExporter.write(
       directory: root,
       basename: 'diagnostics-user-host-cwd-safe',
+      languageCode: 'zh',
       exports: const <TerminalDiagnosticsExport>[
         TerminalDiagnosticsExport(
           manifest: <String, Object?>{
@@ -110,6 +111,58 @@ void main() {
     expect(summary, contains('## 结论'));
     expect(summary, contains('## 隐私处理'));
   });
+
+  for (final language in ['zh', 'en']) {
+    test(
+      'idle samples explain missing bottleneck evidence in $language',
+      () async {
+        final root = await Directory.systemTemp.createTemp('diagnostic-idle-');
+        addTearDown(() => root.delete(recursive: true));
+        final directory = await LocalTerminalDiagnosticsExporter.write(
+          directory: root,
+          basename: 'idle',
+          languageCode: language,
+          exports: const [
+            TerminalDiagnosticsExport(
+              manifest: {'session_id': 1, 'child_pid': 123},
+              resourceSamples: [],
+              terminalStats: {},
+              events: [],
+              summary: {
+                'conclusion': 'insufficient-evidence',
+                'evidence': ['valid_resource_samples=60, max_child_cpu=0.2%'],
+                'attribution_scores': {
+                  'insufficient_evidence': 0.0,
+                  'user_command': 0.0,
+                  'native_parser_pty': 0.0,
+                  'flutter_ui_render': 0.0,
+                },
+                'next_steps': [
+                  'reproduce while the session is active for at least two samples and export again',
+                ],
+              },
+            ),
+          ],
+        );
+        final summary = await File(
+          '${directory.path}/summary.md',
+        ).readAsString();
+        expect(
+          summary,
+          contains(
+            language == 'zh' ? '60 个有效资源样本' : '60 valid resource samples',
+          ),
+        );
+        expect(summary, contains(language == 'zh' ? '未达到阈值' : 'threshold'));
+        expect(
+          summary,
+          contains(language == 'zh' ? '单纯增加空闲期样本' : 'More idle samples'),
+        );
+        expect(summary, isNot(contains('at least two samples')));
+        expect(summary, isNot(contains('至少两个')));
+      },
+    );
+  }
 
   test('diagnostics exporter does not overwrite an existing bundle', () async {
     final root = await Directory.systemTemp.createTemp(
@@ -256,7 +309,8 @@ void main() {
     final summary = File('${directory.path}/summary.md').readAsStringSync();
 
     expect(summary, contains('valid_resource_samples=1'));
-    expect(summary, contains('reproduce while active'));
+    expect(summary, contains('at least two valid resource samples'));
+    expect(summary, isNot(contains('reproduce while active')));
     expect(summary, isNot(contains('raw_command')));
     expect(summary, isNot(contains('raw_cwd')));
   });

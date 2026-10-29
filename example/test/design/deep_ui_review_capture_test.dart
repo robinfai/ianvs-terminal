@@ -294,18 +294,24 @@ void main() {
                   findsOneWidget,
                 );
                 if (scene.endsWith('error')) {
+                  await tester.enterText(
+                    find.byKey(const Key('sftp-create-directory-name')),
+                    'invalid/name',
+                  );
+                  await tester.pump();
                   await tester.tap(
                     find.byKey(const Key('sftp-create-directory-confirm')),
                   );
                   await tester.pumpAndSettle();
                   expect(
-                    tester
-                        .widget<TextField>(
+                    find.text(
+                      AppLocalizations.of(
+                        tester.element(
                           find.byKey(const Key('sftp-create-directory-name')),
-                        )
-                        .decoration
-                        ?.errorText,
-                    isNotEmpty,
+                        ),
+                      )!.sftpValidDirectoryName,
+                    ),
+                    findsOneWidget,
                   );
                 }
               }

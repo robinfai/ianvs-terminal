@@ -322,6 +322,80 @@ void main() {
       expect(File(localPath).readAsStringSync(), 'unsynced');
     });
 
+    test(
+      'disposed service releases queued operations without starting them',
+      () async {
+        final actions = SftpFileActions();
+        final held = Completer<void>();
+        var queuedCalls = 0;
+        final first = actions.runRemoteOperation<void>(
+          sessionId: 'session',
+          remotePath: '/file',
+          operation: () => held.future,
+        );
+        final second = actions.runRemoteOperation<void>(
+          sessionId: 'session',
+          remotePath: '/file',
+          operation: () async {
+            queuedCalls++;
+          },
+        );
+        final third = actions.runRemoteOperation<void>(
+          sessionId: 'session',
+          remotePath: '/file',
+          operation: () async {
+            queuedCalls++;
+          },
+        );
+        final secondRejected = expectLater(second, throwsStateError);
+        final thirdRejected = expectLater(third, throwsStateError);
+        actions.dispose();
+        held.complete();
+        await first;
+        await secondRejected;
+        await thirdRejected;
+        expect(queuedCalls, 0);
+        expect(actions.isRemotePathBusy('session', '/file'), isFalse);
+      },
+    );
+
+    test(
+      'dispose during edit download prevents editor launch and cleans staging',
+      () async {
+        final root = await Directory.systemTemp.createTemp(
+          'ianvs-sftp-edit-disposed-',
+        );
+        final platform = _TestSftpFileActionPlatform(root);
+        final actions = SftpFileActions(platform: platform);
+        addTearDown(() async {
+          actions.dispose();
+          if (await root.exists()) {
+            await root.delete(recursive: true);
+          }
+        });
+        final started = Completer<void>();
+        final held = Completer<void>();
+        final edit = actions.editLocally(
+          sessionId: 'session',
+          remotePath: '/file.txt',
+          fileName: 'file.txt',
+          download: (path) async {
+            started.complete();
+            await held.future;
+            await File(path).writeAsString('downloaded contents');
+          },
+          upload: (_) async {},
+        );
+        await started.future;
+        final rejected = expectLater(edit, throwsStateError);
+        actions.dispose();
+        held.complete();
+        await rejected;
+        expect(platform.openedPaths, isEmpty);
+        expect(platform.createdDirectories.single.existsSync(), isFalse);
+      },
+    );
+
     test('serializes remote operations for the same path', () async {
       final root = await Directory.systemTemp.createTemp(
         'ianvs-sftp-serialization-test-',

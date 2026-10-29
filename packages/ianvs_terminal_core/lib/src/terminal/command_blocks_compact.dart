@@ -38,6 +38,7 @@ extension _CommandBlocksCompact on _CommandBlocksViewState {
               block.running &&
               !c.readingStates.containsKey(id),
       onOpenLinkTarget: widget.onOpenLinkTarget,
+      onLinkContextMenu: widget.onLinkContextMenu,
       onAttachRange: widget.onAttachRange,
     );
     if (!mounted) return;
@@ -133,7 +134,12 @@ extension _CommandBlocksCompact on _CommandBlocksViewState {
                 PopupMenuButton<String>(
                   popUpAnimationStyle: ComposerTheme.overlayAnimation(context),
                   tooltip: t('Block actions', '命令块操作'),
-                  icon: Icon(Icons.more_horiz, size: 18, color: tokens.muted),
+                  icon: Icon(
+                    Icons.more_horiz,
+                    semanticLabel: t('Block actions', '命令块操作'),
+                    size: 18,
+                    color: tokens.muted,
+                  ),
                   onSelected: (action) => _action(block, action),
                   itemBuilder: (_) => _menuItems(block),
                 ),
@@ -145,6 +151,7 @@ extension _CommandBlocksCompact on _CommandBlocksViewState {
                 child: CommandBlockTerminal(
                   key: ValueKey('block-terminal-${block.id}'),
                   block: block,
+                  semanticContext: _semanticContextForBlock(c, block),
                   font: widget.font,
                   previewLines: 6,
                   scrollOutput: false,
@@ -160,6 +167,7 @@ extension _CommandBlocksCompact on _CommandBlocksViewState {
                       : TerminalFrameModes.empty,
                   onMeasuredCellSizeChanged: widget.onMeasuredCellSizeChanged,
                   onOpenLinkTarget: widget.onOpenLinkTarget,
+                  onLinkContextMenu: widget.onLinkContextMenu,
                 ),
               ),
             if (failed && widget.onAskAi != null)

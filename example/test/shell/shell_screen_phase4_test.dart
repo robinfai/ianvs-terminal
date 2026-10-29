@@ -666,6 +666,13 @@ void main() {
       clock: () => now,
     );
 
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ShellScreen)),
+    );
+    final runtime = container.read(terminalRuntimeControllerProvider);
+    // Drive event delivery explicitly: adaptive idle polling can exceed 40 ms.
+    // The injected shell clock independently controls the attention cooldown.
+
     fakeBindings.enqueueEvent(
       1,
       const PtyEvent(
@@ -674,7 +681,8 @@ void main() {
         payload: <String, Object?>{'source': 'iterm1337', 'action': 'once'},
       ),
     );
-    await tester.pump(const Duration(milliseconds: 40));
+    runtime.refreshSession('1');
+    await tester.pump();
     expect(attention.requests, <NativeUserAttentionType>[
       NativeUserAttentionType.informational,
     ]);
@@ -687,7 +695,8 @@ void main() {
         payload: <String, Object?>{'source': 'iterm1337', 'action': 'once'},
       ),
     );
-    await tester.pump(const Duration(milliseconds: 40));
+    runtime.refreshSession('1');
+    await tester.pump();
     expect(
       attention.requests,
       <NativeUserAttentionType>[NativeUserAttentionType.informational],
@@ -702,7 +711,8 @@ void main() {
         payload: <String, Object?>{'source': 'iterm1337', 'action': 'no'},
       ),
     );
-    await tester.pump(const Duration(milliseconds: 40));
+    runtime.refreshSession('1');
+    await tester.pump();
     expect(attention.cancellations, <int>[100]);
 
     now = now.add(const Duration(seconds: 3));
@@ -714,7 +724,8 @@ void main() {
         payload: <String, Object?>{'source': 'iterm1337', 'action': 'yes'},
       ),
     );
-    await tester.pump(const Duration(milliseconds: 40));
+    runtime.refreshSession('1');
+    await tester.pump();
     expect(attention.requests, <NativeUserAttentionType>[
       NativeUserAttentionType.informational,
       NativeUserAttentionType.critical,
@@ -728,7 +739,8 @@ void main() {
         payload: <String, Object?>{'source': 'iterm1337', 'action': 'no'},
       ),
     );
-    await tester.pump(const Duration(milliseconds: 40));
+    runtime.refreshSession('1');
+    await tester.pump();
     expect(attention.cancellations, <int>[100, 101]);
   });
 
@@ -1281,7 +1293,9 @@ void main() {
     expect(opened, isEmpty);
   });
 
-  testWidgets('OSC 8 file links ask before opening', (tester) async {
+  testWidgets('OSC 8 file links without occurrence provenance are blocked', (
+    tester,
+  ) async {
     final fakeBindings = FakePtyBackend();
 
     await _pumpShellScreen(tester, fakeBindings: fakeBindings);
@@ -1327,88 +1341,79 @@ void main() {
     await tester.pump(kDoubleTapTimeout);
     await tester.pumpAndSettle();
 
-    expect(find.text('Open local file link?'), findsOneWidget);
-    expect(find.textContaining('file:///tmp/secret.txt'), findsOneWidget);
-
-    await tester.tap(find.text('Deny'));
-    await tester.pumpAndSettle();
+    expect(find.text('Open local file link?'), findsNothing);
 
     expect(find.text('Blocked file link'), findsOneWidget);
   });
 
-  testWidgets('OSC 8 file link prompt identifies source split pane', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
+  testWidgets(
+    'OSC 8 file links without provenance remain blocked in split panes',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
 
-    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
-    await _tapTabContextMenuAction(tester, 'Split right');
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      await _tapTabContextMenuAction(tester, 'Split right');
 
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ShellScreen)),
-    );
-    final splitState = container.read(sessionControllerProvider);
-    final activeSessionId = splitState.activeSessionId!;
-    final inactiveSessionId = splitState.tabs.single.effectivePanes
-        .firstWhere((pane) => pane.sessionId != activeSessionId)
-        .sessionId;
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final splitState = container.read(sessionControllerProvider);
+      final activeSessionId = splitState.activeSessionId!;
+      final inactiveSessionId = splitState.tabs.single.effectivePanes
+          .firstWhere((pane) => pane.sessionId != activeSessionId)
+          .sessionId;
 
-    fakeBindings.setFrame(inactiveSessionId, <String, Object?>{
-      'rows': <Object?>[
-        <String, Object?>{
-          'index': 0,
-          'text': 'open file',
-          'style_runs': <Object?>[],
-        },
-      ],
-      'cursor': <String, Object?>{'row': 0, 'col': 0, 'visible': true},
-      'selection': null,
-      'viewport_rows': 24,
-      'viewport_cols': 80,
-      'dirty_ranges': <Object?>[
-        <String, Object?>{'start': 0, 'end': 1},
-      ],
-      'scrollback_offset': 0,
-      'scrollback_max_offset': 0,
-      'hyperlinks': <Object?>[
-        <String, Object?>{
-          'row': 0,
-          'start_col': 5,
-          'end_col': 9,
-          'uri': 'file:///tmp/source-pane.txt',
-        },
-      ],
-    });
-    container
-        .read(terminalRuntimeControllerProvider)
-        .refreshSession(inactiveSessionId);
-    await tester.pump(const Duration(milliseconds: 40));
+      fakeBindings.setFrame(inactiveSessionId, <String, Object?>{
+        'rows': <Object?>[
+          <String, Object?>{
+            'index': 0,
+            'text': 'open file',
+            'style_runs': <Object?>[],
+          },
+        ],
+        'cursor': <String, Object?>{'row': 0, 'col': 0, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': <Object?>[
+          <String, Object?>{'start': 0, 'end': 1},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+        'hyperlinks': <Object?>[
+          <String, Object?>{
+            'row': 0,
+            'start_col': 5,
+            'end_col': 9,
+            'uri': 'file:///tmp/source-pane.txt',
+          },
+        ],
+      });
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(inactiveSessionId);
+      await tester.pump(const Duration(milliseconds: 40));
 
-    final renderObject = _renderTerminalViewportForPane(
-      tester,
-      inactiveSessionId,
-    );
-    final cellSize = renderObject.debugCellSize;
-    final linkPosition = renderObject.localToGlobal(
-      Offset(cellSize.width * 6, cellSize.height / 2),
-    );
-    final pointer = TestPointer(46, PointerDeviceKind.mouse);
-    await tester.sendEventToBinding(pointer.down(linkPosition));
-    await tester.pump();
-    await tester.sendEventToBinding(pointer.up());
-    await tester.pump(kDoubleTapTimeout);
-    await tester.pumpAndSettle();
+      final renderObject = _renderTerminalViewportForPane(
+        tester,
+        inactiveSessionId,
+      );
+      final cellSize = renderObject.debugCellSize;
+      final linkPosition = renderObject.localToGlobal(
+        Offset(cellSize.width * 6, cellSize.height / 2),
+      );
+      final pointer = TestPointer(46, PointerDeviceKind.mouse);
+      await tester.sendEventToBinding(pointer.down(linkPosition));
+      await tester.pump();
+      await tester.sendEventToBinding(pointer.up());
+      await tester.pump(kDoubleTapTimeout);
+      await tester.pumpAndSettle();
 
-    expect(find.text('Open local file link?'), findsOneWidget);
-    expect(find.textContaining('file:///tmp/source-pane.txt'), findsOneWidget);
-    expect(find.textContaining('Source: Pane:'), findsOneWidget);
-    expect(find.textContaining('($inactiveSessionId)'), findsOneWidget);
+      expect(find.text('Open local file link?'), findsNothing);
 
-    await tester.tap(find.text('Deny'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Blocked file link'), findsOneWidget);
-  });
+      expect(find.text('Blocked file link'), findsOneWidget);
+    },
+  );
 
   testWidgets('OSC 1337 download requires Save before writing bytes', (
     tester,
@@ -1548,11 +1553,16 @@ void main() {
       ),
       hasLength(1),
     );
-    expect(fakeBindings.jsonRequests.last, <String, Object?>{
-      'kind': 'terminal.zmodem.accept_receive',
-      'transferId': '41',
-      'destination': '/chosen/downloads',
-    });
+    expect(
+      fakeBindings.jsonRequests.lastWhere(
+        (request) => request['kind'] == 'terminal.zmodem.accept_receive',
+      ),
+      <String, Object?>{
+        'kind': 'terminal.zmodem.accept_receive',
+        'transferId': '41',
+        'destination': '/chosen/downloads',
+      },
+    );
     expect(
       find.byKey(const Key('shell-zmodem-transfer-detail')),
       findsOneWidget,
@@ -1597,10 +1607,12 @@ void main() {
 
     await tester.tap(find.byKey(const Key('shell-zmodem-transfer-cancel')));
     await tester.pump();
-    expect(fakeBindings.jsonRequests.last, <String, Object?>{
-      'kind': 'terminal.zmodem.cancel',
-      'transferId': '41',
-    });
+    expect(
+      fakeBindings.jsonRequests.lastWhere(
+        (request) => request['kind'] == 'terminal.zmodem.cancel',
+      ),
+      <String, Object?>{'kind': 'terminal.zmodem.cancel', 'transferId': '41'},
+    );
     expect(find.text('Cancelling…'), findsOneWidget);
     expect(
       tester
@@ -2363,9 +2375,12 @@ void main() {
         find.byKey(const Key('shell-zmodem-transfer-cancel')),
         findsOneWidget,
       );
-      expect(fakeBindings.jsonRequests.single, <String, Object?>{
-        'kind': 'terminal.zmodem.cancel_active',
-      });
+      expect(
+        fakeBindings.jsonRequests
+            .where((request) => request['kind'] != 'terminal.command_blocks')
+            .single,
+        <String, Object?>{'kind': 'terminal.zmodem.cancel_active'},
+      );
     },
   );
 
@@ -2843,11 +2858,16 @@ void main() {
       runtime.refreshSession('1');
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
-      expect(fakeBindings.jsonRequests.last, <String, Object?>{
-        'kind': 'terminal.zmodem.accept_receive',
-        'transferId': '61',
-        'destination': '/chosen/downloads',
-      });
+      expect(
+        fakeBindings.jsonRequests.lastWhere(
+          (request) => request['kind'] == 'terminal.zmodem.accept_receive',
+        ),
+        <String, Object?>{
+          'kind': 'terminal.zmodem.accept_receive',
+          'transferId': '61',
+          'destination': '/chosen/downloads',
+        },
+      );
       expect(
         find.textContaining('modified 2023-11-14 22:20:56 UTC'),
         findsOneWidget,
@@ -3219,11 +3239,16 @@ void main() {
         'transferId': '55',
         'direction': 'send',
       });
-      expect(fakeBindings.jsonRequests.last, <String, Object?>{
-        'kind': 'terminal.zmodem.accept_send',
-        'transferId': '55',
-        'files': <String>['/tmp/first.bin', '/tmp/second.bin'],
-      });
+      expect(
+        fakeBindings.jsonRequests.lastWhere(
+          (request) => request['kind'] == 'terminal.zmodem.accept_send',
+        ),
+        <String, Object?>{
+          'kind': 'terminal.zmodem.accept_send',
+          'transferId': '55',
+          'files': <String>['/tmp/first.bin', '/tmp/second.bin'],
+        },
+      );
 
       await deliver('zmodem_started', const <String, Object?>{
         'source': 'zmodem',
@@ -3356,7 +3381,12 @@ void main() {
       find.byKey(const Key('shell-zmodem-transfer-retry')),
       findsOneWidget,
     );
-    expect(fakeBindings.jsonRequests, isEmpty);
+    expect(
+      fakeBindings.jsonRequests.where(
+        (request) => request['kind'] != 'terminal.command_blocks',
+      ),
+      isEmpty,
+    );
 
     await tester.tap(find.byKey(const Key('shell-zmodem-transfer-retry')));
     await tester.pump();
@@ -3773,7 +3803,12 @@ void main() {
     );
     expect(
       fakeBindings.jsonRequests
-          .skip(fakeBindings.jsonRequests.length - 2)
+          .where((request) => request['kind'] != 'terminal.command_blocks')
+          .toList()
+          .reversed
+          .take(2)
+          .toList()
+          .reversed
           .map((request) => request['kind']),
       <Object?>['terminal.zmodem.cancel', 'terminal.zmodem.cancel_active'],
     );
@@ -5015,7 +5050,7 @@ void main() {
     expect(notifications, hasLength(1));
     expect(
       notifications.single['title'],
-      'Command finished on deploy@remote.example in $paneOneTitle pane 1 (1)',
+      'Command finished on deploy@remote.example in $paneOneTitle · pane 1',
     );
     expect(notifications.single['body'], 'Exit code 0');
     expect(
@@ -5085,8 +5120,7 @@ void main() {
         (pane) => pane.sessionId == inactiveSessionId,
       );
       final inactivePaneLabel =
-          '${inactivePane.title} pane ${inactivePaneIndex + 1} '
-          '($inactiveSessionId)';
+          '${inactivePane.title} · pane ${inactivePaneIndex + 1}';
 
       fakeBindings.setFrame(
         inactiveSessionId,
@@ -5105,6 +5139,7 @@ void main() {
           .refreshSession(inactiveSessionId);
       await tester.pump(const Duration(milliseconds: 40));
 
+      await tester.pump(const Duration(milliseconds: 250));
       fakeBindings.enqueueEvent(
         inactiveSessionId,
         PtyEvent(kind: 'bell', sessionId: inactiveSessionId),
@@ -5130,9 +5165,9 @@ void main() {
       final activityNotifications = notifications
           .where(
             (notification) =>
-                notification['title'] == 'Activity in $inactivePaneLabel' &&
+                notification['title'] == 'Activity in ${tab.title}' &&
                 notification['identifier'] ==
-                    'ianvs-terminal.activity.$inactiveSessionId',
+                    'ianvs-terminal.activity.${tab.sessionId}',
           )
           .toList(growable: false);
       expect(activityNotifications, hasLength(1));

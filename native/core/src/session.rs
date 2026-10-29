@@ -54,11 +54,15 @@ mod command_blocks;
 mod event_queue;
 mod frame;
 mod frame_signal;
+mod output_observer;
 mod product_requests;
 mod protocol_callbacks;
 mod protocol_host;
 mod pty_reader;
 mod recording;
+#[cfg(test)]
+mod search_snapshot_tests;
+mod semantic_snapshot;
 
 pub use product_requests::request_session;
 #[cfg(test)]
@@ -753,11 +757,13 @@ pub struct TerminalSession {
     process_name: String,
     is_replay: bool,
     events: Mutex<PendingEventQueue>,
+    output_observer: Mutex<output_observer::OutputObserver>,
     recording: Mutex<SessionRecording>,
     replay_checkpoints: Mutex<ReplayCheckpointStore>,
     diagnostic_events: Mutex<VecDeque<TerminalDiagnosticEvent>>,
     diagnostic_wire_sequence: Mutex<u64>,
     frame_packet_sequence: Mutex<u64>,
+    semantic_snapshot_sequence: AtomicU64,
     resource_samples: Mutex<VecDeque<ResourceSample>>,
     resource_sampler_state: Mutex<ResourceSamplerState>,
     pending_frame_signal: PendingFrameSignal,
@@ -1264,6 +1270,7 @@ impl TerminalSession {
             pending_child_exit: Mutex::new(None),
             process_name,
             is_replay,
+            output_observer: Mutex::new(output_observer::OutputObserver::default()),
             events: Mutex::new(PendingEventQueue::with_initial(TerminalEvent {
                 kind: "started".to_string(),
                 session_id,
@@ -1282,6 +1289,7 @@ impl TerminalSession {
             }])),
             diagnostic_wire_sequence: Mutex::new(0),
             frame_packet_sequence: Mutex::new(0),
+            semantic_snapshot_sequence: AtomicU64::new(0),
             resource_samples: Mutex::new(VecDeque::new()),
             resource_sampler_state: Mutex::new(ResourceSamplerState::default()),
             pending_frame_signal: PendingFrameSignal::new(true),
@@ -1309,13 +1317,11 @@ impl TerminalSession {
         allow_host_effects: bool,
         collect_responses: bool,
     ) -> Vec<u8> {
+        let mut output_events = Vec::new();
         let (
             callback_events,
             responses,
-            damage,
-            cursor_before,
-            cursor_after,
-            cleared_scrollback,
+            damage_merge_micros,
             host_protocol_micros,
             terminal_process_micros,
             terminal_process_breakdown,
@@ -1336,6 +1342,9 @@ impl TerminalSession {
             terminal.process_with_filtered_input(bytes, |filtered| {
                 let host_started_at = Instant::now();
                 callback_events = host_protocol.observe(filtered, self.emulation);
+                if allow_host_effects && !self.is_replay {
+                    output_events = self.output_observer.lock().observe(filtered);
+                }
                 host_protocol_micros = host_started_at.elapsed().as_micros() as u64;
             });
             let notifications = state.terminal.take_notifications();
@@ -1405,33 +1414,41 @@ impl TerminalSession {
             let damage = state.terminal.drain_active_screen_damage();
             let cursor_after = terminal_cursor_snapshot(&state.terminal, state.terminal.cursor());
             let responses = normalize_responses(self.emulation, state.terminal.drain_responses());
+            // Pixels, provenance, and pending damage form one publication.
+            // A frame must not observe newer state with an older delta row set.
+            let damage_merge_started_at = Instant::now();
+            self.pending_frame_signal.mutate_reader(|work| {
+                work.merge_terminal_damage(damage, cursor_before, cursor_after);
+            });
+            let damage_merge_micros = damage_merge_started_at.elapsed().as_micros() as u64;
+            if cleared_scrollback {
+                self.last_rows.lock().clear();
+                *self.last_frame_meta.lock() = None;
+                self.pending_frame_signal
+                    .mutate(|work| work.mark_full_repaint("terminal_clear_scrollback"));
+            }
             (
                 callback_events,
                 responses,
-                damage,
-                cursor_before,
-                cursor_after,
-                cleared_scrollback,
+                damage_merge_micros,
                 host_protocol_micros,
                 terminal_process_micros,
                 terminal_process_breakdown,
             )
         };
 
-        let damage_merge_started_at = Instant::now();
-        self.pending_frame_signal.mutate_reader(|work| {
-            work.merge_terminal_damage(damage, cursor_before, cursor_after);
-        });
-        let damage_merge_micros = damage_merge_started_at.elapsed().as_micros() as u64;
-
-        if cleared_scrollback {
-            self.last_rows.lock().clear();
-            *self.last_frame_meta.lock() = None;
-            self.pending_frame_signal
-                .mutate(|work| work.mark_full_repaint("terminal_clear_scrollback"));
-        }
-
         if allow_host_effects {
+            for payload in output_events {
+                if payload["dropped"].as_u64().unwrap_or(0) > 0 {
+                    self.push_diagnostic_event(TerminalDiagnosticEvent {
+                        timestamp_micros: unix_timestamp_micros(),
+                        session_id: self.session_id,
+                        kind: "trigger_output_overflow".to_string(),
+                        payload: Some(serde_json::json!({"dropped": payload["dropped"]})),
+                    });
+                }
+                self.push_event("output_text", Some(payload));
+            }
             for event in callback_events {
                 self.push_callback_event(event);
             }
@@ -2877,19 +2894,17 @@ impl TerminalSession {
                 checkpoint_id,
             },
         )?;
-        {
-            let mut state = self.state.lock();
-            state.terminal.restore_from_snapshot(checkpoint.snapshot);
-            state.transcript = checkpoint.transcript;
-            state.transcript_truncated = checkpoint.transcript_truncated;
-            state.scrollback_offset = checkpoint.scrollback_offset;
-            state.host_protocol = checkpoint.host_protocol;
-            state.graphic_assets.clear();
-            state.graphic_asset_bytes = 0;
-            state.pending_file_downloads.clear();
-            state.pending_file_download_bytes = 0;
-            state.replay_checkpoint_boundary = ReplayCheckpointBoundary::default();
-        }
+        let mut state = self.state.lock();
+        state.terminal.restore_from_snapshot(checkpoint.snapshot);
+        state.transcript = checkpoint.transcript;
+        state.transcript_truncated = checkpoint.transcript_truncated;
+        state.scrollback_offset = checkpoint.scrollback_offset;
+        state.host_protocol = checkpoint.host_protocol;
+        state.graphic_assets.clear();
+        state.graphic_asset_bytes = 0;
+        state.pending_file_downloads.clear();
+        state.pending_file_download_bytes = 0;
+        state.replay_checkpoint_boundary = ReplayCheckpointBoundary::default();
         self.last_rows.lock().clear();
         *self.last_frame_meta.lock() = None;
         *self.last_frame_debug_stats.lock() = None;
@@ -3500,6 +3515,10 @@ impl TerminalSession {
         let resize_guard_graphics =
             restore_iterm_graphics_after_resize(&mut state.terminal, iterm_graphics_before_resize);
         self.arm_resize_iterm_redraw_guard(resize_guard_graphics);
+        self.last_rows.lock().clear();
+        *self.last_frame_meta.lock() = None;
+        self.pending_frame_signal
+            .mutate(|work| work.mark_full_repaint("resize"));
         drop(state);
 
         {
@@ -3516,10 +3535,6 @@ impl TerminalSession {
             }
         }
 
-        self.last_rows.lock().clear();
-        *self.last_frame_meta.lock() = None;
-        self.pending_frame_signal
-            .mutate(|work| work.mark_full_repaint("resize"));
         if !self.is_replay {
             recording.record_resize(
                 cols,
@@ -3674,7 +3689,6 @@ impl TerminalSession {
         state.scrollback_offset = 0;
         state.transcript.clear();
         state.transcript_truncated = true;
-        drop(state);
 
         self.last_rows.lock().clear();
         *self.last_frame_meta.lock() = None;
@@ -3692,7 +3706,6 @@ impl TerminalSession {
         state.scrollback_offset = 0;
         state.transcript.clear();
         state.transcript_truncated = true;
-        drop(state);
 
         self.last_rows.lock().clear();
         *self.last_frame_meta.lock() = None;
@@ -3721,7 +3734,6 @@ impl TerminalSession {
             let max_offset = current_scrollback_max(&state);
             state.scrollback_offset = state.scrollback_offset.min(max_offset);
         }
-        drop(state);
         if changed {
             self.last_rows.lock().clear();
             *self.last_frame_meta.lock() = None;
@@ -3745,7 +3757,6 @@ impl TerminalSession {
         }
         let mut state = self.state.lock();
         let changed = state.terminal.set_iterm_block_rendered(id, rendered);
-        drop(state);
         if changed {
             self.last_rows.lock().clear();
             *self.last_frame_meta.lock() = None;
@@ -3825,13 +3836,12 @@ impl TerminalSession {
     }
 
     pub fn take_frame_diff(&self) -> Result<Option<TerminalFrameDiff>, SessionError> {
-        let mut had_dirty_work = self.pending_frame_signal.is_dirty();
-
         let frame_started_at = Instant::now();
 
         let state_lock_started_at = Instant::now();
         let mut state = self.state.lock();
         let state_lock_wait_micros = state_lock_started_at.elapsed().as_micros() as u64;
+        let mut had_dirty_work = self.pending_frame_signal.is_dirty();
         let frame_extract_started_at = Instant::now();
         let cursor_before_flush =
             terminal_cursor_snapshot(&state.terminal, state.terminal.cursor());
@@ -4126,6 +4136,13 @@ impl TerminalSession {
                 .restore(pending_frame_work, refresh_hint_was_dirty);
             return Ok(None);
         }
+        let (semantic_blocks, semantic_row_contexts) = semantic_snapshot::capture(
+            terminal,
+            &display_projection,
+            viewport_display_start_row,
+            viewport_rows,
+            self.is_replay,
+        );
         let deferred_kitty_delete_count = terminal.deferred_kitty_delete_count();
         canonicalize_replayed_iterm_asset_ids(
             &state.graphic_assets,
@@ -4161,7 +4178,24 @@ impl TerminalSession {
         }
         *self.deferred_inline_clear_frame.lock() = None;
 
+        // All provenance and pixels were captured under this same state lock.
+        // This names the immutable published snapshot, not the mutable terminal.
+        let semantic_snapshot_token = self
+            .semantic_snapshot_sequence
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |value| {
+                value.checked_add(1)
+            })
+            .ok()
+            .map(|previous| (previous + 1).to_string());
+        let (semantic_blocks, semantic_row_contexts) = if semantic_snapshot_token.is_some() {
+            (semantic_blocks, semantic_row_contexts)
+        } else {
+            (Vec::new(), Vec::new())
+        };
         Ok(Some(TerminalFrameDiff {
+            semantic_snapshot_token,
+            semantic_blocks,
+            semantic_row_contexts,
             frame_schema_version: TERMINAL_FRAME_SCHEMA_VERSION.to_string(),
             frame_kind,
             rows,
@@ -4433,7 +4467,18 @@ impl TerminalSession {
             return Ok(Vec::new());
         }
         let pattern = TerminalSearchPattern::new(query, mode)?;
+        let rows = self.capture_search_snapshot();
+        // Matching and logical-line assembly can scan the entire history. Keep
+        // them outside the state lock so PTY ingestion can continue meanwhile.
+        let mut matches = Vec::new();
+        collect_search_matches(&mut matches, rows, &pattern);
+        Ok(matches)
+    }
 
+    /// Own the text, wrapping and projected coordinates from one state revision.
+    /// No terminal references or lock guards escape this capture, so later
+    /// output, folding, resizing or screen switches cannot mix search states.
+    fn capture_search_snapshot(&self) -> Vec<TerminalSearchRow> {
         let state = self.state.lock();
         let terminal = &state.terminal;
         let theme = terminal_theme_snapshot(terminal);
@@ -4487,9 +4532,7 @@ impl TerminalSession {
             }
         }
 
-        let mut matches = Vec::new();
-        collect_search_matches(&mut matches, rows, &pattern);
-        Ok(matches)
+        rows
     }
 
     pub fn selection_text(&self, request: TerminalSelectionRequest) -> String {
@@ -4523,6 +4566,7 @@ impl TerminalSession {
                             "code": exit.exit_code(),
                             "success": exit.success(),
                             "signal": exit.signal(),
+                            "ssh_session_established": self.ssh_auth.as_ref().map(|auth| auth.session_established()),
                         }),
                     });
                     self.exited.store(true, Ordering::SeqCst);

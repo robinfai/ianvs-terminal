@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:app/features/ai/ai_models.dart';
 import 'package:app/features/ai/ai_settings.dart';
 import 'package:app/features/ai/terminal_ai_controller.dart';
+import 'package:app/features/ai/terminal_ai_history_repository.dart';
 import 'package:app/features/ai/terminal_ai_workspace.dart';
 import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
@@ -90,6 +91,10 @@ void main() {
     );
     final container = ProviderContainer(
       overrides: [
+        // Keep native fixture history separate from the development app.
+        terminalAiHistoryRepositoryProvider.overrideWithValue(
+          LocalTerminalAiHistoryRepository(directory: () async => home),
+        ),
         ptySessionBackendProvider.overrideWithValue(NativePtyBackend.load()),
         aiSettingsProvider.overrideWithValue(settings),
         profileRepositoryProvider.overrideWithValue(

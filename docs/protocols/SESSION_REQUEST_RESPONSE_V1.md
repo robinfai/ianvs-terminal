@@ -86,6 +86,14 @@ capability and adds no FFI symbol.
 
 Command-block paging and evidence coordinates have separate meanings:
 
+- `cwd`, nullable `shellHostname` and nullable `shellUsername` are captured when
+  the native command zone opens. Later directory/identity reports do not rewrite
+  earlier commands; nested contexts retain their own declarations. These fields
+  describe shell-reported evidence, never an authenticated SSH destination.
+  Missing identity remains unknown, and a missing `exitCode` is not success.
+- Nullable `sftpContextId` is frozen with that zone and identifies its file-route
+  incarnation. It is compared with the current native-issued route lease before
+  file actions; consumers must not fill missing historical leases from live state.
 - `offset`, `nextOffset` and `totalLines` count retained rows owned by the
   command; a filtered view pages its selected rows and reports `matchingLines`.
 - `lines[].index` addresses physical source rows relative to the retained source
@@ -105,3 +113,47 @@ Parent output segments and shared-row ownership are bounded. If terminal edits
 move or replace cells whose ownership cannot be preserved, affected segments
 are discarded and `evicted` becomes true. Consumers must treat that output as
 unavailable, not reuse the corresponding child text.
+
+## Live output observation
+
+`terminal.observe_output` accepts exactly `{"enabled": bool}` and returns exactly
+`{"enabled": bool, "subscription": "<uint64 decimal>"}`. It is disabled by default;
+repeating the current setting is idempotent, and each enable/disable transition
+advances the subscription identity. Replay sessions reject enabling observation.
+The product enables it only for live sessions whose active profile has triggers,
+including background panes, before the first runtime event pump where possible.
+
+This request is not atomic with native process creation: output produced before
+subscription is not replayed. A known empty logical line can be observed immediately;
+enabling midway through a line suppresses that line until LF. The observer maintains
+its VT parser state while disabled without collecting text or publishing events,
+so enabling in a split OSC/DCS cannot expose control payload as text.
+
+The `output_text` runtime event carries the closed payload:
+`subscription`, `lineId`, `revision` (uint64 decimal strings), `text` (UTF-8,
+at most 4096 bytes, no controls except TAB), `complete` (bool), and `dropped`
+(non-negative integer). Each ordinary event contains the full current logical
+line, not an append fragment; `complete` describes the observation and does not
+promise a separate completion event for a previously published unchanged line.
+Per native ingest, at most 64 ordinary observations are emitted plus one overflow
+notice (`text: ""`, `dropped > 0`). Oversize lines are suppressed until LF and
+also produce a drop notice. The native `trigger_output_overflow` diagnostic records
+the drop count without terminal text. Existing queue-overflow/gap policy still applies.
+Missing events may lose matches but never cause consumers to concatenate unrelated
+fragments. Frame snapshots, scrolling and resize do not generate observations.
+
+Matching is conservative stream observation, not another terminal screen emulator:
+SGR and known metadata OSC are transparent; CR followed by LF preserves the line,
+while CR rewrites, backspace, VT/FF, cursor/erase operations, content OSC and DCS
+suppress the affected line until LF. Alternate-screen content is suppressed.
+Partial text is published at most once at the end of an ingest; future output
+cannot undo an action already fired for an earlier partial observation.
+
+Dart validates the closed shape and current session/subscription identity before
+publishing, and the product rechecks identity when the queued UI effect executes.
+Each rule can act once per logical line in a subscription; a later line with the
+same text can act again. Existing input ownership/transfer guards still govern
+`sendText`. Disabling/re-enabling rejects queued observations from the old
+subscription. Local authorization is revoked before a disable request is sent, even if that
+request fails. An uncertain native subscription must be disabled successfully before a new
+subscription is authorized. Native replay and the Dart replay backend never execute these events.

@@ -2378,6 +2378,13 @@ impl Terminal {
                 zone.timestamp = old.timestamp;
                 zone.finished_at = old.finished_at;
                 zone.cwd.clone_from(&old.cwd);
+                zone.shell_hostname.clone_from(&old.shell_hostname);
+                zone.shell_username.clone_from(&old.shell_username);
+                zone.sftp_context_id.clone_from(&old.sftp_context_id);
+                // Reflow replays at different columns: an old overwrite may
+                // no longer overlap the same zone. Revoked provenance must
+                // never be resurrected by changing the replay geometry.
+                zone.semantic_invalidated |= old.semantic_invalidated;
             }
         }
     }

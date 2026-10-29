@@ -58,7 +58,7 @@ void main() {
   });
 
   test(
-    'macOS uses Swift Package plugins and synchronized Keychain storage',
+    'macOS integrates Swift Package and Pod plugins with synchronized Keychain storage',
     () {
       final exampleRoot = _exampleRoot();
       final macosRoot = Directory('${exampleRoot.path}/macos');
@@ -81,11 +81,11 @@ void main() {
         '${exampleRoot.path}/lib/data/services/portable_master_key.dart',
       ).readAsStringSync();
 
-      expect(File('${macosRoot.path}/Podfile').existsSync(), isFalse);
+      expect(File('${macosRoot.path}/Podfile').existsSync(), isTrue);
       expect(projectText, contains('FlutterGeneratedPluginSwiftPackage'));
-      expect(projectText, isNot(contains('Pods-Runner')));
-      expect(debugConfig, isNot(contains('Pods/Target Support Files')));
-      expect(releaseConfig, isNot(contains('Pods/Target Support Files')));
+      expect(projectText, contains('Pods-Runner'));
+      expect(debugConfig, contains('Pods/Target Support Files'));
+      expect(releaseConfig, contains('Pods/Target Support Files'));
       expect(debugEntitlements, isNot(contains('keychain-access-groups')));
       expect(releaseEntitlements, isNot(contains('keychain-access-groups')));
       expect(masterKeyStorage, contains('IOSOptions(synchronizable: true)'));

@@ -40,10 +40,29 @@ AppTerminalColors resolveTerminalColorsForScheme(
     smartCursorColor: true,
   );
   final overrides = profileAppearance?.colors;
+  final background = terminalViewportColorFromHex(
+    overrides?.special.background,
+  );
+  // A terminal preset can have the opposite brightness to the application.
+  // Derive scrollbar tokens from its canvas instead of the surrounding chrome.
+  final terminalScheme = background == null
+      ? colorScheme
+      : ColorScheme.fromSeed(
+          seedColor: colorScheme.primary,
+          brightness: ThemeData.estimateBrightnessForColor(background),
+        );
   return AppTerminalColors(
     viewport: base.copyWith(
+      canvasBackground: background,
+      foreground: terminalViewportColorFromHex(overrides?.special.foreground),
       cursor: terminalViewportColorFromHex(overrides?.special.cursor),
       selection: terminalViewportColorFromHex(overrides?.special.selection),
+      scrollbarTrack: background == null
+          ? null
+          : terminalScheme.onSurface.withValues(alpha: 0.16),
+      scrollbarThumb: background == null
+          ? null
+          : terminalScheme.onSurface.withValues(alpha: 0.75),
     ),
   );
 }

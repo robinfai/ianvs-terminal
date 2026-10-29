@@ -604,6 +604,98 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
+  for (final native in [false, true]) {
+    testWidgets(
+      'new terminal tab closes by ${native ? 'native menu' : 'shortcut'} and restores AI draft',
+      (tester) async {
+        final backend = _Backend();
+        final fixture = await _pump(
+          tester,
+          backend,
+          platform: TargetPlatform.macOS,
+          size: const Size(1300, 800),
+        );
+        final ai = await _open(tester, fixture.id);
+        await tester.enterText(
+          find.byKey(const Key('ai-prompt')),
+          'Retained task draft',
+        );
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(ShellScreen)),
+        );
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.keyT);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+        await _settle(tester);
+        final next = container.read(sessionControllerProvider).activeSessionId;
+        expect(next, isNot(fixture.id));
+        if (native) {
+          final response = Completer<void>();
+          await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
+            'app/window_bridge',
+            const StandardMethodCodec().encodeMethodCall(
+              const MethodCall('nativeAppAction', {'action': 'closeTab'}),
+            ),
+            (_) => response.complete(),
+          );
+          await response.future;
+        } else {
+          await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+          await tester.sendKeyEvent(LogicalKeyboardKey.keyW);
+          await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+        }
+        await _settle(tester);
+        expect(
+          container.read(sessionControllerProvider).activeSessionId,
+          fixture.id,
+        );
+        expect(
+          find.byKey(const Key('ai-prompt')).hitTestable(),
+          findsOneWidget,
+        );
+        expect(ai.draft, 'Retained task draft');
+        expect(tester.takeException(), isNull);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+  }
+  testWidgets(
+    'AI terminal search opens in the read-only observer and keeps draft',
+    (tester) async {
+      final backend = _Backend();
+      final fixture = await _pump(
+        tester,
+        backend,
+        platform: TargetPlatform.macOS,
+        size: const Size(1300, 800),
+      );
+      final ai = await _open(tester, fixture.id);
+      await tester.enterText(
+        find.byKey(const Key('ai-prompt')),
+        'Keep search draft',
+      );
+      await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+      await _settle(tester);
+      await tester.tap(find.text('Search terminal output').first);
+      await _settle(tester);
+      expect(find.byType(TerminalAiObserver).hitTestable(), findsOneWidget);
+      expect(
+        find.byKey(const Key('terminal-search-field')).hitTestable(),
+        findsOneWidget,
+      );
+      await tester.enterText(
+        find.byKey(const Key('terminal-search-field')),
+        'retained',
+      );
+      await _settle(tester);
+      expect(ai.draft, 'Keep search draft');
+      expect(ai.takenOver, isFalse);
+      expect(backend.writes, isEmpty);
+      expect(tester.takeException(), isNull);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
   for (final platform in [TargetPlatform.iOS, TargetPlatform.macOS]) {
     for (final entry in [
       if (platform == TargetPlatform.iOS) 'task menu' else 'close',

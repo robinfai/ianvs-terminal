@@ -4,6 +4,30 @@ import 'package:app/platform/app_shutdown_coordinator.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'history capture precedes PTY teardown and its writes precede infrastructure',
+    () async {
+      final coordinator = AppShutdownCoordinator();
+      final write = Completer<void>();
+      final events = <String>[];
+      coordinator.registerTask('history', () {
+        events.add('capture');
+        return write.future;
+      }, phase: AppShutdownPhase.persistence);
+      coordinator.registerTask('pty', () async {
+        events.add('pty');
+      });
+      coordinator.registerTask('storage', () async {
+        events.add('storage');
+      }, phase: AppShutdownPhase.infrastructure);
+      final shutdown = coordinator.shutdown();
+      expect(events, ['capture', 'pty']);
+      write.complete();
+      expect((await shutdown).safeToTerminate, isTrue);
+      expect(events, ['capture', 'pty', 'storage']);
+    },
+  );
+
   test('rejects a non-positive shutdown timeout', () {
     expect(
       () => AppShutdownCoordinator(timeout: Duration.zero),

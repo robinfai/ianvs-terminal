@@ -19,6 +19,7 @@ class CommandBlocksPane extends StatefulWidget {
     required this.onMeasuredCellSizeChanged,
     required this.child,
     required this.onOpenLinkTarget,
+    this.onLinkContextMenu,
     this.onAskAi,
     this.onAttachBlocks,
     this.onAttachRange,
@@ -33,6 +34,7 @@ class CommandBlocksPane extends StatefulWidget {
   final ValueChanged<Size> onMeasuredCellSizeChanged;
   final Widget child;
   final ValueChanged<TerminalLinkTarget> onOpenLinkTarget;
+  final ValueChanged<TerminalLinkTarget>? onLinkContextMenu;
   final ValueChanged<CommandBlock>? onAskAi;
   final ValueChanged<List<CommandBlock>>? onAttachBlocks;
   final ValueChanged<CommandBlock>? onAttachRange;
@@ -134,10 +136,11 @@ class _CommandBlocksPaneState extends State<CommandBlocksPane> {
           _mainScreenApplication;
       final enabled = widget.session.enabled && widget.active;
       final previousBlock = _blocks.blocks.lastOrNull?.id;
-      if (enabled &&
-          (!identical(frame, _lastFrame) ||
-              ownership != _lastOwnership ||
-              enabled != _lastEnabled)) {
+      // Normal mode shares the same bounded occurrence projection. Hover only
+      // reads this cache; it must never scan native output or infer current cwd.
+      if (!identical(frame, _lastFrame) ||
+          ownership != _lastOwnership ||
+          enabled != _lastEnabled) {
         _blocks.refresh();
       }
       if (_revealSubmission case final submissionId? when enabled) {
@@ -249,6 +252,7 @@ class _CommandBlocksPaneState extends State<CommandBlocksPane> {
       font: widget.font,
       onMeasuredCellSizeChanged: widget.onMeasuredCellSizeChanged,
       onOpenLinkTarget: widget.onOpenLinkTarget,
+      onLinkContextMenu: widget.onLinkContextMenu,
       onAskAi: widget.onAskAi,
       onAttachBlocks: widget.onAttachBlocks,
       onAttachRange: widget.onAttachRange,

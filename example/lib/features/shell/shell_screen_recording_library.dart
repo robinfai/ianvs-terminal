@@ -146,18 +146,14 @@ class _SavedRecordingsShelf extends StatelessWidget {
 
   Widget _header(BuildContext context) {
     final mobile = context.usesMobileNavigation;
-    final close = MergeSemantics(
-      child: Semantics(
-        label: mobile ? context.l10n.mobileBack : context.l10n.close,
-        child: IconButton(
-          key: const Key('recording-library-close'),
-          autofocus: !mobile,
-          tooltip: mobile ? context.l10n.mobileBack : context.l10n.close,
-          onPressed: onClose,
-          icon: Icon(
-            mobile ? Icons.arrow_back_ios_new_rounded : Icons.close_rounded,
-          ),
-        ),
+    final close = IconButton(
+      key: const Key('recording-library-close'),
+      autofocus: !mobile,
+      tooltip: mobile ? context.l10n.mobileBack : context.l10n.close,
+      onPressed: onClose,
+      icon: Icon(
+        mobile ? Icons.arrow_back_ios_new_rounded : Icons.close_rounded,
+        semanticLabel: mobile ? context.l10n.mobileBack : context.l10n.close,
       ),
     );
     if (mobile) {
@@ -261,15 +257,13 @@ class _SavedRecordingsShelf extends StatelessWidget {
                 style: Theme.of(context).textTheme.titleSmall,
               ),
             ),
-            MergeSemantics(
-              child: Semantics(
-                label: l10n.refreshRecordings,
-                child: IconButton(
-                  key: const Key('recording-library-refresh'),
-                  tooltip: l10n.refreshRecordings,
-                  onPressed: loading || selectionLoading ? null : onRefresh,
-                  icon: const Icon(Icons.refresh_rounded),
-                ),
+            IconButton(
+              key: const Key('recording-library-refresh'),
+              tooltip: l10n.refreshRecordings,
+              onPressed: loading || selectionLoading ? null : onRefresh,
+              icon: Icon(
+                Icons.refresh_rounded,
+                semanticLabel: l10n.refreshRecordings,
               ),
             ),
           ],

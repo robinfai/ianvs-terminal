@@ -17,6 +17,47 @@ Runtime 文档合同还会核对 ABI 符号集合、能力查询示例与 Rust F
 
 ## 默认顺序
 
+命令发生记录和上下文文件目标的聚焦回归：
+
+```bash
+cargo test --locked --manifest-path native/core/Cargo.toml --lib session::command_blocks::tests::
+cargo test --locked --manifest-path native/core/Cargo.toml --lib semantic_snapshot
+cd packages/ianvs_terminal && flutter test test/terminal/command_occurrence_test.dart test/terminal_semantic_target_test.dart test/terminal_semantic_viewport_test.dart
+cd ../../example && flutter test test/shell/terminal_file_actions_test.dart test/shell/terminal_file_actions_widget_test.dart
+```
+
+这些测试验证命令发生时元数据、会话代际、未知退出状态、输出保留状态，以及
+带空格／CJK／软换行目标与 OSC 8 优先级。文件操作的 App 回归还需要验证
+历史目录定位、SFTP 路由和异步确认后的会话失效。普通视口还需覆盖同文本换目录、
+Frame 修订变化后的延迟点击／菜单／确认失效、无归属与混合归属拒绝，以及不依赖
+Block 预览缓存的历史路径操作；最后运行完整 `make verify`。
+并发回归使用受控阻塞点验证 state 与 dirty 发布不可分割、旧 SFTP 等待者不能轮询
+或取消复用会话的任务，以及菜单 A→B→A 后旧授权不能恢复。嵌套 SSH 还需验证
+同名 context 退休重建后的路由凭据变化、历史 Block 凭据与在途取消。
+真实多跳验收使用 `python3 tools/ssh_boundary_lab/product.py --context colima`，
+执行说明见 [边界实验 README](../tools/ssh_boundary_lab/README.md)。
+路径解析当前面向 POSIX 路径，不扩展未知 `~`，拒绝含 `..` 或前导 `//` 的
+歧义路径，也不承诺系统默认应用支持行列跳转。
+
+搜索快照、SSH 桥接预算和 Trigger 输出事件的聚焦回归：
+
+```bash
+cargo test --locked --manifest-path native/core/Cargo.toml --lib search_snapshot_tests
+cargo test --locked --manifest-path native/core/Cargo.toml --test session_test search
+cargo test --locked --manifest-path native/core/Cargo.toml --lib ssh::
+cargo test --locked --manifest-path native/core/Cargo.toml --lib output_observer
+cargo test --locked --manifest-path native/core/Cargo.toml --test session_test live_output_observations
+cargo test --locked --manifest-path native/core/Cargo.toml --test session_test replay_output_cannot_subscribe
+./tools/ssh_e2e/run.sh
+cd packages/ianvs_terminal && flutter test test/terminal_event_router_test.dart test/terminal_runtime_controller_test.dart
+cd ../../example && flutter test test/widget_test.dart --plain-name 'profile triggers'
+```
+
+SSH 单测包含回环端口监听，需要本机网络权限。OpenSSH gate 需要 Docker，
+验证 16 MiB 输出在慢读、暂停读取期间连续 resize 后仍字节完整并保留退出码；
+普通 `cargo test` 中标记 ignored 的该测试不能记为已验收。
+上述聚焦结果仍不能替代完整 `make verify`。
+
 ```bash
 cd native/core
 cargo fmt --check

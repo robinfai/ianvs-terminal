@@ -14,6 +14,7 @@ enum TerminalImmediateEventKind {
   sshHostKeyPrompt,
   bell,
   shellHook,
+  outputText,
   shellContext,
   shellCommand,
   shellUserVar,
@@ -42,9 +43,13 @@ sealed class TerminalEventRoute {
 }
 
 final class TerminalExitEventRoute extends TerminalEventRoute {
-  const TerminalExitEventRoute({required this.exitCode});
+  const TerminalExitEventRoute({
+    required this.exitCode,
+    this.sshSessionEstablished,
+  });
 
   final int? exitCode;
+  final bool? sshSessionEstablished;
 }
 
 final class TerminalAsyncEventRoute extends TerminalEventRoute {
@@ -94,6 +99,11 @@ final class TerminalEventRouter {
       ),
       'exit' => TerminalExitEventRoute(
         exitCode: _wholeIntValue(event.payload?['code']),
+        sshSessionEstablished:
+            switch (event.payload?['ssh_session_established']) {
+              final bool value => value,
+              _ => null,
+            },
       ),
       'resize' => TerminalAsyncEventRoute(
         kind: TerminalAsyncEventKind.resize,
@@ -122,6 +132,10 @@ final class TerminalEventRouter {
       ),
       'bell' => TerminalImmediateEventRoute(
         kind: TerminalImmediateEventKind.bell,
+        payload: event.payload,
+      ),
+      'output_text' => TerminalImmediateEventRoute(
+        kind: TerminalImmediateEventKind.outputText,
         payload: event.payload,
       ),
       'shell_hook' => TerminalImmediateEventRoute(

@@ -82,6 +82,13 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         clearBufferShortcutLabel: _clearBufferShortcutLabel(),
         hasDefaultProfile: _canOpenNewSessionLauncher(sessionState),
         hasActiveSession: hasActiveSession,
+        isActiveSessionExited:
+            activeSessionIdBeforeOpen != null &&
+            _paneForSession(
+                  sessionState,
+                  activeSessionIdBeforeOpen,
+                )?.isExited ==
+                true,
         isActiveSessionSsh: isActiveSessionSsh,
         canReopenClosedTab: sessionController.canReopenClosedTab,
         isActiveSessionReadOnly: isActiveSessionReadOnly,
@@ -128,6 +135,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         );
         return FadeTransition(
           opacity: curved,
+          alwaysIncludeSemantics: true,
           child: SlideTransition(
             position: Tween<Offset>(
               begin: const Offset(0, -0.03),
@@ -329,7 +337,10 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
               l10n.noRecentlyClosedPaneForTab,
             );
           }
-          final reopenedSessionId = sessionController.reopenClosedPane();
+          final reopenedSessionId = sessionController.reopenClosedPane(
+            onPlacementFallback: () =>
+                _showShellSnackBar(context.l10n.reopenedPanePlacementFallback),
+          );
           if (reopenedSessionId == null) {
             return ShellActionBindingResult.skipped(
               l10n.noRecentlyClosedPaneReopened,
@@ -1267,7 +1278,10 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         if (!sessionController.canReopenClosedPane) {
           return;
         }
-        final reopenedSessionId = sessionController.reopenClosedPane();
+        final reopenedSessionId = sessionController.reopenClosedPane(
+          onPlacementFallback: () =>
+              _showShellSnackBar(context.l10n.reopenedPanePlacementFallback),
+        );
         if (reopenedSessionId != null) {
           _syncZoomedPaneForActivation(
             _tabForSession(

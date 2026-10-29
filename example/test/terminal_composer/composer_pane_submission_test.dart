@@ -8,6 +8,9 @@ import 'package:ianvs_terminal/ianvs_terminal.dart';
 import '../helpers/pump_app.dart';
 
 class _UnknownReceiptRuntime extends Fake implements TerminalRuntimeController {
+  @override
+  CommandOccurrenceScope? commandOccurrenceScopeFor(String sessionId) => null;
+
   String ownership = 'ready';
   final submissions = <String>[];
 

@@ -71,6 +71,7 @@ fi
 readonly test_list="$(cargo test --locked --manifest-path "$repository_root/native/core/Cargo.toml" \
   --test ssh_openssh_acceptance_test -- --ignored --list)"
 readonly required_tests=(
+  openssh_large_output_survives_slow_consumer_and_preserves_exit_status
   openssh_authentication_and_proxy_jump_acceptance
   openssh_host_key_policy_acceptance
   openssh_negative_paths_fail_fast

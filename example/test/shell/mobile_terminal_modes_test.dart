@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -5,6 +6,8 @@ import 'dart:ui' as ui;
 import 'package:app/features/ai/ai_models.dart';
 import 'package:app/features/ai/ai_settings.dart';
 import 'package:app/features/ai/terminal_ai_controller.dart';
+import 'package:app/features/ai/terminal_ai_history_repository.dart';
+import 'package:app/features/ai/terminal_ai_retained_timeline.dart';
 import 'package:app/features/ai/terminal_ai_workspace.dart';
 import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
@@ -315,6 +318,7 @@ Future<({ProviderContainer container, String id})> _pump(
   double scale = 1,
   TerminalViewMode? preference,
   AiConfiguration? configuration = const AiConfiguration.mock(),
+  TerminalAiHistoryRepository? historyRepository,
 }) async {
   debugDefaultTargetPlatformOverride = platform;
   tester.view.devicePixelRatio = 1;
@@ -343,6 +347,10 @@ Future<({ProviderContainer container, String id})> _pump(
     ProviderScope(
       overrides: [
         aiSettingsProvider.overrideWithValue(aiSettings),
+        if (historyRepository != null)
+          terminalAiHistoryRepositoryProvider.overrideWithValue(
+            historyRepository,
+          ),
         ptySessionBackendProvider.overrideWithValue(backend),
         profileRepositoryProvider.overrideWithValue(
           MemoryProfileRepository(
@@ -474,6 +482,57 @@ Future<void> _showWorkspace(WidgetTester tester, String id) async {
 
 void main() {
   ConfigurationCaptureBinding();
+  testWidgets(
+    'late restart history switches Shell to archived native timeline',
+    (tester) async {
+      final history = _DelayedHistoryRepository();
+      final backend = _MobileBackend()..owner = 'ready';
+      final mounted = await _pump(tester, backend, historyRepository: history);
+      final id = mounted.id;
+      await _showWorkspace(tester, id);
+      history.documents.complete([
+        {
+          'schema': 1,
+          'id': 'saved-previous-task',
+          'title': 'Previous task',
+          'transcript': [
+            {
+              'id': 'old-message',
+              'role': 'assistant',
+              'text': 'Saved reply',
+              'state': 'message',
+            },
+          ],
+          'sources': {
+            'saved-previous-source': [
+              {
+                'id': 'old-block',
+                'command': 'pwd',
+                'exitCode': 0,
+                'running': false,
+                'totalLines': 1,
+                'lines': [
+                  {'index': 0, 'text': 'saved output'},
+                ],
+              },
+            ],
+          },
+        },
+      ]);
+      await _settle(tester);
+      final workspace = tester.widget<TerminalAiWorkspace>(
+        find.byType(TerminalAiWorkspace),
+      );
+      expect(workspace.controller.restoredHistory, isTrue);
+      expect(find.byType(TerminalAiRetainedTimeline), findsOneWidget);
+      expect(find.text('Saved reply'), findsOneWidget);
+      expect(backend.submissions, isEmpty);
+      expect(backend.writes, isEmpty);
+      await tester.pumpWidget(const SizedBox.shrink());
+      debugDefaultTargetPlatformOverride = null;
+    },
+  );
+
   for (final platform in [TargetPlatform.iOS, TargetPlatform.android]) {
     for (final preference in [null, TerminalViewMode.blocks]) {
       testWidgets(
@@ -793,6 +852,36 @@ void main() {
     });
   }
 
+  testWidgets('AI workspace replay shelf remains interactive and semantic', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final backend = _CompletionBackend()..owner = 'ready';
+    await _pump(
+      tester,
+      backend,
+      platform: TargetPlatform.macOS,
+      size: const Size(1400, 900),
+      preference: TerminalViewMode.blocks,
+    );
+    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+    await _settle(tester);
+    await tester.ensureVisible(find.byKey(const Key('shell-open-recording')));
+    await tester.tap(find.byKey(const Key('shell-open-recording')));
+    await _settle(tester);
+    expect(tester.takeException(), isNull);
+    final close = find.byKey(const Key('recording-library-close'));
+    expect(close, findsOneWidget);
+    expect(close.hitTestable(), findsOneWidget);
+    expect(tester.getSemantics(close).label, isNotEmpty);
+    await tester.tap(close);
+    await _settle(tester);
+    expect(close, findsNothing);
+    semantics.dispose();
+    await tester.pumpWidget(const SizedBox.shrink());
+    debugDefaultTargetPlatformOverride = null;
+  });
+
   for (final platform in [TargetPlatform.macOS, TargetPlatform.iOS]) {
     testWidgets('unified Composer action menu and empty history on $platform', (
       tester,
@@ -826,6 +915,18 @@ void main() {
         await _settle(tester);
       }
 
+      if (platform == TargetPlatform.macOS) {
+        await tester.ensureVisible(find.byKey(const Key('ai-command-actions')));
+        await tester.tap(find.byKey(const Key('ai-command-actions')));
+        await _settle(tester);
+        expect(find.byType(PopupMenuItem<String>), findsWidgets);
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await _settle(tester);
+        expect(find.byType(PopupMenuItem<String>), findsNothing);
+        expect(tester.widget<TextField>(prompt).focusNode!.hasFocus, isTrue);
+        expect(ai.draft, isEmpty);
+        expect(backend.submissions, isEmpty);
+      }
       await action('history');
       await _capture(tester, 'composer-history-${platform.name}');
       expect(
@@ -859,18 +960,19 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await _settle(tester);
       await action('help');
-      expect(find.byType(AlertDialog), findsOneWidget);
-      await tester.tap(
-        find
-            .descendant(
-              of: find.byType(AlertDialog),
-              matching: find.byType(TextButton),
-            )
-            .last,
-      );
+      expect(find.byKey(const Key('command-shortcuts-dialog')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('command-shortcuts-done')));
       await _settle(tester);
       expect(ai.draft, 'ls ./');
       expect(backend.submissions, isEmpty);
+      expect(tester.widget<TextField>(prompt).focusNode!.hasFocus, isTrue);
+      if (platform == TargetPlatform.macOS) {
+        tester.view.physicalSize = const Size(1440, 1024);
+        await _settle(tester);
+        await _capture(tester, 'composer-refined-desktop');
+        expect(ai.draft, 'ls ./');
+        expect(tester.widget<TextField>(prompt).focusNode!.hasFocus, isTrue);
+      }
       expect(backend.writes, isEmpty);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
@@ -2724,4 +2826,16 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     debugDefaultTargetPlatformOverride = null;
   });
+}
+
+class _DelayedHistoryRepository implements TerminalAiHistoryRepository {
+  final documents = Completer<List<Map<String, Object?>>>();
+  @override
+  Future<List<Map<String, Object?>>> load() => documents.future;
+  @override
+  Future<void> save(
+    String id,
+    Map<String, Object?> document, {
+    Map<String, Object?>? previous,
+  }) async {}
 }

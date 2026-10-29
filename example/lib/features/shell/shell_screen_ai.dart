@@ -69,16 +69,33 @@ extension _ShellScreenAi on _ShellScreenState {
 
   TerminalAiController _aiFor(String sessionId) =>
       _aiSessions.putIfAbsent(sessionId, () {
+        final runtime = ref.read(terminalRuntimeControllerProvider);
         final controller = TerminalAiController(
           settings: ref.read(aiSettingsProvider),
           defaultInputIntent: InputIntent.command,
           terminal: TerminalAiConnections(
             sessionId: sessionId,
             terminal: _aiEndpoint(sessionId),
-            requestBlocks: (source, request) => ref
-                .read(terminalRuntimeControllerProvider)
-                .commandBlocks(source, request),
+            scopeForSession: runtime.commandOccurrenceScopeFor,
+            requestBlocks: runtime.commandBlocks,
           ),
+        );
+        final history = TerminalAiHistoryBinding(
+          controller,
+          ref.read(terminalAiHistoryRepositoryProvider),
+          nativeBlocks: () =>
+              _composerSessions[(controller.terminal as TerminalAiConnections)
+                      .sessionId]
+                  ?.blocks,
+        );
+        _aiHistory[controller] = history;
+        unawaited(
+          history.loaded.then((_) {
+            // Restoration can add archived sources after the first Shell build.
+            if (mounted && identical(_aiHistory[controller], history)) {
+              _mutateState(() {});
+            }
+          }),
         );
         _synchronizeAiLifecycle(
           controller,
@@ -86,6 +103,34 @@ extension _ShellScreenAi on _ShellScreenState {
         );
         return controller;
       });
+
+  void _retireAiHistory(TerminalAiController controller) {
+    final binding = _aiHistory.remove(controller);
+    if (binding == null) return;
+    binding.dispose();
+    _retiredAiHistory.add(binding);
+    unawaited(
+      binding
+          .flush(requireSaved: true)
+          .then<void>(
+            (_) {
+              _retiredAiHistory.remove(binding);
+            },
+            onError: (Object _, StackTrace _) {
+              // Keep the frozen snapshot for shutdown or a later flush to retry.
+            },
+          ),
+    );
+  }
+
+  Future<void> _flushAiHistory({bool requireSaved = false}) async {
+    await Future.wait(
+      [
+        ..._aiHistory.values,
+        ..._retiredAiHistory,
+      ].map((binding) => binding.flush(requireSaved: requireSaved)),
+    );
+  }
 
   void _synchronizeAiSessionsLifecycle(AppLifecycleState state) {
     // Controllers survive tab switches and the connections home. Their owner,
@@ -615,6 +660,9 @@ extension _ShellScreenAi on _ShellScreenState {
                 onReinput: (command) => _reinputAiCommand(sessionId, command),
                 onOpenLinkTarget: (target) =>
                     unawaited(_openTerminalLinkTarget(sessionId, target)),
+                onLinkContextMenu: (target) => unawaited(
+                  _handleTerminalLinkContextMenu(sessionId, target),
+                ),
               )
             : timelineBuilder,
         onShowEvidence: retained

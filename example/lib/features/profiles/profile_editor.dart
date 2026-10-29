@@ -154,6 +154,31 @@ String? _switchRuleLinesError(String text) {
   }
 }
 
+String? _localizedProfileRuleError(BuildContext context, String? error) {
+  if (error == null) return null;
+  final l10n = context.l10n;
+  if (error == 'Use $maxTerminalProfileTriggers triggers or fewer.') {
+    return l10n.profileTriggerLimit(maxTerminalProfileTriggers);
+  }
+  if (error == 'Use $maxTerminalProfileSwitchRules switching rules or fewer.') {
+    return l10n.profileSwitchLimit(maxTerminalProfileSwitchRules);
+  }
+  final match = RegExp(r'^Line (\d+): (.*)$').firstMatch(error);
+  if (match == null) return error;
+  final reason = switch (match.group(2)) {
+    'trigger regex is required.' => l10n.profileTriggerPatternRequired,
+    'invalid trigger regex.' => l10n.profileTriggerPatternInvalid,
+    'send text is required.' => l10n.profileTriggerTextRequired,
+    'use notify or send: response text.' => l10n.profileTriggerActionInvalid,
+    'use host:, user:, or dir: before the pattern.' =>
+      l10n.profileSwitchPrefixRequired,
+    'use host, user, or dir as the rule type.' => l10n.profileSwitchKindInvalid,
+    'pattern is required.' => l10n.profileSwitchPatternRequired,
+    _ => match.group(2)!,
+  };
+  return l10n.profileRuleLineError(int.parse(match.group(1)!), reason);
+}
+
 TerminalProfileSwitchRuleKind? _switchRuleKindFromText(String value) {
   return switch (value.trim().toLowerCase()) {
     'host' || 'hostname' => TerminalProfileSwitchRuleKind.hostname,
@@ -1606,10 +1631,15 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
   Widget _buildSectionNavigation(
     BuildContext context, {
     required bool vertical,
+    bool compact = false,
   }) {
     final theme = context.appTheme;
     final matchingSections = _matchingSectionSpecs();
     final dirtySectionCount = _dirtySectionCount();
+    final compactControlHeight = math.max(
+      32.0,
+      MediaQuery.textScalerOf(context).scale(16) * 1.5 + 8,
+    );
     final children = [
       for (final (index, spec) in matchingSections.indexed)
         _ProfileEditorSectionNavItem(
@@ -1638,7 +1668,18 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
           focusNode: _sectionSearchFocusNode,
           onChanged: _updateSectionSearch,
           textInputAction: TextInputAction.search,
+          textAlignVertical: compact ? TextAlignVertical.center : null,
           decoration: InputDecoration(
+            visualDensity: compact ? VisualDensity.standard : null,
+            constraints: compact
+                ? BoxConstraints.tightFor(height: compactControlHeight)
+                : null,
+            contentPadding: compact
+                ? const EdgeInsets.symmetric(horizontal: 10)
+                : null,
+            prefixIconConstraints: compact
+                ? const BoxConstraints(minWidth: 32, minHeight: 32)
+                : null,
             hintText: context.l10n.findSetting,
             prefixIcon: const Icon(Icons.search_outlined, size: 18),
             suffixIcon: searchHasQuery
@@ -1699,6 +1740,78 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
             ),
           )
         : const SizedBox.shrink();
+
+    if (compact && !vertical) {
+      return Column(
+        key: const Key('profile-editor-section-nav'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(child: searchField),
+              SizedBox(width: theme.spacing.sm),
+              SizedBox(
+                width: 156,
+                child: AppDropdownFormField<_ProfileEditorSection>(
+                  key: ValueKey(
+                    'profile-editor-compact-nav-$_activeSection-$_sectionSearchQuery',
+                  ),
+                  initialValue:
+                      matchingSections.any((s) => s.section == _activeSection)
+                      ? _activeSection
+                      : null,
+                  isExpanded: true,
+                  iconSize: 18,
+                  fieldHeight: compactControlHeight,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    isCollapsed: true,
+                    visualDensity: VisualDensity.standard,
+                    constraints: BoxConstraints.tightFor(
+                      height: compactControlHeight,
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+                    hintText: context.l10n.profileEditorSectionNavigation,
+                  ),
+                  items: [
+                    for (final spec in matchingSections)
+                      DropdownMenuItem(
+                        value: spec.section,
+                        child: Text(
+                          context.l10n.profileSectionName(spec.section.name),
+                        ),
+                      ),
+                  ],
+                  onChanged: (section) {
+                    if (section != null) unawaited(_jumpToSection(section));
+                  },
+                ),
+              ),
+              if (_isSectionDirty(_activeSection))
+                Overlay.wrap(
+                  alwaysSizeToContent: true,
+                  clipBehavior: Clip.none,
+                  child: IconButton(
+                    tooltip: context.l10n.resetProfileSection(
+                      context.l10n.profileSectionName(_activeSection.name),
+                    ),
+                    onPressed: () => _resetSection(_activeSection),
+                    icon: Icon(
+                      Icons.restart_alt,
+                      size: 18,
+                      semanticLabel: context.l10n.resetProfileSection(
+                        context.l10n.profileSectionName(_activeSection.name),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          resultSummary,
+          emptyState,
+        ],
+      );
+    }
 
     if (!vertical) {
       return Semantics(
@@ -1784,7 +1897,8 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
     final mobile =
         context.usesTouchControlDensity && screenSize.shortestSide < 600;
-    final pageInset = mobile ? theme.spacing.lg : theme.spacing.xxl;
+    final compact = !mobile && screenSize.height - keyboardInset < 560;
+    final pageInset = mobile || compact ? theme.spacing.lg : theme.spacing.xxl;
     final dialogWidth = mobile
         ? screenSize.width
         : math.min(screenSize.width - 32, 940.0);
@@ -1810,8 +1924,20 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
         explicitChildNodes: true,
         child: AppDialogScaffold(
           key: const Key('profile-editor-dialog'),
-          title: widget.title ?? context.l10n.editProfile,
-          subtitle: mobile || _nameController.text.trim().isEmpty
+          title: compact && _nameController.text.trim().isNotEmpty
+              ? _nameController.text.trim()
+              : widget.title ?? context.l10n.editProfile,
+          titleMaxLines: compact ? 1 : null,
+          actions: [
+            if (compact && _dirtySectionCount() > 0)
+              Text(
+                context.l10n.modifiedSections(_dirtySectionCount()),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelSmall?.copyWith(color: theme.textMuted),
+              ),
+          ],
+          subtitle: mobile || compact || _nameController.text.trim().isEmpty
               ? null
               : _nameController.text.trim(),
           onClose: () => unawaited(_closeWithResult(null)),
@@ -1823,22 +1949,23 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
           width: dialogWidth,
           height: dialogHeight,
           expandBody: true,
-          titleTextStyle: Theme.of(
-            context,
-          ).textTheme.titleLarge?.copyWith(color: theme.textPrimary),
+          titleTextStyle: Theme.of(context).textTheme.titleLarge?.copyWith(
+            color: theme.textPrimary,
+            fontSize: compact ? 18 : null,
+          ),
           subtitleTextStyle: Theme.of(
             context,
           ).textTheme.bodyMedium?.copyWith(color: theme.textSubtle),
           headerPadding: EdgeInsets.only(
             left: pageInset,
-            top: theme.spacing.lg,
+            top: compact ? theme.spacing.sm : theme.spacing.lg,
             right: pageInset,
-            bottom: theme.spacing.lg,
+            bottom: compact ? theme.spacing.sm : theme.spacing.lg,
           ),
           bodyPadding: EdgeInsets.zero,
           footerPadding: EdgeInsets.symmetric(
             horizontal: pageInset,
-            vertical: theme.spacing.lg,
+            vertical: compact ? theme.spacing.sm : theme.spacing.lg,
           ),
           body: Form(
             key: _formKey,
@@ -1848,10 +1975,11 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final showSideNavigation = constraints.maxWidth >= 680;
-                const sideNavigationWidth = 190.0;
+                const sideNavigationWidth = 208.0;
                 final sectionNavigation = _buildSectionNavigation(
                   context,
                   vertical: showSideNavigation,
+                  compact: compact,
                 );
                 final scrollableSections = Scrollbar(
                   controller: _scrollController,
@@ -2169,7 +2297,8 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                               Expanded(
                                                 child: Semantics(
                                                   label: context.l10n.fontSize,
-                                                  textField: true,
+                                                  container: true,
+                                                  explicitChildNodes: true,
                                                   child: TextFormField(
                                                     key: const Key(
                                                       'profile-editor-font-size',
@@ -2200,7 +2329,8 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                                 child: Semantics(
                                                   label:
                                                       context.l10n.lineHeight,
-                                                  textField: true,
+                                                  container: true,
+                                                  explicitChildNodes: true,
                                                   child: TextFormField(
                                                     key: const Key(
                                                       'profile-editor-font-line-height',
@@ -2395,24 +2525,27 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                           _buildColorGroupSection(
                                             context,
                                             title: context.l10n.specialColors,
-                                            description:
-                                                'Foreground, background, cursor, selection, and tab.',
+                                            description: context
+                                                .l10n
+                                                .profileSpecialColorsHelp,
                                             specs: _specialColorFieldSpecs,
                                           ),
                                           const SizedBox(height: 16),
                                           _buildColorGroupSection(
                                             context,
                                             title: context.l10n.ansiNormal,
-                                            description:
-                                                'Standard ANSI 0-7 terminal colors.',
+                                            description: context
+                                                .l10n
+                                                .profileNormalColorsHelp,
                                             specs: _normalAnsiColorFieldSpecs,
                                           ),
                                           const SizedBox(height: 16),
                                           _buildColorGroupSection(
                                             context,
                                             title: context.l10n.ansiBright,
-                                            description:
-                                                'Bright ANSI 8-15 terminal colors.',
+                                            description: context
+                                                .l10n
+                                                .profileBrightColorsHelp,
                                             specs: _brightAnsiColorFieldSpecs,
                                           ),
                                         ],
@@ -2549,7 +2682,10 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                       controller: _triggersController,
                                       focusNode: _triggersFocusNode,
                                       validator: (value) =>
-                                          _triggerLinesError(value ?? ''),
+                                          _localizedProfileRuleError(
+                                            context,
+                                            _triggerLinesError(value ?? ''),
+                                          ),
                                     ),
                                   ],
                                 ),
@@ -2568,9 +2704,15 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                       ),
                                       label: context.l10n.rules,
                                       controller: _switchRulesController,
+                                      helperText: context
+                                          .l10n
+                                          .profileSwitchRuleExamples,
                                       focusNode: _switchRulesFocusNode,
                                       validator: (value) =>
-                                          _switchRuleLinesError(value ?? ''),
+                                          _localizedProfileRuleError(
+                                            context,
+                                            _switchRuleLinesError(value ?? ''),
+                                          ),
                                     ),
                                   ],
                                 ),
@@ -2637,7 +2779,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                           width: sideNavigationWidth,
                           child: Padding(
                             padding: EdgeInsets.symmetric(
-                              horizontal: theme.spacing.xl,
+                              horizontal: theme.spacing.md,
                               vertical: theme.spacing.xxl,
                             ),
                             child: sectionNavigation,
@@ -2660,7 +2802,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                     Padding(
                       padding: EdgeInsets.only(
                         left: pageInset,
-                        top: theme.spacing.lg,
+                        top: compact ? theme.spacing.sm : theme.spacing.lg,
                         right: pageInset,
                       ),
                       child: sectionNavigation,
@@ -2868,7 +3010,8 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
       children: [
         Expanded(
           child: Semantics(
-            textField: true,
+            container: true,
+            explicitChildNodes: true,
             label: '$title ${index + 1}',
             child: TextFormField(
               key: Key('$fieldKeyPrefix-$index'),
@@ -3066,7 +3209,8 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                           children: [
                             Expanded(
                               child: Semantics(
-                                textField: true,
+                                container: true,
+                                explicitChildNodes: true,
                                 label: context.l10n.environmentVariableKey(
                                   index + 1,
                                 ),
@@ -3088,7 +3232,8 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                             SizedBox(width: theme.spacing.md),
                             Expanded(
                               child: Semantics(
-                                textField: true,
+                                container: true,
+                                explicitChildNodes: true,
                                 label: context.l10n.environmentVariableValue(
                                   index + 1,
                                 ),
@@ -3226,7 +3371,12 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
     final selectedId = _usesAppThemeColors
         ? 'follow-app'
         : selectedPreset?.id ?? 'custom';
-    final normal = _paletteFromControllerValues().resolveWith().normal;
+    final draftPalette = _paletteFromControllerValues();
+    final preview = resolveTerminalColors(
+      context,
+      profileAppearance: TerminalProfileAppearance(colors: draftPalette),
+    ).viewport;
+    final normal = draftPalette.resolveWith().normal;
     final previewColors = [
       for (final hex in [
         normal.black,
@@ -3297,21 +3447,65 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                   ? 0
                   : 132,
             ),
-            child: Wrap(
-              spacing: theme.spacing.md,
-              runSpacing: theme.spacing.sm,
-              children: [
-                for (final color in previewColors)
-                  Container(
-                    width: 22,
-                    height: 22,
-                    decoration: BoxDecoration(
-                      color: color,
-                      borderRadius: BorderRadius.circular(theme.radius.sm),
-                      border: Border.all(color: theme.border),
-                    ),
+            child: Semantics(
+              container: true,
+              label: context.l10n.preview,
+              child: Container(
+                key: const Key('profile-editor-terminal-preview'),
+                padding: EdgeInsets.all(theme.spacing.md),
+                decoration: BoxDecoration(
+                  color: preview.canvasBackground,
+                  borderRadius: BorderRadius.circular(theme.radius.md),
+                  border: Border.all(color: theme.border),
+                ),
+                child: DefaultTextStyle(
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    fontSize: 13,
+                    height: 1.5,
+                    color: preview.foreground,
                   ),
-              ],
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: theme.spacing.sm,
+                        children: [
+                          Text(context.l10n.terminalColorPreviewText),
+                          Container(
+                            width: 7,
+                            height: 15,
+                            color: preview.cursor,
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: theme.spacing.xs),
+                      Container(
+                        color: preview.selection,
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: Text(context.l10n.terminalColorPreviewSelection),
+                      ),
+                      SizedBox(height: theme.spacing.sm),
+                      Wrap(
+                        spacing: theme.spacing.sm,
+                        runSpacing: theme.spacing.xs,
+                        children: [
+                          for (final color in previewColors)
+                            Container(
+                              width: 22,
+                              height: 12,
+                              decoration: BoxDecoration(
+                                color: color,
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
         ),
@@ -3495,7 +3689,14 @@ class _ProfileSettingsGridRow extends StatelessWidget {
     helper: helperText,
     child: Row(
       children: [
-        Expanded(child: child),
+        Expanded(
+          child: Semantics(
+            container: true,
+            explicitChildNodes: true,
+            label: label,
+            child: child,
+          ),
+        ),
         if (trailingText != null) ...[
           SizedBox(width: context.appTheme.spacing.lg),
           Text(trailingText!, style: Theme.of(context).textTheme.bodyMedium),
@@ -3610,7 +3811,7 @@ class _ProfileBoundedEditorListState extends State<_ProfileBoundedEditorList> {
   }
 }
 
-class _ProfileRuleEditor extends StatelessWidget {
+class _ProfileRuleEditor extends StatefulWidget {
   const _ProfileRuleEditor({
     required this.fieldKey,
     required this.label,
@@ -3628,7 +3829,32 @@ class _ProfileRuleEditor extends StatelessWidget {
   final FormFieldValidator<String> validator;
 
   @override
+  State<_ProfileRuleEditor> createState() => _ProfileRuleEditorState();
+}
+
+class _ProfileRuleEditorState extends State<_ProfileRuleEditor> {
+  String? _error;
+
+  String? _validate(String? value) {
+    final error = widget.validator(value);
+    if (_error != error) {
+      _error = error;
+      // Form validation may run during a build. Publish its sibling message
+      // after that frame instead of rebuilding another FormField mid-build.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
+    }
+    return error;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final fieldKey = widget.fieldKey;
+    final label = widget.label;
+    final helperText = widget.helperText;
+    final controller = widget.controller;
+    final focusNode = widget.focusNode;
     final theme = context.appTheme;
     final textTheme = Theme.of(context).textTheme;
     final outline = OutlineInputBorder(
@@ -3648,7 +3874,8 @@ class _ProfileRuleEditor extends StatelessWidget {
         ),
         SizedBox(height: theme.spacing.sm),
         Semantics(
-          textField: true,
+          container: true,
+          explicitChildNodes: true,
           label: label,
           child: TextFormField(
             key: fieldKey,
@@ -3682,14 +3909,30 @@ class _ProfileRuleEditor extends StatelessWidget {
                     ),
                     contentPadding: EdgeInsets.all(theme.spacing.xl),
                   ),
-            validator: validator,
+            validator: _validate,
+            // macOS exposes the editable field as a leaf. Keep its error
+            // decoration for validation styling, but announce a sibling below.
+            errorBuilder: (_, _) => const SizedBox.shrink(),
             onTapOutside: (_) => focusNode.unfocus(),
           ),
         ),
+        if (_error != null) ...[
+          SizedBox(height: theme.spacing.sm),
+          Semantics(
+            container: true,
+            liveRegion: true,
+            label: _error,
+            excludeSemantics: true,
+            child: Text(
+              _error!,
+              style: textTheme.bodySmall?.copyWith(color: theme.danger),
+            ),
+          ),
+        ],
         if (helperText != null) ...[
           SizedBox(height: theme.spacing.sm),
           Text(
-            helperText!,
+            helperText,
             style: textTheme.bodySmall?.copyWith(color: theme.textSubtle),
           ),
         ],
@@ -3726,93 +3969,109 @@ class _ProfileEditorSectionNavItem extends StatelessWidget {
     final sectionLabel = context.l10n.profileSectionName(spec.section.name);
     final foreground = selected ? theme.accent : theme.textMuted;
     final background = selected ? theme.selected : Colors.transparent;
-    final content = Row(
-      mainAxisSize: vertical ? MainAxisSize.max : MainAxisSize.min,
-      children: [
-        Icon(spec.icon, size: 18, color: foreground),
-        SizedBox(width: theme.spacing.sm),
-        Flexible(
-          child: Text(
-            sectionLabel,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: foreground,
-              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-            ),
-          ),
-        ),
-        if (dirty) ...[
-          SizedBox(width: theme.spacing.xs),
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(
-              color: theme.warning,
-              shape: BoxShape.circle,
-            ),
-          ),
-          SizedBox(width: theme.spacing.xs),
-          AppActionButton(
-            buttonKey: Key('profile-editor-reset-${spec.section.name}'),
-            tooltip: context.l10n.resetProfileSection(sectionLabel),
-            icon: Icons.restore,
-            tone: AppActionTone.ghost,
-            size: AppActionSize.dense,
-            onPressed: onReset,
-          ),
-        ],
-      ],
-    );
-
-    return FocusTraversalOrder(
-      order: NumericFocusOrder(focusOrder),
-      child: Semantics(
-        identifier: 'profile-editor-nav-${spec.section.name}',
-        button: true,
-        selected: selected,
-        label: context.l10n.profileSectionSemantics(
-          sectionLabel,
-          dirty.toString(),
-        ),
+    final select = Semantics(
+      identifier: 'profile-editor-nav-${spec.section.name}',
+      button: true,
+      selected: selected,
+      label: context.l10n.profileSectionSemantics(
+        sectionLabel,
+        dirty.toString(),
+      ),
+      onTap: onTap,
+      excludeSemantics: true,
+      child: InkWell(
+        focusNode: focusNode,
         onTap: onTap,
-        excludeSemantics: true,
-        child: Tooltip(
-          message: sectionLabel,
-          child: Padding(
-            padding: EdgeInsets.only(
-              right: vertical ? 0 : theme.spacing.xs,
-              bottom: vertical ? theme.spacing.sm : 0,
-            ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                focusNode: focusNode,
-                borderRadius: BorderRadius.circular(theme.radius.lg),
-                onTap: onTap,
-                child: AnimatedContainer(
-                  duration: MediaQuery.disableAnimationsOf(context)
-                      ? Duration.zero
-                      : const Duration(milliseconds: 150),
-                  curve: Curves.easeOutCubic,
-                  constraints: BoxConstraints(
-                    minHeight: context.adaptiveControlHeight(32),
-                    minWidth: vertical ? 0 : 118,
+        borderRadius: BorderRadius.circular(theme.radius.lg),
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: theme.spacing.md,
+            vertical: theme.spacing.sm,
+          ),
+          child: Row(
+            mainAxisSize: vertical ? MainAxisSize.max : MainAxisSize.min,
+            children: [
+              Icon(spec.icon, size: 18, color: foreground),
+              SizedBox(width: theme.spacing.sm),
+              Flexible(
+                child: Text(
+                  sectionLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: foreground,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                   ),
-                  padding: EdgeInsets.symmetric(
-                    horizontal: theme.spacing.lg,
-                    vertical: vertical
-                        ? theme.spacing.xs
-                        : theme.spacing.sm + 1,
-                  ),
-                  decoration: BoxDecoration(
-                    color: background,
-                    borderRadius: BorderRadius.circular(theme.radius.lg),
-                    border: Border.all(color: Colors.transparent),
-                  ),
-                  child: content,
                 ),
               ),
+              if (dirty) ...[
+                SizedBox(width: theme.spacing.xs),
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: theme.warning,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+    return FocusTraversalOrder(
+      order: NumericFocusOrder(focusOrder),
+      child: Padding(
+        padding: EdgeInsets.only(
+          right: vertical ? 0 : theme.spacing.xs,
+          bottom: vertical ? theme.spacing.sm : 0,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: AnimatedContainer(
+            duration: MediaQuery.disableAnimationsOf(context)
+                ? Duration.zero
+                : const Duration(milliseconds: 150),
+            curve: Curves.easeOutCubic,
+            constraints: BoxConstraints(
+              minHeight: context.adaptiveControlHeight(32),
+              minWidth: vertical ? 0 : 118,
+            ),
+            decoration: BoxDecoration(
+              color: background,
+              borderRadius: BorderRadius.circular(theme.radius.lg),
+            ),
+            child: Row(
+              mainAxisSize: vertical ? MainAxisSize.max : MainAxisSize.min,
+              children: [
+                if (vertical) Expanded(child: select) else select,
+                if (dirty)
+                  Padding(
+                    padding: EdgeInsets.only(right: theme.spacing.xs),
+                    child: Overlay.wrap(
+                      alwaysSizeToContent: true,
+                      clipBehavior: Clip.none,
+                      child: IconButton(
+                        key: Key('profile-editor-reset-${spec.section.name}'),
+                        tooltip: context.l10n.resetProfileSection(sectionLabel),
+                        onPressed: onReset,
+                        constraints: const BoxConstraints(
+                          minWidth: 28,
+                          minHeight: 28,
+                        ),
+                        padding: EdgeInsets.zero,
+                        icon: Icon(
+                          Icons.restore,
+                          size: 18,
+                          semanticLabel: context.l10n.resetProfileSection(
+                            sectionLabel,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         ),
@@ -4020,7 +4279,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
             ],
             decoration: InputDecoration(
               hintText: context.l10n.hexColorOrEmpty,
-              errorText: _hexError,
+              error: _hexError == null ? null : const SizedBox.shrink(),
             ),
             onChanged: _handleHexChanged,
             onEditingComplete: _normalizeHexField,
@@ -4072,6 +4331,20 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
                         ),
                       ),
                     ],
+                  ),
+                if (_hexError != null)
+                  Padding(
+                    padding: EdgeInsets.only(top: theme.spacing.sm),
+                    child: Semantics(
+                      container: true,
+                      liveRegion: true,
+                      label: _hexError,
+                      excludeSemantics: true,
+                      child: Text(
+                        _hexError!,
+                        style: TextStyle(color: theme.danger),
+                      ),
+                    ),
                   ),
                 SizedBox(height: theme.spacing.md),
                 Text(

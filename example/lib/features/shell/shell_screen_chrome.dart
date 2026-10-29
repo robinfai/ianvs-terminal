@@ -90,11 +90,15 @@ class _ShellRuntimeErrorBanner extends StatelessWidget {
     required this.palette,
     required this.message,
     required this.onDismiss,
+    this.onUseCurrentLayout,
+    this.summary,
   });
 
   final AppThemeTokens palette;
   final String message;
+  final String? summary;
   final VoidCallback onDismiss;
+  final VoidCallback? onUseCurrentLayout;
 
   @override
   Widget build(BuildContext context) {
@@ -116,19 +120,32 @@ class _ShellRuntimeErrorBanner extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  context.usesMobileNavigation
-                      ? context.l10n.mobileOperationFailed
-                      : message,
+                  onUseCurrentLayout != null
+                      ? context.l10n.layoutRestoreIncomplete
+                      : summary ??
+                            (context.usesMobileNavigation
+                                ? context.l10n.mobileOperationFailed
+                                : message),
                   style: Theme.of(
                     context,
                   ).textTheme.bodyMedium?.copyWith(color: palette.textPrimary),
                 ),
               ),
-              if (context.usesMobileNavigation)
+              if (onUseCurrentLayout != null)
+                TextButton(
+                  onPressed: onUseCurrentLayout,
+                  child: Text(context.l10n.useCurrentLayout),
+                ),
+              if (context.usesMobileNavigation ||
+                  onUseCurrentLayout != null ||
+                  summary != null)
                 IconButton(
                   key: const Key('shell-runtime-error-details'),
                   tooltip: context.l10n.mobileErrorDetails,
-                  icon: const Icon(Icons.info_outline_rounded),
+                  icon: Icon(
+                    Icons.info_outline_rounded,
+                    semanticLabel: context.l10n.mobileErrorDetails,
+                  ),
                   onPressed: () => showDialog<void>(
                     context: context,
                     animationStyle: appDialogAnimation(context),
@@ -404,7 +421,11 @@ class _ReferenceDemoTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final title = _shellTabDisplayTitle(tab);
+    final title =
+        (tab.effectivePanes.every((pane) => pane.isExited)
+            ? '${context.l10n.mobileSessionDisconnectedTitle} · '
+            : '') +
+        _shellTabDisplayTitle(tab);
     return Semantics(
       identifier: _shellTabSemanticsIdentifier(tab),
       label: _shellTabSemanticsLabel(
@@ -1843,7 +1864,11 @@ class _ShellTabOverflowRowState extends State<_ShellTabOverflowRow> {
 
   @override
   Widget build(BuildContext context) {
-    final title = _shellTabDisplayTitle(widget.tab);
+    final title =
+        (widget.tab.effectivePanes.every((pane) => pane.isExited)
+            ? '${context.l10n.mobileSessionDisconnectedTitle} · '
+            : '') +
+        _shellTabDisplayTitle(widget.tab);
     final badgeInfos = _shellTabBadgeInfos(widget.tab);
     final paneSignalInfos = _shellTabPaneSignalInfos(context.l10n, widget.tab);
     final paneSignalInfo = paneSignalInfos.isEmpty
@@ -2691,7 +2716,11 @@ class _ShellTabButtonState extends State<_ShellTabButton>
 
   @override
   Widget build(BuildContext context) {
-    final title = _shellTabDisplayTitle(widget.tab);
+    final title =
+        (widget.tab.effectivePanes.every((pane) => pane.isExited)
+            ? '${context.l10n.mobileSessionDisconnectedTitle} · '
+            : '') +
+        _shellTabDisplayTitle(widget.tab);
     final actionWidth = math.max(
       28.0,
       MediaQuery.textScalerOf(context).scale(22),
@@ -3123,6 +3152,9 @@ String _shellTabSemanticsLabel(
   bool mobile = false,
 }) {
   final parts = <String>[l10n.terminalTabSemantics(_shellTabDisplayTitle(tab))];
+  if (tab.effectivePanes.every((pane) => pane.isExited)) {
+    parts.add(l10n.mobileSessionDisconnectedTitle);
+  }
   if (tab.activePane.terminalMode.notice != null) {
     parts.add(
       terminalModeNoticeMessage(

@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:app/app.dart';
+import 'package:app/features/ai/terminal_ai_history_repository.dart';
 import 'package:app/features/ai/terminal_ai_workspace.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/profiles/profile_models.dart';
@@ -52,6 +53,10 @@ void main() {
       );
       final container = ProviderContainer(
         overrides: [
+          // Keep native fixture history separate from the development app.
+          terminalAiHistoryRepositoryProvider.overrideWithValue(
+            LocalTerminalAiHistoryRepository(directory: () async => home),
+          ),
           ptySessionBackendProvider.overrideWithValue(NativePtyBackend.load()),
           profileRepositoryProvider.overrideWithValue(
             MemoryProfileRepository(
@@ -180,7 +185,9 @@ void main() {
       expect(
         commandWidth('iiiiiiii'),
         closeTo(commandWidth('WWWWWWWW'), .01),
-        reason: 'Native Composer command text must resolve to a monospace font',
+        reason:
+            'Native Composer command text must resolve to a monospace font; '
+            'intent=${ai.inputIntentDecision().intent}; style=$commandStyle',
       );
       final surface = find.byKey(const Key('ai-command-surface'));
       final emptyHeight = tester.getSize(surface).height;
@@ -396,6 +403,13 @@ void main() {
               (block) =>
                   block.lines.any((line) => line.text == 'BLOCK_SCROLL:120'),
             ),
+        diagnostics: () =>
+            'lastError=${container.read(sessionControllerProvider).lastError}; '
+            'owner=${model.ownership}; lease=${model.readyLease}; '
+            'busy=${ai.busy}; checking=${ai.checkingTerminal}; '
+            'editor=${model.editor.text}; focus=${tester.widget<TextField>(editor).focusNode?.hasFocus}; '
+            'blocks=${blocks.blocks.map((b) => '${b.id}: ${b.command} total=${b.totalLines} tail=${b.lines.reversed.take(4).map((l) => l.text).toList()}').join(' | ')}; '
+            'screen=${terminalText()}',
       );
       for (var i = 0; i < 6; i++) {
         await tester.pump(const Duration(milliseconds: 16));
@@ -540,6 +554,11 @@ void main() {
       await until(
         tester,
         () => terminalText().contains('COMPOSER_VALUE:retained'),
+        diagnostics: () =>
+            'lastError=${container.read(sessionControllerProvider).lastError}; '
+            'owner=${model.ownership}; busy=${ai.busy}; checking=${ai.checkingTerminal}; '
+            'editor=${model.editor.text}; focus=${tester.widget<TextField>(editor).focusNode?.hasFocus}; '
+            'screen=${terminalText()}',
       );
       await until(
         tester,
@@ -986,7 +1005,7 @@ void main() {
       await tester.tap(
         find.byWidgetPredicate(
           (widget) =>
-              widget is CheckedPopupMenuItem<InputIntentChoice> &&
+              widget is PopupMenuItem<InputIntentChoice> &&
               widget.value == InputIntentChoice.command,
         ),
       );

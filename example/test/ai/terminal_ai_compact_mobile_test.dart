@@ -8,8 +8,8 @@ import 'package:app/features/ai/terminal_ai_message.dart';
 import 'package:app/features/ai/terminal_ai_workspace.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_agent_chat/ianvs_agent_chat.dart' show ChatMessageBody;
 import 'package:ianvs_terminal/input_intent.dart';
 
 import '../helpers/pump_app.dart';
@@ -567,7 +567,7 @@ void main() {
   );
 
   testWidgets(
-    'mobile inline code has no opaque background; fenced container remains',
+    'mobile uses shared selectable content without a nested timeline',
     (tester) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(390, 844);
@@ -576,13 +576,11 @@ void main() {
         const TerminalAiMessage(text: 'Use `pwd`.\n\n```sh\npwd\n```'),
         platform: TargetPlatform.iOS,
       );
-      final markdown = tester.widget<MarkdownBody>(find.byType(MarkdownBody));
-      expect(markdown.styleSheet!.code!.backgroundColor!.a, 0);
-      expect(
-        (markdown.styleSheet!.codeblockDecoration! as BoxDecoration).color!.a,
-        greaterThan(0),
+      final markdown = tester.widget<ChatMessageBody>(
+        find.byType(ChatMessageBody),
       );
-      expect(markdown.data, 'Use `pwd`.\n\n```sh\npwd\n```');
+      expect(markdown.text, 'Use `pwd`.\n\n```sh\npwd\n```');
+      expect(markdown.resourcePolicy.imageBuilder, isNull);
       expect(find.byType(SelectionArea), findsOneWidget);
     },
   );

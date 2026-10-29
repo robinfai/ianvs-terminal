@@ -37,6 +37,9 @@ class TerminalAiComponentPreview extends TerminalAiWorkspace {
 }
 
 class _TerminalAiComponentPreviewState extends _TerminalAiWorkspaceState {
+  @override
+  bool get _inlineActivity => false;
+
   bool _reviewOpened = false;
   bool _draftFocused = false;
   TerminalAiComponentPreview get preview =>

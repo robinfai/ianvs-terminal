@@ -410,6 +410,14 @@ class RunnerTests: XCTestCase {
     XCTAssertEqual(sshItem.keyEquivalentModifierMask, [.command, .shift])
     XCTAssertTrue(sshItem.target === window)
     XCTAssertEqual(sshItem.action, #selector(MainFlutterWindow.openSshSession(_:)))
+
+    let closeItems = fileMenu.items.filter { $0.title == "Close Tab" }
+    let closeItem = try XCTUnwrap(closeItems.first)
+    XCTAssertEqual(closeItems.count, 1)
+    XCTAssertEqual(closeItem.keyEquivalent, "w")
+    XCTAssertEqual(closeItem.keyEquivalentModifierMask, [.command])
+    XCTAssertTrue(closeItem.target === window)
+    XCTAssertEqual(closeItem.action, #selector(MainFlutterWindow.closeTerminalTab(_:)))
   }
 
   func testMainWindowFrameUsesStableAutosaveName() {

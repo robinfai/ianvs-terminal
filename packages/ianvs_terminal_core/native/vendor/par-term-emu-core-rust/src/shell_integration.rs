@@ -111,6 +111,7 @@ pub struct ShellIntegration {
     cwd: Option<String>,
     /// Hostname from OSC 7 (None if localhost/implicit)
     hostname: Option<String>,
+    pub(crate) sftp_context_id: Option<String>,
     /// Username from OSC 7 (if provided as user@host)
     username: Option<String>,
 }
@@ -153,6 +154,7 @@ impl ShellIntegration {
             current_aid: None,
             cwd: None,
             hostname: None,
+            sftp_context_id: None,
             username: None,
         }
     }

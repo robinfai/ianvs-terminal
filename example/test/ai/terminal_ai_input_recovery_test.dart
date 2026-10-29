@@ -41,6 +41,9 @@ class _Api implements AiApi {
 // Keep the production AI runtime and connection routing. Only the existing
 // PTY/runtime boundary is replaced; accepted writes are recorded as raw bytes.
 class _Runtime extends Fake implements TerminalRuntimeController {
+  @override
+  CommandOccurrenceScope? commandOccurrenceScopeFor(String sessionId) => null;
+
   final events = StreamController<TerminalSessionInputEvent>.broadcast(
     sync: true,
   );

@@ -63,6 +63,41 @@ void main() {
     });
   }
 
+  testWidgets('empty SSH submission exposes a live error and focuses host', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(402, 874);
+    addTearDown(tester.view.reset);
+    final semantics = tester.ensureSemantics();
+    SshProfileEditorResult? result;
+    await _open(tester, onClosed: (value) => result = value);
+    await tester.ensureVisible(find.byKey(const Key('ssh-connect')));
+    await tester.tap(find.byKey(const Key('ssh-connect')));
+    await tester.pumpAndSettle();
+    expect(result, isNull);
+    expect(find.byKey(const Key('ssh-validation-notice')), findsOneWidget);
+    final notice = find
+        .ancestor(
+          of: find.byKey(const Key('ssh-validation-notice')),
+          matching: find.byType(Semantics),
+        )
+        .first;
+    expect(tester.widget<Semantics>(notice).properties.liveRegion, isTrue);
+    final host = tester.widget<EditableText>(
+      find.descendant(
+        of: find.byKey(const Key('ssh-host')),
+        matching: find.byType(EditableText),
+      ),
+    );
+    expect(host.focusNode.hasFocus, isTrue);
+    await tester.enterText(find.byKey(const Key('ssh-host')), 'host.example');
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('ssh-validation-notice')), findsNothing);
+    expect(tester.takeException(), isNull);
+    semantics.dispose();
+  });
+
   testWidgets('more settings preserves names and expands invalid hidden port', (
     tester,
   ) async {

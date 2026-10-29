@@ -326,6 +326,8 @@ void main() {
       );
 
       expect(find.byKey(const Key('shell-runtime-error')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('shell-runtime-error-details')));
+      await tester.pumpAndSettle();
       expect(
         find.textContaining('Terminal layout restore skipped 1 pane'),
         findsOneWidget,
@@ -333,6 +335,13 @@ void main() {
       expect(find.textContaining('removed-profile'), findsOneWidget);
       expect(find.byKey(const Key('shell-empty-state')), findsNothing);
 
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.byType(TextButton),
+        ),
+      );
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('shell-runtime-error-dismiss')));
       await tester.pumpAndSettle();
 

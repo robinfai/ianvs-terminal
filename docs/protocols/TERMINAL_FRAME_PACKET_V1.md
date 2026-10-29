@@ -64,6 +64,34 @@ their existing identity/version-aware asset channels.
 
 ## Current transport boundary
 
+### Frozen file-operation provenance
+
+The nested Frame has additive fields `semantic_snapshot_token` (34, optional string),
+`semantic_blocks` (35) and `semantic_row_contexts` (36). Native captures the Frame text,
+display projection and these Block metadata under the same terminal-state lock. The token is
+a per-session monotonic decimal string, independent of the packet acknowledgement sequence.
+Each metadata entry contains `id`, execution-time `cwd`, and optional `context_id`,
+`shell_hostname`, `shell_username`, `sftp_context_id`; each row entry contains `viewport_row`
+and `block_id`. The optional SFTP context is the execution-time route lease, not a lookup
+of the current route for a reused shell context ID.
+The row number is a non-optional proto3 scalar: an omitted `viewport_row` means zero.
+This is provenance only, not a new command execution or completed-history record.
+
+All three fields replace the prior semantic snapshot on every Frame, including Delta frames
+whose text payload contains only dirty rows. Missing metadata grants no file authority.
+The live `terminal.command_blocks` response remains a separate observation; it must never
+be stamped with the last displayed Frame token or used to reconstruct missing row ownership.
+
+Native accepts only unique whole-row output ownership, including linked whitespace cells.
+Later writes over closed output and structural edits revoke affected provenance.
+Fold summaries, padding, ambiguous
+rows, alternate screens and replay do not provide file provenance. Capture is bounded to
+512 viewport rows, 128 distinct Blocks and 256 KiB of serialized metadata; exceeding a
+budget emits no semantic mapping. Ownership scanning also has a bounded work allowance.
+A path uses its frozen cwd, never the current shell cwd.
+Host actions validate the displayed token, row and session epoch on activation and again
+after menus or asynchronous confirmation. A newer displayed Frame invalidates old targets.
+
 `TerminalFrameTransportCoordinator` requires `PtySessionFramePacketV1Backend`; it rejects a
 backend without that contract. `NativePtyBindings` requires the packet symbol when loading the
 library. ReplayBackend preserves the packet capability and acknowledgement unchanged.

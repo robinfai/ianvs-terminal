@@ -216,6 +216,9 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
     $core.Iterable<TerminalBlock>? blocks,
     $core.Iterable<TerminalInlineButton>? inlineButtons,
     $core.String? fontFamily,
+    $core.String? semanticSnapshotToken,
+    $core.Iterable<TerminalSemanticBlock>? semanticBlocks,
+    $core.Iterable<TerminalSemanticRowContext>? semanticRowContexts,
   }) {
     final result = create();
     if (frameSchemaVersion != null)
@@ -255,6 +258,11 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
     if (blocks != null) result.blocks.addAll(blocks);
     if (inlineButtons != null) result.inlineButtons.addAll(inlineButtons);
     if (fontFamily != null) result.fontFamily = fontFamily;
+    if (semanticSnapshotToken != null)
+      result.semanticSnapshotToken = semanticSnapshotToken;
+    if (semanticBlocks != null) result.semanticBlocks.addAll(semanticBlocks);
+    if (semanticRowContexts != null)
+      result.semanticRowContexts.addAll(semanticRowContexts);
     return result;
   }
 
@@ -332,6 +340,12 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
     ..pPM<TerminalInlineButton>(32, _omitFieldNames ? '' : 'inlineButtons',
         subBuilder: TerminalInlineButton.create)
     ..aOS(33, _omitFieldNames ? '' : 'fontFamily')
+    ..aOS(34, _omitFieldNames ? '' : 'semanticSnapshotToken')
+    ..pPM<TerminalSemanticBlock>(35, _omitFieldNames ? '' : 'semanticBlocks',
+        subBuilder: TerminalSemanticBlock.create)
+    ..pPM<TerminalSemanticRowContext>(
+        36, _omitFieldNames ? '' : 'semanticRowContexts',
+        subBuilder: TerminalSemanticRowContext.create)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -625,6 +639,207 @@ class TerminalFrameDiff extends $pb.GeneratedMessage {
   $core.bool hasFontFamily() => $_has(32);
   @$pb.TagNumber(33)
   void clearFontFamily() => $_clearField(33);
+
+  @$pb.TagNumber(34)
+  $core.String get semanticSnapshotToken => $_getSZ(33);
+  @$pb.TagNumber(34)
+  set semanticSnapshotToken($core.String value) => $_setString(33, value);
+  @$pb.TagNumber(34)
+  $core.bool hasSemanticSnapshotToken() => $_has(33);
+  @$pb.TagNumber(34)
+  void clearSemanticSnapshotToken() => $_clearField(34);
+
+  @$pb.TagNumber(35)
+  $pb.PbList<TerminalSemanticBlock> get semanticBlocks => $_getList(34);
+
+  @$pb.TagNumber(36)
+  $pb.PbList<TerminalSemanticRowContext> get semanticRowContexts =>
+      $_getList(35);
+}
+
+/// Frozen provenance for the complete displayed viewport, including delta frames.
+class TerminalSemanticBlock extends $pb.GeneratedMessage {
+  factory TerminalSemanticBlock({
+    $core.String? id,
+    $core.String? cwd,
+    $core.String? contextId,
+    $core.String? shellHostname,
+    $core.String? shellUsername,
+    $core.String? sftpContextId,
+  }) {
+    final result = create();
+    if (id != null) result.id = id;
+    if (cwd != null) result.cwd = cwd;
+    if (contextId != null) result.contextId = contextId;
+    if (shellHostname != null) result.shellHostname = shellHostname;
+    if (shellUsername != null) result.shellUsername = shellUsername;
+    if (sftpContextId != null) result.sftpContextId = sftpContextId;
+    return result;
+  }
+
+  TerminalSemanticBlock._();
+
+  factory TerminalSemanticBlock.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory TerminalSemanticBlock.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'TerminalSemanticBlock',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'frame_diff'),
+      createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'id')
+    ..aOS(2, _omitFieldNames ? '' : 'cwd')
+    ..aOS(3, _omitFieldNames ? '' : 'contextId')
+    ..aOS(4, _omitFieldNames ? '' : 'shellHostname')
+    ..aOS(5, _omitFieldNames ? '' : 'shellUsername')
+    ..aOS(6, _omitFieldNames ? '' : 'sftpContextId')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TerminalSemanticBlock clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TerminalSemanticBlock copyWith(
+          void Function(TerminalSemanticBlock) updates) =>
+      super.copyWith((message) => updates(message as TerminalSemanticBlock))
+          as TerminalSemanticBlock;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static TerminalSemanticBlock create() => TerminalSemanticBlock._();
+  @$core.override
+  TerminalSemanticBlock createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static TerminalSemanticBlock getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<TerminalSemanticBlock>(create);
+  static TerminalSemanticBlock? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get id => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set id($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get cwd => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set cwd($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasCwd() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearCwd() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get contextId => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set contextId($core.String value) => $_setString(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasContextId() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearContextId() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get shellHostname => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set shellHostname($core.String value) => $_setString(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasShellHostname() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearShellHostname() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get shellUsername => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set shellUsername($core.String value) => $_setString(4, value);
+  @$pb.TagNumber(5)
+  $core.bool hasShellUsername() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearShellUsername() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.String get sftpContextId => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set sftpContextId($core.String value) => $_setString(5, value);
+  @$pb.TagNumber(6)
+  $core.bool hasSftpContextId() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearSftpContextId() => $_clearField(6);
+}
+
+class TerminalSemanticRowContext extends $pb.GeneratedMessage {
+  factory TerminalSemanticRowContext({
+    $core.int? viewportRow,
+    $core.String? blockId,
+  }) {
+    final result = create();
+    if (viewportRow != null) result.viewportRow = viewportRow;
+    if (blockId != null) result.blockId = blockId;
+    return result;
+  }
+
+  TerminalSemanticRowContext._();
+
+  factory TerminalSemanticRowContext.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromBuffer(data, registry);
+  factory TerminalSemanticRowContext.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      create()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'TerminalSemanticRowContext',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'frame_diff'),
+      createEmptyInstance: create)
+    ..aI(1, _omitFieldNames ? '' : 'viewportRow',
+        fieldType: $pb.PbFieldType.OU3)
+    ..aOS(2, _omitFieldNames ? '' : 'blockId')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TerminalSemanticRowContext clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  TerminalSemanticRowContext copyWith(
+          void Function(TerminalSemanticRowContext) updates) =>
+      super.copyWith(
+              (message) => updates(message as TerminalSemanticRowContext))
+          as TerminalSemanticRowContext;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static TerminalSemanticRowContext create() => TerminalSemanticRowContext._();
+  @$core.override
+  TerminalSemanticRowContext createEmptyInstance() => create();
+  @$core.pragma('dart2js:noInline')
+  static TerminalSemanticRowContext getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<TerminalSemanticRowContext>(create);
+  static TerminalSemanticRowContext? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.int get viewportRow => $_getIZ(0);
+  @$pb.TagNumber(1)
+  set viewportRow($core.int value) => $_setUnsignedInt32(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasViewportRow() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearViewportRow() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get blockId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set blockId($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasBlockId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearBlockId() => $_clearField(2);
 }
 
 class TerminalRow extends $pb.GeneratedMessage {

@@ -382,7 +382,8 @@ class _SshProfileListState extends State<_SshProfileList> {
         ],
         Semantics(
           label: context.l10n.searchSshProfiles,
-          textField: true,
+          container: true,
+          explicitChildNodes: true,
           child: TextField(
             key: const Key('ssh-profile-search'),
             controller: _search,
@@ -650,6 +651,7 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
   late bool _saveProfile;
   bool _showAdvanced = false;
   bool _showValidationErrors = false;
+  String? _validationNotice;
   bool _obscurePassword = true;
   bool _obscurePrivateKeyPassphrase = true;
   bool _obscureX11Cookie = true;
@@ -828,7 +830,8 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
       label: context.l10n.sessionName,
       child: Semantics(
         label: context.l10n.sessionName,
-        textField: true,
+        container: true,
+        explicitChildNodes: true,
         child: TextFormField(
           key: const Key('ssh-profile-name'),
           controller: _name,
@@ -843,7 +846,8 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
     );
     Widget portControl() => Semantics(
       label: context.l10n.port,
-      textField: true,
+      container: true,
+      explicitChildNodes: true,
       child: TextFormField(
         key: const Key('ssh-port'),
         controller: _port,
@@ -903,7 +907,7 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
               padding: contentPadding,
               child: Form(
                 key: _formKey,
-                onChanged: () => setState(() {}),
+                onChanged: () => setState(() => _validationNotice = null),
                 autovalidateMode: _showValidationErrors
                     ? AutovalidateMode.always
                     : AutovalidateMode.disabled,
@@ -964,6 +968,21 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                           ? 0
                           : palette.spacing.xl,
                     ),
+                    if (_validationNotice != null)
+                      Semantics(
+                        container: true,
+                        liveRegion: true,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Text(
+                            _validationNotice!,
+                            key: const Key('ssh-validation-notice'),
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.error,
+                            ),
+                          ),
+                        ),
+                      ),
                     Flexible(
                       fit: mobile || compactKeyboardLayout
                           ? FlexFit.tight
@@ -1006,7 +1025,8 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                     label: context.l10n.host,
                                     child: Semantics(
                                       label: context.l10n.host,
-                                      textField: true,
+                                      container: true,
+                                      explicitChildNodes: true,
                                       child: TextFormField(
                                         key: const Key('ssh-host'),
                                         controller: _host,
@@ -1027,7 +1047,8 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                   );
                                   Widget userControl() => Semantics(
                                     label: context.l10n.user,
-                                    textField: true,
+                                    container: true,
+                                    explicitChildNodes: true,
                                     child: TextFormField(
                                       key: const Key('ssh-user'),
                                       controller: _user,
@@ -1180,7 +1201,8 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                       : null,
                                   child: Semantics(
                                     label: context.l10n.password,
-                                    textField: true,
+                                    container: true,
+                                    explicitChildNodes: true,
                                     obscured: _obscurePassword,
                                     child: TextFormField(
                                       key: const Key('ssh-password'),
@@ -1415,7 +1437,8 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                   helper: context.l10n.privateKeyPassphraseHelp,
                                   child: Semantics(
                                     label: context.l10n.privateKeyPassphrase,
-                                    textField: true,
+                                    container: true,
+                                    explicitChildNodes: true,
                                     obscured: _obscurePrivateKeyPassphrase,
                                     child: TextFormField(
                                       key: const Key('ssh-key-passphrase'),
@@ -2244,6 +2267,18 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
     if (!formIsValid || invalidField != null) {
       setState(() {
         _showValidationErrors = true;
+        final label = invalidField?.node == _hostFocus
+            ? context.l10n.host
+            : invalidField?.node == _userFocus
+            ? context.l10n.user
+            : invalidField?.node == _nameFocus
+            ? context.l10n.sessionName
+            : null;
+        _validationNotice = label != null
+            ? context.l10n.fieldIsRequired(label)
+            : Localizations.localeOf(context).languageCode == 'zh'
+            ? '请检查并修正标红的字段，再连接。'
+            : 'Correct the highlighted fields before connecting.';
         _showAdvanced = invalidField?.advanced ?? _showAdvanced;
       });
       if (invalidField != null) {

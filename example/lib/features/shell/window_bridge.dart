@@ -5,6 +5,7 @@ enum NativeUserAttentionType { critical, informational }
 
 enum NativeAppMenuAction {
   newTab,
+  closeTab,
   newSshSession,
   settings;
 
@@ -12,6 +13,7 @@ enum NativeAppMenuAction {
     final action = arguments is Map ? arguments['action'] : null;
     return switch (action) {
       'newTab' || 'newLocalTerminal' => NativeAppMenuAction.newTab,
+      'closeTab' => NativeAppMenuAction.closeTab,
       'newSshSession' => NativeAppMenuAction.newSshSession,
       'settings' => NativeAppMenuAction.settings,
       _ => throw PlatformException(

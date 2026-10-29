@@ -16,6 +16,9 @@ import 'package:ianvs_terminal/ianvs_terminal.dart';
 import '../helpers/pump_app.dart';
 
 class _Runtime extends Fake implements TerminalRuntimeController {
+  @override
+  CommandOccurrenceScope? commandOccurrenceScopeFor(String sessionId) => null;
+
   final submissions = <Map<String, Object?>>[];
   Map<String, Object?> state = {
     'state': 'ready',

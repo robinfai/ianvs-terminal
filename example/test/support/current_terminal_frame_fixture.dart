@@ -83,6 +83,23 @@ frame_pb.TerminalFrameDiff _frameProtoFromFixture(Map<String, Object?> json) {
       json['scrollback_offset'],
     ).clamp(0, maxOffset),
     scrollbackMaxOffset: maxOffset,
+    semanticSnapshotToken: json['semantic_snapshot_token'] as String?,
+    semanticBlocks: _maps(json['semantic_blocks']).map(
+      (block) => frame_pb.TerminalSemanticBlock(
+        id: block['id'] as String?,
+        cwd: block['cwd'] as String?,
+        contextId: block['context_id'] as String?,
+        shellHostname: block['shell_hostname'] as String?,
+        shellUsername: block['shell_username'] as String?,
+        sftpContextId: block['sftp_context_id'] as String?,
+      ),
+    ),
+    semanticRowContexts: _maps(json['semantic_row_contexts']).map(
+      (row) => frame_pb.TerminalSemanticRowContext(
+        viewportRow: _nonNegativeInt(row['viewport_row']),
+        blockId: row['block_id'] as String?,
+      ),
+    ),
     globalBottomRow: json['global_bottom_row'] is int
         ? Int64(json['global_bottom_row']! as int)
         : null,

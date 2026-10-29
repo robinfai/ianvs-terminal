@@ -469,10 +469,17 @@ extension _WorkspaceComposer on _TerminalAiWorkspaceState {
     final model = _commandEditor!;
     return PopupMenuButton<String>(
       key: const Key('ai-command-actions'),
-      requestFocus: false,
+      requestFocus: !_mobile,
+      onCanceled: () {
+        if (mounted && _paneInteractive) _focus.requestFocus();
+      },
       tooltip: t('Command editing actions', '命令编辑操作'),
       enabled: _paneInteractive && !c.followUpEnded,
-      icon: const Icon(Icons.more_horiz, size: 18),
+      icon: Icon(
+        Icons.more_horiz,
+        size: 18,
+        semanticLabel: t('Command editing actions', '命令编辑操作'),
+      ),
       onSelected: (action) async {
         if (!_paneInteractive || c.followUpEnded) return;
         switch (action) {
@@ -511,23 +518,7 @@ extension _WorkspaceComposer on _TerminalAiWorkspaceState {
           case 'help':
             await showDialog<void>(
               context: context,
-              builder: (context) => AlertDialog(
-                title: Text(t('Command shortcuts', '命令快捷键')),
-                content: SingleChildScrollView(
-                  child: Text(
-                    t(
-                      'Tab: complete / accept\n↑ ↓: select candidate\n↑ on first line / Ctrl+R: history\nEnter: accept candidate, then run\nShift / Ctrl / Option+Enter: newline\n→ / Ctrl+F / Ctrl+E: accept suggestion\nCtrl+→: accept next segment\nCmd/Ctrl+Z: undo; +Shift: redo\nCtrl+C: clear draft\nEsc: close suggestions / return to terminal\nShift+Tab: previous control',
-                      'Tab：补全／采用\n↑ ↓：选择候选\n首行 ↑／Ctrl+R：命令历史\nEnter：先采用候选，再执行\nShift／Ctrl／Option+Enter：换行\n→／Ctrl+F／Ctrl+E：接受灰字建议\nCtrl+→：接受下一段\nCmd/Ctrl+Z：撤销；加 Shift 重做\nCtrl+C：清空草稿\nEsc：关闭候选／返回终端\nShift+Tab：上一个控件',
-                    ),
-                  ),
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: Text(t('Done', '完成')),
-                  ),
-                ],
-              ),
+              builder: (context) => const CommandShortcutsDialog(),
             );
         }
         if (mounted && _paneInteractive) _focus.requestFocus();

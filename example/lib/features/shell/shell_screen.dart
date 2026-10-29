@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:convert' show utf8;
+import 'dart:convert' show jsonEncode, utf8;
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui' show AppExitResponse, ViewFocusEvent, ViewFocusState;
@@ -20,6 +20,7 @@ import '../../data/services/data_api_client.dart';
 import '../../data/services/data_api_remote_fallback.dart';
 import '../../data/services/data_api_runtime.dart';
 import '../../data/sync/local_first_sync.dart';
+import '../../platform/app_shutdown_coordinator.dart';
 import '../../platform/clipboard_bridge.dart';
 import '../../platform/terminal_graphic_image_actions.dart';
 import '../../ui/app_ui.dart';
@@ -28,6 +29,8 @@ import '../ai/ai_settings.dart';
 import '../ai/ai_settings_dialog.dart';
 import '../ai/terminal_ai_connections.dart';
 import '../ai/terminal_ai_controller.dart';
+import '../ai/terminal_ai_history_binding.dart';
+import '../ai/terminal_ai_history_repository.dart';
 import '../ai/terminal_ai_message.dart' show TerminalCodePreview;
 import '../ai/terminal_ai_observer.dart';
 import '../ai/terminal_ai_retained_timeline.dart';
@@ -82,6 +85,7 @@ import 'shell_acceptance.dart';
 import 'shell_action_registry.dart';
 import 'shell_action_runtime_bindings.dart';
 import 'shell_shortcut_bridge.dart';
+import 'terminal_file_actions.dart';
 import 'widgets/desktop_session_status.dart';
 import 'widgets/mobile_disconnected_session_notice.dart';
 import 'widgets/mobile_session_list.dart';
@@ -248,6 +252,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, SelectionController> _selectionControllers = {};
   final Map<String, ComposerPaneSession> _composerSessions = {};
   final Map<String, TerminalAiController> _aiSessions = {};
+  final Map<TerminalAiController, TerminalAiHistoryBinding> _aiHistory = {};
+  final Set<TerminalAiHistoryBinding> _retiredAiHistory = {};
+  late final AppShutdownCoordinator _historyShutdown;
+  late final String _historyShutdownTask;
   final Map<String, CommandBlockReaderHostController> _readerControllers = {};
   final Map<String, Future<String?>> _terminalReconnects = {};
   final Set<String> _openAiSessions = {};
@@ -280,11 +288,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Set<String> _readOnlySessionIds = {};
   final Map<String, DateTime> _lastActivityNotificationAt = {};
   final Map<String, Timer> _activityNotificationTrailingTimers = {};
+  final Map<String, Set<String>> _pendingActivityNotificationSessions = {};
   final Map<String, String?> _lastActivityFramePreviews = {};
   final Map<String, String?> _lastNewOutputFramePreviews = {};
   final Map<String, Set<String>> _triggerMatchesBySession = {};
+  final Map<String, String> _triggerRuleSignatures = {};
   final Map<String, RegExp?> _profileTriggerRegexCache = {};
-  final Map<String, int> _terminalFrameSequenceBySession = {};
   final Map<String, String> _instantReplayRemoteCommands = <String, String>{};
   final Map<String, String> _searchRefreshFrameSignatures = {};
 
@@ -315,6 +324,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   bool _isSftpPanelOpen = false;
   String? _sftpPanelSessionId;
+  SftpSessionTarget? _sftpPanelPinnedTarget;
+  String _sftpPanelInitialPath = '/';
+  String? _sftpPanelHighlightedName;
   bool _activeTerminalHasFocus = false;
   bool _recentlyClosedLastSession = false;
   bool _showLayoutCue = false;
@@ -423,8 +435,18 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     _osc72DragDropController = Osc72DragDropController(
       sendInput: runtime == null ? (_, _) {} : runtime.sendInput,
     );
+    _historyShutdown = ref.read(appShutdownCoordinatorProvider);
+    _historyShutdownTask = 'ai-history-${identityHashCode(this)}';
+    _historyShutdown.registerTask(
+      _historyShutdownTask,
+      () => _flushAiHistory(requireSaved: true),
+      phase: AppShutdownPhase.persistence,
+    );
     _appLifecycleListener = AppLifecycleListener(
-      onStateChange: _synchronizeAiSessionsLifecycle,
+      onStateChange: (state) {
+        _synchronizeAiSessionsLifecycle(state);
+        if (state != AppLifecycleState.resumed) unawaited(_flushAiHistory());
+      },
       onPause: () => unawaited(
         ref.read(sessionControllerProvider.notifier).flushLayoutPersistence(),
       ),
@@ -432,6 +454,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         ref.read(sessionControllerProvider.notifier).flushLayoutPersistence(),
       ),
       onExitRequested: () async {
+        try {
+          await _flushAiHistory(requireSaved: true);
+        } on Object {
+          return AppExitResponse.cancel;
+        }
         await ref
             .read(sessionControllerProvider.notifier)
             .flushLayoutPersistence();
@@ -465,6 +492,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   @override
   void dispose() {
+    if (!_historyShutdown.hasStarted) {
+      _historyShutdown.unregisterTask(_historyShutdownTask);
+    }
     _modeAiSettings.removeListener(_handleLlmConfigurationChanged);
     WindowBridge.setNativeMenuHandlers();
     _appLifecycleListener.dispose();
@@ -481,6 +511,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       timer.cancel();
     }
     _activityNotificationTrailingTimers.clear();
+    _pendingActivityNotificationSessions.clear();
     for (final timer in _osc1337FireworksTimers.values) {
       timer.cancel();
     }
@@ -715,14 +746,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     final displayedProfile = displayedPane == null
         ? null
         : _profileForPane(displayedPane, _sessionState.profiles);
-    final shellChromeBackground = displayedProfile == null
-        ? activeTab == null
-              ? _terminalColorsForProfile(
-                  context,
-                  defaultProfile,
-                ).canvasBackground
-              : _tabTerminalBackgroundColor(context, _sessionState, activeTab)
-        : _terminalColorsForProfile(context, displayedProfile).canvasBackground;
+    final shellChromeBackground = resolveTerminalColors(
+      context,
+    ).viewport.canvasBackground;
     final instantReplaySession = _instantReplayLayoutSession;
     final instantReplayPane = instantReplaySession == null
         ? null
@@ -869,7 +895,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 'No recently closed pane is available for this tab.',
               );
             }
-            final reopenedSessionId = sessionController.reopenClosedPane();
+            final reopenedSessionId = sessionController.reopenClosedPane(
+              onPlacementFallback: () => _showShellSnackBar(
+                context.l10n.reopenedPanePlacementFallback,
+              ),
+            );
             if (reopenedSessionId == null) {
               return const ShellActionBindingResult.skipped(
                 'No recently closed pane could be reopened.',
@@ -1363,7 +1393,18 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   _ShellRuntimeErrorBanner(
                     palette: palette,
                     message: _sessionState.lastError!,
+                    summary:
+                        activePane?.isExited == true &&
+                            activePane?.profileSnapshot?.isSsh == true
+                        ? context.l10n.mobileSessionDisconnectedTitle
+                        : null,
                     onDismiss: sessionController.dismissLastError,
+                    onUseCurrentLayout: sessionController.canReplaceFailedLayout
+                        ? () => unawaited(
+                            sessionController
+                                .useCurrentLayoutAfterRestoreFailure(),
+                          )
+                        : null,
                   ),
                 if (_sessionState.isReady &&
                     _sessionState.lastError == null &&

@@ -20,6 +20,52 @@ String _materializeTestPrivateKey(String path) =>
     path.contains('jump') ? _testJumpPrivateKey : _testPrivateKey;
 
 void main() {
+  testWidgets(
+    'SSH field semantics keep independent values and mask secrets after sequential edits',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 1000);
+      addTearDown(tester.view.reset);
+      final handle = tester.ensureSemantics();
+      await _pumpSshEditor(
+        tester,
+        profile: defaultTerminalProfile().copyWith(
+          connection: const terminal.TerminalConnectionConfig.ssh(
+            host: 'example.test',
+            user: 'tester',
+          ),
+        ),
+        onClosed: (_) {},
+      );
+      final values = {
+        'ssh-profile-name': 'AX test name',
+        'ssh-host': 'ax.example.test',
+        'ssh-user': 'ax-user',
+        'ssh-port': '22222',
+        'ssh-password': 'fake-secret-for-semantics-test',
+      };
+      for (final entry in values.entries) {
+        await tester.ensureVisible(find.byKey(Key(entry.key)));
+        await tester.enterText(find.byKey(Key(entry.key)), entry.value);
+        await tester.pumpAndSettle();
+      }
+      for (final entry in values.entries) {
+        final editable = find.descendant(
+          of: find.byKey(Key(entry.key)),
+          matching: find.byType(EditableText),
+        );
+        final value = tester.getSemantics(editable).getSemanticsData().value;
+        if (entry.key == 'ssh-password') {
+          expect(value, isNot(contains(entry.value)));
+          expect(value, isNotEmpty);
+        } else {
+          expect(value, entry.value);
+        }
+      }
+      handle.dispose();
+    },
+  );
+
   test('parses and formats local, remote, dynamic, and IPv6 forwards', () {
     const source =
         'L 127.0.0.1:8080 app.internal:80\n'

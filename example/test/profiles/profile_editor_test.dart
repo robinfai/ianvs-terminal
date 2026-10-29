@@ -8,6 +8,103 @@ import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
 void main() {
   testWidgets(
+    'short desktop editor reserves room for fields and section switching',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(640, 502);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await _pumpEditorHarness(
+        tester,
+        locale: const Locale('zh'),
+        initialValue: TerminalProfile(
+          id: 'audit',
+          name: 'Audit',
+          shell: '/bin/zsh',
+        ),
+        onSaved: (_) {},
+      );
+      expect(
+        tester
+            .getSize(_findByKey(const Key('profile-editor-scroll-view')))
+            .height,
+        greaterThan(260),
+      );
+      final nav = find.byWidgetPredicate(
+        (widget) =>
+            widget.key.toString().contains('profile-editor-compact-nav-'),
+      );
+      expect(find.text('Audit'), findsWidgets);
+      expect(
+        tester
+            .getCenter(find.descendant(of: nav, matching: find.text('常规')))
+            .dy,
+        closeTo(tester.getCenter(find.text('查找设置')).dy, 1),
+      );
+      expect(
+        tester.getSize(nav).height,
+        tester
+            .getSize(_findByKey(const Key('profile-editor-section-search')))
+            .height,
+      );
+      await tester.tap(nav);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('自动化').last);
+      await tester.pumpAndSettle();
+      expect(_findByKey(const Key('profile-editor-triggers')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Chinese automation errors expose line and reason to accessibility',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      TerminalProfile? saved;
+      await _pumpEditorHarness(
+        tester,
+        locale: const Locale('zh'),
+        initialValue: TerminalProfile(
+          id: 'audit',
+          name: 'Audit',
+          shell: '/bin/zsh',
+        ),
+        onSaved: (value) => saved = value,
+      );
+      await tester.enterText(
+        _findByKey(const Key('profile-editor-triggers')),
+        '[ => notify',
+      );
+      await _ensureVisible(
+        tester,
+        _findByKey(const Key('profile-editor-save')),
+      );
+      await tester.tap(_findByKey(const Key('profile-editor-save')));
+      await tester.pumpAndSettle();
+      const error = '第 1 行：正则表达式无效。';
+      expect(saved, isNull);
+      expect(find.text(error), findsOneWidget);
+      expect(find.bySemanticsLabel(error), findsOneWidget);
+      var ancestor = tester.getSemantics(find.bySemanticsLabel(error)).parent;
+      while (ancestor != null) {
+        expect(
+          ancestor.getSemanticsData().flagsCollection.isTextField,
+          isFalse,
+        );
+        ancestor = ancestor.parent;
+      }
+      expect(
+        tester
+            .widget<Semantics>(find.bySemanticsLabel(error))
+            .properties
+            .liveRegion,
+        isTrue,
+      );
+      semantics.dispose();
+    },
+  );
+
+  testWidgets(
     'profile editor seeds nested terminal fields and saves structured changes',
     (tester) async {
       const initialProfile = TerminalProfile.configured(
@@ -943,6 +1040,7 @@ void main() {
   testWidgets('profile editor summarizes and resets dirty sections', (
     tester,
   ) async {
+    final semantics = tester.ensureSemantics();
     tester.view.devicePixelRatio = 1.0;
     tester.view.physicalSize = const Size(1200, 820);
     addTearDown(() {
@@ -972,6 +1070,21 @@ void main() {
     expect(
       _findByKey(const Key('profile-editor-reset-general')),
       findsOneWidget,
+    );
+
+    final resetNode = tester.getSemantics(
+      _findByKey(const Key('profile-editor-reset-general')),
+    );
+    expect(resetNode.getSemanticsData().label, contains('Reset General'));
+    expect(
+      resetNode.id,
+      isNot(
+        tester
+            .getSemantics(
+              find.bySemanticsIdentifier('profile-editor-nav-general'),
+            )
+            .id,
+      ),
     );
 
     await tester.enterText(
@@ -1038,6 +1151,7 @@ void main() {
 
     expect(find.text('Discard profile changes?'), findsNothing);
     expect(_findByKey(const Key('profile-editor-dialog')), findsNothing);
+    semantics.dispose();
   });
 
   testWidgets('profile editor saves notification and send-text triggers', (
@@ -1532,6 +1646,7 @@ void main() {
   testWidgets(
     'profile editor color picker uses palette controls and resets the color field',
     (tester) async {
+      final semantics = tester.ensureSemantics();
       TerminalProfile? savedProfile;
       await _pumpEditorHarness(
         tester,
@@ -1599,6 +1714,15 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Use #RRGGBB or leave empty.'), findsOneWidget);
+      final errorNode = tester.getSemantics(
+        find.bySemanticsLabel('Use #RRGGBB or leave empty.'),
+      );
+      var parent = errorNode.parent;
+      while (parent != null) {
+        expect(parent.getSemanticsData().flagsCollection.isTextField, isFalse);
+        parent = parent.parent;
+      }
+
       await tester.tap(_findByKey(const Key('color-picker-apply')));
       await tester.pumpAndSettle();
       expect(_findByKey(const Key('color-picker-dialog')), findsOneWidget);
@@ -1624,6 +1748,7 @@ void main() {
 
       expect(savedProfile, isNotNull);
       expect(savedProfile!.appearance.colors.foreground, isNull);
+      semantics.dispose();
     },
   );
 
@@ -1716,6 +1841,19 @@ void main() {
 
       await tester.tap(find.text('Paper Slate').last);
       await tester.pumpAndSettle();
+
+      final preview = tester.widget<Container>(
+        _findByKey(const Key('profile-editor-terminal-preview')),
+      );
+      expect(
+        (preview.decoration! as BoxDecoration).color!.toARGB32(),
+        int.parse(
+          'FF${paperSlate.palette.special.background!.substring(1)}',
+          radix: 16,
+        ),
+      );
+      expect(find.text('Terminal text preview'), findsOneWidget);
+      expect(savedProfile, isNull);
 
       await _expandCustomColors(tester);
       _expectColorFieldText(
@@ -1982,9 +2120,13 @@ Future<void> _pumpEditorHarness(
   required TerminalProfile initialValue,
   required ValueChanged<TerminalProfile?> onSaved,
   bool saveWhenPristine = true,
+  Locale locale = const Locale('en'),
 }) async {
   await tester.pumpWidget(
     MaterialApp(
+      locale: locale,
+      supportedLocales: AppLocalizations.supportedLocales,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
       theme: buildIanvsTerminalTheme(Brightness.dark),
       darkTheme: buildIanvsTerminalTheme(Brightness.dark),
       themeMode: ThemeMode.dark,

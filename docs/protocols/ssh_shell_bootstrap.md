@@ -42,7 +42,7 @@
 
 支持在已集成的本地或远端 Shell 中直接执行 `bash`、`zsh`、`fish`，以及 `-i` / `--interactive`。包装函数发送 `enter_shell`，在相同主机下登记新的 Shell context，使用内存引导重新检查 Hook；普通子 Bash 加载 `.bashrc`，子 Zsh 不加载登录 profile。退出时恢复父 Shell 的能力快照。子 Shell 包装由 shell integration 总开关控制，本地关闭 SSH 包装不会关闭此能力。
 
-`context_kind=shell` 表示同主机的子 Shell，`host_context_id` 固定为所属 SSH 层或本地主机 root。界面不为它新增 SSH 节点或跳数；SFTP 使用稳定的主机 context，在 Shell 检查阶段也保留面板。原生层只允许当前 Shell 或其所属主机 context 发起新文件操作，不能借此访问其他祖先主机。
+`context_kind=shell` 表示同主机的子 Shell，`host_context_id` 固定为所属 SSH 层或本地主机 root。界面不为它新增 SSH 节点或跳数；`sftp_context_id` 则是所属主机本次实例的文件路由凭据，在同主机子 Shell 间保持稳定。原生层只允许当前 Shell 所属主机的有效凭据发起新文件操作，不能借此访问其他祖先主机。
 
 脚本执行、`-c`、登录/自定义启动参数及非 TTY 调用保留原命令行为；`command bash`、绝对路径和 `exec bash` 绕过函数包装，当前不会自动重新集成。此边界不影响直接输入 Shell 名称进行交互式切换的修复。旧会话不自动补装新包装函数，更新运行中的应用后需新建会话。
 
@@ -54,9 +54,11 @@ Hook 注入本身不依赖 ControlMaster。命令包装会优先复用配置中�
 
 如果 socket 目录无法创建，或 socket 路径过长、不是绝对路径、含控制协议不支持的字符，包装连接仍使用与配置连接相同的启动命令、用户配置加载、Hook 检查和内存注入流程，只禁用该次连接的复用 socket。对应 SSH context 仍正常进入和恢复，文件服务不可用；后续子 Shell 或嵌套 SSH 的文件请求不能跳过这一层转到其他主机。
 
-SFTP 请求携带 `contextId`，由原生层解析到已验证的 socket 链。在协议连接上新增 exec channel，在本地通过 OpenSSH 子进程建立二进制流。中间层只需要 SSH exec；最后一层才需要 SFTP subsystem。每一步都禁用重新建网连接的回退，socket 消失即失败，不会重新认证或切到其他主机。
+SFTP 请求的 `contextId` 携带引导事件给出的不透明 `sftp_context_id`，由原生层核验实例并解析到已验证的 socket 链。嵌套层不能以裸 Shell context ID 替代；root 仍由当前会话代际隔离。在协议连接上新增 exec channel，在本地通过 OpenSSH 子进程建立二进制流。中间层只需要 SSH exec；最后一层才需要 SFTP subsystem。每一步都禁用重新建网连接的回退，socket 消失即失败，不会重新认证或切到其他主机。
 
 列表、下载、上传及上传后的原子替换共享同一个目标快照，进行中的操作不随 shell 切换而改变主机。新发起的文件操作要求目标层仍为当前层；旧编辑器的后续自动回传会明确失败并保留本地修改，需返回原层后再尝试。已退出的层不会因重新连接同一主机而自动复用旧 ID。
+即使 Shell context ID 被再次使用，新实例也得到不同路由凭据。命令 Block 和 Frame 来源信息冻结发生时的凭据；历史点击不能借用新实例的文件权限。
+目标上下文退休会撤销该路由上的等待与在途任务；通道建立后及文件操作步骤仍检查撤销状态，不能因控制 socket 路径被复用而改投新连接。上传清理继续使用原已建立的 SFTP 会话。
 
 文件面板在检查期间暂不展示旧层内容，完成后按新 context 创建面板，返回时恢复到父层。服务器没有 SFTP 时显示文件服务不可用，终端 Hook 仍可正常工作。
 

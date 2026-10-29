@@ -1109,12 +1109,35 @@ class TerminalSearchMatch {
   }
 }
 
+/// Command provenance captured under the same native lock as the frame rows.
+/// These shell declarations never authorize a connection or replace transport.
+class TerminalFrameCommandContext {
+  const TerminalFrameCommandContext({
+    required this.id,
+    required this.cwd,
+    this.contextId,
+    this.sftpContextId,
+    this.shellHostname,
+    this.shellUsername,
+  });
+
+  final String id;
+  final String cwd;
+  final String? contextId;
+  final String? sftpContextId;
+  final String? shellHostname;
+  final String? shellUsername;
+}
+
 class TerminalFrameDiff {
   static const String currentFrameSchemaVersion = 'terminal-frame-diff-v1';
 
   const TerminalFrameDiff({
     this.frameSchemaVersion = currentFrameSchemaVersion,
     this.frameKind = TerminalFrameKind.snapshot,
+    this.semanticSnapshotToken,
+    this.semanticBlocks = const {},
+    this.semanticRowContexts = const {},
     required this.rows,
     required this.cursor,
     required this.viewportRows,
@@ -1150,6 +1173,12 @@ class TerminalFrameDiff {
 
   final String frameSchemaVersion;
   final TerminalFrameKind frameKind;
+
+  /// Native identity of this frame's immutable command ownership snapshot.
+  /// Missing provenance must never be inferred from matching terminal text.
+  final String? semanticSnapshotToken;
+  final Map<String, TerminalFrameCommandContext> semanticBlocks;
+  final Map<int, String> semanticRowContexts;
   final List<TerminalRow> rows;
   final TerminalCursor cursor;
   final TerminalSelection? selection;
@@ -1488,6 +1517,9 @@ class TerminalViewportState {
       frame: TerminalFrameDiff(
         frameSchemaVersion: nextFrame.frameSchemaVersion,
         frameKind: nextFrame.frameKind,
+        semanticSnapshotToken: nextFrame.semanticSnapshotToken,
+        semanticBlocks: Map.unmodifiable(nextFrame.semanticBlocks),
+        semanticRowContexts: Map.unmodifiable(nextFrame.semanticRowContexts),
         rows: mergedRows,
         cursor: _validFrameCursor(nextFrame.cursor),
         selection: _validFrameSelection(nextFrame.selection),
@@ -1767,6 +1799,9 @@ TerminalFrameDiff _normalizeSnapshotFrame(
   return TerminalFrameDiff(
     frameSchemaVersion: frame.frameSchemaVersion,
     frameKind: TerminalFrameKind.snapshot,
+    semanticSnapshotToken: frame.semanticSnapshotToken,
+    semanticBlocks: Map.unmodifiable(frame.semanticBlocks),
+    semanticRowContexts: Map.unmodifiable(frame.semanticRowContexts),
     rows: _normalizeViewportRows(
       rows: frame.rows,
       viewportRows: viewportRows,

@@ -58,6 +58,18 @@
     },
     "graphics": {
       "type": "array"
+    },
+    "semantic_snapshot_token": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*$"
+    },
+    "semantic_blocks": {
+      "type": "array",
+      "maxItems": 128
+    },
+    "semantic_row_contexts": {
+      "type": "array",
+      "maxItems": 512
     }
   },
   "additionalProperties": true

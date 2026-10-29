@@ -7,6 +7,7 @@ import 'package:app/app.dart';
 import 'package:app/features/ai/ai_models.dart';
 import 'package:app/features/ai/ai_settings.dart';
 import 'package:app/features/ai/terminal_ai_controller.dart';
+import 'package:app/features/ai/terminal_ai_history_repository.dart';
 import 'package:app/features/ai/terminal_ai_workspace.dart';
 import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
@@ -54,9 +55,13 @@ void main() {
     testWidgets(
       smartApproval
           ? 'Smart review approves once and escalates sensitive commands'
-          : 'Automatic intent routes both input surfaces through the existing PTY',
+          : 'Automatic intent routes the shared input through the existing PTY',
       (tester) async {
         ensureMacosIntegrationTestFramesEnabled(tester.binding);
+        // Editing values are injected by WidgetTester in this fixture. Keep
+        // native IME callbacks from racing those values after menu/reader focus.
+        tester.testTextInput.register();
+        addTearDown(tester.testTextInput.unregister);
         final fixture = await _ResponseFixture.start();
         addTearDown(fixture.close);
         final configuration = AiConfiguration(
@@ -88,6 +93,10 @@ void main() {
         );
         final container = ProviderContainer(
           overrides: [
+            // Keep native fixture history separate from the development app.
+            terminalAiHistoryRepositoryProvider.overrideWithValue(
+              LocalTerminalAiHistoryRepository(directory: () async => home),
+            ),
             ptySessionBackendProvider.overrideWithValue(
               NativePtyBackend.load(),
             ),
@@ -206,8 +215,8 @@ void main() {
           () => find.byType(TerminalCommandBlocksView).evaluate().isNotEmpty,
           'visible Command Block view',
         );
-        final composer = tester
-            .widget<TerminalComposerView>(find.byType(TerminalComposerView))
+        final ai = tester
+            .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
             .controller;
 
         if (smartApproval) {
@@ -217,18 +226,15 @@ void main() {
             'reason': 'Print the requested marker',
           });
           await tester.enterText(
-            find.byKey(const Key('composer-editor')),
+            find.byKey(const Key('ai-prompt')),
             '输出 SMART_REVIEW_OK',
           );
           await tester.pump();
-          await click(const Key('composer-primary-action'));
+          await click(const Key('ai-send'));
           await waitFor(
             () => fixture.reviewStarted.isCompleted,
             'independent review request',
           );
-          final ai = tester
-              .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
-              .controller;
           expect(ai.phase, AiPhase.reviewing);
           expect(runtime.commandBlocks(id)!['blocks'], isEmpty);
           await capture('smart-reviewing');
@@ -257,9 +263,29 @@ void main() {
           await capture('smart-approved');
           final taskBeforeEvidence = ai.taskId;
           final requestsBeforeEvidence = fixture.requests;
-          final evidenceKey = Key('ai-evidence-${written.single.id}-0');
+          final evidenceKey = Key('command-block-${written.single.id}');
           for (var visit = 0; visit < 2; visit++) {
-            await click(evidenceKey);
+            final outputBlock = find.byKey(evidenceKey);
+            await waitFor(
+              () => outputBlock.evaluate().isNotEmpty,
+              'native output block',
+            );
+            await tester.ensureVisible(outputBlock);
+            await tester.tap(
+              find
+                  .descendant(
+                    of: outputBlock,
+                    matching: find.byType(PopupMenuButton<String>),
+                  )
+                  .first,
+            );
+            await tester.pumpAndSettle();
+            await tester.tap(
+              find.byWidgetPredicate(
+                (w) => w is PopupMenuItem<String> && w.value == 'reader',
+              ),
+            );
+            await tester.pump();
             await waitFor(
               () => find.byKey(const Key('block-reader')).evaluate().isNotEmpty,
               'evidence reader',
@@ -333,35 +359,30 @@ void main() {
           '物語を話して',
           'unknown-tool --version',
         ]) {
-          await tester.enterText(
-            find.byKey(const Key('composer-editor')),
-            input,
-          );
+          await tester.enterText(find.byKey(const Key('ai-prompt')), input);
           await tester.pump();
-          expect(composer.intentDecision.intent, InputIntent.ai, reason: input);
+          expect(
+            ai.inputIntentDecision().intent,
+            InputIntent.ai,
+            reason: input,
+          );
         }
         expect(shell()?['commandNames'], contains('printf'));
         final promptsBefore = fixture.requests;
-        await tester.enterText(
-          find.byKey(const Key('composer-editor')),
-          '讲个故事',
-        );
+        await tester.enterText(find.byKey(const Key('ai-prompt')), '讲个故事');
         await tester.pump();
-        expect(composer.intentDecision.intent, InputIntent.ai);
+        expect(ai.inputIntentDecision().intent, InputIntent.ai);
         expect(runtime.commandBlocks(id)!['blocks'], isEmpty);
         fixture.propose('run_command', {
           'command': 'printf proposal-only',
           'reason': 'A proposal requiring approval',
         });
         await capture('intent-composer-ai');
-        await click(const Key('composer-primary-action'));
+        await click(const Key('ai-send'));
         await waitFor(
           () => find.byType(TerminalAiWorkspace).evaluate().isNotEmpty,
           'AI workspace',
         );
-        final ai = tester
-            .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
-            .controller;
         await waitFor(() => ai.canApprove, 'AI proposal');
         expect(fixture.requests, promptsBefore + 1);
         expect(runtime.commandBlocks(id)!['blocks'], isEmpty);
@@ -385,6 +406,7 @@ void main() {
         final command =
             "printf x >> '${proof.path}'; printf 'INTENT_PTY_OK\\n'";
         await tester.enterText(find.byKey(const Key('ai-prompt')), command);
+        await tester.pump();
         await waitFor(() => ai.canRunUserCommand, 'ready original PTY');
         await tester.pump();
         expect(ai.inputIntentDecision().intent, InputIntent.command);
@@ -418,7 +440,9 @@ void main() {
         await click(const Key('ai-input-intent'));
         await tester.tap(
           find.byWidgetPredicate(
-            (w) => w is CheckedPopupMenuItem<String> && w.value == 'ai',
+            (w) =>
+                w is PopupMenuItem<InputIntentChoice> &&
+                w.value == InputIntentChoice.ai,
           ),
         );
         await tester.pump(const Duration(milliseconds: 300));

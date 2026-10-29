@@ -811,6 +811,13 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     )
   }
 
+  @objc func closeTerminalTab(_ sender: Any?) {
+    windowBridgeChannel?.invokeMethod(
+      "nativeAppAction",
+      arguments: ["action": "closeTab"]
+    )
+  }
+
   @objc func openSshSession(_ sender: Any?) {
     windowBridgeChannel?.invokeMethod(
       "nativeAppAction",
@@ -981,6 +988,16 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     sshItem.action = #selector(openSshSession(_:))
     sshItem.keyEquivalent = "t"
     sshItem.keyEquivalentModifierMask = [.command, .shift]
+
+    let closeItem = fileMenu.items.first(where: { $0.title == "Close Tab" })
+      ?? NSMenuItem(title: "Close Tab", action: #selector(closeTerminalTab(_:)), keyEquivalent: "w")
+    if closeItem.menu == nil {
+      fileMenu.addItem(closeItem)
+    }
+    closeItem.target = self
+    closeItem.action = #selector(closeTerminalTab(_:))
+    closeItem.keyEquivalent = "w"
+    closeItem.keyEquivalentModifierMask = [.command]
   }
 
   private func configureOsc72DropTarget(
@@ -1389,7 +1406,13 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
     center.requestAuthorization(options: [.alert, .sound]) { granted, error in
       if let error {
         DispatchQueue.main.async {
-          result(self.notificationAuthorizationFailedError(message: error.localizedDescription))
+          result(
+            FlutterError(
+              code: "notification_authorization_request_failed",
+              message: error.localizedDescription,
+              details: nil
+            )
+          )
         }
         return
       }

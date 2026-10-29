@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:app/data/services/data_api_client.dart';
+import 'package:app/data/services/data_api_runtime.dart';
 import 'package:app/data/sync/api_sync_panel.dart';
 import 'package:app/data/sync/local_first_sync.dart';
 import 'package:app/l10n/generated/app_localizations.dart';
@@ -12,6 +13,27 @@ import 'package:flutter_test/flutter_test.dart';
 import '../support/memory_data_api_resource_client.dart';
 
 void main() {
+  testWidgets('bundled local API is not presented as cross-device sync', (
+    tester,
+  ) async {
+    final harness = _SyncHarness.conflicting();
+    await _pumpPanel(
+      tester,
+      harness.coordinator,
+      runtime: DataApiRuntime.local(
+        baseUri: Uri.parse('http://127.0.0.1:1234'),
+        localAccessToken: 'fixture',
+        encryptionKey: 'fixture',
+        closeLocalSidecar: () async {},
+      ),
+    );
+    expect(find.byKey(const Key('api-sync-now')), findsNothing);
+    expect(
+      find.text('Saved on this device. API sync is optional.'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('disabled sync shows local-only status and no actions', (
     tester,
   ) async {
@@ -309,10 +331,12 @@ Future<void> _pumpPanel(
   LocalFirstSyncCoordinator? coordinator, {
   Future<void> Function()? restoreTransport,
   Widget panel = const ApiSyncPanel(),
+  DataApiRuntime? runtime,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        dataApiRuntimeProvider.overrideWithValue(runtime),
         localFirstSyncProvider.overrideWith((ref) => coordinator),
         applyApiSyncConfigurationProvider.overrideWithValue(restoreTransport),
       ],

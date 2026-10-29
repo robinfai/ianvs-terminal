@@ -59,8 +59,19 @@ class TerminalRuntimeSftpDirectoryDataSource
 
   final terminal.TerminalRuntimeController runtime;
 
+  void _checkTarget(SftpSessionTarget target) {
+    if (!runtime.hasSession(target.sessionId) ||
+        (target.sessionEpoch != null &&
+            runtime.sessionEpochFor(target.sessionId) != target.sessionEpoch)) {
+      throw const SftpDirectoryUnavailableException(
+        'The terminal session changed. Open the remote location again.',
+      );
+    }
+  }
+
   @override
   SftpDirectoryLoadOperation startListDirectory(SftpDirectoryRequest request) {
+    _checkTarget(request.target);
     final cancellation = terminal.TerminalSftpCancellation();
     return SftpDirectoryLoadOperation(
       future: _listDirectory(request, cancellation),
@@ -79,6 +90,7 @@ class TerminalRuntimeSftpDirectoryDataSource
         cancellation: cancellation,
         contextId: request.target.contextId,
       );
+      _checkTarget(request.target);
       return SftpDirectorySnapshot(
         path: snapshot.path,
         entries: snapshot.entries
@@ -109,7 +121,9 @@ class TerminalRuntimeSftpDirectoryDataSource
 
   @override
   Future<void> downloadFile(SftpFileTransferRequest request) {
+    _checkTarget(request.target);
     return _translateFileOperation(
+      request.target,
       runtime.downloadSftpFile(
         request.target.sessionId,
         request.remotePath,
@@ -121,7 +135,9 @@ class TerminalRuntimeSftpDirectoryDataSource
 
   @override
   Future<void> uploadFile(SftpFileTransferRequest request) {
+    _checkTarget(request.target);
     return _translateFileOperation(
+      request.target,
       runtime.uploadSftpFile(
         request.target.sessionId,
         request.localPath,
@@ -133,7 +149,9 @@ class TerminalRuntimeSftpDirectoryDataSource
 
   @override
   Future<void> createDirectory(SftpEntryMutationRequest request) {
+    _checkTarget(request.target);
     return _translateFileOperation(
+      request.target,
       runtime.createSftpDirectory(
         request.target.sessionId,
         request.remotePath,
@@ -144,7 +162,9 @@ class TerminalRuntimeSftpDirectoryDataSource
 
   @override
   Future<void> deleteEntry(SftpEntryMutationRequest request) {
+    _checkTarget(request.target);
     return _translateFileOperation(
+      request.target,
       runtime.deleteSftpEntry(
         request.target.sessionId,
         request.remotePath,
@@ -154,9 +174,13 @@ class TerminalRuntimeSftpDirectoryDataSource
     );
   }
 
-  Future<void> _translateFileOperation(Future<void> operation) async {
+  Future<void> _translateFileOperation(
+    SftpSessionTarget target,
+    Future<void> operation,
+  ) async {
     try {
       await operation;
+      _checkTarget(target);
     } on terminal.TerminalSftpException catch (error) {
       throw SftpDirectoryUnavailableException(error.message);
     }
@@ -181,6 +205,7 @@ class SftpSessionTarget {
     required this.user,
     required this.port,
     this.contextId = 'root',
+    this.sessionEpoch,
   });
 
   final String sessionId;
@@ -189,10 +214,15 @@ class SftpSessionTarget {
   final String user;
   final int port;
   final String contextId;
+  final int? sessionEpoch;
 
   /// Separate busy paths and editor watchers across shell contexts.
-  String get operationScopeId =>
-      contextId == 'root' ? sessionId : '$sessionId/$contextId';
+  String get operationScopeId {
+    final incarnation = sessionEpoch == null
+        ? sessionId
+        : '$sessionId@$sessionEpoch';
+    return contextId == 'root' ? incarnation : '$incarnation/$contextId';
+  }
 
   String get displayAddress {
     final normalizedHost = host.contains(':') ? '[$host]' : host;
@@ -204,6 +234,7 @@ class SftpSessionTarget {
   bool operator ==(Object other) {
     return other is SftpSessionTarget &&
         other.sessionId == sessionId &&
+        other.sessionEpoch == sessionEpoch &&
         other.contextId == contextId &&
         other.profileName == profileName &&
         other.host == host &&
@@ -212,8 +243,15 @@ class SftpSessionTarget {
   }
 
   @override
-  int get hashCode =>
-      Object.hash(sessionId, contextId, profileName, host, user, port);
+  int get hashCode => Object.hash(
+    sessionId,
+    sessionEpoch,
+    contextId,
+    profileName,
+    host,
+    user,
+    port,
+  );
 }
 
 @immutable
@@ -390,8 +428,12 @@ class SftpSidePanel extends StatefulWidget {
     required this.dataSource,
     required this.fileActions,
     required this.onClose,
+    this.initialPath = '/',
+    this.highlightedName,
   });
 
+  final String initialPath;
+  final String? highlightedName;
   final SftpSessionTarget target;
   final SftpDirectoryDataSource dataSource;
   final SftpFileActions fileActions;
@@ -419,6 +461,7 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
   @override
   void initState() {
     super.initState();
+    _path = _normalizeSftpPath(widget.initialPath);
     _listenForFileActionEvents();
     _reload();
   }
@@ -427,12 +470,16 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
   void didUpdateWidget(SftpSidePanel oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.target != widget.target ||
-        oldWidget.dataSource != widget.dataSource) {
-      _path = '/';
+        oldWidget.dataSource != widget.dataSource ||
+        oldWidget.initialPath != widget.initialPath ||
+        oldWidget.highlightedName != widget.highlightedName) {
+      _locationRevision++;
+      _path = _normalizeSftpPath(widget.initialPath);
       _busyPaths.clear();
       _reload();
     }
     if (oldWidget.fileActions != widget.fileActions) {
+      _locationRevision++;
       unawaited(_fileActionSubscription?.cancel());
       unawaited(_busySubscription?.cancel());
       _listenForFileActionEvents();
@@ -444,7 +491,19 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
       if (!mounted || event.sessionId != widget.target.operationScopeId) {
         return;
       }
-      _showMessage(event.message);
+      final name = event.remotePath.split('/').last;
+      _showMessage(switch (event.kind) {
+        SftpFileActionEventKind.downloaded => context.l10n.sftpDownloaded(name),
+        SftpFileActionEventKind.editOpened => context.l10n.sftpEditingLocally(
+          name,
+        ),
+        SftpFileActionEventKind.uploaded => context.l10n.sftpUploaded(name),
+        SftpFileActionEventKind.failed => event.message,
+      });
+      if (event.kind == SftpFileActionEventKind.uploaded &&
+          _parentSftpPath(event.remotePath) == _path) {
+        _refresh();
+      }
     });
     _busySubscription = widget.fileActions.busyEvents.listen((event) {
       if (!mounted || event.sessionId != widget.target.operationScopeId) {
@@ -487,6 +546,7 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
   @override
   void dispose() {
     _loadOperation?.cancel();
+    _directoryClickGuard?.cancel();
     unawaited(_fileActionSubscription?.cancel());
     unawaited(_busySubscription?.cancel());
     super.dispose();
@@ -496,14 +556,36 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
     setState(_reload);
   }
 
+  int _locationRevision = 0;
+  Timer? _directoryClickGuard;
+
+  void _openDirectory(String name) {
+    if (_directoryClickGuard?.isActive ?? false) return;
+    _directoryClickGuard = Timer(const Duration(milliseconds: 500), () {});
+    _openPath(_childSftpPath(_path, name));
+  }
+
+  bool _locationIsCurrent(int revision) =>
+      mounted && revision == _locationRevision;
+
+  void _requireLocation(int revision) {
+    if (!_locationIsCurrent(revision)) {
+      throw const SftpDirectoryUnavailableException(
+        'The remote location changed. Start the action again.',
+      );
+    }
+  }
+
   void _openPath(String path) {
     setState(() {
+      _locationRevision++;
       _path = _normalizeSftpPath(path);
       _reload();
     });
   }
 
   Future<void> _downloadFile(SftpDirectoryEntry entry) async {
+    final revision = _locationRevision;
     final target = widget.target;
     final directory = _path;
     final dataSource = _fileDataSource;
@@ -516,13 +598,16 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
         sessionId: target.operationScopeId,
         remotePath: remotePath,
         suggestedName: entry.name,
-        download: (localPath) => dataSource.downloadFile(
-          SftpFileTransferRequest(
-            target: target,
-            remotePath: remotePath,
-            localPath: localPath,
-          ),
-        ),
+        download: (localPath) {
+          _requireLocation(revision);
+          return dataSource.downloadFile(
+            SftpFileTransferRequest(
+              target: target,
+              remotePath: remotePath,
+              localPath: localPath,
+            ),
+          );
+        },
       );
     });
   }
@@ -583,6 +668,7 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
     if (overlay is! RenderBox) {
       return;
     }
+    final revision = _locationRevision;
     final remotePath = _childSftpPath(_path, entry.name);
     final isBusy = widget.fileActions.isRemotePathBusy(
       widget.target.operationScopeId,
@@ -626,7 +712,7 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
           ),
       ],
     );
-    if (!mounted || action == null) {
+    if (!_locationIsCurrent(revision) || action == null) {
       return;
     }
     switch (action) {
@@ -645,94 +731,130 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
   }
 
   Future<void> _createDirectory() async {
+    final revision = _locationRevision;
     final target = widget.target;
     final directory = _path;
     final dataSource = _fileDataSource;
     if (dataSource == null) {
       return;
     }
-    final name = await _promptForDirectoryName();
-    if (!mounted || name == null) {
-      return;
-    }
-    final remotePath = _childSftpPath(directory, name);
-    try {
-      await widget.fileActions.runRemoteOperation(
-        sessionId: target.operationScopeId,
-        remotePath: remotePath,
-        operation: () => dataSource.createDirectory(
-          SftpEntryMutationRequest(
-            target: target,
+    final l10n = context.l10n;
+    await _promptForDirectoryName(
+      create: (name) async {
+        if (!_locationIsCurrent(revision)) {
+          return l10n.sftpLocationChanged;
+        }
+        final remotePath = _childSftpPath(directory, name);
+        try {
+          await widget.fileActions.runRemoteOperation(
+            sessionId: target.operationScopeId,
             remotePath: remotePath,
-            isDirectory: true,
-          ),
-        ),
-      );
-      if (mounted) {
-        _showMessage(context.l10n.createdNamedItem(name));
-        _refresh();
-      }
-    } on Object {
-      if (mounted) {
-        _showMessage(context.l10n.couldNotCreateNamedItem(name));
-      }
-    }
-  }
-
-  Future<String?> _promptForDirectoryName() async {
-    var name = '';
-    String? validationMessage;
-    final result = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              title: Text(context.l10n.createDirectory),
-              content: TextField(
-                key: const Key('sftp-create-directory-name'),
-                autofocus: true,
-                decoration: InputDecoration(
-                  labelText: context.l10n.name,
-                  errorText: validationMessage,
+            operation: () {
+              _requireLocation(revision);
+              return dataSource.createDirectory(
+                SftpEntryMutationRequest(
+                  target: target,
+                  remotePath: remotePath,
+                  isDirectory: true,
                 ),
-                onSubmitted: (value) {
-                  final error = _directoryNameError(value);
-                  if (error != null) {
-                    setDialogState(() => validationMessage = error);
-                    return;
-                  }
-                  Navigator.of(dialogContext).pop(value.trim());
-                },
-                onChanged: (value) => name = value,
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: Text(context.l10n.cancel),
-                ),
-                FilledButton(
-                  key: const Key('sftp-create-directory-confirm'),
-                  onPressed: () {
-                    final error = _directoryNameError(name);
-                    if (error != null) {
-                      setDialogState(() => validationMessage = error);
-                      return;
-                    }
-                    Navigator.of(dialogContext).pop(name.trim());
-                  },
-                  child: Text(context.l10n.create),
-                ),
-              ],
-            );
-          },
-        );
+              );
+            },
+          );
+          if (_locationIsCurrent(revision)) {
+            _showMessage(l10n.createdNamedItem(name));
+            _refresh();
+          }
+          return null;
+        } on Object {
+          return mounted ? l10n.sftpCreateFailed(name) : '';
+        }
       },
     );
-    return result;
+  }
+
+  Future<void> _promptForDirectoryName({
+    required Future<String?> Function(String) create,
+  }) async {
+    var name = '';
+    var submitting = false;
+    String? validationMessage;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          Future<void> submit() async {
+            if (submitting) return;
+            if (_directoryNameError(name) != null) {
+              setDialogState(
+                () => validationMessage = context.l10n.sftpValidDirectoryName,
+              );
+              return;
+            }
+            setDialogState(() {
+              submitting = true;
+              validationMessage = null;
+            });
+            final error = await create(name.trim());
+            if (!dialogContext.mounted) return;
+            if (error == null) {
+              Navigator.of(dialogContext).pop();
+            } else {
+              setDialogState(() {
+                submitting = false;
+                validationMessage = error;
+              });
+            }
+          }
+
+          return AlertDialog(
+            title: Text(context.l10n.createDirectory),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  key: const Key('sftp-create-directory-name'),
+                  autofocus: true,
+                  enabled: !submitting,
+                  decoration: InputDecoration(labelText: context.l10n.name),
+                  onSubmitted: (_) => submit(),
+                  onChanged: (value) => setDialogState(() {
+                    name = value;
+                    validationMessage = null;
+                  }),
+                ),
+                if (validationMessage != null)
+                  Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      validationMessage!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: submitting
+                    ? null
+                    : () => Navigator.of(dialogContext).pop(),
+                child: Text(context.l10n.cancel),
+              ),
+              FilledButton(
+                key: const Key('sftp-create-directory-confirm'),
+                onPressed: submitting || name.trim().isEmpty ? null : submit,
+                child: Text(context.l10n.create),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 
   Future<void> _deleteEntry(SftpDirectoryEntry entry) async {
+    final revision = _locationRevision;
     final target = widget.target;
     final directory = _path;
     final dataSource = _fileDataSource;
@@ -761,7 +883,7 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
         ],
       ),
     );
-    if (!mounted || confirmed != true) {
+    if (!_locationIsCurrent(revision) || confirmed != true) {
       return;
     }
     final remotePath = _childSftpPath(directory, entry.name);
@@ -769,20 +891,23 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
       await widget.fileActions.runRemoteOperation(
         sessionId: target.operationScopeId,
         remotePath: remotePath,
-        operation: () => dataSource.deleteEntry(
-          SftpEntryMutationRequest(
-            target: target,
-            remotePath: remotePath,
-            isDirectory: entry.isDirectory,
-          ),
-        ),
+        operation: () {
+          _requireLocation(revision);
+          return dataSource.deleteEntry(
+            SftpEntryMutationRequest(
+              target: target,
+              remotePath: remotePath,
+              isDirectory: entry.isDirectory,
+            ),
+          );
+        },
       );
-      if (mounted) {
+      if (mounted && _locationIsCurrent(revision)) {
         _showMessage(context.l10n.deletedNamedItem(entry.name));
         _refresh();
       }
     } on Object {
-      if (mounted) {
+      if (mounted && _locationIsCurrent(revision)) {
         _showMessage(context.l10n.couldNotDeleteNamedItem(entry.name));
       }
     }
@@ -844,13 +969,16 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
                         if (snapshot.hasError) {
                           return _SftpErrorState(
                             error: snapshot.error!,
+                            path: _path,
                             onRetry: _refresh,
                           );
                         }
                         return _SftpDirectoryList(
                           snapshot: snapshot.requireData,
-                          onOpenDirectory: (name) =>
-                              _openPath(_childSftpPath(_path, name)),
+                          onCreateDirectory: _fileDataSource == null
+                              ? null
+                              : _createDirectory,
+                          onOpenDirectory: _openDirectory,
                           onDownloadFile: _downloadFile,
                           onShowContextMenu: _showEntryMenu,
                           busyPaths: _busyPaths,
@@ -860,6 +988,10 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
                                 remotePath,
                               ),
                           parentPath: _path,
+                          highlightedName:
+                              _path == _normalizeSftpPath(widget.initialPath)
+                              ? widget.highlightedName
+                              : null,
                         );
                       },
                     ),
@@ -895,6 +1027,9 @@ class _SftpPanelHeader extends StatelessWidget {
       onPressed: onClose,
       icon: Icon(
         mobile ? Icons.arrow_back_ios_new_rounded : Icons.close_rounded,
+        semanticLabel: mobile
+            ? context.l10n.mobileBack
+            : context.l10n.closeSftpPanel,
       ),
     );
     if (mobile) {
@@ -958,7 +1093,7 @@ class _SftpPanelHeader extends StatelessWidget {
                 ],
               ),
             ),
-            if (mobile && onCreateDirectory != null)
+            if (onCreateDirectory != null)
               IconButton(
                 key: const Key('sftp-create-folder'),
                 tooltip: context.l10n.createDirectory,
@@ -995,20 +1130,22 @@ class _SftpPathToolbar extends StatelessWidget {
         padding: EdgeInsets.symmetric(horizontal: palette.spacing.sm),
         child: Row(
           children: [
-            Tooltip(
-              message: context.l10n.remoteRoot,
-              child: IconButton(
-                key: const Key('sftp-go-root'),
-                onPressed: onGoHome,
-                icon: const Icon(Icons.home_outlined),
+            IconButton(
+              key: const Key('sftp-go-root'),
+              tooltip: context.l10n.remoteRoot,
+              onPressed: onGoHome,
+              icon: Icon(
+                Icons.home_outlined,
+                semanticLabel: context.l10n.remoteRoot,
               ),
             ),
-            Tooltip(
-              message: context.l10n.parentDirectory,
-              child: IconButton(
-                key: const Key('sftp-go-up'),
-                onPressed: onGoUp,
-                icon: const Icon(Icons.arrow_upward_rounded),
+            IconButton(
+              key: const Key('sftp-go-up'),
+              tooltip: context.l10n.parentDirectory,
+              onPressed: onGoUp,
+              icon: Icon(
+                Icons.arrow_upward_rounded,
+                semanticLabel: context.l10n.parentDirectory,
               ),
             ),
             SizedBox(width: palette.spacing.xs),
@@ -1026,12 +1163,13 @@ class _SftpPathToolbar extends StatelessWidget {
                 ),
               ),
             ),
-            Tooltip(
-              message: context.l10n.refreshRemoteDirectory,
-              child: IconButton(
-                key: const Key('sftp-refresh'),
-                onPressed: onRefresh,
-                icon: const Icon(Icons.refresh_rounded),
+            IconButton(
+              key: const Key('sftp-refresh'),
+              tooltip: context.l10n.refreshRemoteDirectory,
+              onPressed: onRefresh,
+              icon: Icon(
+                Icons.refresh_rounded,
+                semanticLabel: context.l10n.refreshRemoteDirectory,
               ),
             ),
           ],
@@ -1063,7 +1201,13 @@ class _SftpLoadingState extends StatelessWidget {
 }
 
 class _SftpErrorState extends StatelessWidget {
-  const _SftpErrorState({required this.error, required this.onRetry});
+  const _SftpErrorState({
+    required this.error,
+    required this.path,
+    required this.onRetry,
+  });
+
+  final String path;
 
   final Object error;
   final VoidCallback onRetry;
@@ -1071,9 +1215,7 @@ class _SftpErrorState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.appTheme;
-    final message = error is SftpDirectoryUnavailableException
-        ? (error as SftpDirectoryUnavailableException).message
-        : context.l10n.unableLoadRemoteDirectory;
+    final message = context.l10n.sftpDirectoryReadFailed(path);
     return Center(
       child: SingleChildScrollView(
         padding: EdgeInsets.symmetric(horizontal: palette.spacing.xxl),
@@ -1121,8 +1263,11 @@ class _SftpDirectoryList extends StatelessWidget {
     required this.busyPaths,
     required this.isRemotePathBusy,
     required this.parentPath,
+    this.highlightedName,
+    this.onCreateDirectory,
   });
 
+  final VoidCallback? onCreateDirectory;
   final SftpDirectorySnapshot snapshot;
   final ValueChanged<String> onOpenDirectory;
   final ValueChanged<SftpDirectoryEntry> onDownloadFile;
@@ -1131,6 +1276,7 @@ class _SftpDirectoryList extends StatelessWidget {
   final Set<String> busyPaths;
   final bool Function(String remotePath) isRemotePathBusy;
   final String parentPath;
+  final String? highlightedName;
 
   @override
   Widget build(BuildContext context) {
@@ -1142,7 +1288,29 @@ class _SftpDirectoryList extends StatelessWidget {
         return left.name.toLowerCase().compareTo(right.name.toLowerCase());
       });
     if (entries.isEmpty) {
-      return Center(child: Text(context.l10n.remoteDirectoryEmpty));
+      return Center(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.all(context.appTheme.spacing.lg),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                context.l10n.remoteDirectoryEmpty,
+                textAlign: TextAlign.center,
+              ),
+              if (onCreateDirectory != null) ...[
+                SizedBox(height: context.appTheme.spacing.md),
+                TextButton.icon(
+                  key: const Key('sftp-empty-create-directory'),
+                  onPressed: onCreateDirectory,
+                  icon: const Icon(Icons.create_new_folder_outlined),
+                  label: Text(context.l10n.createDirectory),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
     }
     return Scrollbar(
       child: ListView.separated(
@@ -1155,6 +1323,7 @@ class _SftpDirectoryList extends StatelessWidget {
           final remotePath = _childSftpPath(parentPath, entry.name);
           return _SftpDirectoryRow(
             entry: entry,
+            highlighted: entry.name == highlightedName,
             busy:
                 busyPaths.contains(remotePath) || isRemotePathBusy(remotePath),
             onOpen: () {
@@ -1175,12 +1344,14 @@ class _SftpDirectoryList extends StatelessWidget {
 class _SftpDirectoryRow extends StatelessWidget {
   const _SftpDirectoryRow({
     required this.entry,
+    required this.highlighted,
     required this.busy,
     required this.onOpen,
     required this.onShowContextMenu,
   });
 
   final SftpDirectoryEntry entry;
+  final bool highlighted;
   final bool busy;
   final VoidCallback onOpen;
   final ValueChanged<Offset> onShowContextMenu;
@@ -1208,25 +1379,32 @@ class _SftpDirectoryRow extends StatelessWidget {
       if (entry.sizeBytes case final size?) _formatByteSize(size),
       ?entry.permissions,
     ].join('  ');
-    return Semantics(
-      button: true,
+    final row = Semantics(
       label: context.l10n.remoteEntrySemantics(
         entry.isDirectory ? context.l10n.folder : context.l10n.file,
         entry.name,
       ),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
+        onTap: busy
+            ? null
+            : mobile && entry.isFile
+            ? showMenu
+            : onOpen,
         onSecondaryTapDown: (details) =>
             onShowContextMenu(details.globalPosition),
         child: ListTile(
           key: ValueKey('sftp-entry-${entry.name}'),
           dense: !mobile,
+          selected: highlighted,
+          selectedTileColor: palette.selected,
           enabled: !busy,
           minTileHeight: context.adaptiveControlHeight(42),
           contentPadding: EdgeInsets.symmetric(horizontal: palette.spacing.lg),
           leading: Icon(icon, size: 19, color: palette.accent),
           title: Text(
             entry.name,
+            semanticsLabel: '',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: Theme.of(
@@ -1272,6 +1450,7 @@ class _SftpDirectoryRow extends StatelessWidget {
         ),
       ),
     );
+    return mobile ? row : MergeSemantics(child: row);
   }
 }
 

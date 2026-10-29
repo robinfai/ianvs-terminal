@@ -54,6 +54,28 @@ CompletionEdit candidate(CompletionQuery query, String text) => CompletionEdit(
 );
 
 void main() {
+  test(
+    'published completion candidates are frozen against provider list mutation',
+    () async {
+      final supplied = <CompletionEdit>[];
+      final model = create(
+        provider: (query, _) async {
+          supplied.add(candidate(query, 'echo safe'));
+          return CompletionBatch(query, supplied);
+        },
+      );
+      addTearDown(model.dispose);
+      ready(model);
+      model.requestCompletions();
+      await settleQuery();
+      supplied
+        ..clear()
+        ..add(candidate(model.snapshot, 'echo replaced'));
+      expect(model.items.single.newText, 'echo safe');
+      expect(() => model.items.clear(), throwsUnsupportedError);
+    },
+  );
+
   test('document reset isolates undo and history across tasks', () {
     final model = create(text: 'old draft');
     addTearDown(model.dispose);

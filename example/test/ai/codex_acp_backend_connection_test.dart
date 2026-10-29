@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:app/features/ai/acp/acp_environment.dart';
 import 'package:app/features/ai/acp/agent_backend.dart';
@@ -9,6 +10,8 @@ import 'package:app/features/ai/ai_models.dart';
 import 'package:app/features/ai/ai_settings.dart';
 import 'package:app/features/ai/terminal_ai_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_pty/ianvs_pty.dart' show NativePtyBackend;
+import 'package:ianvs_terminal/ianvs_terminal.dart';
 
 import 'terminal_ai_test.dart' show FakeTerminal, MemoryAiStore;
 
@@ -191,6 +194,195 @@ Future<void> _probeOldBridge(Map<String, Object?> bridge) async {
 }
 
 void main() {
+  test(
+    'sparse ACP permission reaches host review without executing before approval',
+    () async {
+      final fixture = await Directory.systemTemp.createTemp(
+        'trail-acp-permission-',
+      );
+      final authentication = File('${fixture.path}/auth.json');
+      await authentication.writeAsString('{"fixture":true}');
+      final observer = _ProtocolObserver(
+        await HttpServer.bind(InternetAddress.loopbackIPv4, 0),
+      );
+      final configuration = AiConfiguration.acp(
+        agentCommand: _dart(),
+        agentArguments: [
+          File('test/fixtures/acp_connection_agent.dart').absolute.path,
+          observer.uri.toString(),
+        ],
+        model: 'fixture-model',
+      );
+      try {
+        await IOOverrides.runWithIOOverrides(() async {
+          final backend = _ObservedBackend(CodexAcpBackend(configuration));
+          final settings = AiSettingsController(MemoryAiStore(configuration));
+          await settings.loaded;
+          final terminal = FakeTerminal();
+          final controller = TerminalAiController(
+            settings: settings,
+            terminal: terminal,
+            agentFactory: (_) => backend,
+          );
+          try {
+            await controller
+                .ask('sparse-permission-fixture')
+                .timeout(const Duration(seconds: 15));
+            expect(controller.error, isNull);
+            expect(controller.pending?.command, 'ls');
+            expect(controller.canApprove, isTrue);
+            expect(terminal.writes, isEmpty);
+            expect(
+              controller.transcript.where(
+                (entry) => entry.state == AiEntryState.proposed,
+              ),
+              hasLength(1),
+            );
+            await controller
+                .approve(revision: controller.proposalRevision)
+                .timeout(const Duration(seconds: 15));
+            expect(await backend.settled.single.future, isNull);
+            expect(terminal.writes, hasLength(1));
+            expect(terminal.writes.single.command, 'ls');
+            expect(controller.pending, isNull);
+          } finally {
+            controller.dispose();
+            await backend.dispose();
+            settings.dispose();
+            terminal.dispose();
+          }
+        }, _SyntheticAuthentication(authentication.path));
+      } finally {
+        await observer.dispose();
+        await fixture.delete(recursive: true);
+      }
+    },
+  );
+
+  test(
+    'shared native runtime preserves isolation and coexists with native PTY',
+    () async {
+      final fixture = await Directory.systemTemp.createTemp(
+        'trail-acp-native-test-',
+      );
+      final authentication = File('${fixture.path}/synthetic-auth.json');
+      await authentication.writeAsString('{"fixture":true}');
+      final observer = _ProtocolObserver(
+        await HttpServer.bind(InternetAddress.loopbackIPv4, 0),
+      );
+      final terminalExit = Completer<int?>();
+      final terminal = TerminalRuntimeController(
+        backend: NativePtyBackend.load(),
+        copyToClipboard: (_) async {},
+        readClipboard: () async => '',
+        beforeSessionCloseOnExitSignal: (signal) {
+          if (!terminalExit.isCompleted) terminalExit.complete(signal.exitCode);
+          return const TerminalSessionPreCloseOutcome.allowClose();
+        },
+      );
+      final terminalSession = terminal.createSession(
+        const TerminalSessionConfig(
+          launch: TerminalLaunchConfig(
+            program: '/bin/sh',
+            args: [
+              '-c',
+              r'printf "PTY_READY\n"; read value; printf "PTY_DONE:%s\n" "$value"; exit 0',
+            ],
+          ),
+        ),
+        retainExitCodes: {0},
+      );
+      final configuration = AiConfiguration.acp(
+        agentCommand: _dart(),
+        agentArguments: [
+          File('test/fixtures/acp_connection_agent.dart').absolute.path,
+          observer.uri.toString(),
+        ],
+        model: 'fixture-model',
+      );
+      try {
+        await IOOverrides.runWithIOOverrides(() async {
+          final backend = CodexAcpBackend(configuration);
+          final events = <Map<String, Object?>>[];
+          try {
+            await backend
+                .prompt(
+                  'Hello',
+                  tools: (_, _) async => throw StateError('Unexpected tool'),
+                  events: events.add,
+                  cancellation: AiCancellation(),
+                )
+                .timeout(const Duration(seconds: 15));
+            final deadline = DateTime.now().add(const Duration(seconds: 5));
+            while (!terminal
+                .viewportFor(terminalSession)
+                .frame
+                .rows
+                .any((r) => r.text.contains('PTY_READY'))) {
+              if (DateTime.now().isAfter(deadline)) {
+                fail('Native PTY did not produce output alongside ACP');
+              }
+              await Future<void>.delayed(const Duration(milliseconds: 10));
+            }
+            terminal.sendInput(
+              terminalSession,
+              Uint8List.fromList(utf8.encode('coexist\n')),
+            );
+            expect(
+              await terminalExit.future.timeout(const Duration(seconds: 5)),
+              0,
+            );
+            // The agent remains usable after the other native runtime reaps a child.
+            await backend.prompt(
+              'Again',
+              tools: (_, _) async => throw StateError('Unexpected tool'),
+              events: (_) {},
+              cancellation: AiCancellation(),
+            );
+            final initialized = observer.requests.firstWhere(
+              (r) => r['method'] == 'initialize',
+            );
+            expect(initialized['isolatedHome'], isTrue);
+            expect(initialized['hostOnlyLeaked'], isFalse);
+            expect(initialized['authMode'], 384);
+            expect(
+              initialized['profile'],
+              CodexAcpBackend.profile('fixture-model'),
+            );
+            final capabilities =
+                (initialized['params']! as Map)['clientCapabilities'] as Map;
+            expect(capabilities['terminal'], isNot(true));
+            final bridge = observer.bridgeFor(initialized['pid']! as int)!;
+            expect(bridge['name'], 'trail_terminal');
+            expect(
+              (bridge['headers']! as List).single,
+              containsPair('name', 'Authorization'),
+            );
+            expect(
+              events.any((e) => e['sessionUpdate'] == 'agent_message_chunk'),
+              isTrue,
+            );
+            final complete = events.singleWhere(
+              (e) => e['sessionUpdate'] == 'trail_complete',
+            );
+            expect(
+              ((complete['_meta']! as Map)['quota'] as Map)['model_usage'],
+              [
+                {'model': 'fixture-model'},
+              ],
+            );
+          } finally {
+            await backend.dispose();
+          }
+        }, _SyntheticAuthentication(authentication.path));
+      } finally {
+        terminal.dispose();
+        await observer.dispose();
+        await fixture.delete(recursive: true);
+      }
+    },
+  );
+
   group('ACP connection cancellation', () {
     for (final stage in [
       'initialize',
@@ -256,7 +448,17 @@ void main() {
                 final interruptedIndex = backend.settled.length;
                 final updatesBefore = backend.updates.length;
                 final asked = controller.ask(original);
-                await gate.reached.future.timeout(const Duration(seconds: 5));
+                await gate.reached.future.timeout(
+                  const Duration(seconds: 5),
+                  onTimeout: () async {
+                    final failure = backend.settled.isEmpty
+                        ? 'not started'
+                        : await backend.settled.last.future;
+                    throw StateError(
+                      'No $stage: controller=${controller.error}, backend=$failure, requests=${observer.requests}',
+                    );
+                  },
+                );
                 final oldBridge = observer.bridgeFor(gate.processId!);
                 await expectLater(
                   backend.backend.prompt(

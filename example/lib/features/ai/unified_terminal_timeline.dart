@@ -13,11 +13,13 @@ class UnifiedTerminalTimeline extends StatefulWidget {
     required this.builder,
     this.globalBlockIds = false,
     this.blockItemBuilder,
+    this.includeBlock,
     super.key,
   });
   final CommandBlockController controller;
   final String taskId;
   final bool globalBlockIds;
+  final bool Function(CommandBlock)? includeBlock;
   final CommandBlockTimelineItem Function(CommandBlock)? blockItemBuilder;
   final String sourceSessionId;
   final List<CommandBlockTimelineItem> items;
@@ -47,7 +49,9 @@ class _UnifiedTerminalTimelineState extends State<UnifiedTerminalTimeline> {
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: widget.controller,
     builder: (_, _) {
-      final blocks = widget.controller.blocks;
+      final blocks = widget.controller.blocks
+          .where((block) => widget.includeBlock?.call(block) ?? true)
+          .toList();
       final taskItems = widget.items
           .where((item) => item.id != 'empty')
           .toList();
@@ -66,7 +70,9 @@ class _UnifiedTerminalTimelineState extends State<UnifiedTerminalTimeline> {
           () => _initialized ? taskItems.lastOrNull?.id : null,
         );
       }
-      if (blocks.isNotEmpty) _initialized = true;
+      // An empty initial history is still an observed baseline. The first
+      // live block belongs after the current conversation, not before it.
+      _initialized = true;
       final byAnchor = <String?, List<CommandBlockTimelineItem>>{};
       for (final block in blocks) {
         if (referenced.contains(block.id)) continue;
