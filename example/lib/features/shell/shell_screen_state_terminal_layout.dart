@@ -572,6 +572,26 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
       ),
     );
     final hasHoveredLink = _hoveredTerminalLinkSessionId == sessionId;
+    final showSearch =
+        isActive && _isSearchOpen && !_openAiSessions.contains(sessionId);
+    Widget buildSearchBar() => _TerminalSearchBar(
+      query: _searchQuery,
+      matches: _searchHits.length,
+      activeIndex: _activeSearchIndex,
+      searchScope: _searchScope,
+      searchMode: _searchMode,
+      errorText: _searchErrorText,
+      palette: palette,
+      focusNode: _searchFocusNode,
+      focusRequestSerial: _searchFocusRequestSerial,
+      onChanged: _searchScrollback,
+      onClear: _clearSearch,
+      onScopeChanged: _setSearchScope,
+      onModeChanged: _setSearchMode,
+      onPrevious: () => _moveSearchMatch(1),
+      onNext: () => _moveSearchMatch(-1),
+      onClose: _closeSearch,
+    );
     final paneView = LayoutBuilder(
       key: _paneDropTargetKey(activeTab.sessionId, sessionId),
       builder: (context, constraints) {
@@ -724,6 +744,11 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                       child: Column(
                         children: [
                           ?paneHeader,
+                          // Mobile search owns space above the terminal. Its
+                          // measured height also participates in PTY resizing,
+                          // so even the first row of a short buffer is visible.
+                          if (showSearch && context.usesMobileNavigation)
+                            buildSearchBar(),
                           if (pane.isExited &&
                               (context.usesMobileNavigation ||
                                   pane.profileSnapshot?.isSsh == true))
@@ -1088,9 +1113,8 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                         ),
                                       ),
                                     ?attentionBurst,
-                                    if (isActive &&
-                                        _isSearchOpen &&
-                                        !_openAiSessions.contains(sessionId))
+                                    if (showSearch &&
+                                        !context.usesMobileNavigation)
                                       Positioned(
                                         top: _ShellScreenState
                                             ._terminalOverlayPadding
@@ -1103,26 +1127,7 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                                             .right,
                                         child: Align(
                                           alignment: Alignment.topRight,
-                                          child: _TerminalSearchBar(
-                                            query: _searchQuery,
-                                            matches: _searchHits.length,
-                                            activeIndex: _activeSearchIndex,
-                                            searchScope: _searchScope,
-                                            searchMode: _searchMode,
-                                            errorText: _searchErrorText,
-                                            palette: palette,
-                                            focusNode: _searchFocusNode,
-                                            focusRequestSerial:
-                                                _searchFocusRequestSerial,
-                                            onChanged: _searchScrollback,
-                                            onClear: _clearSearch,
-                                            onScopeChanged: _setSearchScope,
-                                            onModeChanged: _setSearchMode,
-                                            onPrevious: () =>
-                                                _moveSearchMatch(1),
-                                            onNext: () => _moveSearchMatch(-1),
-                                            onClose: _closeSearch,
-                                          ),
+                                          child: buildSearchBar(),
                                         ),
                                       ),
 

@@ -482,6 +482,84 @@ Future<void> _showWorkspace(WidgetTester tester, String id) async {
 
 void main() {
   ConfigurationCaptureBinding();
+  for (final size in [const Size(390, 844), const Size(844, 390)]) {
+    testWidgets('mobile search reserves terminal space at $size', (
+      tester,
+    ) async {
+      final backend = _MobileBackend()..owner = 'ready';
+      final (:container, :id) = await _pump(
+        tester,
+        backend,
+        size: size,
+        brightness: Brightness.dark,
+        preference: TerminalViewMode.normal,
+      );
+      backend.setFrame(id, {
+        'rows': [
+          {'index': 0, 'text': 'MANUALQA'},
+          {'index': 1, 'text': 'cloud shell prompt'},
+        ],
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+      });
+      backend.setSearchMatches(id, 'MANUALQA', [
+        {'row': 0, 'start_col': 0, 'end_col': 8, 'text': 'MANUALQA'},
+      ]);
+      await _settle(tester);
+      final viewportFinder = find.byType(TerminalViewport).hitTestable();
+      final controller = tester
+          .widget<TerminalViewport>(viewportFinder)
+          .controller;
+      final originalTop = tester.getRect(viewportFinder).top;
+      await tester.tap(find.byKey(const Key('shell-search-scrollback-top')));
+      await _settle(tester);
+      await tester.enterText(
+        find.byKey(const Key('terminal-search-field')),
+        'MANUALQA',
+      );
+      await _settle(tester);
+      for (final keyboard in [
+        0.0,
+        if (size.width > size.height) 120.0 else 300.0,
+      ]) {
+        tester.view.viewInsets = FakeViewPadding(bottom: keyboard);
+        await _settle(tester);
+        final search = tester.getRect(
+          find.byKey(const Key('terminal-search-bar')),
+        );
+        final viewport = tester.getRect(viewportFinder);
+        expect(viewport.top, greaterThanOrEqualTo(search.bottom));
+        expect(viewport.height, greaterThan(20));
+        expect(viewport.bottom, lessThanOrEqualTo(size.height - keyboard));
+        expect(find.text('1/1'), findsOneWidget);
+        expect(
+          tester.widget<TerminalViewport>(viewportFinder).searchMatches,
+          hasLength(1),
+        );
+        await tester.tap(find.byKey(const Key('terminal-search-next')));
+        await _settle(tester);
+        expect(
+          tester.getRect(viewportFinder).top,
+          greaterThanOrEqualTo(search.bottom),
+        );
+        expect(tester.takeException(), isNull);
+      }
+      tester.view.viewInsets = FakeViewPadding.zero;
+      await tester.tap(find.byKey(const Key('terminal-search-close')));
+      await _settle(tester);
+      expect(find.byKey(const Key('terminal-search-bar')), findsNothing);
+      expect(tester.getRect(viewportFinder).top, originalTop);
+      expect(
+        tester.widget<TerminalViewport>(viewportFinder).controller,
+        same(controller),
+      );
+      expect(controller.frame.rows.first.text, 'MANUALQA');
+      expect(backend.writes, isEmpty);
+      expect(container.read(sessionControllerProvider).activeSessionId, id);
+      await tester.pumpWidget(const SizedBox.shrink());
+      debugDefaultTargetPlatformOverride = null;
+    });
+  }
   testWidgets(
     'late restart history switches Shell to archived native timeline',
     (tester) async {
