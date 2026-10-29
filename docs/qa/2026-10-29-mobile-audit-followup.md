@@ -70,3 +70,17 @@ M06 构建交付后仍待独立模拟器 UI 复验；真机未更新。截图继
 - 真实 AI 明确识别用户在批准前修改提案，正确说明执行的是 `printf M06_TEST12`，并表示没有重跑自己的原版本；未建议重跑原命令。
 
 证据：`/private/tmp/trail-mobile-audit-20261029/34-m06-twice-edited-review.png`、`35-m06-final-output.png`。M06 核心路径在该模拟器构建中通过 UI 与真实 AI 复验；不代表源码修订未知的旧版真机通过，也不保证所有模型和异常路径均已实测。M05 仍未进入安装包，保持待交付、未验收关闭。
+
+## 用户授权的真机原位更新（2026-10-29）
+
+用户明确授权更新真机后，仅对已连接的 iPhone 17 / iOS 27.0.1 执行同 bundle 原位安装：
+
+- 实际源码：`5a9ea63e0fa0d0a265da89b0eb50100fa72a7725`（含 `688b6982` 的 M06 和 M01–M04；后续文档提交不改变此次包来源）。
+- Bundle：`work.ianvs.trail`；安装前 0.1.0（1），安装后只读查询确认 **0.1.0（2）**。
+- 从隔离源码目录构建 Release 开发签名包，未混入工作区未提交的 iOS 工程或构建脚本改动。
+- 深度签名验证通过；团队为 `UT9BL9NZPG`，application-identifier 与 keychain-access-groups 均为 `UT9BL9NZPG.work.ianvs.trail`。有效 provisioning 包含目标设备，过期时间为 2026-11-05 05:58:29 UTC。
+- `devicectl` 原位安装成功，启动成功（PID 70660）。未卸载、未清除应用容器、未读取或修改 AI 配置/凭据。
+- 原连接及 AI 配置可用性仍交由独立黑盒评审从 UI 确认；安装成功不等于全部真机功能验收完成。
+- M05 未包含在本包，继续待交付，不发布上游其他未发布改动。
+
+安装包签名与 SHA256 指纹留存 `/private/tmp/trail-phone-update-package-verified.json`；安装、启动和安装后版本证据分别为 `/private/tmp/trail-phone-update-install.json`、`trail-phone-update-launch.json`、`trail-phone-update-after.json`。这些本机临时证据未作为长期附件随仓库提交。签名工具默认输出未能解析，改用 `--xml` 后正确读取并校验；未通过重新签名或放宽验证绕过检查。
