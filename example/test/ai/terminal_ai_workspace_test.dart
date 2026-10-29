@@ -1312,6 +1312,45 @@ void main() {
     );
   }
 
+  testWidgets('mobile editing stays in review and requires fresh approval', (
+    tester,
+  ) async {
+    await prepare();
+    await controller.ask('Inspect files');
+    await mount(tester, size: const Size(390, 700));
+    await tester.tap(find.byKey(const Key('ai-review-action')));
+    await tester.pumpAndSettle();
+    final oldRevision = controller.proposalRevision;
+    for (final command in ['printf TEST1', 'printf TEST2']) {
+      await tester.tap(find.byKey(const Key('ai-edit-action')));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('ai-edit-command')), command);
+      await tester.tap(find.byKey(const Key('ai-save-edit')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('ai-review-back')), findsOneWidget);
+      expect(find.byKey(const Key('ai-approve')).hitTestable(), findsOneWidget);
+      expect(
+        tester
+            .widget<SelectableText>(find.byKey(const Key('ai-action-preview')))
+            .data,
+        command,
+      );
+      expect(find.byKey(const Key('ai-user-edited-notice')), findsOneWidget);
+      expect(
+        find.textContaining('Original purpose (verify after editing)'),
+        findsOneWidget,
+      );
+      expect(terminal.writes, isEmpty);
+    }
+    await controller.approve(revision: oldRevision);
+    expect(terminal.writes, isEmpty);
+    api.respond = (_) async => const AiReply(text: 'Edited command observed');
+    await tester.tap(find.byKey(const Key('ai-approve')));
+    await tester.pumpAndSettle();
+    expect(terminal.writes.map((action) => action.command), ['printf TEST2']);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('editing requires a fresh revision and one approval sends once', (
     tester,
   ) async {

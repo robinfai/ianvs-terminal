@@ -1179,13 +1179,28 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
               TextSpan(
                 children: [
                   TextSpan(
-                    text: t('Purpose: ', '目的：'),
+                    text: entry.userEdited
+                        ? t(
+                            'Original purpose (verify after editing): ',
+                            '原始目的（修改后请核对）：',
+                          )
+                        : t('Purpose: ', '目的：'),
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                   TextSpan(text: action.reason),
                 ],
               ),
             ),
+            if (entry.userEdited) ...[
+              const SizedBox(height: 8),
+              Text(
+                t(
+                  'You edited this command. Review it again before running.',
+                  '命令已由你修改，请重新核对后再执行。',
+                ),
+                key: const Key('ai-user-edited-notice'),
+              ),
+            ],
             if (entry.approvalReview case final review?) ...[
               const SizedBox(height: 8),
               AiApprovalNotice(
@@ -1300,7 +1315,11 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
             current.state == AiEntryState.proposed,
       );
 
-  Widget _proposalActions(AiTranscriptEntry entry, {VoidCallback? close}) {
+  Widget _proposalActions(
+    AiTranscriptEntry entry, {
+    VoidCallback? close,
+    ValueChanged<AiTranscriptEntry>? onEdited,
+  }) {
     final taskId = c.taskId;
     final enabled = _canActOn(entry, taskId);
     return Wrap(
@@ -1313,7 +1332,9 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
             key: const Key('ai-edit-action'),
             onPressed: enabled
                 ? () {
-                    if (_canActOn(entry, taskId)) unawaited(_edit(entry));
+                    if (_canActOn(entry, taskId)) {
+                      unawaited(_edit(entry, onEdited: onEdited));
+                    }
                   }
                 : null,
             icon: const Icon(Icons.edit_outlined, size: 17),
@@ -1359,7 +1380,10 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     );
   }
 
-  Future<void> _edit(AiTranscriptEntry entry) async {
+  Future<void> _edit(
+    AiTranscriptEntry entry, {
+    ValueChanged<AiTranscriptEntry>? onEdited,
+  }) async {
     final taskId = c.taskId;
     if (!mounted || !_canActOn(entry, taskId)) return;
     final editor = TextEditingController(text: entry.action!.command);
@@ -1412,6 +1436,13 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                     return;
                   }
                   c.editPendingCommand(editor.text, revision: entry.revision);
+                  final replacement = c.transcript.lastOrNull;
+                  if (replacement != null &&
+                      replacement.userEdited &&
+                      replacement.revision == entry.revision + 1 &&
+                      _canActOn(replacement, taskId)) {
+                    onEdited?.call(replacement);
+                  }
                   Navigator.pop(dialogContext, editor.text);
                 } on AiFailure catch (failure) {
                   update(() => error = aiErrorText(failure.code, zh));
@@ -1441,23 +1472,30 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
       _workspaceFocus.requestFocus();
       return;
     }
+    var reviewedEntry = entry;
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
-        builder: (routeContext) => Scaffold(
-          appBar: AppBar(
-            title: Text(t('Review command', '审阅命令')),
-            leading: IconButton(
-              key: const Key('ai-review-back'),
-              tooltip: t('Return to task', '返回任务'),
-              onPressed: () => Navigator.pop(routeContext),
-              icon: const Icon(Icons.arrow_back),
+        builder: (routeContext) => StatefulBuilder(
+          builder: (routeContext, update) => Scaffold(
+            appBar: AppBar(
+              title: Text(t('Review command', '审阅命令')),
+              leading: IconButton(
+                key: const Key('ai-review-back'),
+                tooltip: t('Return to task', '返回任务'),
+                onPressed: () => Navigator.pop(routeContext),
+                icon: const Icon(Icons.arrow_back),
+              ),
             ),
-          ),
-          body: SafeArea(
-            child: ListenableBuilder(
-              listenable: c,
-              builder: (context, _) =>
-                  _reviewBody(entry, taskId, () => Navigator.pop(routeContext)),
+            body: SafeArea(
+              child: ListenableBuilder(
+                listenable: c,
+                builder: (context, _) => _reviewBody(
+                  reviewedEntry,
+                  taskId,
+                  () => Navigator.pop(routeContext),
+                  onEdited: (next) => update(() => reviewedEntry = next),
+                ),
+              ),
             ),
           ),
         ),
@@ -1474,8 +1512,9 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
   Widget _reviewBody(
     AiTranscriptEntry entry,
     String taskId,
-    VoidCallback close,
-  ) {
+    VoidCallback close, {
+    ValueChanged<AiTranscriptEntry>? onEdited,
+  }) {
     final current = c.taskId == taskId
         ? c.transcript.where((item) => item.id == entry.id).firstOrNull
         : null;
@@ -1523,7 +1562,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
         const Divider(height: 1),
         Padding(
           padding: const EdgeInsets.all(12),
-          child: _proposalActions(current, close: close),
+          child: _proposalActions(current, close: close, onEdited: onEdited),
         ),
       ],
     );
@@ -1561,6 +1600,9 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
               review.entry,
               review.taskId,
               _closeDesktopReview,
+              onEdited: (next) => setState(
+                () => _desktopReview = (taskId: review.taskId, entry: next),
+              ),
             ),
           ),
         ],

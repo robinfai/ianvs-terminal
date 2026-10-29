@@ -105,6 +105,7 @@ extension TerminalAiHistory on TerminalAiController {
     'submissionId': entry.submissionId,
     'blockId': entry.blockId,
     'statusReason': entry.statusReason,
+    'userEdited': entry.userEdited,
     'contexts': [for (final block in entry.contexts) _historyBlock(block)],
     'evidence': [
       for (final e in entry.suppliedEvidence ?? <AiEvidenceRange>[])
@@ -288,6 +289,7 @@ extension TerminalAiHistory on TerminalAiController {
       submissionId: data['submissionId'] as String?,
       blockId: data['blockId'] as String?,
       statusReason: data['statusReason'] as String?,
+      userEdited: data['userEdited'] == true,
       contexts: [
         for (final b in data['contexts'] as List? ?? [])
           _restoreHistoryBlock(b as Map),

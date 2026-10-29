@@ -247,6 +247,15 @@ void main() {
             .map((entry) => entry.state),
         [AiEntryState.revoked, AiEntryState.accepted],
       );
+      expect(_lastToolResult(api)['user_edited'], isTrue);
+      expect(_lastToolResult(api)['approval_source'], 'user_edited_proposal');
+      expect(
+        controller.transcript
+            .where((entry) => entry.state == AiEntryState.accepted)
+            .single
+            .userEdited,
+        isTrue,
+      );
       final approved = _lastToolResult(api)['approved_action']! as Map;
       final function = approved['function']! as Map;
       expect(
@@ -254,6 +263,20 @@ void main() {
         containsPair('command', 'touch edited'),
       );
       expect(_lastToolResult(api)['submission_id'], 'submission-1');
+      final restored = TerminalAiController(
+        settings: settings,
+        terminal: FakeTerminal(),
+        api: FakeApi(),
+      );
+      addTearDown(restored.dispose);
+      restored.restoreHistory(controller.exportHistory({}));
+      expect(
+        restored.transcript
+            .where((entry) => entry.state == AiEntryState.accepted)
+            .single
+            .userEdited,
+        isTrue,
+      );
     },
   );
 
