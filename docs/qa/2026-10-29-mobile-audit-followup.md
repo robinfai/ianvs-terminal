@@ -495,3 +495,9 @@ Terminal 移除根 pubspec 的 Markdown Git override，升级 chat 最低版本�
 隔离源码导出使用上述 hosted 依赖重跑 22 个文件，665 项测试全部通过；example 静态分析无问题。iOS Simulator debug **0.1.0（15）** 构建成功，bundle work.ianvs.trail、IOSSIMULATOR Mach-O 与严格签名校验通过。包 `/private/tmp/trail-mobile-qa-f1779096/example/build/ios/iphonesimulator/Runner.app`，报告 `/private/tmp/trail-build15-hosted-verified.json`；kernel_blob.bin SHA256 `743f9b083e9b484d3826588cb741f9b366c44a84f019bba5b8e11bd35fc73ac5`。本次未安装或清理用户数据。
 
 日志为 `/private/tmp/trail-final-hosted-{tests,analysis,build}.log`。构建提示 irondash_engine_context 和 super_native_extensions 尚不支持 iOS Swift Package Manager，目前通过 CocoaPods 回退构建成功。Build14 的交互证据不冒充 Build15 交互复验；M20 长回复摘要以及 M19 失败/ACP 界面的覆盖边界维持前述记录。Terminal 远端 PR/CI 与合并尚待完成。
+
+### Build 15 冒烟与 PR #24 首轮 CI 修复
+
+评审原位安装 Build15，未清理数据或保存凭据；SIMQA18 的表格、COPYQA123456789END、DONEQA18 正文保留，菜单纯文本摘要正常，M06 旧历史仍列出。截图 109-build15-hosted-history-table.png、110-build15-hosted-summary.png 位于独立 QA 目录。本次横滑未确认位移；临时 SSH 认证尝试未完成输入/环境隔离，不分类为产品回归，也不列通过。Build14 的横滑与复制证据单独保留。
+
+PR #24 初始提交 d49e6877 的 Example job（run 41067623924 / job 124103112964）3119 项通过，1 项架构检查失败：Shell 使用新增 recording_replay_navigation.dart，但测试的明确跨模块依赖清单漏登记。已在相同 hosted 环境复现相同异常；补登记该文件并说明 recording 拥有事件选择规则，未放宽目录级限制或删除拒绝未登记依赖的测试。修复后架构和录制导航共 14 项通过，格式检查通过。此次仅改测试清单与 QA 记录，Build15 产品源码未变；等待新提交远端 CI。

@@ -444,6 +444,8 @@ Iterable<File> _allowedShellExternalDependencies(Directory libDirectory) {
     'features/profiles/profiles_sheet.dart',
     'features/recording/local_session_recording_repository.dart',
     'features/recording/mobile_replay_player.dart',
+    // Shell consumes frame navigation; recording owns the event selection rule.
+    'features/recording/recording_replay_navigation.dart',
     'features/recording/recording_replay_search_index.dart',
     'features/recording/replay_viewport_layout.dart',
     'features/security/master_key_management.dart',
