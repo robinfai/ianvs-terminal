@@ -391,3 +391,9 @@ build 11 五列水果表短词硬断，证据 `95-build11-markdown-table-code.pn
 本线程核对回补仓库 `/private/tmp/ianvs-m18-backport-validation` 干净且提交正确；新补丁 `docs/qa/patches/m18-markdown-bounded-tables.patch` SHA256 为 `b04ab428dadfe0f6a0742fcbb2ac6842346d74fbcf7fa2f06a077106681cc4c3`。旧 readable-tables 补丁仅为已否决方案记录，不再使用。
 
 隔离 QA override 已指向上述修正版。本线程实际执行 Terminal 19 项消费者测试全部通过，包括五列表短词不拆行、末列横向可达、真实 ChatMessageBody 链接与长中英文内容保持有界、M05 编号和手机/桌面消息布局。用例快照已更新。接下来重建 build 12，仅用于隔离真机验收；主仓库正式依赖仍未切换，未推送、合并或发布。
+
+### 修正版 Build 12 包就绪，尚未安装
+
+使用 Terminal `5d80505525ed83b8e6a1b7c5248234dd0fb7c169` 与实际本地 Markdown override `3b70a20107b52b4a268851f3b1f5ccb986aaced6` 重建 **0.1.0（12）**，已替代此前暂停的 intrinsic 候选。实际 package_config 路径、依赖干净提交和补丁 SHA256 均核验；包代码签名、应用/钥匙串身份和指定 iPhone 授权通过。报告 `/private/tmp/trail-build12-package-verified.json` 完整记录来源、基线及哈希。
+
+包 `/private/tmp/trail-mobile-qa-f1779096/example/build/ios/iphoneos/Runner.app`，App.framework/App SHA256 `e9b6078089ff350f0a89c9083ba5d9cf54ee4e6fd75d6c969a159c93782fcbb3`。已交评审核对设备状态后复验，当前未安装，真机仍 build 11。M18 真机结果与正式逐层发布接入尚待完成；未推送、合并或发布。
