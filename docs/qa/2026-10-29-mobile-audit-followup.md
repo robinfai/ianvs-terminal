@@ -437,3 +437,15 @@ Terminal 源码 `0d24b892868754ee740401c43153aa368152723e`（包含 M19 `2b4aaa8
 完整 iOS release 编译成功，**0.1.0（13）** Apple Development 签名、Team/应用标识/钥匙串组、指定 iPhone provisioning 授权校验通过。包 `/private/tmp/trail-mobile-qa-f1779096/example/build/ios/iphoneos/Runner.app`；准确元数据 `/private/tmp/trail-build13-package-verified.json`；构建日志 `/private/tmp/trail-build13-build.log`。App.framework/App SHA256 为 `7b7ed7508d2cba4deb73ace53be96d23b55fbae4a262d8bfa832f9163ef6e76a`。
 
 未安装、卸载、清数据或改凭据，待评审确认设备状态后原位更新，真机当前仍 build 12。M18/M19 真机验收未完成，ACP 点击仅自动测试覆盖。本地 override 仍仅为 QA 来源，不代表正式逐层依赖升级；未推送、合并或发布。
+
+### Build 13 真机更新：M19 原路径通过，M18 与复制覆盖边界
+
+评审核对 App.framework 哈希 `7b7ed750…` 后原位安装成功。恢复 LINKQA18 点击 Example，系统 Safari 成功打开 example.com（`101-build13-link-open.png`），再前台启动 Trail，任务完整（103）。Safari 顶部返回点击在镜像未生效，实际通过 devicectl 前台启动返回，不能声称顶部返回手势通过。后台 SSH 曾断开，重连恢复，原因未在本轮定位。M19 原始点击打开路径通过；失败提示、ACP 分支仍仅自动测试，未真机构造失败。
+
+M18 紧凑表格初始完整显示 Fruit/Color/Taste/Season 四列，短词完整，Origin 需横滑（`104-build13-compact-table.png`）；链接及中文长段落仍正常渲染。用户手指横滑至末列的人工证据来自 build 12，build 13 尚未重新人工复核，不迁移为本版实测。代码复制仍待手机本地粘贴，本轮不列复制缺陷。
+
+### 候选 M20 [P3]：任务菜单摘要暴露内部截断标记和 Markdown 语法
+
+评审在 LINKQA18/RENDERQA18 菜单摘要观察到 `[earlier content omitted]` 与原始表格竖线。只读核查确认：tasks.preview 仅压缩空白，随后调用模型上下文用途的 boundedAiText(160)；该函数保留尾部并添加英文内部截断标记。故属于摘要展示缺陷，不是正文丢失。
+
+建议后续采用独立的展示摘要转换：Markdown 转简洁纯文本、保留可辨识的消息开头并用省略号截断，避免复用模型上下文截断规则；不改变原始正文或发送给模型的历史。本轮仅评估记录，未修改实现或构建新包。M18 剩余回归仍开放，未推送、合并或发布。
