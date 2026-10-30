@@ -457,3 +457,11 @@ M18 紧凑表格初始完整显示 Fruit/Color/Taste/Season 四列，短词完�
 直接声明已解析的 characters 1.4.1 与 markdown 7.3.1 依赖，未升级共享 Markdown 渲染包或修改正式 override。仅生成展示字段，原始 transcript、持久化正文和模型历史逻辑不变。
 
 53 项摘要、手机和历史回归测试通过：覆盖表格、链接、长文本/emoji、内部标记、同名任务可区分，以及生成摘要前后 exportHistory 完全一致；example 静态分析无问题。M20 真机仍待后续合包，本轮未构建安装、推送或合并。
+
+### 用户调整验收平台：Build 14 Simulator 包交付
+
+用户明确后续布局、摘要、链接、复制及 AI 主流程优先模拟器，仅硬件/系统差异保留真机。已完成的 build 14 真机编译产物仅保留未安装；随后构建 **iOS Simulator debug 0.1.0（14）**，包含 M20、M19 和 M18 紧凑回补。
+
+包 `/private/tmp/trail-mobile-qa-f1779096/example/build/ios/iphonesimulator/Runner.app`；元数据 `/private/tmp/trail-build14-simulator-verified.json`；日志 `/private/tmp/trail-build14-simulator-build.log`。已核验 bundle `work.ianvs.trail`、Info.plist 平台和 Mach-O 均为模拟器、签名完整及二进制哈希。debug Dart 资产 kernel_blob.bin SHA256 为 `1c83f1c2a4b30baf100d58ac7495c02b38ab37844af20d9df98fea869a6794ad`。
+
+实际 Terminal 源码 `8ce4f1e7ad92f5786b1f392b817e2c96c0e729c8`，Markdown 本地 override `9c5260058a9a12d458c133fad363c29927883c31`，基线/两层补丁哈希完整记录于 JSON。尚未安装，由评审继续模拟器验收；本地 override 不代表正式依赖接入。构建未读取或输出 DeepSeek 密钥，未推送、合并或发布。
