@@ -315,3 +315,9 @@ build 8 后续独立 QA 在用户授权的新目录内完成创建、重复名�
 ### Build 9 真机交付完成（设备恢复后）
 
 用户恢复手机连接、评审确认镜像正常后，继续使用上述已验证的原包，原位安装及启动成功；只读设备查询确认 `work.ianvs.trail` 为 **0.1.0（9）**。未重建、卸载、清数据或改凭据。成功证据为 `/private/tmp/trail-build9-phone-install.json`、`trail-build9-phone-launch.json`、`trail-build9-phone-after.json`。此前安装阻碍已解除，已交独立评审复验父子末级目录区分、完整路径查看/复制和返回；M15 真机结论仍待回报。
+
+### Build 9 M15 真机核心复验通过
+
+独立评审核对包与安装后版本为 **0.1.0（9）/ c7a403fc**。父目录栏显示末级 `Trail-QA-SFTP-202…`，点击可查看完整父路径；进入子目录后栏中明确显示 `child-qa`，详情完整显示 `/home/lighthouse/Trail-QA-SFTP-20261030/child-qa`，无裁切。点击复制后的 toast 显示正确完整路径；关闭详情并返回上级后，父目录及 child 列表正常。本轮未发现新增问题，M15 上述核心路径通过。
+
+证据位于 `/private/tmp/trail-mobile-audit-20261029/`：`79-build9-parent-name.png`、`80-build9-child-name.png`、`81-build9-full-path.png`。系统剪贴板实际粘贴内容、文字选择手柄未单独真机验证；toast 不视为跨应用剪贴板证明，自动测试仅验证复制请求内容正确。QA 目录保留，本轮仅本地提交，未推送或合并。此前 M01–M14 的分轮验收边界保持不变，不将 M15 通过推广为移动端全功能通过。
