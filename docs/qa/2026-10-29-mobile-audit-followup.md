@@ -257,3 +257,9 @@ Build 6 真机回放库点“打开录制文件”的文字或图标均无选择
 新增 **M14 [P3]**：无效样本主提示直接显示英文异常类名、代码和行号，并出现类名断行。证据 `71-build7-invalid-raw-error.png`。已改为中英文本地化原因及下一步：中文格式错误提示为“文件不是有效的录制格式。请选择 Trail 导出的录制文件。”；另区分不支持格式、无法读取及一般打开失败，不再将异常字符串塞进主要提示。技术日志仅保留类型，格式异常另保留代码和行号，不写入所选文件内容或路径。
 
 13 项录制库测试通过，覆盖中英文主提示和不暴露异常类名，example 静态分析无问题。M14 待 build 8 真机复验，暂不标通过；本轮不读取修改凭据、不推送或合并。
+
+### Build 8 真机交付完成
+
+隔离源码 `18edb48321ea4435d9c3fac7c3e8dec3fcf09e2d` 构建 **0.1.0（8）**，Markdown 仍为 `36b956e`。签名、同 bundle/钥匙串组、有效 provisioning 与目标设备授权校验通过；评审确认设备空闲后，同一 iPhone 17 原位安装、启动成功，安装后只读版本查询确认 build 8。未卸载清数据、未读改凭据、未推送合并，原独立 QA 文件保留。
+
+证据：`/private/tmp/trail-build8-package-verified.json` 以及 `trail-build8-phone-install.json`、`trail-build8-phone-launch.json`、`trail-build8-phone-after.json`。已交评审使用同一无效 QA 样本复验 M14 的中文原因、下一步及重试流程；真机结果待续。
