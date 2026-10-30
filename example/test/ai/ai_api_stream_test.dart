@@ -4,6 +4,8 @@ import 'dart:io';
 
 import 'package:app/features/ai/ai_api_client.dart';
 import 'package:app/features/ai/ai_models.dart';
+import 'package:app/features/ai/ai_response_stream.dart'
+    show readAiResponseStream;
 import 'package:app/features/ai/ai_settings.dart';
 import 'package:app/features/ai/terminal_ai_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -20,6 +22,45 @@ String event(Map<String, Object?> delta, {String? finish}) =>
     })}\r\n\r\n';
 
 void main() {
+  test(
+    'response byte budget resets after cancellation and still rejects oversized streams',
+    () async {
+      final cancelled = AiCancellation();
+      final padding = utf8.encode(':${' ' * (700 * 1024)}\n\n');
+      Stream<List<int>> interrupted() async* {
+        yield padding;
+        yield utf8.encode(event({'content': 'partial'}));
+        cancelled.cancel();
+        yield utf8.encode(event({}, finish: 'stop'));
+      }
+
+      await expectLater(
+        readAiResponseStream(interrupted(), cancelled, (_) {}),
+        throwsA(isA<AiFailure>()),
+      );
+      final next = await readAiResponseStream(
+        Stream.fromIterable([
+          padding,
+          utf8.encode(event({'content': 'next response'})),
+          utf8.encode('${event({}, finish: 'stop')}data: [DONE]\n\n'),
+        ]),
+        AiCancellation(),
+        (_) {},
+      );
+      expect(next['choices'], isNotEmpty);
+      await expectLater(
+        readAiResponseStream(
+          Stream.fromIterable([padding, padding]),
+          AiCancellation(),
+          (_) {},
+        ),
+        throwsA(
+          isA<AiFailure>().having((e) => e.code, 'code', 'response_too_large'),
+        ),
+      );
+    },
+  );
+
   late HttpServer server;
   late AiConfiguration configuration;
   setUp(() async {

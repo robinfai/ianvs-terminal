@@ -126,6 +126,32 @@ void main() {
   FilledButton send(WidgetTester tester) =>
       tester.widget<FilledButton>(find.byKey(const Key('ai-send')));
 
+  testWidgets(
+    'response limit explains recovery without a blind resume action',
+    (tester) async {
+      api.respond = (_) async => throw const AiFailure('response_too_large');
+      await tester.runAsync(() => controller.ask('Write a long list'));
+      await mount(tester, size: const Size(320, 568));
+      await tester.pumpAndSettle();
+      expect(find.text('响应已达大小上限'), findsOneWidget);
+      expect(find.textContaining('请缩短回复或分批请求'), findsOneWidget);
+      expect(find.text('继续任务'), findsNothing);
+      await tester.tap(find.text('调整要求'));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(field(tester).focusNode!.hasFocus, isTrue);
+      field(tester).focusNode!.unfocus();
+      await tester.pumpAndSettle();
+      api.respond = (_) async => const AiReply(text: 'A shorter response.');
+      await tester.runAsync(
+        () => controller.ask('Only write the next two items'),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('ai-mobile-recovery-message')), findsNothing);
+      expect(find.text('调整要求'), findsNothing);
+    },
+  );
+
   // A smaller visual send surface must retain its hit target, while longer
   // localized intent labels must not grow the collapsed composer.
   for (final locale in [const Locale('zh'), const Locale('en')]) {
