@@ -377,3 +377,9 @@ build 11 五列水果表短词硬断，证据 `95-build11-markdown-table-code.pn
 复现方式：从上述基线检出 Markdown，执行 `git am` 应用补丁；仅在隔离 Terminal 根目录的 `pubspec_overrides.yaml` 将 `ianvs_markdown` 指向修复目录，运行 pub get，再在 example 运行 `flutter test --no-pub test/ai/mobile_markdown_table_test.dart test/ai/mobile_ordered_list_test.dart test/ai/terminal_ai_message_mobile_layout_test.dart`。当前隔离 QA 工作区 `/private/tmp/trail-mobile-qa-f1779096` 已按此配置；主仓库 pubspec/lock 未变，不声称正式接入。
 
 用户要求同步原库并逐层升级，已通知 Markdown 原对话及 ACP 对话核查。正式接入顺序为 Markdown 上游修复、聊天组件依赖/消费验证、Terminal 更新解析依赖并移除临时 override；协议/runtime 无关层不随纯渲染修复升级。目前不推送、合并或发布。M18 真机仍待下一包，安装前由评审确认设备状态。
+
+### M18 上游扩展验证发现阻碍，暂停候选包交付
+
+同步原库后，原库在最新主线补充验证发现：表格内部分链接使用 LayoutBuilder，与 IntrinsicColumnWidth 的固有宽度测量发生布局断言冲突。前述 901 项既有包测试及 18 项消费者测试通过仅代表已执行用例，未覆盖该新增链接场景，不能据此接受当前补丁。
+
+隔离 build 12 候选虽已构建，但暂停交付和安装，`a46fd1c` 补丁仅保留为调查记录，不是正式接入版本。原库继续处理并补链接、长内容等回归；待明确修复提交后重新消费者验证和构建。已通知真机评审不得安装当前候选包。M18 保持待修复/待真机状态。ACP 已确认正式链路应提高 chat 的 Markdown 最低约束，再升级 Terminal 并删除旧 override；目前不推送、合并或发布。
