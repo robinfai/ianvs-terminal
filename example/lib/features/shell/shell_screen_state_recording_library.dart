@@ -112,7 +112,28 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
 
   void _recordingOpenFailed(Object error, int generation) {
     if (!_isCurrentRecordingOpen(generation)) return;
-    final message = context.l10n.couldNotOpenRecording(error.toString());
+    final l10n = context.l10n;
+    final message = switch (error) {
+      LocalSessionRecordingUnsupportedSchemaException() =>
+        l10n.recordingOpenUnsupported,
+      terminal.TerminalRecordingFormatException(
+        code: terminal
+                .TerminalRecordingFormatErrorCode
+                .unsupportedSchemaVersion ||
+            terminal.TerminalRecordingFormatErrorCode.unsupportedEventKind,
+      ) =>
+        l10n.recordingOpenUnsupported,
+      FormatException() => l10n.recordingOpenInvalid,
+      FileSystemException() => l10n.recordingOpenUnreadable,
+      _ => l10n.recordingOpenFailed,
+    };
+    // Diagnostics omit selected-file contents and paths.
+    debugPrint('Recording open failed: ${error.runtimeType}');
+    if (error is terminal.TerminalRecordingFormatException) {
+      debugPrint(
+        'Recording format: ${error.code.name}, line ${error.lineNumber}',
+      );
+    }
     _mutateState(() => _recordingLibraryError = message);
     _showShellSnackBar(message);
   }

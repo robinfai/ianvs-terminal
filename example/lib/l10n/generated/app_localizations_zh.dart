@@ -5277,4 +5277,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String triggerMatchedInSession(String session) {
     return '$session · 规则已触发';
   }
+
+  @override
+  String get recordingOpenInvalid => '文件不是有效的录制格式。请选择 Trail 导出的录制文件。';
+
+  @override
+  String get recordingOpenUnsupported => '暂不支持此录制格式。请选择当前版本 Trail 导出的录制文件。';
+
+  @override
+  String get recordingOpenUnreadable => '无法读取此文件。请先将文件下载到本机，再重新选择。';
+
+  @override
+  String get recordingOpenFailed => '无法打开录制。请重新选择文件后再试。';
 }

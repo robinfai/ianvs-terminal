@@ -11,6 +11,7 @@ import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/recording/local_session_recording_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/shell/shell_screen.dart';
+import 'package:app/l10n/generated/app_localizations.dart';
 import 'package:app/ui/foundation/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -844,7 +845,8 @@ void main() {
           .isNotEmpty,
       phase: 'picker failure feedback',
     );
-    expect(find.textContaining('picker unavailable'), findsWidgets);
+    expect(find.textContaining('Could not open the recording.'), findsWidgets);
+    expect(find.textContaining('picker unavailable'), findsNothing);
     expect(
       tester
           .widget<OutlinedButton>(
@@ -854,6 +856,56 @@ void main() {
       isNotNull,
     );
   });
+
+  for (final language in ['en', 'zh']) {
+    testWidgets('invalid recording error is actionable in $language', (
+      tester,
+    ) async {
+      final fixture = (await tester.runAsync(
+        () => _recordingLibraryFixture('invalid-copy-$language'),
+      ))!;
+      addTearDown(() => tester.runAsync(fixture.close));
+      final repository = _MutableRecordingLibraryRepository(
+        directory: fixture.directory,
+        recording: fixture.recording,
+      );
+      await _pumpRecordingLibraryShell(
+        tester,
+        repository: repository,
+        locale: Locale(language),
+        picker: ({initialDirectory}) async =>
+            throw const TerminalRecordingFormatException(
+              code: TerminalRecordingFormatErrorCode.invalidJson,
+              message: 'Recording line is not valid JSON',
+              lineNumber: 1,
+            ),
+      );
+      await openShellCommand(tester, 'shell-open-recording');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('recording-library-open-file')));
+      await _pumpUntil(
+        tester,
+        () => find
+            .byKey(const Key('recording-library-error'))
+            .evaluate()
+            .isNotEmpty,
+        phase: 'localized invalid recording error',
+      );
+      expect(
+        find.text(
+          language == 'zh'
+              ? '文件不是有效的录制格式。请选择 Trail 导出的录制文件。'
+              : 'This file is not a valid recording. Choose a recording exported by Trail.',
+        ),
+        findsWidgets,
+      );
+      expect(
+        find.textContaining('TerminalRecordingFormatException'),
+        findsNothing,
+      );
+      expect(find.textContaining('invalidJson'), findsNothing);
+    });
+  }
 
   testWidgets('unmatched incremental search restores the paused frame', (
     tester,
@@ -1111,6 +1163,7 @@ Future<void> _pumpRecordingLibraryShell(
   ThemeMode themeMode = ThemeMode.light,
   TextScaler textScaler = TextScaler.noScaling,
   ShellRecordingFilePicker? picker,
+  Locale? locale,
 }) async {
   await tester.binding.setSurfaceSize(size);
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -1144,6 +1197,9 @@ Future<void> _pumpRecordingLibraryShell(
           shellRecordingFilePickerProvider.overrideWithValue(picker),
       ],
       child: MaterialApp(
+        locale: locale,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         theme: _captureTheme(Brightness.light),
         darkTheme: _captureTheme(Brightness.dark),
         themeMode: themeMode,

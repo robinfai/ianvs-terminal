@@ -5653,4 +5653,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String triggerMatchedInSession(String session) {
     return 'Trigger matched in $session';
   }
+
+  @override
+  String get recordingOpenInvalid =>
+      'This file is not a valid recording. Choose a recording exported by Trail.';
+
+  @override
+  String get recordingOpenUnsupported =>
+      'This recording format is not supported. Choose a recording exported by this version of Trail.';
+
+  @override
+  String get recordingOpenUnreadable =>
+      'This file could not be read. Download it to your device and select it again.';
+
+  @override
+  String get recordingOpenFailed =>
+      'Could not open the recording. Please select the file again.';
 }
