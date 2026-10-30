@@ -429,3 +429,11 @@ ACP agentContent 正文补传宿主 onOpenLink。消费者分别点击普通回�
 原库新增回补提交 `9c5260058a9a12d458c133fad363c29927883c31`，父提交 `3b70a201` 未改写。短文本按文字宽度收紧，长文本/链接复杂控件保留有界宽度，不查询其 intrinsic 尺寸，不改变选择与滚动手势。上游报告回补全包 915 项和主线版 1337 项通过，两版分析通过。
 
 本线程核对提交及增量补丁 SHA256 `6b39cf82e422aef4099529c97988aee33c25f14c64e80c222a589f0b448b06b5`，保存为 `docs/qa/patches/m18-markdown-compact-followup.patch`，应在 bounded-tables 补丁之后应用。实际隔离 Terminal 的 20 项消费者测试通过，包含短词、链接长文本、从文字开始 touch 横滑、水平滚轮、编号及消息布局。尚未构建安装紧凑版，实际字体与真机紧凑效果待验证；将与 M19 外链修复协调同包验收，正式依赖仍未接入，未推送合并。
+
+### Build 13 包准备完成（M18 紧凑列宽 + M19 外链，未安装）
+
+Terminal 源码 `0d24b892868754ee740401c43153aa368152723e`（包含 M19 `2b4aaa85`），隔离 QA 实际 Markdown 本地 override 为 `/private/tmp/ianvs-m18-backport-validation` 的 `9c5260058a9a12d458c133fad363c29927883c31`。基线 `36b956e`，依次应用 bounded-tables 与 compact-followup 两层补丁，其 SHA256 分别为 `b04ab428dadfe0f6a0742fcbb2ac6842346d74fbcf7fa2f06a077106681cc4c3`、`6b39cf82e422aef4099529c97988aee33c25f14c64e80c222a589f0b448b06b5`。
+
+完整 iOS release 编译成功，**0.1.0（13）** Apple Development 签名、Team/应用标识/钥匙串组、指定 iPhone provisioning 授权校验通过。包 `/private/tmp/trail-mobile-qa-f1779096/example/build/ios/iphoneos/Runner.app`；准确元数据 `/private/tmp/trail-build13-package-verified.json`；构建日志 `/private/tmp/trail-build13-build.log`。App.framework/App SHA256 为 `7b7ed7508d2cba4deb73ace53be96d23b55fbae4a262d8bfa832f9163ef6e76a`。
+
+未安装、卸载、清数据或改凭据，待评审确认设备状态后原位更新，真机当前仍 build 12。M18/M19 真机验收未完成，ACP 点击仅自动测试覆盖。本地 override 仍仅为 QA 来源，不代表正式逐层依赖升级；未推送、合并或发布。
