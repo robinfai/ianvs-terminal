@@ -501,3 +501,9 @@ Terminal 移除根 pubspec 的 Markdown Git override，升级 chat 最低版本�
 评审原位安装 Build15，未清理数据或保存凭据；SIMQA18 的表格、COPYQA123456789END、DONEQA18 正文保留，菜单纯文本摘要正常，M06 旧历史仍列出。截图 109-build15-hosted-history-table.png、110-build15-hosted-summary.png 位于独立 QA 目录。本次横滑未确认位移；临时 SSH 认证尝试未完成输入/环境隔离，不分类为产品回归，也不列通过。Build14 的横滑与复制证据单独保留。
 
 PR #24 初始提交 d49e6877 的 Example job（run 41067623924 / job 124103112964）3119 项通过，1 项架构检查失败：Shell 使用新增 recording_replay_navigation.dart，但测试的明确跨模块依赖清单漏登记。已在相同 hosted 环境复现相同异常；补登记该文件并说明 recording 拥有事件选择规则，未放宽目录级限制或删除拒绝未登记依赖的测试。修复后架构和录制导航共 14 项通过，格式检查通过。此次仅改测试清单与 QA 记录，Build15 产品源码未变；等待新提交远端 CI。
+
+### PR #24 第二轮：同步测试文件快照竞态
+
+0371c1c5 的 Example job（run 41071475511 / job 124117010329）架构检查通过，3119 项通过、1 项双设备同步测试失败。真实栈指向 two_device_sync_test.dart 的明文检查：目录列举捕获了原子写入的 .json.tmp 文件，在 readAsString 前它已重命名，抛出 PathNotFoundException。该轮并无明文泄露断言失败。
+
+测试改为暂停协调器、等待现有写入完成并取消 debounce 后扫描全部文件，再恢复同一 transport；模拟重启前关闭旧协调器，避免多个实例继续写同一目录，并为重建实例登记 teardown。保留全部文件读取和全部敏感标记断言，不忽略文件错误或跳过临时文件。完整同步组 43 项通过，随机种子 1–10 的十轮重复均通过。仍仅修改测试与记录，Build15 产品源码和正式依赖不变；此为自动化模拟双设备证据，不扩展为两台实机同步验收。

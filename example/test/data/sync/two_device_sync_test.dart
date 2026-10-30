@@ -67,8 +67,8 @@ void main() {
       await _expectProfileIds(second, <String>{'device-a', 'device-b'});
       await _expectSecretsSurviveRepositoryRebuild(first);
       await _expectSecretsSurviveRepositoryRebuild(second);
-      await _expectNoPlaintext(first.directory);
-      await _expectNoPlaintext(second.directory);
+      await _expectNoPlaintext(first);
+      await _expectNoPlaintext(second);
       expect(remote.resources['paste_history/default']?.revision, 7);
       expect(
         remote.deletedResourceKeys,
@@ -121,7 +121,10 @@ void main() {
       await _expectProfileIds(first, <String>{'device-a'});
       await _expectProfileIds(second, <String>{'device-a'});
 
+      // A restart must stop the previous coordinator before reusing its files.
+      await first.close(removeDirectory: false);
       final disabled = first.rebuild(client: null);
+      addTearDown(() => disabled.close(removeDirectory: false));
       await disabled.repositories.profiles.save(
         TerminalProfilesDocument(
           profiles: <TerminalProfile>[
@@ -135,11 +138,12 @@ void main() {
       await disabled.close(removeDirectory: false);
 
       final reenabled = first.rebuild(client: remote);
+      addTearDown(() => reenabled.close(removeDirectory: false));
       await reenabled.sync.synchronize();
       await second.sync.synchronize();
       await _expectProfileIds(reenabled, <String>{'device-a', 'device-c'});
       await _expectProfileIds(second, <String>{'device-a', 'device-c'});
-      await _expectNoPlaintext(reenabled.directory);
+      await _expectNoPlaintext(reenabled);
       await reenabled.close(removeDirectory: false);
     },
   );
@@ -311,25 +315,38 @@ Future<void> _expectSecretsSurviveRepositoryRebuild(_Device device) async {
   await rebuilt.close(removeDirectory: false);
 }
 
-Future<void> _expectNoPlaintext(Directory directory) async {
-  final files = await directory
-      .list(recursive: true)
-      .where((entry) => entry is File)
-      .cast<File>()
-      .toList();
-  final contents = (await Future.wait(
-    files.map((file) => file.readAsString()),
-  )).join('\n');
-  for (final marker in const <String>[
-    _firstPassword,
-    _firstPrivateKey,
-    _firstPassphrase,
-    _firstCookie,
-    _secondPassword,
-    _secondPrivateKey,
-    'device-c-offline-password-marker',
-  ]) {
-    expect(contents, isNot(contains(marker)));
+Future<void> _expectNoPlaintext(_Device device) async {
+  final client = device.sync.client;
+  final checkpoints = device.sync.checkpoints;
+  // Drain writes and cancel the save debounce before enumerating every file.
+  // Otherwise an atomic-write temporary file can be renamed before it is read.
+  await device.sync.pause();
+  try {
+    final files = await device.directory
+        .list(recursive: true)
+        .where((entry) => entry is File)
+        .cast<File>()
+        .toList();
+    final contents = (await Future.wait(
+      files.map((file) => file.readAsString()),
+    )).join('\n');
+    for (final marker in const <String>[
+      _firstPassword,
+      _firstPrivateKey,
+      _firstPassphrase,
+      _firstCookie,
+      _secondPassword,
+      _secondPrivateKey,
+      'device-c-offline-password-marker',
+    ]) {
+      expect(contents, isNot(contains(marker)));
+    }
+  } finally {
+    await device.sync.setTransport(
+      nextClient: client,
+      nextCheckpoints: checkpoints,
+    );
+    await device.sync.synchronize();
   }
 }
 
