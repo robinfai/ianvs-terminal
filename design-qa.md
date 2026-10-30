@@ -46,6 +46,14 @@ Evidence and validation on macOS 27.0.1:
   captures were visually inspected; no unresolved clipping was observed.
 - Full application `flutter analyze --no-pub`: no issues. Formatting and
   `git diff --check` pass.
+- A normal complete `flutter test --no-pub test/design` comparison also passed:
+  841 tests, one conditional skip.
+- `flutter build macos --debug --no-pub` succeeded on macOS 27.0.1. The built
+  app's FontManifest registers MaterialIcons exactly once, using the new asset;
+  its bundled font is byte-identical to the source (SHA-256
+  `2547f6988aea023714f6de85db3ed54040e9f1f6194f724b09ab1e621c6eb099`).
+  This proves native packaging, not interactive runtime verification. Existing
+  Swift/plugin migration warnings remain outside the presentation change.
 - Local before/after icon boards are in `tmp/idea-icon-comparison/`; a reusable
   native catalogue and capture test are committed in `ui/previews` and
   `test/design`. Checked-in golden captures provide durable window evidence.
