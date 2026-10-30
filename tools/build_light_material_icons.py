@@ -1,12 +1,12 @@
-"""Build Trail's weight-300 Material Symbols with Flutter MaterialIcons codepoints.
+"""Build Trail's Material Symbols with Flutter MaterialIcons codepoints.
 
 Usage: python build_light_material_icons.py FLUTTER_FONT_DIR SYMBOLS_TTF SYMBOLS_CODEPOINTS OUTPUT
 Requires fonttools. Symbols are from google/material-design-icons/variablefont.
 Original glyphs are retained for names absent from Symbols, so SDK and shared
 component icons never disappear. Runtime has no fonttools/network dependency.
 """
+import argparse
 import re
-import sys
 from pathlib import Path
 from fontTools.ttLib import TTFont
 from fontTools.varLib.instancer import instantiateVariableFont
@@ -16,9 +16,17 @@ from fontTools.pens.cu2quPen import Cu2QuPen
 from fontTools.pens.transformPen import TransformPen
 from fontTools.pens.recordingPen import DecomposingRecordingPen
 
-sdk, symbols_path, names_path, output = map(Path, sys.argv[1:])
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('sdk', type=Path)
+parser.add_argument('symbols_path', type=Path)
+parser.add_argument('names_path', type=Path)
+parser.add_argument('output', type=Path)
+parser.add_argument('--weight', type=int, default=300, choices=range(100, 701))
+parser.add_argument('--optical-size', type=int, default=20, choices=range(20, 49))
+args = parser.parse_args()
+sdk, symbols_path, names_path, output = args.sdk, args.symbols_path, args.names_path, args.output
 original = TTFont(sdk / 'MaterialIcons-Regular.otf')
-symbols = instantiateVariableFont(TTFont(symbols_path), {'wght': 300, 'FILL': 0, 'GRAD': 0, 'opsz': 20}, inplace=True)
+symbols = instantiateVariableFont(TTFont(symbols_path), {'wght': args.weight, 'FILL': 0, 'GRAD': 0, 'opsz': args.optical_size}, inplace=True)
 lookup = {name: int(code, 16) for name, code in (line.split() for line in names_path.read_text().splitlines())}
 source_names = {int(code, 16): name for name, code in (line.split() for line in (sdk / 'codepoints').read_text().splitlines())}
 fonts = [original, symbols]
@@ -58,7 +66,7 @@ fb.setupCharacterMap(cmap)
 fb.setupGlyf(glyphs)
 fb.setupHorizontalMetrics(metrics)
 fb.setupHorizontalHeader(ascent=1024, descent=0)
-fb.setupNameTable({'familyName': 'Trail Light Icons', 'styleName': 'Regular', 'uniqueFontIdentifier': 'TrailLightIcons-300', 'fullName': 'Trail Light Icons', 'psName': 'TrailLightIcons'})
+fb.setupNameTable({'familyName': 'Trail IDE Icons', 'styleName': 'Regular', 'uniqueFontIdentifier': f'TrailIdeIcons-{args.weight}-{args.optical_size}', 'fullName': 'Trail IDE Icons', 'psName': 'TrailIdeIcons'})
 fb.setupOS2(sTypoAscender=1024, sTypoDescender=0, usWinAscent=1024, usWinDescent=0)
 fb.setupPost()
 fb.save(output)

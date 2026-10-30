@@ -103,7 +103,7 @@ Widget _settings(TargetPlatform platform) {
 
 void main() {
   ConfigurationCaptureBinding();
-  setUpAll(loadVisualCaptureFonts);
+  setUpAll(() => loadVisualCaptureFonts(productionIcons: true));
   for (final platform in [TargetPlatform.iOS, TargetPlatform.macOS]) {
     for (final brightness in Brightness.values) {
       for (final landscape in [false, true]) {

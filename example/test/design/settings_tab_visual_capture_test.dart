@@ -107,7 +107,7 @@ void main() {
     return;
   }
 
-  setUpAll(loadVisualCaptureFonts);
+  setUpAll(() => loadVisualCaptureFonts(productionIcons: true));
 
   const reviewPath =
       'goldens/configuration-forms-20260909/interaction-review/after';

@@ -1,4 +1,61 @@
-# AI workspace, Composer and shortcut reference — design QA
+# UI design QA
+
+## IDE presentation and icon redesign — 2026-10-31
+
+Scope: restyle the application with JetBrains IDEA as the core reference while
+preserving business logic. Apply a shared light/dark presentation layer, revise
+settings/Profile/SSH/AI dialog hierarchy and form styling, and assess the actual
+production icon font. Network, persistence, command execution, validation and
+save/cancel handlers are unchanged.
+
+Design decisions:
+
+- Centralize neutral surfaces, muted separators, blue selection/focus, 4 px
+  controls, 6 px panels and 8 px dialogs in `ide_theme.dart`. Keep existing body
+  typography, font fallback, control density and hit targets. Mobile remains
+  fixed-size; desktop scaling remains supported.
+- Use compact title bars and footers, a 208 px settings sidebar, neutral selected
+  text, and section headings without nested card borders. Existing responsive
+  configuration rows retain aligned labels on desktop and stack when narrow.
+  The AI provider dialog is wider to accommodate its existing form layout.
+- The production font was already Material Symbols Outlined at weight 300;
+  Flutter icon suffixes did not indicate mixed rendered families. Comparison of
+  weights 300 and 400 at 16/20/24 px in both themes selected 400 for clearer small
+  controls. Desktop toolbar glyphs use 16 px and navigation/touch glyphs 20 px.
+  `AppIcons` gives configuration actions consistent semantic names. Launch,
+  terminal and advanced sections now have distinct, relevant glyphs.
+- Keep the bundled font's existing codepoint contract and license files. The
+  regeneration script exposes weight and optical size; the font README records
+  pinned upstream provenance and hashes. Font inspection found 8,667 codepoints
+  and no missing/empty glyphs or invalid side bearings among 244 actual Material
+  icon references in the app and terminal package.
+- All visual captures now default to the production icon asset. The previous
+  SDK substitute concealed the app's actual icon appearance.
+
+References: [JetBrains layout](https://plugins.jetbrains.com/docs/intellij/layout.html)
+and [icon guidance](https://plugins.jetbrains.com/docs/intellij/icons.html).
+This is a Trail adaptation, not a pixel-identical clone.
+
+Evidence and validation on macOS 27.0.1:
+
+- 669 targeted widget/theme/settings/Profile/AI and full-UI scenario checks
+  passed. Existing focus, error, disabled and primary-button contrast tests pass.
+- Complete `test/design` regeneration: 841 passed, one pre-existing conditional
+  skip. 53 affected macOS 27 goldens were refreshed, covering settings, Profile,
+  SSH forms, shell and Composer. Representative light/dark and compact/scaled
+  captures were visually inspected; no unresolved clipping was observed.
+- Full application `flutter analyze --no-pub`: no issues. Formatting and
+  `git diff --check` pass.
+- Local before/after icon boards are in `tmp/idea-icon-comparison/`; a reusable
+  native catalogue and capture test are committed in `ui/previews` and
+  `test/design`. Checked-in golden captures provide durable window evidence.
+
+Validation boundary: iOS platform variants are host-rendered widget tests, not
+native-device coverage. macOS 26 CI baseline candidates still require generation
+and review before this redesign is ready to merge. Baselines are not copied
+across OS versions and comparator tolerances are unchanged.
+
+## Earlier AI workspace, Composer and shortcut review
 
 Date: 2026-10-28
 

@@ -23,27 +23,7 @@ class SettingsSection extends StatelessWidget {
     final theme = context.appTheme;
     final header = KeyedSubtree(
       key: anchorKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: theme.textPrimary,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          if (description != null) ...[
-            SizedBox(height: theme.spacing.xs),
-            Text(
-              description!,
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: theme.textSubtle),
-            ),
-          ],
-        ],
-      ),
+      child: AppSectionHeader(title: title, description: description),
     );
 
     final content = Column(
@@ -58,11 +38,8 @@ class SettingsSection extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.only(bottom: theme.spacing.xl),
       child: contained
-          ? AppPanel(
-              tone: AppPanelTone.elevated,
-              padding: EdgeInsets.all(theme.spacing.xxl),
-              borderRadius: BorderRadius.circular(theme.radius.xl),
-              border: Border.all(color: theme.border),
+          ? Padding(
+              padding: EdgeInsets.symmetric(vertical: theme.spacing.sm),
               child: content,
             )
           : content,
