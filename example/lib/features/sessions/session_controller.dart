@@ -3579,6 +3579,12 @@ class SessionController extends Notifier<SessionState> {
               pane.copyWith(
                 isExited: true,
                 exitCode: event.exitCode,
+                runtimeError: sshExitError == null
+                    ? pane.runtimeError
+                    : TerminalPaneRuntimeErrorState(
+                        operation: 'ssh',
+                        message: sshExitError,
+                      ),
                 terminalMode: const TerminalModeState(
                   unavailableReason: BlockUnavailableReason.exited,
                 ),
@@ -3588,7 +3594,7 @@ class SessionController extends Notifier<SessionState> {
         } else {
           _removeSessionState(event.sessionId, runtimeAlreadyClosed: true);
         }
-        if (sshExitError != null) {
+        if (sshExitError != null && state.activeSessionId == event.sessionId) {
           if (failedProfileId != null) {
             _lastSshExitFailure = (
               sessionId: event.sessionId,
@@ -5516,6 +5522,12 @@ class SessionController extends Notifier<SessionState> {
   }
 
   void _syncRuntimeSessionActivation() {
+    final failure = _lastSshExitFailure;
+    if (failure != null &&
+        failure.sessionId != state.activeSessionId &&
+        state.lastError == failure.message) {
+      state = state.copyWith(lastError: null);
+    }
     if (ref.read(sessionDemoFixtureProvider) != null) {
       return;
     }

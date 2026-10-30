@@ -54,6 +54,13 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
   final _model = TextEditingController();
   final _agentCommand = TextEditingController();
   final _agentArguments = TextEditingController(text: '[]');
+  final _endpointFocus = FocusNode();
+  final _keyFocus = FocusNode();
+  final _modelFocus = FocusNode();
+  final GlobalKey _endpointField = GlobalKey();
+  final GlobalKey _keyField = GlobalKey();
+  final GlobalKey _modelField = GlobalKey();
+  final _fieldErrors = <String, String>{};
   AiBackendKind _backend = AiBackendKind.llm;
   AiApprovalMode _approvalMode = AiApprovalMode.smart;
   AiApprovalSensitivity _approvalSensitivity = AiApprovalSensitivity.relaxed;
@@ -142,6 +149,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
     _tested = false;
     _error = null;
     _discoveryNotice = null;
+    _fieldErrors.clear();
   });
 
   void _selectBackend(AiBackendKind? value) {
@@ -157,6 +165,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
         _apiModel = _model.text;
       }
       _backend = value;
+      _fieldErrors.clear();
       _model.text = _backend == AiBackendKind.acp
           ? (_acpModel ?? 'gpt-5.6-sol')
           : (_apiModel ?? '');
@@ -221,7 +230,56 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
     }
   }
 
+  bool _validateFields() {
+    if (_backend != AiBackendKind.llm) return true;
+    final endpoint = Uri.tryParse(_endpoint.text.trim());
+    final errors = <String, String>{
+      if (endpoint == null ||
+          !{'http', 'https'}.contains(endpoint.scheme) ||
+          endpoint.host.isEmpty ||
+          endpoint.userInfo.isNotEmpty ||
+          endpoint.hasQuery ||
+          endpoint.hasFragment)
+        'endpoint': t(
+          'Enter a valid HTTP or HTTPS endpoint.',
+          '请输入有效的 HTTP 或 HTTPS 地址。',
+        ),
+      if (_key.text.trim().isEmpty || _key.text.contains(RegExp(r'[\r\n]')))
+        'key': t(
+          'Enter an API key without line breaks.',
+          '请输入 API Key，且不要包含换行。',
+        ),
+      if (_model.text.trim().isEmpty || _model.text.trim().length > 200)
+        'model': t(
+          'Enter a model name (up to 200 characters).',
+          '请输入模型名称（不超过 200 个字符）。',
+        ),
+    };
+    setState(() {
+      _fieldErrors
+        ..clear()
+        ..addAll(errors);
+      _error = null;
+    });
+    if (errors.isEmpty) return true;
+    final (focus, field) = switch (errors.keys.first) {
+      'endpoint' => (_endpointFocus, _endpointField),
+      'key' => (_keyFocus, _keyField),
+      _ => (_modelFocus, _modelField),
+    };
+    focus.requestFocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final fieldContext = field.currentContext;
+      if (fieldContext != null) {
+        unawaited(Scrollable.ensureVisible(fieldContext, alignment: 0));
+      }
+    });
+    return false;
+  }
+
   Future<void> _save({bool remove = false}) async {
+    if (!remove && !_validateFields()) return;
     setState(() {
       _busy = true;
       _error = null;
@@ -244,6 +302,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
   }
 
   Future<void> _checkConnection() async {
+    if (!_validateFields()) return;
     setState(() {
       _busy = true;
       _error = null;
@@ -288,6 +347,9 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
   void dispose() {
     _detectionEpoch++;
     _test?.cancel();
+    _endpointFocus.dispose();
+    _keyFocus.dispose();
+    _modelFocus.dispose();
     _endpoint.dispose();
     _key.dispose();
     _model.dispose();
@@ -411,44 +473,58 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
             const SizedBox(height: 16),
           ] else ...[
             AppConfigurationField(
+              key: _endpointField,
               label: 'Endpoint',
               child: TextField(
                 key: const Key('ai-endpoint'),
                 controller: _endpoint,
+                focusNode: _endpointFocus,
                 enabled: _loaded && !_busy,
                 autocorrect: false,
                 keyboardType: TextInputType.url,
                 onChanged: _edited,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
+                  errorText: _fieldErrors['endpoint'],
+                  errorMaxLines: 3,
                   hintText: 'https://api.example.com/v1',
                 ),
               ),
             ),
             const SizedBox(height: 16),
             AppConfigurationField(
+              key: _keyField,
               label: 'API Key',
               child: TextField(
                 key: const Key('ai-api-key'),
                 controller: _key,
+                focusNode: _keyFocus,
                 enabled: _loaded && !_busy,
                 obscureText: true,
                 autocorrect: false,
                 enableSuggestions: false,
                 onChanged: _edited,
-                decoration: const InputDecoration(),
+                decoration: InputDecoration(
+                  errorText: _fieldErrors['key'],
+                  errorMaxLines: 3,
+                ),
               ),
             ),
           ],
           const SizedBox(height: 16),
           AppConfigurationField(
+            key: _modelField,
             label: t('Model', '模型'),
             child: TextField(
               key: const Key('ai-model'),
               controller: _model,
+              focusNode: _modelFocus,
               enabled: _loaded && !_busy,
               autocorrect: false,
               onChanged: _edited,
-              decoration: const InputDecoration(),
+              decoration: InputDecoration(
+                errorText: _fieldErrors['model'],
+                errorMaxLines: 3,
+              ),
             ),
           ),
           const SizedBox(height: 16),

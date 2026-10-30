@@ -100,7 +100,7 @@ extension _ShellScreenAiObserver on _ShellScreenState {
             : TerminalAiObserver(
                 key: ValueKey('ai-observer-source-$source'),
                 sessionId: source,
-                targetLabel: sourcePane?.title ?? targetLabel,
+                targetLabel: sourcePane?.executionTargetLabel ?? targetLabel,
                 viewport: viewport,
                 colors: colors,
                 font: font,

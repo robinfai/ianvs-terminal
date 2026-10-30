@@ -28,7 +28,7 @@ final class RecordingReplaySearchIndex {
       while (start != -1) {
         hits.add(
           RecordingReplaySearchHit(
-            offset: document.offsetForMatch(start),
+            offset: document.offsetForMatch(start + needle.length - 1),
             preview: _preview(document.text, start, needle.length),
           ),
         );
@@ -48,9 +48,9 @@ final class _RecordingReplaySearchDocument {
   final String text;
   final List<_RecordingReplaySearchSpan> spans;
 
-  Duration offsetForMatch(int start) {
+  Duration offsetForMatch(int lastCharacter) {
     for (final span in spans) {
-      if (start < span.end) {
+      if (lastCharacter < span.end) {
         return span.offset;
       }
     }
@@ -103,29 +103,8 @@ List<_RecordingReplaySearchDocument> _buildDocuments(
       ),
     );
   }
-  for (final event in recording.events) {
-    if (event.kind != TerminalRecordingEventKind.shellSemantic ||
-        event.semanticCommand == null) {
-      continue;
-    }
-    final text = [
-      event.semanticCommand,
-      event.semanticCwd,
-      event.semanticHostname,
-    ].whereType<String>().join(' ');
-    documents.add(
-      _RecordingReplaySearchDocument(
-        text: text,
-        spans: <_RecordingReplaySearchSpan>[
-          _RecordingReplaySearchSpan(
-            start: 0,
-            end: text.length,
-            offset: event.monotonicOffset,
-          ),
-        ],
-      ),
-    );
-  }
+  // Search describes terminal output. Semantic command metadata can repeat
+  // that output or name text never painted, and must not create extra hits.
   return List<_RecordingReplaySearchDocument>.unmodifiable(documents);
 }
 

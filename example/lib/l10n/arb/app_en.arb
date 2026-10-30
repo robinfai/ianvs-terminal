@@ -4209,5 +4209,11 @@
   "sshNotificationConnectionFailed": "SSH connection failed",
   "sshNotificationConnectionInterrupted": "SSH connection interrupted",
   "triggerMatchedInSession": "Trigger matched in {session}",
-  "@triggerMatchedInSession": {"placeholders": {"session": {"type": "String"}}}
+  "@triggerMatchedInSession": {"placeholders": {"session": {"type": "String"}}},
+  "recordingOpenInvalid": "This file is not a valid recording. Choose a recording exported by Trail.",
+  "recordingOpenUnsupported": "This recording format is not supported. Choose a recording exported by this version of Trail.",
+  "recordingOpenUnreadable": "This file could not be read. Download it to your device and select it again.",
+  "recordingOpenFailed": "Could not open the recording. Please select the file again.",
+  "sftpCurrentDirectory": "Current directory",
+  "sftpViewFullPath": "View full path"
 }

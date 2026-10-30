@@ -12,19 +12,55 @@ void main() {
       final hits = index.search('HELLO');
 
       expect(hits, hasLength(1));
-      expect(hits.single.offset, const Duration(milliseconds: 1));
+      expect(hits.single.offset, const Duration(milliseconds: 2));
       expect(hits.single.preview, contains('hello world'));
       expect(hits.single.preview, isNot(contains('\x1b')));
     });
 
-    test('searches semantic commands at their recorded offset', () {
+    test('does not invent visible hits from semantic metadata', () {
       final index = RecordingReplaySearchIndex(_recording());
+      expect(index.search('deploy'), isEmpty);
+      expect(index.search('prod-server'), isEmpty);
+    });
 
-      final hits = index.search('deploy');
-
-      expect(hits, hasLength(1));
-      expect(hits.single.offset, const Duration(milliseconds: 3));
-      expect(hits.single.preview, contains('deploy app'));
+    test('command echo split across events waits for the full match', () {
+      const id = 'search-index';
+      final recording = TerminalRecording(
+        metadata: _recording().metadata,
+        events: [
+          _recording().events.first,
+          TerminalRecordingEvent.ptyOutput(
+            sessionId: id,
+            sequence: 1,
+            monotonicOffset: const Duration(seconds: 1),
+            bytes: utf8.encode('echo REP'),
+          ),
+          TerminalRecordingEvent.ptyOutput(
+            sessionId: id,
+            sequence: 2,
+            monotonicOffset: const Duration(seconds: 2),
+            bytes: utf8.encode('LAYQA'),
+          ),
+          TerminalRecordingEvent.shellSemantic(
+            sessionId: id,
+            sequence: 3,
+            monotonicOffset: const Duration(seconds: 3),
+            semanticKind: TerminalRecordingSemanticKind.commandStarted,
+            command: 'echo REPLAYQA',
+          ),
+          TerminalRecordingEvent.ptyOutput(
+            sessionId: id,
+            sequence: 4,
+            monotonicOffset: const Duration(seconds: 4),
+            bytes: utf8.encode('\r\nREPLAYQA\r\n'),
+          ),
+        ],
+      );
+      final hits = RecordingReplaySearchIndex(recording).search('REPLAYQA');
+      expect(hits.map((hit) => hit.offset), [
+        const Duration(seconds: 2),
+        const Duration(seconds: 4),
+      ]);
     });
 
     test('returns no hits for blank or missing queries', () {

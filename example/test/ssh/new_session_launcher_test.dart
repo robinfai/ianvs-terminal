@@ -1505,7 +1505,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('ssh-connect')));
     await tester.pumpAndSettle();
-    expect(find.text('Select a private key file'), findsOneWidget);
+    expect(find.text('No private key selected'), findsWidgets);
   });
 }
 

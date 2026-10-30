@@ -17,6 +17,7 @@ import 'ai_api_client.dart';
 import 'ai_approval.dart';
 import 'ai_models.dart';
 import 'ai_settings.dart';
+import 'ai_task_preview.dart';
 
 part 'terminal_ai_acp.dart';
 part 'terminal_ai_api_operations.dart';
@@ -119,6 +120,7 @@ class AiTranscriptEntry {
     this.submissionId,
     this.blockId,
     this.statusReason,
+    this.userEdited = false,
     this.suppliedEvidence,
     this.approvalReview,
     this.inputProgress,
@@ -135,6 +137,7 @@ class AiTranscriptEntry {
   final String? submissionId;
   final String? blockId;
   final String? statusReason;
+  final bool userEdited;
   final List<AiEvidenceRange>? suppliedEvidence;
   final AiApprovalReview? approvalReview;
   final AiKeyInputProgress? inputProgress;
@@ -173,6 +176,8 @@ class AiTaskSummary {
     this.draftRevision = 0,
     this.proposalRevision = 0,
     this.commandName = '',
+    this.preview = '',
+    this.visitOrder = 0,
   });
   final String id;
   final String title;
@@ -188,6 +193,8 @@ class AiTaskSummary {
 
   /// A command name only: arguments and environment values stay out of menus.
   final String commandName;
+  final String preview;
+  final int visitOrder;
 }
 
 class _AiDraftAttachment {
@@ -199,6 +206,28 @@ class _AiTask {
   _AiTask(this.id, {InputIntent defaultInputIntent = InputIntent.ai})
     : inputIntent = InputIntentState(defaultIntent: defaultInputIntent);
   final String id;
+  String? _previewSource;
+  String _preview = '';
+  String get displayPreview {
+    final source =
+        transcript.reversed
+            .where(
+              (entry) =>
+                  entry.action == null &&
+                  (entry.role == 'assistant' || entry.role == 'user') &&
+                  entry.text.trim().isNotEmpty,
+            )
+            .map((entry) => entry.text)
+            .firstOrNull ??
+        '';
+    if (_previewSource != source) {
+      _previewSource = source;
+      _preview = aiTaskPreview(source);
+    }
+    return _preview;
+  }
+
+  int visitOrder = 0;
   String? historyId;
   bool restoredHistory = false;
   final historySourceIds = <String>{};
@@ -311,6 +340,7 @@ class TerminalAiController extends ChangeNotifier {
   late _AiTask _task;
   final InputIntent defaultInputIntent;
   int _taskSerial = 1;
+  int _visitSerial = 0;
   int _entrySerial = 0;
   int _connectionRevision = 0;
   // Revokes UI callbacks when AI activity or task/lifecycle changes interrupt
@@ -368,6 +398,8 @@ class TerminalAiController extends ChangeNotifier {
         draftRevision: task.draftRevision,
         proposalRevision: task.revision,
         commandName: _taskCommandName(task),
+        visitOrder: task.visitOrder,
+        preview: task.displayPreview,
       ),
     ),
   );
@@ -686,6 +718,7 @@ class TerminalAiController extends ChangeNotifier {
       'task-${++_taskSerial}',
       defaultInputIntent: defaultInputIntent,
     );
+    _task.visitOrder = ++_visitSerial;
     _tasks.add(_task);
     _emit();
   }
@@ -696,6 +729,7 @@ class TerminalAiController extends ChangeNotifier {
     takeOver();
     _cancellation?.cancel();
     _task = task;
+    _task.visitOrder = ++_visitSerial;
     _emit();
     // Switching never starts inference or restores an old approval.
     unawaited(refreshContext());
@@ -801,6 +835,7 @@ class TerminalAiController extends ChangeNotifier {
         edited.preview,
         id: 'entry-${++_entrySerial}',
         action: edited,
+        userEdited: true,
         target: proposalTarget,
         state: AiEntryState.proposed,
         revision: proposalRevision,
@@ -1025,6 +1060,7 @@ class TerminalAiController extends ChangeNotifier {
           target: entry.target,
           state: _keyInputState(progress),
           revision: entry.revision,
+          userEdited: entry.userEdited,
           approvalReview: entry.approvalReview,
           inputProgress: progress,
           statusReason: entry.statusReason,
@@ -1064,6 +1100,7 @@ class TerminalAiController extends ChangeNotifier {
         target: entry.target,
         state: state,
         revision: entry.revision,
+        userEdited: entry.userEdited,
         approvalReview: entry.approvalReview,
         inputProgress: entry.inputProgress,
         submissionId: entry.submissionId,
@@ -1175,6 +1212,7 @@ class TerminalAiController extends ChangeNotifier {
     final cancellation = _cancellation = AiCancellation();
     takenOver = false;
     _task.generationCancelled = false;
+    _task.visitOrder = ++_visitSerial;
     phase = AiPhase.thinking;
     error = null;
     _steps = 0;
@@ -1637,6 +1675,7 @@ class TerminalAiController extends ChangeNotifier {
       target: entry.target,
       state: state,
       revision: proposalRevision,
+      userEdited: entry.userEdited,
       submissionId: submissionId ?? entry.submissionId,
       blockId: blockId ?? entry.blockId,
       statusReason: reason,
@@ -1828,6 +1867,17 @@ class TerminalAiController extends ChangeNotifier {
     final submissionCancellation = canSubmit == null
         ? cancellation
         : _AiApprovalCancellation(cancellation, canSubmit);
+    final userEdited =
+        _transcript
+            .where((entry) => entry.action?.id == action.id)
+            .lastOrNull
+            ?.userEdited ??
+        false;
+    final approvalMetadata = <String, Object?>{
+      'approved_action': action.rawCall,
+      'user_edited': userEdited,
+      'approval_source': userEdited ? 'user_edited_proposal' : 'agent_proposal',
+    };
     pending = null;
     _executingAction = action;
     _updateActionEntry(action, AiEntryState.submitted);
@@ -1845,9 +1895,7 @@ class TerminalAiController extends ChangeNotifier {
       if (!identical(_executingAction, action)) return;
       _executingAction = null;
       // Preserve protocol history even if takeover happens during observation.
-      _messages.add(
-        _toolResult(action, {...result, 'approved_action': action.rawCall}),
-      );
+      _messages.add(_toolResult(action, {...result, ...approvalMetadata}));
       _updateActionEntry(
         action,
         AiEntryState.accepted,
@@ -1876,7 +1924,7 @@ class TerminalAiController extends ChangeNotifier {
         phase = AiPhase.thinking;
         final observation = {
           ...result,
-          'approved_action': action.rawCall,
+          ...approvalMetadata,
           ..._agentObservation(),
         };
         _rememberSuppliedEvidence([
@@ -1914,10 +1962,13 @@ class TerminalAiController extends ChangeNotifier {
       }
       if (!resultRecorded && identical(_executingAction, action)) {
         final progress = _keyInputProgressFor(action);
-        final result = _interruptedInputResult(
-          action,
-          error: failure is AiFailure ? failure.code : 'execution',
-        );
+        final result = <String, Object?>{
+          ..._interruptedInputResult(
+            action,
+            error: failure is AiFailure ? failure.code : 'execution',
+          ),
+          ...approvalMetadata,
+        };
         _executingAction = null;
         _updateActionEntry(
           action,

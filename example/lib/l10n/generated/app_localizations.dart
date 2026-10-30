@@ -8911,6 +8911,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Trigger matched in {session}'**
   String triggerMatchedInSession(String session);
+
+  /// No description provided for @recordingOpenInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'This file is not a valid recording. Choose a recording exported by Trail.'**
+  String get recordingOpenInvalid;
+
+  /// No description provided for @recordingOpenUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'This recording format is not supported. Choose a recording exported by this version of Trail.'**
+  String get recordingOpenUnsupported;
+
+  /// No description provided for @recordingOpenUnreadable.
+  ///
+  /// In en, this message translates to:
+  /// **'This file could not be read. Download it to your device and select it again.'**
+  String get recordingOpenUnreadable;
+
+  /// No description provided for @recordingOpenFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open the recording. Please select the file again.'**
+  String get recordingOpenFailed;
+
+  /// No description provided for @sftpCurrentDirectory.
+  ///
+  /// In en, this message translates to:
+  /// **'Current directory'**
+  String get sftpCurrentDirectory;
+
+  /// No description provided for @sftpViewFullPath.
+  ///
+  /// In en, this message translates to:
+  /// **'View full path'**
+  String get sftpViewFullPath;
 }
 
 class _AppLocalizationsDelegate

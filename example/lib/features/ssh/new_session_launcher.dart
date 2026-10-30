@@ -1289,7 +1289,7 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                                     .TerminalSshAuthMethod
                                                     .publicKey &&
                                             (value == null || value.isEmpty)
-                                        ? 'Select a private key file'
+                                        ? context.l10n.noPrivateKeySelected
                                         : null,
                                     builder: (field) => Semantics(
                                       label: context.l10n.privateKeyFile,

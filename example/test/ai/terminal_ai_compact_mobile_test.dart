@@ -89,6 +89,7 @@ void main() {
     TargetPlatform platform = TargetPlatform.iOS,
     bool active = true,
     Locale locale = const Locale('zh'),
+    ValueChanged<String>? onOpenLink,
   }) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = size;
@@ -96,6 +97,7 @@ void main() {
     await tester.pumpApp(
       TerminalAiWorkspace(
         compactMobile: true,
+        onOpenLink: onOpenLink,
         active: active,
         controller: controller,
         targetLabel: 'dev@example.test',
@@ -125,6 +127,109 @@ void main() {
       tester.widget<TextField>(find.byKey(const Key('ai-prompt')));
   FilledButton send(WidgetTester tester) =>
       tester.widget<FilledButton>(find.byKey(const Key('ai-send')));
+
+  for (final agentContent in [false, true]) {
+    testWidgets('mobile link callback works for agentContent=$agentContent', (
+      tester,
+    ) async {
+      const markdown = '[Example](https://example.com)';
+      api.respond = (_) async => const AiReply(text: markdown);
+      await tester.runAsync(() => controller.ask('Show a link'));
+      if (agentContent) {
+        final document = controller.exportHistory({}).single;
+        document['id'] = 'saved-link-fixture';
+        final entries = document['transcript']! as List;
+        (entries.last as Map)['content'] = {
+          'role': 'assistant',
+          'text': markdown,
+          'revision': 0,
+          'timestamp': DateTime(2026).toIso8601String(),
+          'metadata': <String, Object?>{},
+        };
+        controller.restoreHistory([document]);
+        controller.selectTask('saved-link-fixture');
+      }
+      final opened = <String>[];
+      await mount(tester, onOpenLink: opened.add);
+      await tester.tap(find.text('Example', findRichText: true));
+      await tester.pumpAndSettle();
+      expect(opened, ['https://example.com']);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets(
+    'same-title task menu shows recent previews and switches without requests',
+    (tester) async {
+      var requests = 0;
+      api.respond = (_) async => AiReply(text: 'UNIQUE-REPLY-${++requests}');
+      await tester.runAsync(() => controller.ask('Same initial request'));
+      final first = controller.taskId;
+      controller.newTask();
+      await tester.runAsync(() => controller.ask('Same initial request'));
+      final second = controller.taskId;
+      controller.newTask();
+      await tester.runAsync(() => controller.ask('Same initial request'));
+      final third = controller.taskId;
+      await mount(tester, size: const Size(320, 568));
+      await tester.tap(find.byKey(const Key('ai-mobile-task-menu')));
+      await tester.pumpAndSettle();
+      final entries = tester
+          .widgetList<CheckedPopupMenuItem<String>>(
+            find.byType(CheckedPopupMenuItem<String>),
+          )
+          .toList();
+      expect(entries.map((entry) => entry.value), [third, second, first]);
+      expect(find.text('UNIQUE-REPLY-2'), findsOneWidget);
+      await tester.ensureVisible(
+        find.byKey(ValueKey('ai-mobile-task-$second')),
+      );
+      await tester.tap(find.byKey(ValueKey('ai-mobile-task-$second')));
+      await tester.pumpAndSettle();
+      expect(controller.taskId, second);
+      expect(controller.transcript.last.text, 'UNIQUE-REPLY-2');
+      expect(requests, 3);
+      await tester.tap(find.byKey(const Key('ai-mobile-task-menu')));
+      await tester.pumpAndSettle();
+      final reordered = tester
+          .widgetList<CheckedPopupMenuItem<String>>(
+            find.byType(CheckedPopupMenuItem<String>),
+          )
+          .toList();
+      expect(reordered.map((entry) => entry.value), [second, third, first]);
+      await tester.tap(find.byKey(ValueKey('ai-mobile-task-$third')));
+      await tester.pumpAndSettle();
+      expect(controller.transcript.last.text, 'UNIQUE-REPLY-3');
+      expect(requests, 3);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'response limit explains recovery without a blind resume action',
+    (tester) async {
+      api.respond = (_) async => throw const AiFailure('response_too_large');
+      await tester.runAsync(() => controller.ask('Write a long list'));
+      await mount(tester, size: const Size(320, 568));
+      await tester.pumpAndSettle();
+      expect(find.text('响应已达大小上限'), findsOneWidget);
+      expect(find.textContaining('请缩短回复或分批请求'), findsOneWidget);
+      expect(find.text('继续任务'), findsNothing);
+      await tester.tap(find.text('调整要求'));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(field(tester).focusNode!.hasFocus, isTrue);
+      field(tester).focusNode!.unfocus();
+      await tester.pumpAndSettle();
+      api.respond = (_) async => const AiReply(text: 'A shorter response.');
+      await tester.runAsync(
+        () => controller.ask('Only write the next two items'),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('ai-mobile-recovery-message')), findsNothing);
+      expect(find.text('调整要求'), findsNothing);
+    },
+  );
 
   // A smaller visual send surface must retain its hit target, while longer
   // localized intent labels must not grow the collapsed composer.

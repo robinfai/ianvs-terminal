@@ -7,6 +7,7 @@ import UIKit
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   private var voiceInput: TrailVoiceInput?
+  private var externalUrlChannel: FlutterMethodChannel?
   private var buildIdentityChannel: FlutterMethodChannel?
   #if targetEnvironment(simulator)
   private var simulatorAcceptanceChannel: FlutterMethodChannel?
@@ -46,6 +47,31 @@ import UIKit
         ])
       }
       buildIdentityChannel = channel
+    }
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "TrailExternalUrl") {
+      let channel = FlutterMethodChannel(
+        name: "app/window_bridge",
+        binaryMessenger: registrar.messenger()
+      )
+      channel.setMethodCallHandler { call, result in
+        guard call.method == "openExternalUrl" else {
+          result(FlutterMethodNotImplemented)
+          return
+        }
+        guard let arguments = call.arguments as? [String: Any],
+              let raw = arguments["url"] as? String,
+              let url = URL(string: raw),
+              let scheme = url.scheme?.lowercased(),
+              ["http", "https", "file"].contains(scheme),
+              scheme == "file" || !(url.host ?? "").isEmpty else {
+          result(FlutterError(code: "invalid_url", message: nil, details: nil))
+          return
+        }
+        UIApplication.shared.open(url, options: [:]) { opened in
+          result(opened ? nil : FlutterError(code: "open_url_failed", message: nil, details: nil))
+        }
+      }
+      externalUrlChannel = channel
     }
     #if targetEnvironment(simulator)
     guard let registrar = engineBridge.pluginRegistry.registrar(

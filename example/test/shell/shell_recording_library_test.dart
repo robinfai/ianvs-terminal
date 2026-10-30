@@ -11,6 +11,7 @@ import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/recording/local_session_recording_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/shell/shell_screen.dart';
+import 'package:app/l10n/generated/app_localizations.dart';
 import 'package:app/ui/foundation/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -816,6 +817,140 @@ void main() {
     expect(find.byKey(const Key('recording-replay-layout')), findsNothing);
   });
 
+  testWidgets('missing recording picker shows an actionable library error', (
+    tester,
+  ) async {
+    final fixture = (await tester.runAsync(
+      () => _recordingLibraryFixture('picker-failure'),
+    ))!;
+    addTearDown(() => tester.runAsync(fixture.close));
+    final repository = _MutableRecordingLibraryRepository(
+      directory: fixture.directory,
+      recording: fixture.recording,
+    );
+    await _pumpRecordingLibraryShell(
+      tester,
+      repository: repository,
+      picker: ({initialDirectory}) async =>
+          throw MissingPluginException('picker unavailable'),
+    );
+    await openShellCommand(tester, 'shell-open-recording');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('recording-library-open-file')));
+    await _pumpUntil(
+      tester,
+      () => find
+          .byKey(const Key('recording-library-error'))
+          .evaluate()
+          .isNotEmpty,
+      phase: 'picker failure feedback',
+    );
+    expect(find.textContaining('Could not open the recording.'), findsWidgets);
+    expect(find.textContaining('picker unavailable'), findsNothing);
+    expect(
+      tester
+          .widget<OutlinedButton>(
+            find.byKey(const Key('recording-library-open-file')),
+          )
+          .onPressed,
+      isNotNull,
+    );
+  });
+
+  for (final language in ['en', 'zh']) {
+    testWidgets('invalid recording error is actionable in $language', (
+      tester,
+    ) async {
+      final fixture = (await tester.runAsync(
+        () => _recordingLibraryFixture('invalid-copy-$language'),
+      ))!;
+      addTearDown(() => tester.runAsync(fixture.close));
+      final repository = _MutableRecordingLibraryRepository(
+        directory: fixture.directory,
+        recording: fixture.recording,
+      );
+      await _pumpRecordingLibraryShell(
+        tester,
+        repository: repository,
+        locale: Locale(language),
+        picker: ({initialDirectory}) async =>
+            throw const TerminalRecordingFormatException(
+              code: TerminalRecordingFormatErrorCode.invalidJson,
+              message: 'Recording line is not valid JSON',
+              lineNumber: 1,
+            ),
+      );
+      await openShellCommand(tester, 'shell-open-recording');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('recording-library-open-file')));
+      await _pumpUntil(
+        tester,
+        () => find
+            .byKey(const Key('recording-library-error'))
+            .evaluate()
+            .isNotEmpty,
+        phase: 'localized invalid recording error',
+      );
+      expect(
+        find.text(
+          language == 'zh'
+              ? '文件不是有效的录制格式。请选择 Trail 导出的录制文件。'
+              : 'This file is not a valid recording. Choose a recording exported by Trail.',
+        ),
+        findsWidgets,
+      );
+      expect(
+        find.textContaining('TerminalRecordingFormatException'),
+        findsNothing,
+      );
+      expect(find.textContaining('invalidJson'), findsNothing);
+    });
+  }
+
+  testWidgets('unmatched incremental search restores the paused frame', (
+    tester,
+  ) async {
+    final fixture = (await tester.runAsync(
+      () => _recordingLibraryFixture('search-origin'),
+    ))!;
+    addTearDown(() => tester.runAsync(fixture.close));
+    final base = const TerminalRecordingCodec().decode(
+      _recordingFixture('recorded-session', output: 'first marker'),
+    );
+    final repository = _MutableRecordingLibraryRepository(
+      directory: fixture.directory,
+      recording: TerminalRecording(
+        metadata: base.metadata,
+        events: [
+          ...base.events,
+          TerminalRecordingEvent.ptyOutput(
+            sessionId: 'recorded-session',
+            sequence: 2,
+            monotonicOffset: const Duration(seconds: 1),
+            bytes: utf8.encode('later output'),
+          ),
+        ],
+      ),
+    );
+    await _pumpRecordingLibraryShell(tester, repository: repository);
+    await _openFirstSavedRecording(tester, repository.entry.path);
+    final timeline = find.byKey(const Key('recording-replay-timeline'));
+    final slider = tester.widget<Slider>(timeline);
+    slider.onChanged!(slider.max);
+    await tester.pumpAndSettle();
+    final original = tester.widget<Slider>(timeline).value;
+    final search = find.byKey(const Key('recording-replay-search'));
+    await tester.enterText(search, 'f');
+    await tester.pumpAndSettle();
+    expect(tester.widget<Slider>(timeline).value, lessThan(original));
+    await tester.enterText(search, 'firstNO_MATCH');
+    await tester.pumpAndSettle();
+    expect(tester.widget<Slider>(timeline).value, original);
+    await tester.enterText(search, '');
+    await tester.pumpAndSettle();
+    expect(tester.widget<Slider>(timeline).value, original);
+  });
+
   testWidgets('reselecting the same path rebuilds replay with new content', (
     tester,
   ) async {
@@ -1028,6 +1163,7 @@ Future<void> _pumpRecordingLibraryShell(
   ThemeMode themeMode = ThemeMode.light,
   TextScaler textScaler = TextScaler.noScaling,
   ShellRecordingFilePicker? picker,
+  Locale? locale,
 }) async {
   await tester.binding.setSurfaceSize(size);
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -1061,6 +1197,9 @@ Future<void> _pumpRecordingLibraryShell(
           shellRecordingFilePickerProvider.overrideWithValue(picker),
       ],
       child: MaterialApp(
+        locale: locale,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         theme: _captureTheme(Brightness.light),
         darkTheme: _captureTheme(Brightness.dark),
         themeMode: themeMode,

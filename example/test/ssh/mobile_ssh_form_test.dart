@@ -6,6 +6,36 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('Chinese mobile private key validation stays localized', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(402, 874);
+    addTearDown(tester.view.reset);
+    await _open(
+      tester,
+      locale: const Locale('zh'),
+      onClosed: (_) {},
+      profile: defaultTerminalProfile().copyWith(
+        name: 'Test SSH',
+        connection: const terminal.TerminalConnectionConfig.ssh(
+          host: 'fixture.example',
+          user: 'trailqa',
+          auth: terminal.TerminalSshAuthMethod.publicKey,
+        ),
+      ),
+    );
+    await tester.ensureVisible(find.byKey(const Key('ssh-connect')));
+    await tester.tap(find.byKey(const Key('ssh-connect')));
+    await tester.pumpAndSettle();
+    final input = tester.widget<InputDecorator>(
+      find.byKey(const Key('ssh-private-keys')),
+    );
+    expect(input.decoration.errorText, '尚未选择私钥');
+    expect(find.text('Select a private key file'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   for (final size in [
     const Size(375, 667),
     const Size(402, 874),
@@ -162,11 +192,15 @@ void main() {
 Future<void> _open(
   WidgetTester tester, {
   double scale = 1,
+  Locale locale = const Locale('en'),
   TerminalProfile? profile,
   required ValueChanged<SshProfileEditorResult?> onClosed,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
+      locale: locale,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       theme: buildIanvsTerminalTheme(
         scale == 2 ? Brightness.dark : Brightness.light,
         platform: TargetPlatform.iOS,

@@ -1121,6 +1121,33 @@ class _SftpPathToolbar extends StatelessWidget {
   final VoidCallback? onGoUp;
   final VoidCallback onRefresh;
 
+  Future<void> _showFullPath(BuildContext context) => showDialog<void>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: Text(context.l10n.sftpCurrentDirectory),
+      content: SingleChildScrollView(
+        child: SelectableText(path, key: const Key('sftp-full-path')),
+      ),
+      actions: [
+        TextButton(
+          key: const Key('sftp-copy-current-path'),
+          onPressed: () async {
+            await Clipboard.setData(ClipboardData(text: path));
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(context.l10n.copiedPath(path))),
+            );
+          },
+          child: Text(context.l10n.copyFullPath),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: Text(context.l10n.close),
+        ),
+      ],
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final palette = context.appTheme;
@@ -1150,18 +1177,44 @@ class _SftpPathToolbar extends StatelessWidget {
             ),
             SizedBox(width: palette.spacing.xs),
             Expanded(
-              child: Tooltip(
-                message: path,
-                child: SelectableText(
-                  path,
-                  key: const Key('sftp-current-path'),
-                  maxLines: 1,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: palette.textMuted,
-                    fontFamily: 'monospace',
-                  ),
-                ),
-              ),
+              child: context.usesMobileNavigation
+                  ? Tooltip(
+                      message: context.l10n.sftpViewFullPath,
+                      child: TextButton(
+                        key: const Key('sftp-current-path'),
+                        onPressed: () => _showFullPath(context),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                path
+                                        .split('/')
+                                        .where((part) => part.isNotEmpty)
+                                        .lastOrNull ??
+                                    '/',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            const Icon(Icons.unfold_more_rounded, size: 18),
+                          ],
+                        ),
+                      ),
+                    )
+                  : Tooltip(
+                      message: path,
+                      child: SelectableText(
+                        path,
+                        key: const Key('sftp-current-path'),
+                        maxLines: 1,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: palette.textMuted,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                    ),
             ),
             IconButton(
               key: const Key('sftp-refresh'),

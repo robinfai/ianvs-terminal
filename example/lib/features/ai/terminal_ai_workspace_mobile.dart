@@ -63,6 +63,9 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
           ? t('Shell ready', 'Shell 就绪')
           : t('Waiting for shell', '等待终端就绪');
     }
+    if (c.error == 'response_too_large') {
+      return t('Response size limit reached', '响应已达大小上限');
+    }
     return _status;
   }
 
@@ -100,6 +103,9 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
     }
     if (c.canApprove) return (id: 'review', label: t('Review', '审阅命令'));
     if (c.busy) return (id: 'pause', label: t('Pause AI', '暂停 AI'));
+    if (c.error == 'response_too_large') {
+      return (id: 'revise', label: t('Adjust request', '调整要求'));
+    }
     if (c.canResume) return (id: 'resume', label: t('Continue', '继续任务'));
     if (c.error != null || _mobileRecoveryNotice != null) {
       return (id: 'details', label: t('Details', '查看详情'));
@@ -123,6 +129,10 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
 
   Future<void> _runMobileAction(String action) async {
     if (!_mobileActionEnabled(action)) return;
+    if (action == 'revise') {
+      _focus.requestFocus();
+      return;
+    }
     if (action == 'details') {
       await _showMobileDetails();
       return;
@@ -429,6 +439,20 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
     if (action != null && current()) await _runMobileAction(action);
   }
 
+  List<AiTaskSummary> get _mobileMenuTasks {
+    final tasks = c.tasks;
+    final positions = {for (var i = 0; i < tasks.length; i++) tasks[i].id: i};
+    return tasks.toList()..sort((a, b) {
+      if (a.id == b.id) return 0;
+      if (a.id == c.taskId) return -1;
+      if (b.id == c.taskId) return 1;
+      final recent = b.visitOrder.compareTo(a.visitOrder);
+      return recent != 0
+          ? recent
+          : positions[a.id]!.compareTo(positions[b.id]!);
+    });
+  }
+
   Widget _mobileHeader({bool short = false}) {
     final primary = _mobilePrimaryAction;
     final taskId = c.taskId;
@@ -480,14 +504,38 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
                   child: Text(t('View terminal (read-only)', '只读查看终端')),
                 ),
                 const PopupMenuDivider(),
-                for (final task in c.tasks)
+                for (final task in _mobileMenuTasks)
                   CheckedPopupMenuItem(
+                    key: ValueKey('ai-mobile-task-${task.id}'),
                     value: task.id,
                     checked: task.id == c.taskId,
-                    child: Text(
-                      task.title.isEmpty ? t('New task', '新任务') : task.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            task.title.isEmpty
+                                ? t('Untitled task', '未命名任务')
+                                : task.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            '${t('Task', '任务')} ${c.tasks.indexWhere((item) => item.id == task.id) + 1}${task.id == c.taskId ? t(' · Current', ' · 当前') : ''}',
+                            style: Theme.of(context).textTheme.labelSmall,
+                          ),
+                          if (task.preview.isNotEmpty)
+                            Text(
+                              task.preview,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: context.appTheme.textMuted),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
               ],
@@ -747,6 +795,28 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
           child: SingleChildScrollView(child: _mobileHeader(short: short)),
         ),
         Divider(height: 1, color: context.appTheme.border),
+        if (c.error != null && c.error != c.terminalError)
+          ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: short ? 72 : 120),
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                child: Text(
+                  c.error == 'response_too_large'
+                      ? t(
+                          'The response reached the size limit. Ask for a shorter reply or fewer items at a time. Tell AI where to continue to avoid repeating earlier content.',
+                          '响应已达大小上限。请缩短回复或分批请求，并说明从哪里继续，避免重复已有内容。',
+                        )
+                      : aiErrorText(c.error!, zh),
+                  key: const Key('ai-mobile-recovery-message'),
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+            ),
+          ),
         Expanded(
           child: Stack(
             fit: StackFit.expand,

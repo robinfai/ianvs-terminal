@@ -48,6 +48,7 @@ import '../profiles/profile_models.dart';
 import '../profiles/profiles_sheet.dart';
 import '../recording/local_session_recording_repository.dart';
 import '../recording/mobile_replay_player.dart';
+import '../recording/recording_replay_navigation.dart';
 import '../recording/recording_replay_search_index.dart';
 import '../recording/replay_viewport_layout.dart';
 import '../sessions/session_controller.dart';
@@ -1238,6 +1239,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
             instantReplaySession != null ||
             _selectedRecording != null ||
             _isSftpPanelOpen);
+    final showingLocalReplay =
+        _recordingShelfOpen || _selectedRecording != null;
+    final hideSessionErrorForReplay =
+        showingLocalReplay &&
+        activePane?.runtimeError?.message != null &&
+        activePane!.runtimeError!.message == _sessionState.lastError;
     // Scaffold consumes body insets; read the keyboard above that boundary.
     final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
 
@@ -1389,13 +1396,17 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                       });
                     },
                   ),
-                if (_sessionState.isReady && _sessionState.lastError != null)
+                if (_sessionState.isReady &&
+                    _sessionState.lastError != null &&
+                    !hideSessionErrorForReplay)
                   _ShellRuntimeErrorBanner(
                     palette: palette,
                     message: _sessionState.lastError!,
                     summary:
                         activePane?.isExited == true &&
-                            activePane?.profileSnapshot?.isSsh == true
+                            activePane?.profileSnapshot?.isSsh == true &&
+                            activePane?.runtimeError?.message ==
+                                _sessionState.lastError
                         ? context.l10n.mobileSessionDisconnectedTitle
                         : null,
                     onDismiss: sessionController.dismissLastError,
@@ -1408,7 +1419,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                   ),
                 if (_sessionState.isReady &&
                     _sessionState.lastError == null &&
-                    _runtimeErrorNotice != null)
+                    _runtimeErrorNotice != null &&
+                    !showingLocalReplay)
                   _ShellRuntimeErrorBanner(
                     palette: palette,
                     message: _runtimeErrorNoticeMessage(
