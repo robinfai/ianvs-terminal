@@ -1,3 +1,4 @@
+import 'package:file_selector/file_selector.dart' as file_selector;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
@@ -282,18 +283,22 @@ class WindowBridge {
   }
 
   static Future<String?> chooseRecordingFile({String? initialDirectory}) async {
-    final normalizedInitialDirectory = initialDirectory?.trim();
-    try {
-      final selected = await _channel
-          .invokeMethod<String>('chooseRecordingFile', <String, Object?>{
-            if (normalizedInitialDirectory != null &&
-                normalizedInitialDirectory.isNotEmpty)
-              'initialDirectory': normalizedInitialDirectory,
-          });
-      return selected == null || selected.isEmpty ? null : selected;
-    } on MissingPluginException {
-      return null;
+    if (defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.android) {
+      // NDJSON has no reliably registered iOS document type. Let Files select
+      // a document, then use the existing bounded recording/schema validation.
+      // A missing handler must propagate to the library's visible error path.
+      final selected = await file_selector.openFile();
+      return selected?.path;
     }
+    final normalizedInitialDirectory = initialDirectory?.trim();
+    final selected = await _channel
+        .invokeMethod<String>('chooseRecordingFile', <String, Object?>{
+          if (normalizedInitialDirectory != null &&
+              normalizedInitialDirectory.isNotEmpty)
+            'initialDirectory': normalizedInitialDirectory,
+        });
+    return selected == null || selected.isEmpty ? null : selected;
   }
 
   static Future<bool> revealInFinder(String value) async {

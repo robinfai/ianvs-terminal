@@ -1,10 +1,57 @@
 import 'dart:io';
 
 import 'package:app/features/shell/window_bridge.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  for (final platform in [TargetPlatform.iOS, TargetPlatform.android]) {
+    testWidgets('recording picker uses system documents on $platform', (
+      tester,
+    ) async {
+      debugDefaultTargetPlatformOverride = platform;
+      const channel = MethodChannel('plugins.flutter.io/file_selector');
+      final calls = <MethodCall>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+        call,
+      ) async {
+        calls.add(call);
+        return ['/tmp/picked.ndjson'];
+      });
+      try {
+        expect(
+          await WindowBridge.chooseRecordingFile(
+            initialDirectory: '/private/app',
+          ),
+          '/tmp/picked.ndjson',
+        );
+        expect(calls.single.method, 'openFile');
+        expect((calls.single.arguments as Map)['acceptedTypeGroups'], isEmpty);
+        expect((calls.single.arguments as Map)['initialDirectory'], isNull);
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          (_) async => null,
+        );
+        expect(await WindowBridge.chooseRecordingFile(), isNull);
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          (_) async => throw MissingPluginException('missing'),
+        );
+        await expectLater(
+          WindowBridge.chooseRecordingFile(),
+          throwsA(isA<MissingPluginException>()),
+        );
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        );
+      }
+    });
+  }
+
   testWidgets(
     'native title bar receives measured logical drag gaps',
     (tester) async {
@@ -218,52 +265,56 @@ void main() {
     expect(seen?.arguments, <String, Object?>{'suggestedName': 'report.txt'});
   });
 
-  testWidgets('recording selection preserves the platform path exactly', (
-    tester,
-  ) async {
-    const channel = MethodChannel('app/window_bridge');
-    final calls = <MethodCall>[];
-    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
-      call,
-    ) async {
-      calls.add(call);
-      return switch (call.method) {
-        'chooseRecordingFile' => ' /tmp/session.ndjson ',
-        'movePathToTrash' => true,
-        _ => null,
-      };
-    });
-    addTearDown(
-      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-        channel,
-        null,
-      ),
-    );
+  testWidgets(
+    'recording selection preserves the platform path exactly',
+    (tester) async {
+      const channel = MethodChannel('app/window_bridge');
+      final calls = <MethodCall>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+        call,
+      ) async {
+        calls.add(call);
+        return switch (call.method) {
+          'chooseRecordingFile' => ' /tmp/session.ndjson ',
+          'movePathToTrash' => true,
+          _ => null,
+        };
+      });
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        ),
+      );
 
-    final selected = await WindowBridge.chooseRecordingFile(
-      initialDirectory: ' /tmp/ianvs-recordings ',
-    );
-    final revealed = await WindowBridge.revealInFinder(' /tmp/session.ndjson ');
-    final moved = await WindowBridge.movePathToTrash(' /tmp/session.ndjson ');
+      final selected = await WindowBridge.chooseRecordingFile(
+        initialDirectory: ' /tmp/ianvs-recordings ',
+      );
+      final revealed = await WindowBridge.revealInFinder(
+        ' /tmp/session.ndjson ',
+      );
+      final moved = await WindowBridge.movePathToTrash(' /tmp/session.ndjson ');
 
-    expect(selected, ' /tmp/session.ndjson ');
-    expect(revealed, isTrue);
-    expect(moved, isTrue);
-    expect(calls.map((call) => call.method), <String>[
-      'chooseRecordingFile',
-      'revealInFinder',
-      'movePathToTrash',
-    ]);
-    expect(calls[0].arguments, <String, Object?>{
-      'initialDirectory': '/tmp/ianvs-recordings',
-    });
-    expect(calls[1].arguments, <String, Object?>{
-      'path': ' /tmp/session.ndjson ',
-    });
-    expect(calls[2].arguments, <String, Object?>{
-      'path': ' /tmp/session.ndjson ',
-    });
-  });
+      expect(selected, ' /tmp/session.ndjson ');
+      expect(revealed, isTrue);
+      expect(moved, isTrue);
+      expect(calls.map((call) => call.method), <String>[
+        'chooseRecordingFile',
+        'revealInFinder',
+        'movePathToTrash',
+      ]);
+      expect(calls[0].arguments, <String, Object?>{
+        'initialDirectory': '/tmp/ianvs-recordings',
+      });
+      expect(calls[1].arguments, <String, Object?>{
+        'path': ' /tmp/session.ndjson ',
+      });
+      expect(calls[2].arguments, <String, Object?>{
+        'path': ' /tmp/session.ndjson ',
+      });
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
 
   testWidgets('missing ZMODEM platform handlers fail closed', (tester) async {
     const channel = MethodChannel('app/window_bridge');

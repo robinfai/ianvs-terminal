@@ -816,6 +816,45 @@ void main() {
     expect(find.byKey(const Key('recording-replay-layout')), findsNothing);
   });
 
+  testWidgets('missing recording picker shows an actionable library error', (
+    tester,
+  ) async {
+    final fixture = (await tester.runAsync(
+      () => _recordingLibraryFixture('picker-failure'),
+    ))!;
+    addTearDown(() => tester.runAsync(fixture.close));
+    final repository = _MutableRecordingLibraryRepository(
+      directory: fixture.directory,
+      recording: fixture.recording,
+    );
+    await _pumpRecordingLibraryShell(
+      tester,
+      repository: repository,
+      picker: ({initialDirectory}) async =>
+          throw MissingPluginException('picker unavailable'),
+    );
+    await openShellCommand(tester, 'shell-open-recording');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('recording-library-open-file')));
+    await _pumpUntil(
+      tester,
+      () => find
+          .byKey(const Key('recording-library-error'))
+          .evaluate()
+          .isNotEmpty,
+      phase: 'picker failure feedback',
+    );
+    expect(find.textContaining('picker unavailable'), findsWidgets);
+    expect(
+      tester
+          .widget<OutlinedButton>(
+            find.byKey(const Key('recording-library-open-file')),
+          )
+          .onPressed,
+      isNotNull,
+    );
+  });
+
   testWidgets('unmatched incremental search restores the paused frame', (
     tester,
   ) async {
