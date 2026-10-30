@@ -17,6 +17,7 @@ import 'ai_api_client.dart';
 import 'ai_approval.dart';
 import 'ai_models.dart';
 import 'ai_settings.dart';
+import 'ai_task_preview.dart';
 
 part 'terminal_ai_acp.dart';
 part 'terminal_ai_api_operations.dart';
@@ -205,6 +206,27 @@ class _AiTask {
   _AiTask(this.id, {InputIntent defaultInputIntent = InputIntent.ai})
     : inputIntent = InputIntentState(defaultIntent: defaultInputIntent);
   final String id;
+  String? _previewSource;
+  String _preview = '';
+  String get displayPreview {
+    final source =
+        transcript.reversed
+            .where(
+              (entry) =>
+                  entry.action == null &&
+                  (entry.role == 'assistant' || entry.role == 'user') &&
+                  entry.text.trim().isNotEmpty,
+            )
+            .map((entry) => entry.text)
+            .firstOrNull ??
+        '';
+    if (_previewSource != source) {
+      _previewSource = source;
+      _preview = aiTaskPreview(source);
+    }
+    return _preview;
+  }
+
   int visitOrder = 0;
   String? historyId;
   bool restoredHistory = false;
@@ -377,22 +399,7 @@ class TerminalAiController extends ChangeNotifier {
         proposalRevision: task.revision,
         commandName: _taskCommandName(task),
         visitOrder: task.visitOrder,
-        preview:
-            task.transcript.reversed
-                .where(
-                  (entry) =>
-                      entry.action == null &&
-                      (entry.role == 'assistant' || entry.role == 'user') &&
-                      entry.text.trim().isNotEmpty,
-                )
-                .map(
-                  (entry) => boundedAiText(
-                    entry.text.replaceAll(RegExp(r'\s+'), ' ').trim(),
-                    160,
-                  ),
-                )
-                .firstOrNull ??
-            '',
+        preview: task.displayPreview,
       ),
     ),
   );
