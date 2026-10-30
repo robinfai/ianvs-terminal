@@ -150,7 +150,9 @@ SIGNING_SETTINGS=(
   "DEVELOPMENT_TEAM = $TEAM"
 )
 if [[ -n "$IOS_BUNDLE_ID" ]]; then
-  SIGNING_SETTINGS+=("PRODUCT_BUNDLE_IDENTIFIER = $IOS_BUNDLE_ID")
+  # Only Runner consumes this setting; a global PRODUCT_BUNDLE_IDENTIFIER
+  # override would also rename every CocoaPods framework.
+  SIGNING_SETTINGS+=("IANVS_IOS_APP_BUNDLE_IDENTIFIER = $IOS_BUNDLE_ID")
 fi
 printf '%s\n' "${SIGNING_SETTINGS[@]}" >"$SIGNING_CONFIG"
 

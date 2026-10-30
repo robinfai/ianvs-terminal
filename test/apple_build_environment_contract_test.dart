@@ -60,6 +60,31 @@ echo 'subject=C=US,O=Ianvs,OU=RIGHT12345,CN=Apple Development'
     },
   );
 
+  test('iOS bundle override leaves dependency identifiers intact', () async {
+    for (final bundleId in ['', 'work.ianvs.trail', 'work.ianvs.trail.dev']) {
+      final result = await _buildWithExplicitTeam(
+        'ABCDE12345',
+        bundleId: bundleId,
+      );
+      expect(result.exitCode, 0, reason: result.stderr as String?);
+      expect(result.stdout, isNot(contains('PRODUCT_BUNDLE_IDENTIFIER =')));
+      if (bundleId.isNotEmpty) {
+        expect(
+          result.stdout,
+          contains('IANVS_IOS_APP_BUNDLE_IDENTIFIER = $bundleId'),
+        );
+      }
+    }
+    final project = File(
+      'example/ios/Runner.xcodeproj/project.pbxproj',
+    ).readAsStringSync();
+    expect(
+      r'PRODUCT_BUNDLE_IDENTIFIER = "$(IANVS_IOS_APP_BUNDLE_IDENTIFIER)";'
+          .allMatches(project),
+      hasLength(3),
+    );
+  });
+
   test('invalid Apple team overrides fail before signing', () async {
     for (final team in <String>[
       'short',
@@ -103,7 +128,9 @@ echo 'subject=C=US,O=Ianvs,OU=RIGHT12345,CN=Apple Development'
     final makefile = File('Makefile').readAsStringSync();
 
     expect(
-      'PRODUCT_BUNDLE_IDENTIFIER = work.ianvs.trail;'.allMatches(iosProject),
+      'IANVS_IOS_APP_BUNDLE_IDENTIFIER = work.ianvs.trail;'.allMatches(
+        iosProject,
+      ),
       hasLength(3),
     );
     expect(
@@ -138,7 +165,7 @@ echo 'subject=C=US,O=Ianvs,OU=RIGHT12345,CN=Apple Development'
     expect(appleBuilder, contains(r'DEVELOPMENT_TEAM = $TEAM'));
     expect(
       appleBuilder,
-      contains(r'PRODUCT_BUNDLE_IDENTIFIER = $IOS_BUNDLE_ID'),
+      contains(r'IANVS_IOS_APP_BUNDLE_IDENTIFIER = $IOS_BUNDLE_ID'),
     );
     expect(makefile, contains('IPHONE_BUNDLE_ID ?= work.ianvs.trail'));
     expect(makefile, contains('MACOS_BUNDLE_ID ?= work.ianvs.trail'));
@@ -329,7 +356,10 @@ echo 'subject=C=US,O=Ianvs,OU=RIGHT12345,CN=Apple Development'
   });
 }
 
-Future<ProcessResult> _buildWithExplicitTeam(String team) async {
+Future<ProcessResult> _buildWithExplicitTeam(
+  String team, {
+  String bundleId = '',
+}) async {
   final directory = Directory.systemTemp.createTempSync(
     'ianvs-apple-team-env-',
   );
@@ -361,6 +391,7 @@ printf '%s' "$XCODE_XCCONFIG_FILE" > "$IANVS_TEST_CONFIG_PATH"
     environment: <String, String>{
       'PATH': '${directory.path}:${Platform.environment['PATH']}',
       'IANVS_APPLE_TEAM': team,
+      'IANVS_IOS_BUNDLE_ID': bundleId,
       'IANVS_TEST_CONFIG_PATH': configPath.path,
     },
   );
