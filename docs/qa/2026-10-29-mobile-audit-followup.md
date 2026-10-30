@@ -365,3 +365,15 @@ build 10 草稿隔离补验：在 M16OK 任务输入未发送的 `DRAFTQA18 unse
 证据 91–94 位于 `/private/tmp/trail-mobile-audit-20261029/`，独立评审的 `audit.md` 已同步记录。本次仅验证运行内的访问排序，不宣称跨重启保留。此前“包尚未安装/待真机”状态由本条实际结果更新。
 
 截至 build 11，**M01–M17 各复现路径已分轮通过**；不代表全部移动端功能通过或所有项目均在 build 11 重测。前文各版本证据和未覆盖边界继续有效。保留 QA 数据及凭据，仅本地提交，不推送或合并。
+
+### M18：共享 Markdown 表格阅读修复（隔离验证通过，未正式接入）
+
+build 11 五列水果表短词硬断，证据 `95-build11-markdown-table-code.png`；长代码折行及复制粘贴完整性通过（96），镜像输入缺失标点不计为应用缺陷。320/390 宽度实际 ChatMessageBody 测试在旧依赖均失败，复现普通短词被拆行。
+
+基线 Markdown `36b956e920d3c9d0e5199731deadfc9664a6e50a`，本地修复 `a46fd1ceeb245e3eb3680b20abed61fc54b5cbdf`，工作区 `/private/tmp/trail-m18-markdown`。默认表格使用内容宽度列和横向滚动条，保留单词完整。共享包 901 项测试通过，`dart analyze lib test` 无问题；全目录分析因独立 app 未初始化依赖报错，不称全仓分析通过。隔离 Terminal 18 项实际聊天、编号及手机/桌面布局测试通过。
+
+可复现补丁：`docs/qa/patches/m18-markdown-readable-tables.patch`，SHA256 `b6cec7875d2d92599e4f65125a72e7756ad403d882e538a71e103867cca5e1f5`。Terminal 复验用例保存在 `docs/qa/fixtures/m18_mobile_markdown_table_test.dart.txt`；复制为隔离工作区 `example/test/ai/mobile_markdown_table_test.dart` 执行，尚未加入主仓库默认测试集，因为正式依赖仍为旧基线。
+
+复现方式：从上述基线检出 Markdown，执行 `git am` 应用补丁；仅在隔离 Terminal 根目录的 `pubspec_overrides.yaml` 将 `ianvs_markdown` 指向修复目录，运行 pub get，再在 example 运行 `flutter test --no-pub test/ai/mobile_markdown_table_test.dart test/ai/mobile_ordered_list_test.dart test/ai/terminal_ai_message_mobile_layout_test.dart`。当前隔离 QA 工作区 `/private/tmp/trail-mobile-qa-f1779096` 已按此配置；主仓库 pubspec/lock 未变，不声称正式接入。
+
+用户要求同步原库并逐层升级，已通知 Markdown 原对话及 ACP 对话核查。正式接入顺序为 Markdown 上游修复、聊天组件依赖/消费验证、Terminal 更新解析依赖并移除临时 override；协议/runtime 无关层不随纯渲染修复升级。目前不推送、合并或发布。M18 真机仍待下一包，安装前由评审确认设备状态。

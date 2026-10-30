@@ -1,0 +1,100 @@
+From a46fd1ceeb245e3eb3680b20abed61fc54b5cbdf Mon Sep 17 00:00:00 2001
+From: binghuiluo <binghuiluo@tencent.com>
+Date: Fri, 30 Oct 2026 12:54:59 +0800
+Subject: [PATCH] fix: preserve readable markdown table columns
+
+---
+ lib/src/ianvs_markdown.dart         |  4 ++
+ test/mobile_table_reading_test.dart | 65 +++++++++++++++++++++++++++++
+ 2 files changed, 69 insertions(+)
+ create mode 100644 test/mobile_table_reading_test.dart
+
+diff --git a/lib/src/ianvs_markdown.dart b/lib/src/ianvs_markdown.dart
+index 279fe98..efd7587 100644
+--- a/lib/src/ianvs_markdown.dart
++++ b/lib/src/ianvs_markdown.dart
+@@ -2314,6 +2314,10 @@ MarkdownStyleSheet ianvsMarkdownStyleSheet(
+       fontSize: 14.5,
+       height: 1.58,
+     ),
++    // Keep ordinary words intact; the renderer provides horizontal scrolling
++    // for intrinsic columns when the table exceeds the reading viewport.
++    tableColumnWidth: const IntrinsicColumnWidth(),
++    tableScrollbarThumbVisibility: true,
+     tableBorder: TableBorder.all(color: colors.borderSoft),
+     tableHead: TextStyle(
+       color: colors.textPrimary,
+diff --git a/test/mobile_table_reading_test.dart b/test/mobile_table_reading_test.dart
+new file mode 100644
+index 0000000..78ece08
+--- /dev/null
++++ b/test/mobile_table_reading_test.dart
+@@ -0,0 +1,65 @@
++import 'package:flutter/material.dart';
++import 'package:flutter/rendering.dart';
++import 'package:flutter_test/flutter_test.dart';
++import 'package:ianvs_markdown/ianvs_markdown.dart';
++
++void main() {
++  for (final width in [320.0, 390.0]) {
++    testWidgets('five-column table keeps short words intact at $width', (
++      tester,
++    ) async {
++      tester.view.devicePixelRatio = 1;
++      tester.view.physicalSize = Size(width, 700);
++      addTearDown(tester.view.reset);
++      await tester.pumpWidget(
++        MaterialApp(
++          theme: ThemeData(platform: TargetPlatform.iOS),
++          home: Scaffold(
++            body: const SingleChildScrollView(
++              child: IanvsMarkdown(
++                documentSelection: true,
++                data:
++                    '| Fruit | Color | Taste | Season | Origin |\n'
++                    '| --- | --- | --- | --- | --- |\n'
++                    '| Lemon | Yellow | Sour | Winter | Asia |\n'
++                    '| Apple | Red | Sweet | Autumn | Europe |',
++              ),
++            ),
++          ),
++        ),
++      );
++      await tester.pumpAndSettle();
++      for (final word in ['Season', 'Lemon', 'Yellow', 'Winter', 'Autumn']) {
++        final rich = find.byWidgetPredicate(
++          (widget) => widget is RichText && widget.text.toPlainText() == word,
++        );
++        expect(rich, findsOneWidget);
++        final paragraph = tester.renderObject<RenderParagraph>(rich);
++        final boxes = paragraph.getBoxesForSelection(
++          TextSelection(baseOffset: 0, extentOffset: word.length),
++        );
++        expect(boxes, hasLength(1), reason: '$word must stay on one line');
++      }
++      final horizontal = find.byWidgetPredicate(
++        (widget) =>
++            widget is SingleChildScrollView &&
++            widget.scrollDirection == Axis.horizontal,
++      );
++      expect(horizontal, findsOneWidget);
++      final scrollable = tester.state<ScrollableState>(
++        find
++            .descendant(of: horizontal, matching: find.byType(Scrollable))
++            .first,
++      );
++      expect(scrollable.position.maxScrollExtent, greaterThan(0));
++      await tester.drag(horizontal, const Offset(-500, 0));
++      await tester.pumpAndSettle();
++      expect(scrollable.position.pixels, greaterThan(0));
++      expect(
++        tester.getRect(find.byType(Table)).right,
++        lessThanOrEqualTo(width + 1),
++      );
++      expect(tester.takeException(), isNull);
++    });
++  }
++}
+-- 
+2.54.0 (Apple Git-157)
+

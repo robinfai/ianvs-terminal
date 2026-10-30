@@ -1,0 +1,63 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_agent_chat/ianvs_agent_chat.dart';
+
+import '../helpers/pump_app.dart';
+
+void main() {
+  for (final width in [320.0, 390.0]) {
+    testWidgets('five-column table keeps short words intact at $width', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = Size(width, 700);
+      addTearDown(tester.view.reset);
+      await tester.pumpApp(
+        const SingleChildScrollView(
+          child: ChatMessageBody(
+            documentSelection: true,
+            text:
+                '| Fruit | Color | Taste | Season | Origin |\n'
+                '| --- | --- | --- | --- | --- |\n'
+                '| Lemon | Yellow | Sour | Winter | Asia |\n'
+                '| Apple | Red | Sweet | Autumn | Europe |',
+          ),
+        ),
+        platform: TargetPlatform.iOS,
+      );
+      await tester.pumpAndSettle();
+      for (final word in ['Season', 'Lemon', 'Yellow', 'Winter', 'Autumn']) {
+        final rich = find.byWidgetPredicate(
+          (widget) => widget is RichText && widget.text.toPlainText() == word,
+        );
+        expect(rich, findsOneWidget);
+        final paragraph = tester.renderObject<RenderParagraph>(rich);
+        final boxes = paragraph.getBoxesForSelection(
+          TextSelection(baseOffset: 0, extentOffset: word.length),
+        );
+        expect(boxes, hasLength(1), reason: '$word must stay on one line');
+      }
+      final horizontal = find.byWidgetPredicate(
+        (widget) =>
+            widget is SingleChildScrollView &&
+            widget.scrollDirection == Axis.horizontal,
+      );
+      expect(horizontal, findsOneWidget);
+      final scrollable = tester.state<ScrollableState>(
+        find
+            .descendant(of: horizontal, matching: find.byType(Scrollable))
+            .first,
+      );
+      expect(scrollable.position.maxScrollExtent, greaterThan(0));
+      await tester.drag(horizontal, const Offset(-500, 0));
+      await tester.pumpAndSettle();
+      expect(scrollable.position.pixels, greaterThan(0));
+      expect(
+        tester.getRect(find.byType(Table)).right,
+        lessThanOrEqualTo(width + 1),
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
+}
