@@ -481,3 +481,17 @@ M20：任务菜单表格摘要显示 Fruit · Color · Shape · Taste · Season 
 已通过 read_thread 核实评审线程中的用户直接授权：“确认构建验证后，将相关依赖和 Terminal 提交、推送并合并到主线。”按 Markdown → chat → Terminal 顺序推进。刷新远端后，Terminal 的 origin/main（b83cdeba）为当前分支祖先，当前已有 48 个待交付提交。
 
 正式 hosted 包接入前，隔离 QA 环境对本分支改动涉及的 22 个测试文件运行回归，665 项全部通过；该轮仍使用已验收的本地 Markdown 回补，不能充作正式依赖验证。原工作区已有 Apple 工程、构建脚本、契约测试及未跟踪文件继续隔离保留，不自动纳入交付。
+
+Markdown 原库 PR #63 已合并，主线提交 `43be2dded4e43b173ab02b9371afad700064ef6e`。为避免引入主线其他未发布功能，0.3.2 从兼容回补链的发布提交 `b8024006dd3e884e0ff53bf280ccaea4980eac00` 构建。上游报告 915 项兼容版测试、零警告发布预检、5 项快照示例及 20 项外部消费者回归通过；等价主线修复的 1341 项测试和必需远端门禁通过。
+
+首次 pub.dev 上传被自动审批要求具体版本授权；用户随后明确确认发布 `ianvs_markdown 0.3.2` 和验证后的 `ianvs_agent_chat 0.3.1`。Markdown 0.3.2 已上传并推送 v0.3.2 标签，上游核验官方归档 SHA256 为 `8b092b459d06c63de151de82227ecb0331854dc7a94a150d571056bd7fcf6ed1`。chat 与 Terminal 的最终 hosted 接入继续进行，不能据此提前声明完成。
+
+### 正式依赖接入与 Build 15 验证完成
+
+ianvs_agent_chat 0.3.1 已发布，最低 Markdown 依赖为 ^0.3.2；归档 SHA256 `b890312129ff4fdb46e43ea51fadb6907814248dd753c633548dff434dab30d0`。ACP PR #17 全量 CI 通过并合并至主线 `f0b7719701c4b0c41011734a186f0f711a49a8c8`，代码树与受测提交 ef5db191 完全一致。上游纯 hosted 消费端另有 8 项回归、分析及 macOS Debug 构建通过；主线重复 CI 尚在运行，不计作已完成。
+
+Terminal 移除根 pubspec 的 Markdown Git override，升级 chat 最低版本为 ^0.3.1。正式 pub.dev 解析仅改变 chat/Markdown 两项锁记录，版本分别为 0.3.1/0.3.2，来源及哈希匹配上游归档。将 M18 表格测试纳入 example/test/ai/mobile_markdown_table_test.dart，覆盖 320/390 宽度短词完整、末列可达、复杂链接长段落及选择环境下的横向手势。
+
+隔离源码导出使用上述 hosted 依赖重跑 22 个文件，665 项测试全部通过；example 静态分析无问题。iOS Simulator debug **0.1.0（15）** 构建成功，bundle work.ianvs.trail、IOSSIMULATOR Mach-O 与严格签名校验通过。包 `/private/tmp/trail-mobile-qa-f1779096/example/build/ios/iphonesimulator/Runner.app`，报告 `/private/tmp/trail-build15-hosted-verified.json`；kernel_blob.bin SHA256 `743f9b083e9b484d3826588cb741f9b366c44a84f019bba5b8e11bd35fc73ac5`。本次未安装或清理用户数据。
+
+日志为 `/private/tmp/trail-final-hosted-{tests,analysis,build}.log`。构建提示 irondash_engine_context 和 super_native_extensions 尚不支持 iOS Swift Package Manager，目前通过 CocoaPods 回退构建成功。Build14 的交互证据不冒充 Build15 交互复验；M20 长回复摘要以及 M19 失败/ACP 界面的覆盖边界维持前述记录。Terminal 远端 PR/CI 与合并尚待完成。

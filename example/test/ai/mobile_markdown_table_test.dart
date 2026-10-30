@@ -1,0 +1,149 @@
+import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_agent_chat/ianvs_agent_chat.dart';
+
+import '../helpers/pump_app.dart';
+
+void main() {
+  testWidgets('table links and long prose remain bounded in shared chat', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(320, 700);
+    addTearDown(tester.view.reset);
+    await tester.pumpApp(
+      SingleChildScrollView(
+        child: ChatMessageBody(
+          documentSelection: true,
+          text:
+              '| Link | Description |\n| --- | --- |\n'
+              '| [Long reference](https://example.test/very/long/reference) | '
+              '${List.filled(20, 'Long English and 中文内容').join(' ')} |',
+        ),
+      ),
+      platform: TargetPlatform.iOS,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Long reference', findRichText: true), findsOneWidget);
+    expect(tester.getSize(find.byType(Table)).width, lessThanOrEqualTo(400));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'selectable table accepts touch swipe and horizontal mouse wheel',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(320, 700);
+      addTearDown(tester.view.reset);
+      await tester.pumpApp(
+        const SingleChildScrollView(
+          child: ChatMessageBody(
+            documentSelection: true,
+            text:
+                '| Fruit | Color | Taste | Season | Origin |\n'
+                '| --- | --- | --- | --- | --- |\n'
+                '| Lemon | Yellow | Sour | Winter | Asia |',
+          ),
+        ),
+        platform: TargetPlatform.iOS,
+      );
+      await tester.pumpAndSettle();
+      final horizontal = find.byWidgetPredicate(
+        (w) =>
+            w is SingleChildScrollView && w.scrollDirection == Axis.horizontal,
+      );
+      final scrollable = tester.state<ScrollableState>(
+        find
+            .descendant(of: horizontal, matching: find.byType(Scrollable))
+            .first,
+      );
+      final word = find.byWidgetPredicate(
+        (w) => w is RichText && w.text.toPlainText() == 'Yellow',
+      );
+      await tester.dragFrom(
+        tester.getCenter(word),
+        const Offset(-200, 0),
+        kind: PointerDeviceKind.touch,
+      );
+      await tester.pumpAndSettle();
+      expect(
+        scrollable.position.pixels,
+        greaterThan(0),
+        reason: 'touch starting on text scrolls horizontally',
+      );
+      scrollable.position.jumpTo(0);
+      await tester.pumpAndSettle();
+      await tester.sendEventToBinding(
+        PointerScrollEvent(
+          position: tester.getCenter(horizontal),
+          scrollDelta: const Offset(200, 0),
+          kind: PointerDeviceKind.mouse,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        scrollable.position.pixels,
+        greaterThan(0),
+        reason: 'horizontal mouse wheel reaches table scrollable',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  for (final width in [320.0, 390.0]) {
+    testWidgets('five-column table keeps short words intact at $width', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = Size(width, 700);
+      addTearDown(tester.view.reset);
+      await tester.pumpApp(
+        const SingleChildScrollView(
+          child: ChatMessageBody(
+            documentSelection: true,
+            text:
+                '| Fruit | Color | Taste | Season | Origin |\n'
+                '| --- | --- | --- | --- | --- |\n'
+                '| Lemon | Yellow | Sour | Winter | Asia |\n'
+                '| Apple | Red | Sweet | Autumn | Europe |',
+          ),
+        ),
+        platform: TargetPlatform.iOS,
+      );
+      await tester.pumpAndSettle();
+      for (final word in ['Season', 'Lemon', 'Yellow', 'Winter', 'Autumn']) {
+        final rich = find.byWidgetPredicate(
+          (widget) => widget is RichText && widget.text.toPlainText() == word,
+        );
+        expect(rich, findsOneWidget);
+        final paragraph = tester.renderObject<RenderParagraph>(rich);
+        final boxes = paragraph.getBoxesForSelection(
+          TextSelection(baseOffset: 0, extentOffset: word.length),
+        );
+        expect(boxes, hasLength(1), reason: '$word must stay on one line');
+      }
+      final horizontal = find.byWidgetPredicate(
+        (widget) =>
+            widget is SingleChildScrollView &&
+            widget.scrollDirection == Axis.horizontal,
+      );
+      expect(horizontal, findsOneWidget);
+      final scrollable = tester.state<ScrollableState>(
+        find
+            .descendant(of: horizontal, matching: find.byType(Scrollable))
+            .first,
+      );
+      expect(scrollable.position.maxScrollExtent, greaterThan(0));
+      await tester.drag(horizontal, const Offset(-500, 0));
+      await tester.pumpAndSettle();
+      expect(scrollable.position.pixels, greaterThan(0));
+      expect(
+        tester.getRect(find.byType(Table)).right,
+        lessThanOrEqualTo(width + 1),
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
+}

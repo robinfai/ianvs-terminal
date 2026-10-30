@@ -467,10 +467,10 @@ packages:
     dependency: transitive
     description:
       name: ianvs_agent_chat
-      sha256: cd8d90e2ca936055517ed85453ece7c2b5f6a5f76419536295ddf6159be8adde
+      sha256: b890312129ff4fdb46e43ea51fadb6907814248dd753c633548dff434dab30d0
       url: "https://pub.dev"
     source: hosted
-    version: "0.3.0"
+    version: "0.3.1"
   ianvs_agent_core:
     dependency: transitive
     description:
@@ -488,14 +488,13 @@ packages:
     source: hosted
     version: "0.4.0"
   ianvs_markdown:
-    dependency: "direct overridden"
+    dependency: transitive
     description:
-      path: "."
-      ref: "36b956e920d3c9d0e5199731deadfc9664a6e50a"
-      resolved-ref: "36b956e920d3c9d0e5199731deadfc9664a6e50a"
-      url: "https://github.com/robinfai/ianvs-markdown.git"
-    source: git
-    version: "0.3.1"
+      name: ianvs_markdown
+      sha256: "8b092b459d06c63de151de82227ecb0331854dc7a94a150d571056bd7fcf6ed1"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.3.2"
   integration_test:
     dependency: transitive
     description: flutter
