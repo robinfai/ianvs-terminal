@@ -243,3 +243,9 @@ Build 6 真机回放库点“打开录制文件”的文字或图标均无选择
 选择器选取/取消/失败与录制库共 27 项测试通过，example 静态分析无问题；旧桌面通道测试已明确 macOS 平台。额外独立 QA 样本 `M13-valid.ndjson` 与 `M13-invalid.ndjson` 经当前 codec 测试，前者含唯一输出 `M13_QA_IMPORT_OK`，后者明确无效，无用户数据。样本位于 `/private/tmp/trail-qa-m13-20261030/`，计划通过独立 Documents 子目录供真机选择，不读取其他手机文件。
 
 本轮补充通过：回放 ±10 秒 0:32→0:22→0:32；详情显示已隐去按键/包含命令元数据；近期活动 1 秒回放终态显示连接信息和提示符。M13 系统选择器真机复验仍待下一包，不以 mock 测试替代实测。
+
+### Build 7 交付与独立导入样本
+
+隔离源码 `326947d6d817c3823d09c72e22e508528f81ddbf` 构建 **0.1.0（7）**，Markdown 仍为 `36b956e`。签名、同 bundle/钥匙串组及目标设备授权校验通过；评审确认真机空闲后，同一 iPhone 17 原位安装、启动、安装后版本查询均成功。未卸载清数据、未读改 Key、未推送合并。证据：`/private/tmp/trail-build7-package-verified.json` 及 `trail-build7-phone-install.json`、`trail-build7-phone-launch.json`、`trail-build7-phone-after.json`。
+
+仅向应用 Documents 新增 `Trail-QA-M13-20261030` 目录内的两份独立 QA 文件，复制成功证据 `/private/tmp/trail-m13-fixture-copy.json`。预计用户入口为系统“文件 → 浏览 → 我的 iPhone → Trail → Trail-QA-M13-20261030”；没有读取其他手机文件或删除既有录制。已交评审验证系统选择器打开/取消、有效样本播放、无效样本错误及重试，M13 真机结果待续。
