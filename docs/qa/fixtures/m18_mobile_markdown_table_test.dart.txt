@@ -6,6 +6,30 @@ import 'package:ianvs_agent_chat/ianvs_agent_chat.dart';
 import '../helpers/pump_app.dart';
 
 void main() {
+  testWidgets('table links and long prose remain bounded in shared chat', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(320, 700);
+    addTearDown(tester.view.reset);
+    await tester.pumpApp(
+      SingleChildScrollView(
+        child: ChatMessageBody(
+          documentSelection: true,
+          text:
+              '| Link | Description |\n| --- | --- |\n'
+              '| [Long reference](https://example.test/very/long/reference) | '
+              '${List.filled(20, 'Long English and 中文内容').join(' ')} |',
+        ),
+      ),
+      platform: TargetPlatform.iOS,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Long reference', findRichText: true), findsOneWidget);
+    expect(tester.getSize(find.byType(Table)).width, lessThanOrEqualTo(400));
+    expect(tester.takeException(), isNull);
+  });
+
   for (final width in [320.0, 390.0]) {
     testWidgets('five-column table keeps short words intact at $width', (
       tester,
