@@ -357,3 +357,11 @@ M17 [P3] 为同名初始要求的标题截断且缺少区分信息、新任务�
 build 10 草稿隔离补验：在 M16OK 任务输入未发送的 `DRAFTQA18 unsent text`，切到 RESUMEQA 只读历史与 SWITCHQA17 均未串入；返回 M16OK 展开后草稿完整恢复。评审随后清空本人测试草稿，未发送。
 
 源码 `3a70689ca6c43c34e380ee2c4a0cb23c8d5b3eee` 隔离构建 **0.1.0（11）**，包含 M17。Flutter release 模式、Apple Development 签名，Team `UT9BL9NZPG`；代码签名、bundle `work.ianvs.trail`、原钥匙串组、目标 iPhone 授权及 provisioning 有效期校验通过。校验报告 `/private/tmp/trail-build11-package-verified.json`；包 `/private/tmp/trail-mobile-qa-f1779096/example/build/ios/iphoneos/Runner.app`。按协调要求只准备包，未安装或操作设备，未卸载、清数据、改凭据、推送或合并。M17 真机仍待复验。
+
+### Build 11 M17 真机复验通过
+
+独立评审完成原位安装，devicectl 确认 **0.1.0（11）**；未卸载、清数据或改凭据。升级后 M16OK 正文完整。当前任务置顶，任务编号、当前标记及最近回复摘要可见；M16OK 与 RESUMEQA 两个同名 Write100 任务可据摘要区分。按摘要进入 RESUMEQA 正确，返回 M16OK 后正文完整；排序为当前第一、最近访问第二。新建空白任务 15 置顶且显示“未命名任务”，与“新任务”创建动作区分。无新增 AI 请求或命令，M17 上述复现路径通过。
+
+证据 91–94 位于 `/private/tmp/trail-mobile-audit-20261029/`，独立评审的 `audit.md` 已同步记录。本次仅验证运行内的访问排序，不宣称跨重启保留。此前“包尚未安装/待真机”状态由本条实际结果更新。
+
+截至 build 11，**M01–M17 各复现路径已分轮通过**；不代表全部移动端功能通过或所有项目均在 build 11 重测。前文各版本证据和未覆盖边界继续有效。保留 QA 数据及凭据，仅本地提交，不推送或合并。
