@@ -175,6 +175,8 @@ class AiTaskSummary {
     this.draftRevision = 0,
     this.proposalRevision = 0,
     this.commandName = '',
+    this.preview = '',
+    this.visitOrder = 0,
   });
   final String id;
   final String title;
@@ -190,6 +192,8 @@ class AiTaskSummary {
 
   /// A command name only: arguments and environment values stay out of menus.
   final String commandName;
+  final String preview;
+  final int visitOrder;
 }
 
 class _AiDraftAttachment {
@@ -201,6 +205,7 @@ class _AiTask {
   _AiTask(this.id, {InputIntent defaultInputIntent = InputIntent.ai})
     : inputIntent = InputIntentState(defaultIntent: defaultInputIntent);
   final String id;
+  int visitOrder = 0;
   String? historyId;
   bool restoredHistory = false;
   final historySourceIds = <String>{};
@@ -313,6 +318,7 @@ class TerminalAiController extends ChangeNotifier {
   late _AiTask _task;
   final InputIntent defaultInputIntent;
   int _taskSerial = 1;
+  int _visitSerial = 0;
   int _entrySerial = 0;
   int _connectionRevision = 0;
   // Revokes UI callbacks when AI activity or task/lifecycle changes interrupt
@@ -370,6 +376,23 @@ class TerminalAiController extends ChangeNotifier {
         draftRevision: task.draftRevision,
         proposalRevision: task.revision,
         commandName: _taskCommandName(task),
+        visitOrder: task.visitOrder,
+        preview:
+            task.transcript.reversed
+                .where(
+                  (entry) =>
+                      entry.action == null &&
+                      (entry.role == 'assistant' || entry.role == 'user') &&
+                      entry.text.trim().isNotEmpty,
+                )
+                .map(
+                  (entry) => boundedAiText(
+                    entry.text.replaceAll(RegExp(r'\s+'), ' ').trim(),
+                    160,
+                  ),
+                )
+                .firstOrNull ??
+            '',
       ),
     ),
   );
@@ -688,6 +711,7 @@ class TerminalAiController extends ChangeNotifier {
       'task-${++_taskSerial}',
       defaultInputIntent: defaultInputIntent,
     );
+    _task.visitOrder = ++_visitSerial;
     _tasks.add(_task);
     _emit();
   }
@@ -698,6 +722,7 @@ class TerminalAiController extends ChangeNotifier {
     takeOver();
     _cancellation?.cancel();
     _task = task;
+    _task.visitOrder = ++_visitSerial;
     _emit();
     // Switching never starts inference or restores an old approval.
     unawaited(refreshContext());
@@ -1180,6 +1205,7 @@ class TerminalAiController extends ChangeNotifier {
     final cancellation = _cancellation = AiCancellation();
     takenOver = false;
     _task.generationCancelled = false;
+    _task.visitOrder = ++_visitSerial;
     phase = AiPhase.thinking;
     error = null;
     _steps = 0;

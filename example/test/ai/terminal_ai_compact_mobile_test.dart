@@ -127,6 +127,53 @@ void main() {
       tester.widget<FilledButton>(find.byKey(const Key('ai-send')));
 
   testWidgets(
+    'same-title task menu shows recent previews and switches without requests',
+    (tester) async {
+      var requests = 0;
+      api.respond = (_) async => AiReply(text: 'UNIQUE-REPLY-${++requests}');
+      await tester.runAsync(() => controller.ask('Same initial request'));
+      final first = controller.taskId;
+      controller.newTask();
+      await tester.runAsync(() => controller.ask('Same initial request'));
+      final second = controller.taskId;
+      controller.newTask();
+      await tester.runAsync(() => controller.ask('Same initial request'));
+      final third = controller.taskId;
+      await mount(tester, size: const Size(320, 568));
+      await tester.tap(find.byKey(const Key('ai-mobile-task-menu')));
+      await tester.pumpAndSettle();
+      final entries = tester
+          .widgetList<CheckedPopupMenuItem<String>>(
+            find.byType(CheckedPopupMenuItem<String>),
+          )
+          .toList();
+      expect(entries.map((entry) => entry.value), [third, second, first]);
+      expect(find.text('UNIQUE-REPLY-2'), findsOneWidget);
+      await tester.ensureVisible(
+        find.byKey(ValueKey('ai-mobile-task-$second')),
+      );
+      await tester.tap(find.byKey(ValueKey('ai-mobile-task-$second')));
+      await tester.pumpAndSettle();
+      expect(controller.taskId, second);
+      expect(controller.transcript.last.text, 'UNIQUE-REPLY-2');
+      expect(requests, 3);
+      await tester.tap(find.byKey(const Key('ai-mobile-task-menu')));
+      await tester.pumpAndSettle();
+      final reordered = tester
+          .widgetList<CheckedPopupMenuItem<String>>(
+            find.byType(CheckedPopupMenuItem<String>),
+          )
+          .toList();
+      expect(reordered.map((entry) => entry.value), [second, third, first]);
+      await tester.tap(find.byKey(ValueKey('ai-mobile-task-$third')));
+      await tester.pumpAndSettle();
+      expect(controller.transcript.last.text, 'UNIQUE-REPLY-3');
+      expect(requests, 3);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'response limit explains recovery without a blind resume action',
     (tester) async {
       api.respond = (_) async => throw const AiFailure('response_too_large');
