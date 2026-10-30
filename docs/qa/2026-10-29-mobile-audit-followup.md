@@ -409,3 +409,11 @@ build 11 五列水果表短词硬断，证据 `95-build11-markdown-table-code.pn
 ### Build 12 人工真机确认横向浏览
 
 评审转达用户亲自在真机确认 RENDERQA18 可手指横滑至最右 Origin 列。该项为人工真机证据，先前镜像 scroll 无位移不构成应用横滑缺陷，不据此修改选择/滚动手势。短词完整和末列可达已确认；列宽仍在评估，链接表格、代码复制等剩余回归待完成，M18 尚不整体标通过。
+
+### Build 12 链接渲染补验与外链打开接入缺口
+
+LINKQA18 两列 Link/Description、标准 HTTPS Example 链接及中文长段落正常渲染，无此前 intrinsic 布局崩溃，证据 `100-build12-link-table.png`。点击文字及外链图标未见打开/反馈，渲染通过不等同打开通过。
+
+只读代码核查：普通 LLM 回复透传链接回调到 Shell，再调用 WindowBridge.openExternalUrl 的 `app/window_bridge`；macOS 实现 openExternalUrl，iOS 未实现对应 handler，Dart 将 MissingPluginException 静默吞掉。手机无反馈存在明确接入缺口，作为候选 M19，尚未验证此次触点是否到达回调，不归因为文本选择拦截。另 ACP agentContent 正文分支未传 onOpenLink，是独立接入缺口，不能作为本次 LLM 复现原因。本轮仅核查，未修复或构建。
+
+代码块复制直接写 Flutter 系统剪贴板的完整 source；镜像 Cmd+V 出现跨设备粘贴提示后为空，尚未完成手机本地粘贴核验，不判断为复制损坏。M18 剩余验收和列宽评估保持开放。
