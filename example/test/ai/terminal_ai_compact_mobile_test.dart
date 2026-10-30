@@ -89,6 +89,7 @@ void main() {
     TargetPlatform platform = TargetPlatform.iOS,
     bool active = true,
     Locale locale = const Locale('zh'),
+    ValueChanged<String>? onOpenLink,
   }) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = size;
@@ -96,6 +97,7 @@ void main() {
     await tester.pumpApp(
       TerminalAiWorkspace(
         compactMobile: true,
+        onOpenLink: onOpenLink,
         active: active,
         controller: controller,
         targetLabel: 'dev@example.test',
@@ -125,6 +127,36 @@ void main() {
       tester.widget<TextField>(find.byKey(const Key('ai-prompt')));
   FilledButton send(WidgetTester tester) =>
       tester.widget<FilledButton>(find.byKey(const Key('ai-send')));
+
+  for (final agentContent in [false, true]) {
+    testWidgets('mobile link callback works for agentContent=$agentContent', (
+      tester,
+    ) async {
+      const markdown = '[Example](https://example.com)';
+      api.respond = (_) async => const AiReply(text: markdown);
+      await tester.runAsync(() => controller.ask('Show a link'));
+      if (agentContent) {
+        final document = controller.exportHistory({}).single;
+        document['id'] = 'saved-link-fixture';
+        final entries = document['transcript']! as List;
+        (entries.last as Map)['content'] = {
+          'role': 'assistant',
+          'text': markdown,
+          'revision': 0,
+          'timestamp': DateTime(2026).toIso8601String(),
+          'metadata': <String, Object?>{},
+        };
+        controller.restoreHistory([document]);
+        controller.selectTask('saved-link-fixture');
+      }
+      final opened = <String>[];
+      await mount(tester, onOpenLink: opened.add);
+      await tester.tap(find.text('Example', findRichText: true));
+      await tester.pumpAndSettle();
+      expect(opened, ['https://example.com']);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets(
     'same-title task menu shows recent previews and switches without requests',

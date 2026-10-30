@@ -929,6 +929,30 @@ void main() {
     expect(burst, findsNothing);
   });
 
+  testWidgets('external URL failure is visible after approved open', (
+    tester,
+  ) async {
+    final backend = FakePtyBackend();
+    await _pumpShellScreen(
+      tester,
+      fakeBindings: backend,
+      externalUrlOpener: (_) async =>
+          throw PlatformException(code: 'open_url_failed'),
+    );
+    backend.enqueueEvent(
+      1,
+      const PtyEvent(
+        kind: 'open_url_request',
+        sessionId: '1',
+        payload: {'source': 'iterm1337', 'url': 'https://example.test'},
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 40));
+    await tester.tap(find.byKey(const Key('osc1337-open-url-approve')));
+    await tester.pumpAndSettle();
+    expect(find.text('Could not open link'), findsOneWidget);
+  });
+
   testWidgets('OSC 1337 OpenURL requires active confirmation before opening', (
     tester,
   ) async {

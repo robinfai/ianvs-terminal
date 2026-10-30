@@ -204,6 +204,56 @@ void main() {
     );
   });
 
+  testWidgets('missing external URL handler surfaces a recoverable error', (
+    tester,
+  ) async {
+    const channel = MethodChannel('app/window_bridge');
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      channel,
+      (_) async => throw MissingPluginException(),
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      ),
+    );
+    await expectLater(
+      WindowBridge.openExternalUrl('https://example.com'),
+      throwsA(
+        isA<PlatformException>().having(
+          (error) => error.code,
+          'code',
+          'external_url_unavailable',
+        ),
+      ),
+    );
+  });
+
+  testWidgets('external URL launch failure is propagated', (tester) async {
+    const channel = MethodChannel('app/window_bridge');
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      channel,
+      (_) async => throw PlatformException(code: 'open_url_failed'),
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        channel,
+        null,
+      ),
+    );
+    await expectLater(
+      WindowBridge.openExternalUrl('https://example.com'),
+      throwsA(
+        isA<PlatformException>().having(
+          (error) => error.code,
+          'code',
+          'open_url_failed',
+        ),
+      ),
+    );
+  });
+
   testWidgets('openExternalUrl only forwards supported URL schemes', (
     tester,
   ) async {

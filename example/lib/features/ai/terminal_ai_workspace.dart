@@ -991,7 +991,10 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                     c.setAgentContentExpanded(entry.id, expanded),
               )
             else
-              TerminalAiMessage(text: content.text),
+              TerminalAiMessage(
+                text: content.text,
+                onOpenLink: widget.onOpenLink,
+              ),
             if (execution != null)
               TextButton.icon(
                 key: ValueKey('ai-tool-receipt-${entry.id}'),

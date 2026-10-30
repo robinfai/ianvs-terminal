@@ -417,3 +417,9 @@ LINKQA18 两列 Link/Description、标准 HTTPS Example 链接及中文长段落
 只读代码核查：普通 LLM 回复透传链接回调到 Shell，再调用 WindowBridge.openExternalUrl 的 `app/window_bridge`；macOS 实现 openExternalUrl，iOS 未实现对应 handler，Dart 将 MissingPluginException 静默吞掉。手机无反馈存在明确接入缺口，作为候选 M19，尚未验证此次触点是否到达回调，不归因为文本选择拦截。另 ACP agentContent 正文分支未传 onOpenLink，是独立接入缺口，不能作为本次 LLM 复现原因。本轮仅核查，未修复或构建。
 
 代码块复制直接写 Flutter 系统剪贴板的完整 source；镜像 Cmd+V 出现跨设备粘贴提示后为空，尚未完成手机本地粘贴核验，不判断为复制损坏。M18 剩余验收和列宽评估保持开放。
+
+### M19 外链打开修复：代码及针对性验证完成
+
+评审结合 build 12 真机无反馈和 iOS 缺失桥接，正式记录 M19 [P2]。iOS 新增 app/window_bridge 的 openExternalUrl 处理，标准允许 URL 交 UIApplication.open；系统未打开返回错误，不伪称成功。Dart 不再静默吞掉缺失 handler，转换为 PlatformException，由现有 Shell 错误路径显示本地化提示。macOS handler 和既有 URL 校验不变。
+
+ACP agentContent 正文补传宿主 onOpenLink。消费者分别点击普通回复和恢复的 ACP agentContent 链接，均验证回调收到准确 URL；这是自动测试，不声称 ACP 真机已覆盖。另验证 handler 缺失、原生打开失败传播，以及 Shell 显示“Could not open link”。174 项相关桥接、手机消息和 Shell 回归测试通过，example 静态分析无问题，Swift frontend 语法解析通过。完整 iOS 编译及真机浏览器打开/失败验证留待与 M18 合并测试包，本轮未构建安装。

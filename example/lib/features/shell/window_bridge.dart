@@ -189,7 +189,7 @@ class WindowBridge {
         'url': normalizedUrl,
       });
     } on MissingPluginException {
-      return;
+      throw PlatformException(code: 'external_url_unavailable');
     }
   }
 
