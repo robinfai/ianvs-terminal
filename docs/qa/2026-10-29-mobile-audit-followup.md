@@ -351,3 +351,9 @@ build 10 独立评审确认原 M16 长回复任务位于菜单底部，84.Grow �
 M17 [P3] 为同名初始要求的标题截断且缺少区分信息、新任务不易找到。手机菜单改为当前任务置顶，其余按本次运行内最近访问/提交顺序排列；未访问的恢复历史保持加载次序。每项补充稳定于当前会话的任务编号、当前标记及最近纯文本消息摘要，空白任务称“未命名任务”，与顶部“新任务”创建入口区分。正文、切换执行语义及持久化格式不变；最近访问排序不宣称跨重启保持。
 
 78 项手机、控制器及历史测试通过，包含三个同名任务的摘要、排序、来回切换后正文保持且请求次数不变；example 静态分析无问题。按评审协调要求，本次暂不构建或安装，不推送合并。M17 真机验收待后续安排，M01–M16 既有结论及覆盖边界保持不变。
+
+### 草稿补验与 Build 11 包准备完成（尚未安装）
+
+build 10 草稿隔离补验：在 M16OK 任务输入未发送的 `DRAFTQA18 unsent text`，切到 RESUMEQA 只读历史与 SWITCHQA17 均未串入；返回 M16OK 展开后草稿完整恢复。评审随后清空本人测试草稿，未发送。
+
+源码 `3a70689ca6c43c34e380ee2c4a0cb23c8d5b3eee` 隔离构建 **0.1.0（11）**，包含 M17。Flutter release 模式、Apple Development 签名，Team `UT9BL9NZPG`；代码签名、bundle `work.ianvs.trail`、原钥匙串组、目标 iPhone 授权及 provisioning 有效期校验通过。校验报告 `/private/tmp/trail-build11-package-verified.json`；包 `/private/tmp/trail-mobile-qa-f1779096/example/build/ios/iphoneos/Runner.app`。按协调要求只准备包，未安装或操作设备，未卸载、清数据、改凭据、推送或合并。M17 真机仍待复验。
