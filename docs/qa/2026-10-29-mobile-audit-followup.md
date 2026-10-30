@@ -397,3 +397,11 @@ build 11 五列水果表短词硬断，证据 `95-build11-markdown-table-code.pn
 使用 Terminal `5d80505525ed83b8e6a1b7c5248234dd0fb7c169` 与实际本地 Markdown override `3b70a20107b52b4a268851f3b1f5ccb986aaced6` 重建 **0.1.0（12）**，已替代此前暂停的 intrinsic 候选。实际 package_config 路径、依赖干净提交和补丁 SHA256 均核验；包代码签名、应用/钥匙串身份和指定 iPhone 授权通过。报告 `/private/tmp/trail-build12-package-verified.json` 完整记录来源、基线及哈希。
 
 包 `/private/tmp/trail-mobile-qa-f1779096/example/build/ios/iphoneos/Runner.app`，App.framework/App SHA256 `e9b6078089ff350f0a89c9083ba5d9cf54ee4e6fd75d6c969a159c93782fcbb3`。已交评审核对设备状态后复验，当前未安装，真机仍 build 11。M18 真机结果与正式逐层发布接入尚待完成；未推送、合并或发布。
+
+### Build 12 初次真机结果：M18 仍待验，补查手势和列宽
+
+评审已原位安装 build 12，并核对 App.framework 哈希与修正版一致。原 RENDERQA18 历史恢复，Lemon/Yellow 完整；固定 160 逻辑像素列使短词五列表仅约两列可见。证据 `97-build12-table-left.png`。镜像横向 scroll 未观察到位移，拖内容或滚动条变为文字选择；尚不能证明真实触摸不可滚动，也不能标记 M18 通过。
+
+本线程新增实际 ChatMessageBody(documentSelection:true) 消费者用例：从文字中心开始的短 touch 横滑、水平 PointerScrollEvent 鼠标滚轮均移动横向滚动位置。4 项表格测试通过。此前用例仅默认触摸拖表格，不能替代真机镜像事件映射与滚动条拖拽验证；普通鼠标正文拖选字不等于触摸横滑失败。纵向滚轮不保证自动转换为横向。
+
+短词列宽偏大已同步上游评估，要求保持链接/长文本安全，不贸然改变全局选择手势。当前暂不构建新包，M18 保持待验；未推送、合并或发布。

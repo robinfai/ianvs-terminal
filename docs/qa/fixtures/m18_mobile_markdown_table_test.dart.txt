@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_agent_chat/ianvs_agent_chat.dart';
@@ -29,6 +30,67 @@ void main() {
     expect(tester.getSize(find.byType(Table)).width, lessThanOrEqualTo(400));
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'selectable table accepts touch swipe and horizontal mouse wheel',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(320, 700);
+      addTearDown(tester.view.reset);
+      await tester.pumpApp(
+        const SingleChildScrollView(
+          child: ChatMessageBody(
+            documentSelection: true,
+            text:
+                '| Fruit | Color | Taste | Season | Origin |\n'
+                '| --- | --- | --- | --- | --- |\n'
+                '| Lemon | Yellow | Sour | Winter | Asia |',
+          ),
+        ),
+        platform: TargetPlatform.iOS,
+      );
+      await tester.pumpAndSettle();
+      final horizontal = find.byWidgetPredicate(
+        (w) =>
+            w is SingleChildScrollView && w.scrollDirection == Axis.horizontal,
+      );
+      final scrollable = tester.state<ScrollableState>(
+        find
+            .descendant(of: horizontal, matching: find.byType(Scrollable))
+            .first,
+      );
+      final word = find.byWidgetPredicate(
+        (w) => w is RichText && w.text.toPlainText() == 'Yellow',
+      );
+      await tester.dragFrom(
+        tester.getCenter(word),
+        const Offset(-200, 0),
+        kind: PointerDeviceKind.touch,
+      );
+      await tester.pumpAndSettle();
+      expect(
+        scrollable.position.pixels,
+        greaterThan(0),
+        reason: 'touch starting on text scrolls horizontally',
+      );
+      scrollable.position.jumpTo(0);
+      await tester.pumpAndSettle();
+      await tester.sendEventToBinding(
+        PointerScrollEvent(
+          position: tester.getCenter(horizontal),
+          scrollDelta: const Offset(200, 0),
+          kind: PointerDeviceKind.mouse,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        scrollable.position.pixels,
+        greaterThan(0),
+        reason: 'horizontal mouse wheel reaches table scrollable',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   for (final width in [320.0, 390.0]) {
     testWidgets('five-column table keeps short words intact at $width', (
