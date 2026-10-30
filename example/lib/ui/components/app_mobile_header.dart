@@ -21,7 +21,8 @@ class AppMobileHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-    color: context.appTheme.panel,
+    color: context.appTheme.chrome,
+    shape: Border(bottom: BorderSide(color: context.appTheme.border)),
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: SizedBox(

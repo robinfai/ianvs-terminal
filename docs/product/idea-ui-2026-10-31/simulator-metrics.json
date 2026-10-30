@@ -1,0 +1,2490 @@
+{
+  "idea-ios-final": [
+    {
+      "screen": "01-ssh-home",
+      "metrics": {},
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "02-ssh-form",
+      "metrics": {
+        "ssh-host": {
+          "width": 370.0,
+          "height": 48.0
+        },
+        "ssh-user": {
+          "width": 370.0,
+          "height": 48.0
+        },
+        "ssh-auth-method": {
+          "width": 370.0,
+          "height": 48.0
+        },
+        "ssh-password": {
+          "width": 370.0,
+          "height": 48.0
+        },
+        "ssh-connect": {
+          "width": 370.0,
+          "height": 48.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "02-ssh-keyboard",
+      "metrics": {
+        "ssh-host": {
+          "width": 370.0,
+          "height": 48.0
+        },
+        "ssh-user": {
+          "width": 370.0,
+          "height": 48.0
+        },
+        "ssh-auth-method": {
+          "width": 370.0,
+          "height": 48.0
+        },
+        "ssh-password": {
+          "width": 370.0,
+          "height": 48.0
+        },
+        "ssh-connect": {
+          "width": 370.0,
+          "height": 48.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "03-ssh-input",
+      "metrics": {
+        "ssh-host": {
+          "width": 370.0,
+          "height": 48.0
+        },
+        "ssh-user": {
+          "width": 370.0,
+          "height": 48.0
+        },
+        "ssh-auth-method": {
+          "width": 370.0,
+          "height": 48.0
+        },
+        "ssh-password": {
+          "width": 370.0,
+          "height": 48.0
+        },
+        "ssh-connect": {
+          "width": 370.0,
+          "height": 48.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "19-ssh-ready",
+      "metrics": {
+        "ssh-host": {
+          "width": 370.0,
+          "height": 48.0
+        },
+        "ssh-user": {
+          "width": 370.0,
+          "height": 48.0
+        },
+        "ssh-auth-method": {
+          "width": 370.0,
+          "height": 48.0
+        },
+        "ssh-password": {
+          "width": 370.0,
+          "height": 48.0
+        },
+        "ssh-connect": {
+          "width": 370.0,
+          "height": 48.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "20-ssh-more-settings",
+      "metrics": {
+        "ssh-host": {
+          "width": 370.0,
+          "height": 48.0
+        },
+        "ssh-user": {
+          "width": 370.0,
+          "height": 48.0
+        },
+        "ssh-auth-method": {
+          "width": 370.0,
+          "height": 48.0
+        },
+        "ssh-password": {
+          "width": 370.0,
+          "height": 48.0
+        },
+        "ssh-connect": {
+          "width": 370.0,
+          "height": 48.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "05-settings",
+      "metrics": {
+        "defaults-section-general": {
+          "width": 370.0,
+          "height": 48.0
+        },
+        "defaults-mobile-back": {
+          "width": 48.0,
+          "height": 44.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "06-settings-general",
+      "metrics": {
+        "defaults-mobile-back": {
+          "width": 48.0,
+          "height": 44.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "06-settings-appearance",
+      "metrics": {
+        "defaults-mobile-back": {
+          "width": 48.0,
+          "height": 44.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "06-settings-security",
+      "metrics": {
+        "defaults-mobile-back": {
+          "width": 48.0,
+          "height": 44.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "06-settings-data",
+      "metrics": {
+        "defaults-mobile-back": {
+          "width": 48.0,
+          "height": 44.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "07-sync-form",
+      "metrics": {
+        "defaults-mobile-back": {
+          "width": 48.0,
+          "height": 44.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "08-sync-form-bottom",
+      "metrics": {
+        "defaults-mobile-back": {
+          "width": 48.0,
+          "height": 44.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "06-settings-shortcuts",
+      "metrics": {},
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "09-terminal",
+      "metrics": {},
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "10-terminal-dark",
+      "metrics": {},
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "04-session-options",
+      "metrics": {},
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "14-sftp-directory",
+      "metrics": {},
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "19-file-actions",
+      "metrics": {},
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "11-terminal-search",
+      "metrics": {},
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "13-replay-library",
+      "metrics": {},
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "10-replay",
+      "metrics": {
+        "mobile-replay-transport": {
+          "width": 402.0,
+          "height": 108.0
+        },
+        "mobile-replay-toggle": {
+          "width": 48.0,
+          "height": 48.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "15-replay-options",
+      "metrics": {
+        "mobile-replay-transport": {
+          "width": 402.0,
+          "height": 108.0
+        },
+        "mobile-replay-toggle": {
+          "width": 48.0,
+          "height": 48.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "16-replay-search",
+      "metrics": {},
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "17-saved-replay",
+      "metrics": {
+        "mobile-replay-transport": {
+          "width": 402.0,
+          "height": 108.0
+        },
+        "mobile-replay-toggle": {
+          "width": 48.0,
+          "height": 48.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "18-saved-replay-content",
+      "metrics": {},
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "12-profile-dark-general",
+      "metrics": {},
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "12-profile-dark-startup",
+      "metrics": {},
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "12-profile-dark-terminal",
+      "metrics": {},
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "12-profile-dark-appearance",
+      "metrics": {},
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "12-profile-dark-keys",
+      "metrics": {},
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "12-profile-dark-automation",
+      "metrics": {},
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "12-profile-dark-advanced",
+      "metrics": {},
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "12-profile-light-general",
+      "metrics": {},
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "12-profile-light-startup",
+      "metrics": {},
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "12-profile-light-terminal",
+      "metrics": {},
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "12-profile-light-appearance",
+      "metrics": {},
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "12-profile-light-keys",
+      "metrics": {},
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "12-profile-light-automation",
+      "metrics": {},
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "12-profile-light-advanced",
+      "metrics": {},
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "21-shortcut-dark",
+      "metrics": {},
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "22-shortcut-error-dark",
+      "metrics": {},
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "21-shortcut-light",
+      "metrics": {},
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "22-shortcut-error-light",
+      "metrics": {},
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-empty-dark-portrait",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 378.0,
+          "height": 55.5
+        },
+        "ai-mobile-task-strip": {
+          "width": 402.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-command-dark-portrait",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 378.0,
+          "height": 151.5
+        },
+        "ai-mobile-task-strip": {
+          "width": 402.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-expanded-dark-portrait",
+      "metrics": {},
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "29-unified-dark-portrait-menu-editing",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 378.0,
+          "height": 103.5
+        },
+        "ai-mobile-task-strip": {
+          "width": 402.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "30-unified-dark-portrait-menu-dismissed",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 378.0,
+          "height": 55.5
+        },
+        "ai-mobile-task-strip": {
+          "width": 402.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-collapsed-dark-portrait",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 378.0,
+          "height": 55.5
+        },
+        "ai-mobile-task-strip": {
+          "width": 402.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-empty-dark-landscape",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 726.0,
+          "height": 55.5
+        },
+        "ai-mobile-task-strip": {
+          "width": 750.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        2622.0,
+        1206.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-command-dark-landscape",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 726.0,
+          "height": 151.5
+        },
+        "ai-mobile-task-strip": {
+          "width": 750.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        2622.0,
+        1206.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-expanded-dark-landscape",
+      "metrics": {},
+      "physical_size": [
+        2622.0,
+        1206.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "29-unified-dark-landscape-menu-editing",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 726.0,
+          "height": 103.5
+        },
+        "ai-mobile-task-strip": {
+          "width": 750.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        2622.0,
+        1206.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "30-unified-dark-landscape-menu-dismissed",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 726.0,
+          "height": 55.5
+        },
+        "ai-mobile-task-strip": {
+          "width": 750.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        2622.0,
+        1206.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-collapsed-dark-landscape",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 726.0,
+          "height": 55.5
+        },
+        "ai-mobile-task-strip": {
+          "width": 750.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        2622.0,
+        1206.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-empty-light-portrait",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 378.0,
+          "height": 55.5
+        },
+        "ai-mobile-task-strip": {
+          "width": 402.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-command-light-portrait",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 378.0,
+          "height": 151.5
+        },
+        "ai-mobile-task-strip": {
+          "width": 402.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-expanded-light-portrait",
+      "metrics": {},
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "29-unified-light-portrait-menu-editing",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 378.0,
+          "height": 103.5
+        },
+        "ai-mobile-task-strip": {
+          "width": 402.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "30-unified-light-portrait-menu-dismissed",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 378.0,
+          "height": 55.5
+        },
+        "ai-mobile-task-strip": {
+          "width": 402.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-collapsed-light-portrait",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 378.0,
+          "height": 55.5
+        },
+        "ai-mobile-task-strip": {
+          "width": 402.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-empty-light-landscape",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 726.0,
+          "height": 55.5
+        },
+        "ai-mobile-task-strip": {
+          "width": 750.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        2622.0,
+        1206.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-command-light-landscape",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 726.0,
+          "height": 151.5
+        },
+        "ai-mobile-task-strip": {
+          "width": 750.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        2622.0,
+        1206.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-expanded-light-landscape",
+      "metrics": {},
+      "physical_size": [
+        2622.0,
+        1206.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "29-unified-light-landscape-menu-editing",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 726.0,
+          "height": 103.5
+        },
+        "ai-mobile-task-strip": {
+          "width": 750.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        2622.0,
+        1206.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "30-unified-light-landscape-menu-dismissed",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 726.0,
+          "height": 55.5
+        },
+        "ai-mobile-task-strip": {
+          "width": 750.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        2622.0,
+        1206.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-collapsed-light-landscape",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 726.0,
+          "height": 55.5
+        },
+        "ai-mobile-task-strip": {
+          "width": 750.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        2622.0,
+        1206.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    }
+  ],
+  "idea-ios-components": [
+    {
+      "screen": "unified-empty-dark-portrait",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 378.0,
+          "height": 56.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 402.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-command-dark-portrait",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 378.0,
+          "height": 152.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 402.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-expanded-dark-portrait",
+      "metrics": {},
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "29-unified-dark-portrait-menu-editing",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 378.0,
+          "height": 104.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 402.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "30-unified-dark-portrait-menu-dismissed",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 378.0,
+          "height": 56.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 402.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-collapsed-dark-portrait",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 378.0,
+          "height": 56.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 402.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-empty-dark-landscape",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 726.0,
+          "height": 56.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 750.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        2622.0,
+        1206.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-command-dark-landscape",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 726.0,
+          "height": 152.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 750.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        2622.0,
+        1206.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-expanded-dark-landscape",
+      "metrics": {},
+      "physical_size": [
+        2622.0,
+        1206.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "29-unified-dark-landscape-menu-editing",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 726.0,
+          "height": 104.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 750.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        2622.0,
+        1206.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "30-unified-dark-landscape-menu-dismissed",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 726.0,
+          "height": 56.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 750.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        2622.0,
+        1206.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-collapsed-dark-landscape",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 726.0,
+          "height": 56.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 750.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        2622.0,
+        1206.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-empty-light-portrait",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 378.0,
+          "height": 56.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 402.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-command-light-portrait",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 378.0,
+          "height": 152.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 402.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-expanded-light-portrait",
+      "metrics": {},
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "29-unified-light-portrait-menu-editing",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 378.0,
+          "height": 104.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 402.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "30-unified-light-portrait-menu-dismissed",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 378.0,
+          "height": 56.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 402.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-collapsed-light-portrait",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 378.0,
+          "height": 56.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 402.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        1206.0,
+        2622.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-empty-light-landscape",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 726.0,
+          "height": 56.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 750.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        2622.0,
+        1206.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-command-light-landscape",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 726.0,
+          "height": 152.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 750.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        2622.0,
+        1206.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-expanded-light-landscape",
+      "metrics": {},
+      "physical_size": [
+        2622.0,
+        1206.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "29-unified-light-landscape-menu-editing",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 726.0,
+          "height": 104.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 750.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        2622.0,
+        1206.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "30-unified-light-landscape-menu-dismissed",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 726.0,
+          "height": 56.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 750.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        2622.0,
+        1206.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-collapsed-light-landscape",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 726.0,
+          "height": 56.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 750.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        2622.0,
+        1206.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    }
+  ],
+  "idea-ios18-review": [
+    {
+      "screen": "01-ssh-home",
+      "metrics": {},
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "02-ssh-form",
+      "metrics": {
+        "ssh-host": {
+          "width": 398.0,
+          "height": 48.0
+        },
+        "ssh-user": {
+          "width": 398.0,
+          "height": 48.0
+        },
+        "ssh-auth-method": {
+          "width": 398.0,
+          "height": 48.0
+        },
+        "ssh-password": {
+          "width": 398.0,
+          "height": 48.0
+        },
+        "ssh-connect": {
+          "width": 398.0,
+          "height": 48.0
+        }
+      },
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "02-ssh-keyboard",
+      "metrics": {
+        "ssh-host": {
+          "width": 398.0,
+          "height": 48.0
+        },
+        "ssh-user": {
+          "width": 398.0,
+          "height": 48.0
+        },
+        "ssh-auth-method": {
+          "width": 398.0,
+          "height": 48.0
+        },
+        "ssh-password": {
+          "width": 398.0,
+          "height": 48.0
+        },
+        "ssh-connect": {
+          "width": 398.0,
+          "height": 48.0
+        }
+      },
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 301.0
+    },
+    {
+      "screen": "03-ssh-input",
+      "metrics": {
+        "ssh-host": {
+          "width": 398.0,
+          "height": 48.0
+        },
+        "ssh-user": {
+          "width": 398.0,
+          "height": 48.0
+        },
+        "ssh-auth-method": {
+          "width": 398.0,
+          "height": 48.0
+        },
+        "ssh-password": {
+          "width": 398.0,
+          "height": 48.0
+        },
+        "ssh-connect": {
+          "width": 398.0,
+          "height": 48.0
+        }
+      },
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 301.0
+    },
+    {
+      "screen": "19-ssh-ready",
+      "metrics": {
+        "ssh-host": {
+          "width": 398.0,
+          "height": 48.0
+        },
+        "ssh-user": {
+          "width": 398.0,
+          "height": 48.0
+        },
+        "ssh-auth-method": {
+          "width": 398.0,
+          "height": 48.0
+        },
+        "ssh-password": {
+          "width": 398.0,
+          "height": 48.0
+        },
+        "ssh-connect": {
+          "width": 398.0,
+          "height": 48.0
+        }
+      },
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "20-ssh-more-settings",
+      "metrics": {
+        "ssh-host": {
+          "width": 398.0,
+          "height": 48.0
+        },
+        "ssh-user": {
+          "width": 398.0,
+          "height": 48.0
+        },
+        "ssh-auth-method": {
+          "width": 398.0,
+          "height": 48.0
+        },
+        "ssh-password": {
+          "width": 398.0,
+          "height": 48.0
+        },
+        "ssh-connect": {
+          "width": 398.0,
+          "height": 48.0
+        }
+      },
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "05-settings",
+      "metrics": {
+        "defaults-section-general": {
+          "width": 398.0,
+          "height": 48.0
+        },
+        "defaults-mobile-back": {
+          "width": 48.0,
+          "height": 44.0
+        }
+      },
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "06-settings-general",
+      "metrics": {
+        "defaults-mobile-back": {
+          "width": 48.0,
+          "height": 44.0
+        }
+      },
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "06-settings-appearance",
+      "metrics": {
+        "defaults-mobile-back": {
+          "width": 48.0,
+          "height": 44.0
+        }
+      },
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "06-settings-security",
+      "metrics": {
+        "defaults-mobile-back": {
+          "width": 48.0,
+          "height": 44.0
+        }
+      },
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "06-settings-data",
+      "metrics": {
+        "defaults-mobile-back": {
+          "width": 48.0,
+          "height": 44.0
+        }
+      },
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "07-sync-form",
+      "metrics": {
+        "defaults-mobile-back": {
+          "width": 48.0,
+          "height": 44.0
+        }
+      },
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "08-sync-form-bottom",
+      "metrics": {
+        "defaults-mobile-back": {
+          "width": 48.0,
+          "height": 44.0
+        }
+      },
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "06-settings-shortcuts",
+      "metrics": {},
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "09-terminal",
+      "metrics": {},
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 301.0
+    },
+    {
+      "screen": "10-terminal-dark",
+      "metrics": {},
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 301.0
+    },
+    {
+      "screen": "04-session-options",
+      "metrics": {},
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.31988173685534177
+    },
+    {
+      "screen": "14-sftp-directory",
+      "metrics": {},
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.39669911324777635
+    },
+    {
+      "screen": "19-file-actions",
+      "metrics": {},
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "11-terminal-search",
+      "metrics": {},
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 301.0
+    },
+    {
+      "screen": "13-replay-library",
+      "metrics": {},
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "10-replay",
+      "metrics": {
+        "mobile-replay-transport": {
+          "width": 430.0,
+          "height": 108.0
+        },
+        "mobile-replay-toggle": {
+          "width": 48.0,
+          "height": 48.0
+        }
+      },
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "15-replay-options",
+      "metrics": {
+        "mobile-replay-transport": {
+          "width": 430.0,
+          "height": 108.0
+        },
+        "mobile-replay-toggle": {
+          "width": 48.0,
+          "height": 48.0
+        }
+      },
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "16-replay-search",
+      "metrics": {},
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 301.0
+    },
+    {
+      "screen": "17-saved-replay",
+      "metrics": {
+        "mobile-replay-transport": {
+          "width": 430.0,
+          "height": 108.0
+        },
+        "mobile-replay-toggle": {
+          "width": 48.0,
+          "height": 48.0
+        }
+      },
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "18-saved-replay-content",
+      "metrics": {},
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "12-profile-dark-general",
+      "metrics": {},
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "12-profile-dark-startup",
+      "metrics": {},
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "12-profile-dark-terminal",
+      "metrics": {},
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "12-profile-dark-appearance",
+      "metrics": {},
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "12-profile-dark-keys",
+      "metrics": {},
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "12-profile-dark-automation",
+      "metrics": {},
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "12-profile-dark-advanced",
+      "metrics": {},
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "12-profile-light-general",
+      "metrics": {},
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "12-profile-light-startup",
+      "metrics": {},
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "12-profile-light-terminal",
+      "metrics": {},
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "12-profile-light-appearance",
+      "metrics": {},
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "12-profile-light-keys",
+      "metrics": {},
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "12-profile-light-automation",
+      "metrics": {},
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "12-profile-light-advanced",
+      "metrics": {},
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "21-shortcut-dark",
+      "metrics": {},
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "22-shortcut-error-dark",
+      "metrics": {},
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "21-shortcut-light",
+      "metrics": {},
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "22-shortcut-error-light",
+      "metrics": {},
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-empty-dark-portrait",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 406.0,
+          "height": 56.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 430.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-command-dark-portrait",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 406.0,
+          "height": 152.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 430.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 301.0
+    },
+    {
+      "screen": "unified-expanded-dark-portrait",
+      "metrics": {},
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 301.0
+    },
+    {
+      "screen": "29-unified-dark-portrait-menu-editing",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 406.0,
+          "height": 104.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 430.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 301.0
+    },
+    {
+      "screen": "30-unified-dark-portrait-menu-dismissed",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 406.0,
+          "height": 56.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 430.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-collapsed-dark-portrait",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 406.0,
+          "height": 56.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 430.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-empty-dark-landscape",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 790.0,
+          "height": 56.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 814.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        2796.0,
+        1290.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-command-dark-landscape",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 790.0,
+          "height": 56.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 814.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        2796.0,
+        1290.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 181.0
+    },
+    {
+      "screen": "unified-expanded-dark-landscape",
+      "metrics": {},
+      "physical_size": [
+        2796.0,
+        1290.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 181.0
+    },
+    {
+      "screen": "29-unified-dark-landscape-menu-editing",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 790.0,
+          "height": 56.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 814.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        2796.0,
+        1290.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 181.0
+    },
+    {
+      "screen": "30-unified-dark-landscape-menu-dismissed",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 790.0,
+          "height": 56.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 814.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        2796.0,
+        1290.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-collapsed-dark-landscape",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 790.0,
+          "height": 56.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 814.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        2796.0,
+        1290.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-empty-light-portrait",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 406.0,
+          "height": 56.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 430.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-command-light-portrait",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 406.0,
+          "height": 152.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 430.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 301.0
+    },
+    {
+      "screen": "unified-expanded-light-portrait",
+      "metrics": {},
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 301.0
+    },
+    {
+      "screen": "29-unified-light-portrait-menu-editing",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 406.0,
+          "height": 104.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 430.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 301.0
+    },
+    {
+      "screen": "30-unified-light-portrait-menu-dismissed",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 406.0,
+          "height": 56.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 430.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-collapsed-light-portrait",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 406.0,
+          "height": 56.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 430.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        1290.0,
+        2796.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-empty-light-landscape",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 790.0,
+          "height": 56.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 814.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        2796.0,
+        1290.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-command-light-landscape",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 790.0,
+          "height": 56.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 814.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        2796.0,
+        1290.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 181.0
+    },
+    {
+      "screen": "unified-expanded-light-landscape",
+      "metrics": {},
+      "physical_size": [
+        2796.0,
+        1290.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 181.0
+    },
+    {
+      "screen": "29-unified-light-landscape-menu-editing",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 790.0,
+          "height": 56.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 814.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        2796.0,
+        1290.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 181.0
+    },
+    {
+      "screen": "30-unified-light-landscape-menu-dismissed",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 790.0,
+          "height": 56.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 814.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        2796.0,
+        1290.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    },
+    {
+      "screen": "unified-collapsed-light-landscape",
+      "metrics": {
+        "ai-mobile-composer": {
+          "width": 790.0,
+          "height": 56.0
+        },
+        "ai-mobile-task-strip": {
+          "width": 814.0,
+          "height": 52.0
+        }
+      },
+      "physical_size": [
+        2796.0,
+        1290.0
+      ],
+      "dpr": 3.0,
+      "keyboard_inset": 0.0
+    }
+  ]
+}

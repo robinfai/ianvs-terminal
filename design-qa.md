@@ -58,10 +58,58 @@ Evidence and validation on macOS 27.0.1:
   native catalogue and capture test are committed in `ui/previews` and
   `test/design`. Checked-in golden captures provide durable window evidence.
 
-Validation boundary: iOS platform variants are host-rendered widget tests, not
-native-device coverage. macOS 26 CI baseline candidates still require generation
-and review before this redesign is ready to merge. Baselines are not copied
-across OS versions and comparator tolerances are unchanged.
+### Mobile simulator follow-up — 2026-10-31
+
+The user requested Apple-platform review on a simulator, with IDEA component
+styling, and explicitly chose local-only work. No branch was pushed and no
+remote workflow was dispatched.
+
+- Applied neutral IDE chrome and a separator to the shared mobile navigation
+  header, keeping centered titles and existing hit targets. Replaced the hosted
+  prompt's fixed 22 px rounded shell with a presentation-only `AppPromptSurface`
+  using the application's 6 px panel radius and border tokens. Editor subtrees,
+  focus nodes, controllers, callbacks and submission ownership remain with the
+  host. The Latest action also uses the shared control radius.
+- Read the project iOS skill and checked Apple's
+  [buttons](https://developer.apple.com/design/human-interface-guidelines/buttons)
+  and [layout](https://developer.apple.com/design/human-interface-guidelines/layout)
+  guidance. Review covered safe-area placement, measured touch targets,
+  dismiss/navigation controls, light/dark hierarchy, horizontal layouts and
+  keyboard avoidance. Mobile fixed typography follows the explicit repository
+  requirement; this is not a claim of Dynamic Type conformance or a complete
+  VoiceOver certification.
+- iOS 27.0, Trail Audit simulator: 402 × 874 logical points, DPR 3. Full native
+  review passed after isolating fixture state; the final prompt-shell revision
+  separately passed every light/dark portrait/landscape input scenario. Captured
+  68 full-flow scenes and 24 final input scenes. SSH fields/actions measured
+  48 pt high, settings Back 48 × 44 pt, and collapsed input 56 pt high.
+- iOS 18.4, iPhone 16 Plus: 430 × 932 logical points, DPR 3. The full final
+  native review passed (4 scenario tests plus teardown). All 68 captures were
+  saved. Native keyboard insets were 301 pt portrait and 181 pt landscape in
+  the input scenarios; editing, expanding, intent menus and draft retention
+  passed with these insets. Engine captures exclude the system keyboard pixels;
+  the accompanying metrics record the actual platform inset.
+- Fixed the integration fixture's cross-scenario state reuse and restoration
+  of old on-device AI history. Each appearance/orientation gets a fresh keyed
+  provider scope and a no-I/O history repository; production history is unchanged.
+  A screenshot and explicit existence assertion now precede expanded editing.
+- Final local UI/design/AI suite: 1,755 passed, one conditional skip. The suite
+  used `IANVS_ACP_RUST_LIBRARY=example/build/acp-native/libianvs_acp_ffi.dylib`
+  (absolute path at execution). Static analysis of the changed implementation
+  and native test passed. Earlier missing-library failures were test setup;
+  obsolete hosted-widget type assertions were updated while retaining checks
+  for one host editor, no duplicate output and no terminal writes.
+
+Representative original simulator captures and measured geometry are preserved
+in `docs/product/idea-ui-2026-10-31/`. The iOS runtime occasionally logs a rejected
+intermediate orientation request; final physical dimensions and orientation
+assertions passed. iOS 17/26, physical devices and comprehensive assistive-input
+testing were not exercised in this follow-up.
+
+Validation boundary: macOS 26 CI baseline candidates remain ungenerated because
+the user chose not to push or run remote CI. This is a recorded pre-merge gap,
+not evidence of cross-OS golden equivalence. Baselines are not copied across OS
+versions and comparator tolerances are unchanged.
 
 ## Earlier AI workspace, Composer and shortcut review
 
