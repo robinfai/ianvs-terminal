@@ -1,0 +1,235 @@
+From 9c5260058a9a12d458c133fad363c29927883c31 Mon Sep 17 00:00:00 2001
+From: binghuiluo <binghuiluo@tencent.com>
+Date: Fri, 30 Oct 2026 14:03:36 +0800
+Subject: [PATCH] fix: compact short reading table columns safely
+
+---
+ CHANGELOG.md                        |   4 +
+ lib/src/ianvs_markdown.dart         |  12 +--
+ lib/src/reading_table_width.dart    | 126 ++++++++++++++++++++++++++++
+ test/mobile_table_reading_test.dart |  18 +++-
+ 4 files changed, 152 insertions(+), 8 deletions(-)
+ create mode 100644 lib/src/reading_table_width.dart
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index c51e82a..5080312 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,5 +1,9 @@
+ ## Unreleased
+ 
++- Compact short plain-text reading table columns to their measured content
++  width, while keeping long text and embedded controls bounded. Preserve
++  selection, touch scrolling and horizontal mouse-wheel behavior.
++
+ - Backport bounded, text-scale-aware reading table columns and visible horizontal
+   scrollbars. Preserve M05 ordered-marker measurement and host scrollbar overrides;
+   long prose and links wrap without intrinsic layout queries.
+diff --git a/lib/src/ianvs_markdown.dart b/lib/src/ianvs_markdown.dart
+index f65ee98..87abf1f 100644
+--- a/lib/src/ianvs_markdown.dart
++++ b/lib/src/ianvs_markdown.dart
+@@ -8,6 +8,7 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
+ import 'package:markdown/markdown.dart' as md;
+ 
+ import 'blocked_image.dart';
++import 'reading_table_width.dart';
+ import 'callout.dart';
+ import 'code_block.dart';
+ import 'code_surface.dart';
+@@ -2321,12 +2322,11 @@ MarkdownStyleSheet ianvsMarkdownStyleSheet(
+       fontSize: 14.5,
+       height: 1.58,
+     ),
+-    // Bound each reading column instead of squeezing it into the viewport or
+-    // measuring widget intrinsics (links can contain LayoutBuilder). Keep
+-    // ordinary words readable at the host text scale; long cells wrap and the
+-    // table scrolls horizontally when its columns exceed the available width.
+-    tableColumnWidth: FixedColumnWidth(
+-      MediaQuery.textScalerOf(context).scale(140) + 20,
++    // Compact plain-text columns without querying embedded controls for
++    // intrinsic sizes. Long text and links retain a bounded wrapping width.
++    tableColumnWidth: ReadingTableColumnWidth(
++      maximum: MediaQuery.textScalerOf(context).scale(140) + 20,
++      minimum: MediaQuery.textScalerOf(context).scale(32) + 20,
+     ),
+     tableScrollbarThumbVisibility: true,
+     tableBorder: TableBorder.all(color: colors.borderSoft),
+diff --git a/lib/src/reading_table_width.dart b/lib/src/reading_table_width.dart
+new file mode 100644
+index 0000000..8e367af
+--- /dev/null
++++ b/lib/src/reading_table_width.dart
+@@ -0,0 +1,126 @@
++import 'dart:math' as math;
++
++import 'package:flutter/rendering.dart';
++import 'package:flutter/widgets.dart';
++
++/// Internal reading policy. Extending FixedColumnWidth keeps the upstream
++/// Markdown renderer's horizontal-scroll path, without querying widget
++/// intrinsics. Only already-built plain text is measured; embedded controls
++/// retain the bounded fallback even after their first layout.
++class ReadingTableColumnWidth extends FixedColumnWidth {
++  const ReadingTableColumnWidth({
++    required double maximum,
++    required this.minimum,
++  }) : super(maximum);
++
++  final double minimum;
++
++  @override
++  double minIntrinsicWidth(Iterable<RenderBox> cells, double containerWidth) =>
++      maxIntrinsicWidth(cells, containerWidth);
++
++  @override
++  double maxIntrinsicWidth(Iterable<RenderBox> cells, double containerWidth) {
++    var result = minimum;
++    for (final cell in cells) {
++      final measured = _width(cell);
++      if (measured == null) return value;
++      result = math.max(result, measured.ceilToDouble() + 1);
++      if (result >= value) return value;
++    }
++    return result.clamp(minimum, value);
++  }
++
++  double? _width(RenderObject object) {
++    // LayoutBuilder children can appear only after layout. Always fall back,
++    // so links never collapse on the second frame or trigger intrinsic errors.
++    if (object is RenderAbstractLayoutBuilderMixin) return null;
++    if (object is RenderParagraph) {
++      return _textWidth(
++        object.text,
++        object.textDirection,
++        object.textScaler,
++        object.locale,
++      );
++    }
++    if (object is RenderEditable) {
++      final text = object.text;
++      if (text == null) return null;
++      return _textWidth(
++        text,
++        object.textDirection,
++        object.textScaler,
++        object.locale,
++      );
++    }
++    if (object is RenderPadding) {
++      final child = object.child;
++      if (child == null) return 0;
++      final measured = _width(child);
++      return measured == null
++          ? null
++          : measured + object.padding.resolve(object.textDirection).horizontal;
++    }
++    if (object is RenderWrap || object is RenderFlex) {
++      final widths = <double>[];
++      var unknown = false;
++      object.visitChildren((child) {
++        final measured = _width(child);
++        if (measured == null) {
++          unknown = true;
++        } else {
++          widths.add(measured);
++        }
++      });
++      if (unknown) return null;
++      if (widths.isEmpty) return 0;
++      final axis = object is RenderWrap
++          ? object.direction
++          : (object as RenderFlex).direction;
++      final spacing = object is RenderWrap
++          ? object.spacing
++          : (object as RenderFlex).spacing;
++      return axis == Axis.horizontal
++          ? widths.reduce((a, b) => a + b) + spacing * (widths.length - 1)
++          : widths.reduce(math.max);
++    }
++    if (object is RenderConstrainedBox) {
++      final child = object.child;
++      if (child == null) return null;
++      final measured = _width(child);
++      return measured == null
++          ? null
++          : object.additionalConstraints.constrainWidth(measured);
++    }
++    if (object is RenderProxyBox) {
++      final child = object.child;
++      return child == null ? null : _width(child);
++    }
++    return null;
++  }
++
++  double? _textWidth(
++    InlineSpan text,
++    TextDirection direction,
++    TextScaler scaler,
++    Locale? locale,
++  ) {
++    var hasPlaceholder = text is PlaceholderSpan;
++    text.visitChildren((span) {
++      hasPlaceholder = hasPlaceholder || span is PlaceholderSpan;
++      return !hasPlaceholder;
++    });
++    if (hasPlaceholder) return null;
++    final painter = TextPainter(
++      text: text,
++      textDirection: direction,
++      textScaler: scaler,
++      locale: locale,
++    )..layout();
++    try {
++      return painter.width;
++    } finally {
++      painter.dispose();
++    }
++  }
++}
+diff --git a/test/mobile_table_reading_test.dart b/test/mobile_table_reading_test.dart
+index cea1c7b..f43bc11 100644
+--- a/test/mobile_table_reading_test.dart
++++ b/test/mobile_table_reading_test.dart
+@@ -40,6 +40,11 @@ void main() {
+         );
+         expect(boxes, hasLength(1), reason: '$word must stay on one line');
+       }
++      expect(
++        tester.getSize(find.byType(Table)).width,
++        lessThan(560),
++        reason: 'Short columns must not retain the old 800px total width',
++      );
+       final horizontal = find.byWidgetPredicate(
+         (widget) =>
+             widget is SingleChildScrollView &&
+@@ -94,7 +99,16 @@ void main() {
+             );
+             await tester.pumpAndSettle();
+             final table = tester.renderObject<RenderTable>(find.byType(Table));
+-            expect(table.size.width, closeTo(3 * (140 * scale + 20), .01));
++            expect(table.size.width, lessThan(3 * (140 * scale + 20)));
++            expect(table.size.width, greaterThan(2 * (140 * scale + 20)));
++            final initialWidth = table.size.width;
++            await tester.pump();
++            expect(
++              table.size.width,
++              initialWidth,
++              reason:
++                  'Embedded links must keep the fallback width after layout',
++            );
+             final link = tester.renderObject<RenderBox>(find.text(label));
+             final row = table.getRowBox(1);
+             final origin = link.localToGlobal(Offset.zero, ancestor: table);
+@@ -170,7 +184,7 @@ void main() {
+       ),
+     );
+     await tester.pumpAndSettle();
+-    expect(tester.getSize(find.byType(Table)).width, 800);
++    expect(tester.getSize(find.byType(Table)).width, lessThan(560));
+     final horizontal = find.byWidgetPredicate(
+       (w) => w is SingleChildScrollView && w.scrollDirection == Axis.horizontal,
+     );
+-- 
+2.54.0 (Apple Git-157)
+

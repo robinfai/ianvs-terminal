@@ -423,3 +423,9 @@ LINKQA18 两列 Link/Description、标准 HTTPS Example 链接及中文长段落
 评审结合 build 12 真机无反馈和 iOS 缺失桥接，正式记录 M19 [P2]。iOS 新增 app/window_bridge 的 openExternalUrl 处理，标准允许 URL 交 UIApplication.open；系统未打开返回错误，不伪称成功。Dart 不再静默吞掉缺失 handler，转换为 PlatformException，由现有 Shell 错误路径显示本地化提示。macOS handler 和既有 URL 校验不变。
 
 ACP agentContent 正文补传宿主 onOpenLink。消费者分别点击普通回复和恢复的 ACP agentContent 链接，均验证回调收到准确 URL；这是自动测试，不声称 ACP 真机已覆盖。另验证 handler 缺失、原生打开失败传播，以及 Shell 显示“Could not open link”。174 项相关桥接、手机消息和 Shell 回归测试通过，example 静态分析无问题，Swift frontend 语法解析通过。完整 iOS 编译及真机浏览器打开/失败验证留待与 M18 合并测试包，本轮未构建安装。
+
+### M18 紧凑列宽修正版消费者验证完成
+
+原库新增回补提交 `9c5260058a9a12d458c133fad363c29927883c31`，父提交 `3b70a201` 未改写。短文本按文字宽度收紧，长文本/链接复杂控件保留有界宽度，不查询其 intrinsic 尺寸，不改变选择与滚动手势。上游报告回补全包 915 项和主线版 1337 项通过，两版分析通过。
+
+本线程核对提交及增量补丁 SHA256 `6b39cf82e422aef4099529c97988aee33c25f14c64e80c222a589f0b448b06b5`，保存为 `docs/qa/patches/m18-markdown-compact-followup.patch`，应在 bounded-tables 补丁之后应用。实际隔离 Terminal 的 20 项消费者测试通过，包含短词、链接长文本、从文字开始 touch 横滑、水平滚轮、编号及消息布局。尚未构建安装紧凑版，实际字体与真机紧凑效果待验证；将与 M19 外链修复协调同包验收，正式依赖仍未接入，未推送合并。
