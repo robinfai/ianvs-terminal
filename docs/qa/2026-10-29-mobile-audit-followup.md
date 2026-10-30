@@ -311,3 +311,7 @@ build 8 后续独立 QA 在用户授权的新目录内完成创建、重复名�
 ### Build 9 安装暂未完成
 
 隔离源码 `c7a403fc3abcaddbf3fdf0f255f93ec81d764acf` 构建 0.1.0（9），签名、bundle、钥匙串组、provisioning 有效期和目标设备授权校验通过；报告 `/private/tmp/trail-build9-package-verified.json`。首次原位安装被 CoreDevice 4016 拒绝（设备服务/可信连接不可用），未确认安装成功；记录 `/private/tmp/trail-build9-phone-install.json`。已通知评审协调设备连接/解锁，M15 真机验收仍待完成。
+
+### Build 9 真机交付完成（设备恢复后）
+
+用户恢复手机连接、评审确认镜像正常后，继续使用上述已验证的原包，原位安装及启动成功；只读设备查询确认 `work.ianvs.trail` 为 **0.1.0（9）**。未重建、卸载、清数据或改凭据。成功证据为 `/private/tmp/trail-build9-phone-install.json`、`trail-build9-phone-launch.json`、`trail-build9-phone-after.json`。此前安装阻碍已解除，已交独立评审复验父子末级目录区分、完整路径查看/复制和返回；M15 真机结论仍待回报。
