@@ -475,6 +475,7 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
   _RecordingReplayErrorKind? _errorKind;
   String? _errorDetails;
   String _searchQuery = '';
+  Duration? _searchOrigin;
   late final RecordingReplaySearchIndex _searchIndex;
   List<RecordingReplaySearchHit> _searchHits =
       const <RecordingReplaySearchHit>[];
@@ -534,7 +535,7 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
             ? terminal.TerminalReplayTimeMode.realTime
             : terminal.TerminalReplayTimeMode.smart,
         driver: replayDriver,
-        navigationOffsets: _recordingNavigationOffsets(widget.recording),
+        navigationOffsets: recordingReplayNavigationOffsets(widget.recording),
         smartAnchors: _recordingPlaybackAnchors(widget.recording),
       )..addListener(_handleReplayChanged);
       _runtime = replayRuntime.runtime;
@@ -631,6 +632,10 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
   }
 
   void _updateSearch(String query) {
+    if (_searchQuery.trim().isEmpty && query.trim().isNotEmpty) {
+      _searchOrigin = _replayController?.state.sourcePosition;
+    }
+    final hadHits = _searchHits.isNotEmpty;
     _searchQuery = query;
     _searchHits = _searchIndex.search(query);
     _activeSearchHitIndex = 0;
@@ -640,6 +645,11 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
       _replayController?.seekToSource(firstHit.offset);
       return;
     }
+    // An incremental prefix may have jumped away from the paused frame.
+    // A final miss restores the search origin, including when search closes.
+    final restore = query.trim().isNotEmpty || !hadHits ? _searchOrigin : null;
+    if (query.trim().isEmpty) _searchOrigin = null;
+    if (restore != null) _replayController?.seekToSource(restore);
     setState(() {
       _searchMatches = _searchMatchesFor(query);
     });
@@ -899,7 +909,9 @@ class _RecordingReplayLayoutState extends State<_RecordingReplayLayout> {
         onClose: widget.onClose,
         onSearchChanged: _updateSearch,
         searchSummary: _searchHits.isEmpty
-            ? null
+            ? (_searchQuery.trim().isEmpty
+                  ? null
+                  : context.l10n.noMatchesInReplayHistory)
             : context.l10n.matchesAcrossReplay(_searchHits.length),
         onSearchPrevious: _searchHits.isEmpty
             ? null
@@ -1270,42 +1282,6 @@ List<_ReplaySemanticPoint> _recordingSemanticPoints(
           remote: event.semanticRemote,
         ),
   ];
-}
-
-List<Duration> _recordingNavigationOffsets(
-  terminal.TerminalRecording recording,
-) {
-  final semanticOffsets = <Duration>[
-    for (final event in recording.events)
-      if (event.kind == terminal.TerminalRecordingEventKind.shellSemantic &&
-          (event.semanticKind ==
-                  terminal.TerminalRecordingSemanticKind.commandStarted ||
-              event.semanticKind ==
-                  terminal.TerminalRecordingSemanticKind.remoteSessionStarted ||
-              event.semanticKind ==
-                  terminal.TerminalRecordingSemanticKind.prompt))
-        event.monotonicOffset,
-  ];
-  if (semanticOffsets.isNotEmpty) {
-    return semanticOffsets;
-  }
-
-  const activityGap = Duration(milliseconds: 800);
-  final offsets = <Duration>[];
-  Duration? previousOffset;
-  for (final event in recording.events) {
-    if (event.kind != terminal.TerminalRecordingEventKind.ptyOutput &&
-        event.kind != terminal.TerminalRecordingEventKind.resize &&
-        event.kind != terminal.TerminalRecordingEventKind.sessionExited) {
-      continue;
-    }
-    final previous = previousOffset;
-    if (previous == null || event.monotonicOffset - previous > activityGap) {
-      offsets.add(event.monotonicOffset);
-    }
-    previousOffset = event.monotonicOffset;
-  }
-  return offsets;
 }
 
 List<Duration> _recordingPlaybackAnchors(terminal.TerminalRecording recording) {

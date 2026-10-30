@@ -48,6 +48,7 @@ import '../profiles/profile_models.dart';
 import '../profiles/profiles_sheet.dart';
 import '../recording/local_session_recording_repository.dart';
 import '../recording/mobile_replay_player.dart';
+import '../recording/recording_replay_navigation.dart';
 import '../recording/recording_replay_search_index.dart';
 import '../recording/replay_viewport_layout.dart';
 import '../sessions/session_controller.dart';

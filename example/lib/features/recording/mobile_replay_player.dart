@@ -182,6 +182,7 @@ class _MobileReplayPlayerState extends State<MobileReplayPlayer>
                       title: Text(l10n.mobileFrameNavigation),
                       children: [
                         ListTile(
+                          key: const Key('mobile-replay-step-previous'),
                           title: Text(l10n.stepBackInReplay),
                           leading: const Icon(Icons.skip_previous_rounded),
                           enabled: controller.canStepPrevious,
@@ -190,6 +191,7 @@ class _MobileReplayPlayerState extends State<MobileReplayPlayer>
                               : null,
                         ),
                         ListTile(
+                          key: const Key('mobile-replay-step-next'),
                           title: Text(l10n.stepForwardInReplay),
                           leading: const Icon(Icons.skip_next_rounded),
                           enabled: controller.canStepNext,

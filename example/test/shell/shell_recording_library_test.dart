@@ -816,6 +816,50 @@ void main() {
     expect(find.byKey(const Key('recording-replay-layout')), findsNothing);
   });
 
+  testWidgets('unmatched incremental search restores the paused frame', (
+    tester,
+  ) async {
+    final fixture = (await tester.runAsync(
+      () => _recordingLibraryFixture('search-origin'),
+    ))!;
+    addTearDown(() => tester.runAsync(fixture.close));
+    final base = const TerminalRecordingCodec().decode(
+      _recordingFixture('recorded-session', output: 'first marker'),
+    );
+    final repository = _MutableRecordingLibraryRepository(
+      directory: fixture.directory,
+      recording: TerminalRecording(
+        metadata: base.metadata,
+        events: [
+          ...base.events,
+          TerminalRecordingEvent.ptyOutput(
+            sessionId: 'recorded-session',
+            sequence: 2,
+            monotonicOffset: const Duration(seconds: 1),
+            bytes: utf8.encode('later output'),
+          ),
+        ],
+      ),
+    );
+    await _pumpRecordingLibraryShell(tester, repository: repository);
+    await _openFirstSavedRecording(tester, repository.entry.path);
+    final timeline = find.byKey(const Key('recording-replay-timeline'));
+    final slider = tester.widget<Slider>(timeline);
+    slider.onChanged!(slider.max);
+    await tester.pumpAndSettle();
+    final original = tester.widget<Slider>(timeline).value;
+    final search = find.byKey(const Key('recording-replay-search'));
+    await tester.enterText(search, 'f');
+    await tester.pumpAndSettle();
+    expect(tester.widget<Slider>(timeline).value, lessThan(original));
+    await tester.enterText(search, 'firstNO_MATCH');
+    await tester.pumpAndSettle();
+    expect(tester.widget<Slider>(timeline).value, original);
+    await tester.enterText(search, '');
+    await tester.pumpAndSettle();
+    expect(tester.widget<Slider>(timeline).value, original);
+  });
+
   testWidgets('reselecting the same path rebuilds replay with new content', (
     tester,
   ) async {
