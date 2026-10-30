@@ -85,6 +85,57 @@ echo 'subject=C=US,O=Ianvs,OU=RIGHT12345,CN=Apple Development'
     );
   });
 
+  test(
+    'macOS signing forwards strip protection through the clean environment',
+    () async {
+      final directory = Directory.systemTemp.createTempSync('ianvs-macos-env-');
+      addTearDown(() => directory.deleteSync(recursive: true));
+      final flutter = File('${directory.path}/flutter')
+        ..writeAsStringSync(r'''#!/usr/bin/env bash
+set -euo pipefail
+test "$*" = "build macos --release --config-only"
+''');
+      final xcodebuild = File('${directory.path}/xcodebuild')
+        ..writeAsStringSync(r'''#!/usr/bin/env bash
+set -euo pipefail
+test "$CARGO_PROFILE_RELEASE_STRIP" = none
+test -z "${IANVS_TEST_ENV_LEAK:-}"
+test -f "$XCODE_XCCONFIG_FILE"
+printf 'signing-config=%s\n' "$XCODE_XCCONFIG_FILE"
+# Stop before artifact verification; no actual build or signing occurs.
+exit 73
+''');
+      final chmod = await Process.run('chmod', [
+        '+x',
+        flutter.path,
+        xcodebuild.path,
+      ]);
+      expect(chmod.exitCode, 0, reason: chmod.stderr as String?);
+      final result = await Process.run(
+        'bash',
+        ['tools/build_signed_apple_release.sh', 'macos', flutter.path],
+        environment: {
+          'PATH': '${directory.path}:${Platform.environment['PATH']}',
+          'IANVS_APPLE_TEAM': 'ABCDE12345',
+          'IANVS_MACOS_BUNDLE_ID': 'work.ianvs.trail.dev',
+          'CARGO_PROFILE_RELEASE_STRIP': 'symbols',
+          'IANVS_TEST_ENV_LEAK': 'must-not-reach-xcode',
+        },
+      );
+      expect(result.exitCode, 73, reason: '${result.stdout}\n${result.stderr}');
+      final configPath = RegExp(
+        r'signing-config=(.+)',
+      ).firstMatch(result.stdout as String)!.group(1)!;
+      expect(
+        File(configPath).existsSync(),
+        isFalse,
+        reason:
+            'Failed builds must remove the temporary signing configuration.',
+      );
+    },
+    skip: !Platform.isMacOS ? 'Requires macOS plutil and PlistBuddy.' : false,
+  );
+
   test('invalid Apple team overrides fail before signing', () async {
     for (final team in <String>[
       'short',

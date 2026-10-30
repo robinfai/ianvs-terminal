@@ -76,6 +76,9 @@ if [[ "$PLATFORM" == "macos" ]]; then
     "LANG=${LANG:-en_US.UTF-8}"
     "LC_ALL=${LC_ALL:-en_US.UTF-8}"
     "XCODE_XCCONFIG_FILE=$SIGNING_CONFIG"
+    # Avoid misaligned LINKEDIT in Rust proc-macro dylibs after stripping.
+    # Keep this inside env -i so Xcode's Cargo subprocesses receive it.
+    "CARGO_PROFILE_RELEASE_STRIP=none"
   )
   if [[ -n "${DEVELOPER_DIR:-}" ]]; then
     apple_build_env+=("DEVELOPER_DIR=$DEVELOPER_DIR")
