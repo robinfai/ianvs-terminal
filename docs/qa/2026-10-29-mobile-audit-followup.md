@@ -465,3 +465,19 @@ M18 紧凑表格初始完整显示 Fruit/Color/Taste/Season 四列，短词完�
 包 `/private/tmp/trail-mobile-qa-f1779096/example/build/ios/iphonesimulator/Runner.app`；元数据 `/private/tmp/trail-build14-simulator-verified.json`；日志 `/private/tmp/trail-build14-simulator-build.log`。已核验 bundle `work.ianvs.trail`、Info.plist 平台和 Mach-O 均为模拟器、签名完整及二进制哈希。debug Dart 资产 kernel_blob.bin SHA256 为 `1c83f1c2a4b30baf100d58ac7495c02b38ab37844af20d9df98fea869a6794ad`。
 
 实际 Terminal 源码 `8ce4f1e7ad92f5786b1f392b817e2c96c0e729c8`，Markdown 本地 override `9c5260058a9a12d458c133fad363c29927883c31`，基线/两层补丁哈希完整记录于 JSON。尚未安装，由评审继续模拟器验收；本地 override 不代表正式依赖接入。构建未读取或输出 DeepSeek 密钥，未推送、合并或发布。
+
+### Build 14 模拟器交互复验（2026-10-30）
+
+独立评审在 Trail Audit f1779096（iPhone 18 Pro / iOS 27.0）安装 Build 14。原 SSH 连接此前未保存，重启后的空连接列表符合记录；以原 fixture 临时重新连接后 M06_TEST12 历史完整恢复，AI 配置仍保存，不构成数据丢失。未重置账号或环境。
+
+M18：SIMQA18 五列表格横滑到右侧，Season/Autumn/Winter 完整、短词无硬换行（106-build14-sim-table-right.png）。本版紧凑表格原路径通过，不泛化到所有表格形态。代码 Copy 后粘贴到 composer 精确得到 COPYQA123456789END（105-build14-sim-code-copy.png），草稿随后清空，未执行。
+
+M20：任务菜单表格摘要显示 Fruit · Color · Shape · Taste · Season 纯文本（107-build14-sim-task-summary.png）；切至旧 M06 再返回 SIMQA18，正文表格、代码及 DONEQA18 保留（108-build14-sim-task-return.png）。长回复内部截断标记的原始交互路径仍待复验，不能将 M20 整体标通过。
+
+以上截图及独立记录位于 `/private/tmp/trail-mobile-audit-20261029/`。M19 失败反馈与 ACP 界面路径仍只有自动测试覆盖；普通外链成功沿用 Build 13 真机证据。正式依赖仍待 Markdown → chat → Terminal 逐层接入，本轮仅记录本地 QA，未发布、推送或合并。
+
+### 收敛交付启动
+
+已通过 read_thread 核实评审线程中的用户直接授权：“确认构建验证后，将相关依赖和 Terminal 提交、推送并合并到主线。”按 Markdown → chat → Terminal 顺序推进。刷新远端后，Terminal 的 origin/main（b83cdeba）为当前分支祖先，当前已有 48 个待交付提交。
+
+正式 hosted 包接入前，隔离 QA 环境对本分支改动涉及的 22 个测试文件运行回归，665 项全部通过；该轮仍使用已验收的本地 Markdown 回补，不能充作正式依赖验证。原工作区已有 Apple 工程、构建脚本、契约测试及未跟踪文件继续隔离保留，不自动纳入交付。
