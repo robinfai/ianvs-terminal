@@ -5669,4 +5669,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get recordingOpenFailed =>
       'Could not open the recording. Please select the file again.';
+
+  @override
+  String get sftpCurrentDirectory => 'Current directory';
+
+  @override
+  String get sftpViewFullPath => 'View full path';
 }

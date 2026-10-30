@@ -4,6 +4,7 @@ import 'package:app/features/sftp/sftp_file_actions.dart';
 import 'package:app/features/sftp/sftp_side_panel.dart';
 import 'package:app/ui/app_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _DirectorySource implements SftpDirectoryDataSource {
@@ -108,6 +109,97 @@ void main() {
       handle.dispose();
     },
   );
+
+  for (final brightness in Brightness.values) {
+    testWidgets(
+      'mobile long paths distinguish parent and child in $brightness',
+      (tester) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = const Size(320, 568);
+        addTearDown(tester.view.reset);
+        final actions = SftpFileActions();
+        addTearDown(actions.dispose);
+        String? copiedPath;
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          (call) async {
+            if (call.method == 'Clipboard.setData') {
+              copiedPath = (call.arguments as Map)['text'] as String;
+            }
+            return null;
+          },
+        );
+        addTearDown(
+          () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            SystemChannels.platform,
+            null,
+          ),
+        );
+        const parent = '/home/lighthouse/Trail-QA-SFTP-20261030';
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: buildIanvsTerminalTheme(
+              brightness,
+              platform: TargetPlatform.iOS,
+            ),
+            home: Scaffold(
+              body: SftpSidePanel(
+                initialPath: parent,
+                target: const SftpSessionTarget(
+                  sessionId: 'test',
+                  profileName: 'Review',
+                  host: 'example.test',
+                  user: 'tester',
+                  port: 22,
+                ),
+                dataSource: _DirectorySource(),
+                fileActions: actions,
+                onClose: () {},
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final pathButton = find.byKey(const Key('sftp-current-path'));
+        expect(
+          find.descendant(
+            of: pathButton,
+            matching: find.text('Trail-QA-SFTP-20261030'),
+          ),
+          findsOneWidget,
+        );
+        await tester.tap(find.byKey(const Key('sftp-entry-folder')));
+        await tester.pumpAndSettle();
+        expect(
+          find.descendant(of: pathButton, matching: find.text('folder')),
+          findsOneWidget,
+        );
+        await tester.tap(pathButton);
+        await tester.pumpAndSettle();
+        expect(
+          tester
+              .widget<SelectableText>(find.byKey(const Key('sftp-full-path')))
+              .data,
+          '$parent/folder',
+        );
+        await tester.tap(find.byKey(const Key('sftp-copy-current-path')));
+        await tester.pumpAndSettle();
+        expect(copiedPath, '$parent/folder');
+        await tester.tap(find.text('Close'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('sftp-go-up')));
+        await tester.pumpAndSettle();
+        expect(
+          find.descendant(
+            of: pathButton,
+            matching: find.text('Trail-QA-SFTP-20261030'),
+          ),
+          findsOneWidget,
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   for (final scale in [1.0, 2.0, 3.0]) {
     testWidgets('SFTP touch actions remain reachable at ${scale}x', (

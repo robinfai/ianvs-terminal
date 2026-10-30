@@ -5289,4 +5289,10 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get recordingOpenFailed => '无法打开录制。请重新选择文件后再试。';
+
+  @override
+  String get sftpCurrentDirectory => '当前目录';
+
+  @override
+  String get sftpViewFullPath => '查看完整路径';
 }

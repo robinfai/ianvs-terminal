@@ -8935,6 +8935,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not open the recording. Please select the file again.'**
   String get recordingOpenFailed;
+
+  /// No description provided for @sftpCurrentDirectory.
+  ///
+  /// In en, this message translates to:
+  /// **'Current directory'**
+  String get sftpCurrentDirectory;
+
+  /// No description provided for @sftpViewFullPath.
+  ///
+  /// In en, this message translates to:
+  /// **'View full path'**
+  String get sftpViewFullPath;
 }
 
 class _AppLocalizationsDelegate
