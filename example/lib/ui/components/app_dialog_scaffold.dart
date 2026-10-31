@@ -176,12 +176,12 @@ class AppDialogScaffold extends StatelessWidget {
     Widget contents = Column(
       mainAxisSize: height == null ? MainAxisSize.min : MainAxisSize.max,
       children: [
-        header,
+        ColoredBox(color: theme.chrome, child: header),
         if (!mobileHeader) const Divider(height: 1),
         if (expandBody) Expanded(child: paddedBody) else paddedBody,
         if (paddedFooter != null) ...[
           Divider(height: 1, color: theme.border),
-          paddedFooter,
+          ColoredBox(color: theme.chrome, child: paddedFooter),
         ],
       ],
     );
@@ -197,6 +197,7 @@ class AppDialogScaffold extends StatelessWidget {
         child: AppPanel(
           tone: fullscreen ? AppPanelTone.panel : AppPanelTone.elevated,
           shadow: !fullscreen,
+          clipBehavior: Clip.antiAlias,
           border: fullscreen ? const Border() : null,
           borderRadius: borderRadius ?? BorderRadius.circular(theme.radius.xl),
           child: contents,

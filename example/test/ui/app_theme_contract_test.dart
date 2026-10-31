@@ -51,40 +51,41 @@ void main() {
     }
   });
 
-  test('Trail retains the shared design theme and terminal surfaces', () {
-    for (final brightness in Brightness.values) {
-      for (final platform in [TargetPlatform.macOS, TargetPlatform.iOS]) {
-        final theme = buildIanvsTerminalTheme(brightness, platform: platform);
-        final shared = IanvsTheme.build(
-          brightness: brightness,
-          platform: platform,
-          density: platform == TargetPlatform.iOS
-              ? IanvsDensity.touch
-              : IanvsDensity.compact,
-          touchVisualDensity: platform == TargetPlatform.iOS
-              ? IanvsTouchVisualDensity.compact
-              : IanvsTouchVisualDensity.standard,
-        );
-        final tokens = theme.extension<AppThemeTokens>()!;
-        final design = theme.extension<IanvsTokens>()!;
-        expect(theme.extension<IanvsTypography>(), isNotNull);
-        if (platform == TargetPlatform.macOS) {
-          expect(theme.textTheme, shared.textTheme);
-          expect(
-            theme.inputDecorationTheme,
-            shared.inputDecorationTheme.copyWith(
-              hoverColor: theme.inputDecorationTheme.hoverColor,
-              focusedBorder: theme.inputDecorationTheme.focusedBorder,
-            ),
+  test(
+    'IDE presentation preserves shared control metrics and terminal surfaces',
+    () {
+      for (final brightness in Brightness.values) {
+        for (final platform in [TargetPlatform.macOS, TargetPlatform.iOS]) {
+          final theme = buildIanvsTerminalTheme(brightness, platform: platform);
+          final shared = IanvsTheme.build(
+            brightness: brightness,
+            platform: platform,
+            density: platform == TargetPlatform.iOS
+                ? IanvsDensity.touch
+                : IanvsDensity.compact,
+            touchVisualDensity: platform == TargetPlatform.iOS
+                ? IanvsTouchVisualDensity.compact
+                : IanvsTouchVisualDensity.standard,
           );
-        } else {
-          // Trail's reading hierarchy customizes headings and small labels;
-          // body fonts, editing metrics and target sizes remain shared.
-          expect(theme.textTheme.bodyMedium, shared.textTheme.bodyMedium);
-          expect(theme.textTheme.bodyLarge, shared.textTheme.bodyLarge);
-          expect(theme.textTheme.bodySmall, shared.textTheme.bodySmall);
-          expect(theme.textTheme.titleMedium?.fontSize, 16);
-          expect(theme.textTheme.labelSmall?.fontSize, 12);
+          final tokens = theme.extension<AppThemeTokens>()!;
+          final design = theme.extension<IanvsTokens>()!;
+          expect(theme.extension<IanvsTypography>(), isNotNull);
+          // Presentation changes colors and headings, not editing metrics,
+          // platform font fallback, or touch target geometry.
+          for (final pair in [
+            (theme.textTheme.bodyMedium, shared.textTheme.bodyMedium),
+            (theme.textTheme.bodyLarge, shared.textTheme.bodyLarge),
+            (theme.textTheme.bodySmall, shared.textTheme.bodySmall),
+          ]) {
+            expect(pair.$1?.fontSize, pair.$2?.fontSize);
+            expect(pair.$1?.fontFamily, pair.$2?.fontFamily);
+            expect(pair.$1?.fontFamilyFallback, pair.$2?.fontFamilyFallback);
+            expect(pair.$1?.height, pair.$2?.height);
+          }
+          expect(
+            theme.textTheme.titleMedium?.fontSize,
+            platform == TargetPlatform.macOS ? 14 : 16,
+          );
           expect(
             theme.inputDecorationTheme.contentPadding,
             shared.inputDecorationTheme.contentPadding,
@@ -94,45 +95,50 @@ void main() {
             shared.inputDecorationTheme.constraints,
           );
           expect(
-            theme.inputDecorationTheme.helperStyle,
-            shared.inputDecorationTheme.helperStyle,
+            theme.filledButtonTheme.style?.minimumSize?.resolve({}),
+            shared.filledButtonTheme.style?.minimumSize?.resolve({}),
+          );
+          final primaryStyle = theme.filledButtonTheme.style!;
+          expect(
+            contrastRatio(
+              primaryStyle.foregroundColor!.resolve({}) ??
+                  theme.colorScheme.onPrimary,
+              primaryStyle.backgroundColor!.resolve({}) ??
+                  theme.colorScheme.primary,
+            ),
+            greaterThanOrEqualTo(4.5),
+          );
+          expect(design.controlRadius, 4);
+          expect(design.dialogRadius, 8);
+          expect(theme.inputDecorationTheme.fillColor, design.field);
+          expect(tokens.canvas, design.canvas);
+          expect(tokens.panel, design.field);
+          expect(tokens.textPrimary, design.text);
+          expect(tokens.controls.regular, design.controlHeight);
+          expect(tokens.spacing.lg, IanvsSpacing.lg);
+          expect(
+            tokens.terminalSurface,
+            AppThemeTokens.fallbackFor(brightness).terminalSurface,
+          );
+          expect(
+            contrastRatio(tokens.textPrimary, tokens.panel),
+            greaterThanOrEqualTo(4.5),
+          );
+          expect(
+            contrastRatio(tokens.textSubtle, tokens.chrome),
+            greaterThanOrEqualTo(4.5),
+          );
+          expect(
+            contrastRatio(
+              tokens.shellChrome.tabTextPrimary,
+              tokens.shellChrome.tabActiveBackground,
+            ),
+            greaterThanOrEqualTo(4.5),
           );
         }
-        expect(
-          theme.filledButtonTheme.style?.minimumSize?.resolve({}),
-          shared.filledButtonTheme.style?.minimumSize?.resolve({}),
-        );
-        expect(
-          theme.filledButtonTheme.style?.foregroundColor?.resolve({}),
-          shared.filledButtonTheme.style?.foregroundColor?.resolve({}),
-        );
-        expect(tokens.canvas, design.canvas);
-        expect(tokens.panel, design.field);
-        expect(tokens.textPrimary, design.text);
-        expect(tokens.controls.regular, design.controlHeight);
-        expect(tokens.spacing.lg, IanvsSpacing.lg);
-        expect(
-          tokens.terminalSurface,
-          AppThemeTokens.fallbackFor(brightness).terminalSurface,
-        );
-        expect(
-          contrastRatio(tokens.textPrimary, tokens.panel),
-          greaterThanOrEqualTo(4.5),
-        );
-        expect(
-          contrastRatio(tokens.textSubtle, tokens.chrome),
-          greaterThanOrEqualTo(4.5),
-        );
-        expect(
-          contrastRatio(
-            tokens.shellChrome.tabTextPrimary,
-            tokens.shellChrome.tabActiveBackground,
-          ),
-          greaterThanOrEqualTo(4.5),
-        );
       }
-    }
-  });
+    },
+  );
 
   test('iOS uses compact touch visuals while retaining padded targets', () {
     final theme = buildIanvsTerminalTheme(

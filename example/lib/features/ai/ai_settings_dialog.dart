@@ -363,11 +363,11 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
     key: const Key('ai-settings-dialog'),
     // A tight preferred width avoids intrinsic layout through the anchored
     // dropdown. Dialog still clamps this to the available window width.
-    constraints: const BoxConstraints.tightFor(width: 528),
+    constraints: const BoxConstraints.tightFor(width: 680),
     title: Text(t('AI connection', 'AI 连接')),
     scrollable: true,
     content: SizedBox(
-      width: 480,
+      width: 632,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,

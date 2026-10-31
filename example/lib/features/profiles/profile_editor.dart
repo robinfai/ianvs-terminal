@@ -332,13 +332,13 @@ const List<_ProfileEditorSectionSpec> _profileEditorSections =
       _ProfileEditorSectionSpec(
         section: _ProfileEditorSection.general,
         label: 'General',
-        icon: Icons.badge_outlined,
+        icon: AppIcons.profile,
         searchTerms: ['name', 'tags', 'identity'],
       ),
       _ProfileEditorSectionSpec(
         section: _ProfileEditorSection.startup,
         label: 'Startup',
-        icon: Icons.terminal_outlined,
+        icon: AppIcons.startup,
         searchTerms: [
           'shell',
           'program',
@@ -351,13 +351,13 @@ const List<_ProfileEditorSectionSpec> _profileEditorSections =
       _ProfileEditorSectionSpec(
         section: _ProfileEditorSection.terminal,
         label: 'Terminal',
-        icon: Icons.settings_applications_outlined,
+        icon: AppIcons.terminal,
         searchTerms: ['emulation', 'scrollback', 'retention'],
       ),
       _ProfileEditorSectionSpec(
         section: _ProfileEditorSection.appearance,
         label: 'Appearance',
-        icon: Icons.palette_outlined,
+        icon: AppIcons.appearance,
         searchTerms: [
           'font',
           'typography',
@@ -371,13 +371,13 @@ const List<_ProfileEditorSectionSpec> _profileEditorSections =
       _ProfileEditorSectionSpec(
         section: _ProfileEditorSection.keys,
         label: 'Keys',
-        icon: Icons.keyboard_outlined,
+        icon: AppIcons.shortcuts,
         searchTerms: ['selection', 'copy on select', 'option drag'],
       ),
       _ProfileEditorSectionSpec(
         section: _ProfileEditorSection.automation,
         label: 'Automation',
-        icon: Icons.bolt_outlined,
+        icon: AppIcons.automation,
         searchTerms: [
           'triggers',
           'notify',
@@ -389,7 +389,7 @@ const List<_ProfileEditorSectionSpec> _profileEditorSections =
       _ProfileEditorSectionSpec(
         section: _ProfileEditorSection.advanced,
         label: 'Advanced',
-        icon: Icons.tune_outlined,
+        icon: AppIcons.advanced,
         searchTerms: [
           'shell integration',
           'prompt marks',
@@ -1681,7 +1681,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                 ? const BoxConstraints(minWidth: 32, minHeight: 32)
                 : null,
             hintText: context.l10n.findSetting,
-            prefixIcon: const Icon(Icons.search_outlined, size: 18),
+            prefixIcon: const Icon(AppIcons.search, size: 18),
             suffixIcon: searchHasQuery
                 ? IconButton(
                     key: const Key('profile-editor-section-search-clear'),
@@ -1949,10 +1949,9 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
           width: dialogWidth,
           height: dialogHeight,
           expandBody: true,
-          titleTextStyle: Theme.of(context).textTheme.titleLarge?.copyWith(
-            color: theme.textPrimary,
-            fontSize: compact ? 18 : null,
-          ),
+          titleTextStyle: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(color: theme.textPrimary),
           subtitleTextStyle: Theme.of(
             context,
           ).textTheme.bodyMedium?.copyWith(color: theme.textSubtle),
@@ -2834,7 +2833,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
               );
               final save = AppActionButton(
                 buttonKey: const Key('profile-editor-save'),
-                icon: Icons.save_outlined,
+                icon: AppIcons.save,
                 label: context.l10n.save,
                 onPressed: (!_didEdit && !widget.saveWhenPristine)
                     ? null
@@ -3967,7 +3966,7 @@ class _ProfileEditorSectionNavItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = context.appTheme;
     final sectionLabel = context.l10n.profileSectionName(spec.section.name);
-    final foreground = selected ? theme.accent : theme.textMuted;
+    final foreground = selected ? theme.textPrimary : theme.textMuted;
     final background = selected ? theme.selected : Colors.transparent;
     final select = Semantics(
       identifier: 'profile-editor-nav-${spec.section.name}',
@@ -3991,7 +3990,7 @@ class _ProfileEditorSectionNavItem extends StatelessWidget {
           child: Row(
             mainAxisSize: vertical ? MainAxisSize.max : MainAxisSize.min,
             children: [
-              Icon(spec.icon, size: 18, color: foreground),
+              Icon(spec.icon, size: AppIconSize.navigation, color: foreground),
               SizedBox(width: theme.spacing.sm),
               Flexible(
                 child: Text(

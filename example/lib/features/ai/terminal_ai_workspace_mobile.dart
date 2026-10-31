@@ -671,7 +671,8 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
           (c.terminalError != null || c.targetChanged);
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        child: PromptInput.hosted(
+        child: AppPromptSurface(
+          maxWidth: ChatTheme.of(context).contentMaxWidth,
           key: const Key('ai-mobile-composer'),
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           actions: const SizedBox.shrink(),
@@ -854,7 +855,9 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
                     child: Material(
                       color: context.appTheme.panel,
                       elevation: 2,
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(
+                        context.appTheme.radius.sm,
+                      ),
                       child: TextButton.icon(
                         key: const Key('ai-show-latest'),
                         onPressed: _mobileActionAllowed ? _showLatest : null,

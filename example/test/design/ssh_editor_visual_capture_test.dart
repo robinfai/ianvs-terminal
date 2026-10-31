@@ -26,7 +26,7 @@ void main() {
     return;
   }
 
-  setUpAll(loadVisualCaptureFonts);
+  setUpAll(() => loadVisualCaptureFonts(productionIcons: true));
 
   for (final variant in [
     (

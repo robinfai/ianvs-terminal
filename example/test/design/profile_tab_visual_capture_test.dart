@@ -86,7 +86,7 @@ void main() {
     return;
   }
 
-  setUpAll(loadVisualCaptureFonts);
+  setUpAll(() => loadVisualCaptureFonts(productionIcons: true));
 
   testWidgets('captures General profile tab', (tester) async {
     await _captureTab(tester, tabKey: 'general', goldenName: '01-general');

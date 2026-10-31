@@ -76,6 +76,13 @@ if [[ "$PLATFORM" == "macos" ]]; then
     "LANG=${LANG:-en_US.UTF-8}"
     "LC_ALL=${LC_ALL:-en_US.UTF-8}"
     "XCODE_XCCONFIG_FILE=$SIGNING_CONFIG"
+    # Avoid misaligned LINKEDIT in Rust proc-macro dylibs after stripping.
+    # Keep this inside env -i so Xcode's Cargo subprocesses receive it.
+    "CARGO_PROFILE_RELEASE_STRIP=none"
+    # ACP requests timestamps for every identity. Local Apple Development
+    # installation does not require a TSA; distribution signing is separate.
+    "IANVS_LOCAL_APPLE_DEVELOPMENT_SIGNING=1"
+    "IANVS_CODESIGN_BIN=$ROOT_DIR/tools/codesign_local_development.py"
   )
   if [[ -n "${DEVELOPER_DIR:-}" ]]; then
     apple_build_env+=("DEVELOPER_DIR=$DEVELOPER_DIR")
@@ -150,7 +157,9 @@ SIGNING_SETTINGS=(
   "DEVELOPMENT_TEAM = $TEAM"
 )
 if [[ -n "$IOS_BUNDLE_ID" ]]; then
-  SIGNING_SETTINGS+=("PRODUCT_BUNDLE_IDENTIFIER = $IOS_BUNDLE_ID")
+  # Only Runner consumes this setting; a global PRODUCT_BUNDLE_IDENTIFIER
+  # override would also rename every CocoaPods framework.
+  SIGNING_SETTINGS+=("IANVS_IOS_APP_BUNDLE_IDENTIFIER = $IOS_BUNDLE_ID")
 fi
 printf '%s\n' "${SIGNING_SETTINGS[@]}" >"$SIGNING_CONFIG"
 

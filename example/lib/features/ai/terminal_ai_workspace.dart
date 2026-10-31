@@ -10,6 +10,7 @@ import 'package:ianvs_design/ianvs_design.dart' show IanvsTypographyContext;
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 
 import '../../ui/app_ui.dart';
+import '../../ui/components/app_prompt_surface.dart';
 import '../terminal_composer/command_shortcuts_dialog.dart';
 import '../terminal_composer/composer_pane.dart';
 import '../terminal_composer/terminal_mode.dart';
@@ -2802,7 +2803,8 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
             ? 6
             : 12,
       ),
-      child: PromptInput.hosted(
+      child: AppPromptSurface(
+        maxWidth: ChatTheme.of(context).contentMaxWidth,
         padding: EdgeInsets.symmetric(
           horizontal: singleRow
               ? 6

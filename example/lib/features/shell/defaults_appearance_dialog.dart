@@ -1173,7 +1173,7 @@ class _DefaultsAndAppearanceDialogState
                                   isDense: true,
                                   filled: true,
                                   fillColor: theme.panel,
-                                  prefixIcon: const Icon(Icons.search_rounded),
+                                  prefixIcon: const Icon(AppIcons.search),
                                   labelText: context.l10n.filterTerminalPresets,
                                 ),
                                 onChanged: (value) {
@@ -2367,7 +2367,7 @@ class _DefaultsBodyLayout extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SizedBox(
-          width: 176,
+          width: 208,
           child: _DefaultsSectionNavigation(
             selectedSection: selectedSection,
             onSectionSelected: onSectionSelected,
@@ -2431,31 +2431,31 @@ class _DefaultsSectionNavigationState
         <({_DefaultsSection section, IconData icon, String label, Key key})>[
           (
             section: _DefaultsSection.general,
-            icon: Icons.tune_rounded,
+            icon: AppIcons.general,
             label: context.l10n.general,
             key: const Key('defaults-section-general'),
           ),
           (
             section: _DefaultsSection.appearance,
-            icon: Icons.palette_outlined,
+            icon: AppIcons.appearance,
             label: context.l10n.appearance,
             key: const Key('defaults-section-appearance'),
           ),
           (
             section: _DefaultsSection.shortcuts,
-            icon: Icons.keyboard_outlined,
+            icon: AppIcons.shortcuts,
             label: context.l10n.keyboardShortcuts,
             key: const Key('defaults-section-shortcuts'),
           ),
           (
             section: _DefaultsSection.security,
-            icon: Icons.shield_outlined,
+            icon: AppIcons.security,
             label: context.l10n.securityPermissions,
             key: const Key('defaults-section-security'),
           ),
           (
             section: _DefaultsSection.data,
-            icon: Icons.storage_rounded,
+            icon: AppIcons.data,
             label: context.l10n.dataService,
             key: const Key('defaults-section-data'),
           ),
@@ -2463,11 +2463,9 @@ class _DefaultsSectionNavigationState
     return ColoredBox(
       color: theme.chrome,
       child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          theme.spacing.lg,
-          theme.spacing.xl,
-          theme.spacing.lg,
-          theme.spacing.xl,
+        padding: EdgeInsets.symmetric(
+          horizontal: theme.spacing.sm,
+          vertical: theme.spacing.lg,
         ),
         child: Focus(
           canRequestFocus: false,
@@ -2532,7 +2530,7 @@ class _DefaultsSectionNavigationItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = context.appTheme;
     final radius = BorderRadius.circular(theme.radius.md);
-    final foreground = selected ? theme.accent : theme.textPrimary;
+    final foreground = theme.textPrimary;
     return Semantics(
       button: true,
       selected: selected,
@@ -2545,18 +2543,20 @@ class _DefaultsSectionNavigationItem extends StatelessWidget {
           focusNode: focusNode,
           onTap: onPressed,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 32),
+            constraints: BoxConstraints(
+              minHeight: context.adaptiveControlHeight(32),
+            ),
             child: Row(
               children: [
                 SizedBox(width: theme.spacing.md),
-                Icon(icon, size: 18, color: foreground),
+                Icon(icon, size: AppIconSize.navigation, color: foreground),
                 SizedBox(width: theme.spacing.md),
                 Expanded(
                   child: Text(
                     label,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: foreground,
                       fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                     ),
@@ -2601,9 +2601,8 @@ class _DefaultsSettingsGroup extends StatelessWidget {
     return KeyedSubtree(
       key: groupKey,
       child: decorated
-          ? AppPanel(
-              padding: EdgeInsets.all(theme.spacing.lg),
-              borderRadius: BorderRadius.circular(theme.radius.lg),
+          ? Padding(
+              padding: EdgeInsets.symmetric(vertical: theme.spacing.sm),
               child: content,
             )
           : content,
@@ -3089,7 +3088,7 @@ class _PermissionDetail extends StatelessWidget {
             label: context.l10n.riskLevel,
             value: context.l10n.riskLevelName(risk.name),
             icon: switch (risk) {
-              _PermissionRisk.low => Icons.shield_outlined,
+              _PermissionRisk.low => AppIcons.security,
               _PermissionRisk.medium => Icons.warning_amber_rounded,
               _PermissionRisk.high => Icons.error_outline_rounded,
             },
@@ -3258,7 +3257,7 @@ class _ReportVariablesRow extends StatelessWidget {
       buttonKey: const Key('defaults-manage-report-variables'),
       tone: AppActionTone.secondary,
       size: AppActionSize.compact,
-      icon: expanded ? Icons.expand_less_rounded : Icons.tune_rounded,
+      icon: expanded ? Icons.expand_less_rounded : AppIcons.general,
       label: context.l10n.manageDecisions,
       onPressed: onPressed,
     );
@@ -3710,7 +3709,7 @@ class _DataServiceStatusBanner extends StatelessWidget {
     );
     final icon = switch (deployment) {
       DataApiDeployment.disabled => Icons.computer_rounded,
-      DataApiDeployment.local => Icons.dns_rounded,
+      DataApiDeployment.local => AppIcons.server,
       DataApiDeployment.remote => Icons.cloud_outlined,
     };
     return Semantics(

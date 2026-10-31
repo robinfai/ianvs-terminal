@@ -181,7 +181,7 @@ class _NewSessionLauncherState extends State<NewSessionLauncher> {
                           ),
                           ButtonSegment(
                             value: terminal.TerminalConnectionType.ssh,
-                            icon: const Icon(Icons.dns_outlined),
+                            icon: const Icon(AppIcons.server),
                             label: Text(context.l10n.sshSession),
                           ),
                         ],
@@ -390,7 +390,7 @@ class _SshProfileListState extends State<_SshProfileList> {
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
               hintText: context.l10n.searchByNameHostUser,
-              prefixIcon: const Icon(Icons.search_rounded),
+              prefixIcon: const Icon(AppIcons.search),
               suffixIcon: _search.text.isEmpty
                   ? null
                   : IconButton(
@@ -493,7 +493,7 @@ class _SshProfileTile extends StatelessWidget {
     final connection = profile.connection;
     return ListTile(
       key: Key('new-ssh-session-${profile.id}'),
-      leading: Icon(imported ? Icons.description_outlined : Icons.dns_outlined),
+      leading: Icon(imported ? Icons.description_outlined : AppIcons.server),
       title: Text(profile.name),
       subtitle: Text(
         '${connection.user}@${connection.host}:${connection.port}'
@@ -940,7 +940,9 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                               children: [
                                 Text(
                                   context.l10n.sshConnection,
-                                  style: Theme.of(context).textTheme.titleLarge,
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.titleMedium,
                                 ),
                                 SizedBox(height: palette.spacing.xs),
                                 Text(
@@ -1039,7 +1041,7 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                           hintText: context.l10n.hostnameOrIp,
                                           prefixIcon: mobile
                                               ? null
-                                              : const Icon(Icons.dns_outlined),
+                                              : const Icon(AppIcons.server),
                                         ),
                                         validator: _required,
                                       ),

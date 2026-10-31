@@ -17,8 +17,9 @@ const _captureTextFallback = <String>[
   visualCaptureMonoFont,
 ];
 
-/// Load only repository assets and fonts from the pinned Flutter SDK.
-Future<void> loadVisualCaptureFonts({bool productionIcons = false}) async {
+/// Use the app's icon asset by default so captures reflect shipped glyphs.
+/// Text fixtures remain pinned to repository assets and the Flutter SDK.
+Future<void> loadVisualCaptureFonts({bool productionIcons = true}) async {
   installVisualGoldenComparator();
   final flutterRoot =
       Platform.environment['FLUTTER_ROOT'] ??

@@ -4,6 +4,7 @@ import 'package:ianvs_terminal/ianvs_terminal.dart' show ComposerTheme;
 import 'app_high_contrast.dart';
 import 'app_motion.dart';
 import 'app_theme_tokens.dart';
+import 'ide_theme.dart';
 
 /// Matches MainFlutterWindow.chromeBarHeight, including its native drag region.
 const appWindowTitleBarHeight = 44.0;
@@ -39,7 +40,8 @@ ThemeData buildIanvsTerminalTheme(
           ),
         )
       : base;
-  final shared = highContrast ? withAppHighContrast(reading) : reading;
+  final ide = withIdePresentation(reading);
+  final shared = highContrast ? withAppHighContrast(ide) : ide;
   final design = shared.extension<IanvsTokens>()!;
   // The legacy names are an adapter for terminal/business surfaces. General
   // colors, spacing and control metrics all come from the shared design system.
@@ -121,7 +123,7 @@ ThemeData buildIanvsTerminalTheme(
     ),
   );
   final mobileOutline = OutlineInputBorder(
-    borderRadius: BorderRadius.circular(12),
+    borderRadius: BorderRadius.circular(design.controlRadius),
     borderSide: BorderSide(
       color: highContrast ? design.border : design.separator,
       width: highContrast ? 1.5 : 1,
@@ -186,6 +188,7 @@ ThemeData buildIanvsTerminalTheme(
     // Unfilled marks and cursors need a foreground accent, including on
     // selected blocks. Keep the filled primary action's paired colors.
     accent: design.focus,
+    focus: design.focus,
     readerTopInset: resolvedPlatform == TargetPlatform.macOS
         ? appWindowTitleBarHeight
         : 0,

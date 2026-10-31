@@ -16,12 +16,15 @@ requires PRs, prohibits force pushes and deletion, and has no bypass actors.
 It requires resolving review threads, but no mandatory second reviewer, so the
 owner can merge their own PRs. Ruleset ID: `23715048`.
 
-`macos-release.yml` is triggered on a push to main (a PR merge), or a manual run
-on main. Production publication is disabled by default: the release job runs
-only when the repository Actions variable `MACOS_RELEASE_ENABLED` is set to
-`true`. When the variable is absent or disabled, both automatic and
-manual runs skip publication. The separate Verify workflow still runs its full
-applicable build and test gates.
+`macos-release.yml` supports two modes on main:
+
+- Manual **Run workflow** publishes the requested version (default `0.1.0`) as a
+  GitHub Pre-release, never Latest. Add `docs/release/<version>.md` first.
+- Pushes to main publish the existing stable `1.1.<commit count>` series only
+  when `MACOS_RELEASE_ENABLED=true`. Leave this variable unset during testing.
+
+Both modes require valid signing, notarization, and Sparkle credentials. The
+separate Verify workflow still runs its applicable build and test gates.
 
 Each merged revision is versioned `1.1.<git rev-list --count HEAD>`;
 its build number is that same commit count. Full git history and no history
@@ -49,8 +52,9 @@ production pipeline. Leave `MACOS_RELEASE_ENABLED` unset until a suitable Apple
 Developer Program membership and all credentials below are ready. Sparkle keys
 are generated separately and do not replace Apple's signing credentials.
 
-After configuring the credentials, set `MACOS_RELEASE_ENABLED=true` to enable
-publication; remove the variable or set it to `false` to disable future runs.
+After configuring credentials, manually publish a prerelease from Actions.
+Set `MACOS_RELEASE_ENABLED=true` only when automatic stable publication is desired;
+remove it or set it to `false` to disable automatic publication.
 Once enabled, the workflow still fails before building/publishing if credentials
 are missing. It does not silently downgrade public releases to ad-hoc or Apple
 Development signing.
@@ -61,17 +65,20 @@ Repository secrets:
 | --- | --- |
 | `MACOS_CERTIFICATE_P12_BASE64` | Base64 of the exported Developer ID Application certificate **and private key** |
 | `MACOS_CERTIFICATE_PASSWORD` | Password protecting that P12 |
-| `NOTARY_API_KEY_BASE64` | Base64 of the Apple notarization-compatible App Store Connect API `.p8` key |
+| `NOTARY_API_KEY_BASE64` | Optional: base64 of a team App Store Connect API `.p8` key; takes precedence over Apple account authentication |
+| `APPLE_ID` | Developer Apple account email, when not using an API key |
+| `APPLE_APP_SPECIFIC_PASSWORD` | Apple app-specific password, when not using an API key |
 | `SPARKLE_PRIVATE_KEY` | Base64 32-byte Ed25519 seed exported by Sparkle `generate_keys -x`; this is the file's text, not base64 encoded a second time |
 
 Repository variables:
 
 | Name | Value |
 | --- | --- |
-| `MACOS_RELEASE_ENABLED` | Set to `true` to enable automatic or manual production publication; disabled by default |
+| `MACOS_RELEASE_ENABLED` | Set to `true` to enable automatic or stable publication; manual prereleases do not require it |
 | `MACOS_SIGNING_IDENTITY` | Exact identity, e.g. `Developer ID Application: Name (TEAMID)` |
-| `NOTARY_KEY_ID` | Apple API key ID |
-| `NOTARY_ISSUER_ID` | Apple API issuer ID (team API key) |
+| `APPLE_TEAM_ID` | Developer Team ID, when using Apple account authentication |
+| `NOTARY_KEY_ID` | Apple API key ID (API key mode only) |
+| `NOTARY_ISSUER_ID` | Apple API issuer ID (API key mode only) |
 | `SPARKLE_PUBLIC_KEY` | Public key corresponding to `SPARKLE_PRIVATE_KEY` |
 
 Use Sparkle's `generate_keys --account trail-production` once, then export and
@@ -126,3 +133,28 @@ use HTTPS. The fixture starts at build 900001 and offers build 900002.
 
 Keep the test private key out of evidence/PR attachments. Stop the loopback server
 and close the test client after acceptance.
+
+## 0.1.0 测试版与跨项目凭据复用
+
+同一 Apple Developer 团队的 Developer ID Application 证书可用于 Trail 和
+Linefold，无需为每个 app 重新申请证书。保留 Trail 自己的 bundle ID、entitlements
+和 Sparkle 密钥。不要复制 Linefold 的 Quick Look 签名逻辑或更新密钥。
+
+可从本机加密 P12 复用证书与导出密码。GitHub repository Secrets 不能读回，
+也不会自动共享到其他仓库；需将 Apple 登录邮箱、专用密码分别保存至本仓库
+`APPLE_ID`、`APPLE_APP_SPECIFIC_PASSWORD`。不要提交私钥或把密码发送到聊天。
+
+配置完成且工作流合并 main 后：
+
+```sh
+gh workflow run macos-release.yml --repo robinfai/ianvs-terminal --ref main -f version=0.1.0
+```
+
+该操作签名、公证并发布 `v0.1.0`，产物为 universal ZIP、签名 appcast 和 SHA256SUMS。
+不会替换已有 `v1.0.0` 的 Latest 状态。测试版从自己的版本固定 appcast 检查更新；
+后续正式版需手动安装一次以切换到 stable feed。发布后仍需在真实 macOS 上下载、
+解压、启动并验证终端功能。CI 成功不代表支持窗口内所有系统版本均已实测。
+
+参考：[Apple Developer ID](https://developer.apple.com/developer-id/)、
+[Apple 公证](https://developer.apple.com/documentation/security/customizing-the-notarization-workflow)、
+[GitHub CI 证书](https://docs.github.com/en/actions/how-tos/deploy/deploy-to-third-party-platforms/sign-xcode-applications)。

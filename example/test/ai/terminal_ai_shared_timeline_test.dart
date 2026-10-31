@@ -3,6 +3,7 @@ import 'package:app/features/ai/ai_models.dart';
 import 'package:app/features/ai/ai_settings.dart';
 import 'package:app/features/ai/terminal_ai_controller.dart';
 import 'package:app/features/ai/terminal_ai_workspace.dart';
+import 'package:app/ui/components/app_prompt_surface.dart';
 import 'package:app/ui/foundation/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -104,10 +105,8 @@ void main() {
           find.textContaining('DO NOT COPY TERMINAL OUTPUT'),
           findsNothing,
         );
-        expect(
-          find.byWidgetPredicate((widget) => widget is PromptInput),
-          findsOneWidget,
-        );
+        expect(find.byType(AppPromptSurface), findsOneWidget);
+        expect(find.byKey(const Key('ai-prompt')), findsOneWidget);
         expect(terminal.writes, isEmpty);
         expect(tester.takeException(), isNull);
       },

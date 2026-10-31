@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:app/app.dart';
 import 'package:app/features/ai/ai_settings.dart';
+import 'package:app/features/ai/terminal_ai_history_repository.dart';
 import 'package:app/features/ai/terminal_ai_workspace.dart';
 import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/config/shortcut_editor.dart';
@@ -31,6 +32,19 @@ import '../test/support/memory_local_terminal_config_repository.dart';
 import '../test/support/memory_profile_repository.dart';
 import '../test/support/no_io_local_session_recording_repository.dart';
 import '../test/support/no_io_local_terminal_layout_repository.dart';
+
+// Visual scenarios must not restore tasks left in the simulator by prior runs.
+class _ReviewAiHistory implements TerminalAiHistoryRepository {
+  @override
+  Future<List<Map<String, Object?>>> load() async => [];
+
+  @override
+  Future<void> save(
+    String id,
+    Map<String, Object?> document, {
+    Map<String, Object?>? previous,
+  }) async {}
+}
 
 class _IosMobileReviewPtyBackend extends FakePtyBackend
     implements PtyReplaySessionBackend, PtyReplaySessionConfigV1Backend {
@@ -382,6 +396,9 @@ void main({bool unifiedOnly = false}) {
     await capture(tester, '01-ssh-home');
     await tapKey(tester, 'ios-ssh-create-profile');
     await capture(tester, '02-ssh-form');
+    await tapKey(tester, 'ssh-host');
+    await tester.pump(const Duration(milliseconds: 500));
+    await capture(tester, '02-ssh-keyboard');
     await tester.enterText(
       find.byKey(const Key('ssh-host')),
       'review.example.test',
@@ -659,7 +676,11 @@ void main({bool unifiedOnly = false}) {
           );
           await tester.pumpWidget(
             ProviderScope(
+              key: ValueKey(scene),
               overrides: [
+                terminalAiHistoryRepositoryProvider.overrideWithValue(
+                  _ReviewAiHistory(),
+                ),
                 aiSettingsProvider.overrideWithValue(settings),
                 ptySessionBackendProvider.overrideWithValue(backend),
                 profileRepositoryProvider.overrideWithValue(
@@ -753,7 +774,13 @@ void main({bool unifiedOnly = false}) {
           ai.chooseInputIntent(terminal.InputIntentChoice.command);
           await capture(tester, 'unified-command-$scene');
           ai.chooseInputIntent(terminal.InputIntentChoice.automatic);
+          await tester.pumpAndSettle();
           await tapKey(tester, 'ai-expand-draft');
+          await capture(tester, 'unified-expanded-$scene');
+          expect(
+            find.byKey(const Key('composer-draft-editor')),
+            findsOneWidget,
+          );
           await tester.enterText(
             find.byKey(const Key('composer-draft-editor')),
             '中文草稿\n第二行',

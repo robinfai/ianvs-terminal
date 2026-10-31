@@ -1,4 +1,117 @@
-# AI workspace, Composer and shortcut reference — design QA
+# UI design QA
+
+## IDE presentation and icon redesign — 2026-10-31
+
+Scope: restyle the application with JetBrains IDEA as the core reference while
+preserving business logic. Apply a shared light/dark presentation layer, revise
+settings/Profile/SSH/AI dialog hierarchy and form styling, and assess the actual
+production icon font. Network, persistence, command execution, validation and
+save/cancel handlers are unchanged.
+
+Design decisions:
+
+- Centralize neutral surfaces, muted separators, blue selection/focus, 4 px
+  controls, 6 px panels and 8 px dialogs in `ide_theme.dart`. Keep existing body
+  typography, font fallback, control density and hit targets. Mobile remains
+  fixed-size; desktop scaling remains supported.
+- Use compact title bars and footers, a 208 px settings sidebar, neutral selected
+  text, and section headings without nested card borders. Existing responsive
+  configuration rows retain aligned labels on desktop and stack when narrow.
+  The AI provider dialog is wider to accommodate its existing form layout.
+- The production font was already Material Symbols Outlined at weight 300;
+  Flutter icon suffixes did not indicate mixed rendered families. Comparison of
+  weights 300 and 400 at 16/20/24 px in both themes selected 400 for clearer small
+  controls. Desktop toolbar glyphs use 16 px and navigation/touch glyphs 20 px.
+  `AppIcons` gives configuration actions consistent semantic names. Launch,
+  terminal and advanced sections now have distinct, relevant glyphs.
+- Keep the bundled font's existing codepoint contract and license files. The
+  regeneration script exposes weight and optical size; the font README records
+  pinned upstream provenance and hashes. Font inspection found 8,667 codepoints
+  and no missing/empty glyphs or invalid side bearings among 244 actual Material
+  icon references in the app and terminal package.
+- All visual captures now default to the production icon asset. The previous
+  SDK substitute concealed the app's actual icon appearance.
+
+References: [JetBrains layout](https://plugins.jetbrains.com/docs/intellij/layout.html)
+and [icon guidance](https://plugins.jetbrains.com/docs/intellij/icons.html).
+This is a Trail adaptation, not a pixel-identical clone.
+
+Evidence and validation on macOS 27.0.1:
+
+- 669 targeted widget/theme/settings/Profile/AI and full-UI scenario checks
+  passed. Existing focus, error, disabled and primary-button contrast tests pass.
+- Complete `test/design` regeneration: 841 passed, one pre-existing conditional
+  skip. 53 affected macOS 27 goldens were refreshed, covering settings, Profile,
+  SSH forms, shell and Composer. Representative light/dark and compact/scaled
+  captures were visually inspected; no unresolved clipping was observed.
+- Full application `flutter analyze --no-pub`: no issues. Formatting and
+  `git diff --check` pass.
+- A normal complete `flutter test --no-pub test/design` comparison also passed:
+  841 tests, one conditional skip.
+- `flutter build macos --debug --no-pub` succeeded on macOS 27.0.1. The built
+  app's FontManifest registers MaterialIcons exactly once, using the new asset;
+  its bundled font is byte-identical to the source (SHA-256
+  `2547f6988aea023714f6de85db3ed54040e9f1f6194f724b09ab1e621c6eb099`).
+  This proves native packaging, not interactive runtime verification. Existing
+  Swift/plugin migration warnings remain outside the presentation change.
+- Local before/after icon boards are in `tmp/idea-icon-comparison/`; a reusable
+  native catalogue and capture test are committed in `ui/previews` and
+  `test/design`. Checked-in golden captures provide durable window evidence.
+
+### Mobile simulator follow-up — 2026-10-31
+
+The user requested Apple-platform review on a simulator, with IDEA component
+styling, and explicitly chose local-only work. No branch was pushed and no
+remote workflow was dispatched.
+
+- Applied neutral IDE chrome and a separator to the shared mobile navigation
+  header, keeping centered titles and existing hit targets. Replaced the hosted
+  prompt's fixed 22 px rounded shell with a presentation-only `AppPromptSurface`
+  using the application's 6 px panel radius and border tokens. Editor subtrees,
+  focus nodes, controllers, callbacks and submission ownership remain with the
+  host. The Latest action also uses the shared control radius.
+- Read the project iOS skill and checked Apple's
+  [buttons](https://developer.apple.com/design/human-interface-guidelines/buttons)
+  and [layout](https://developer.apple.com/design/human-interface-guidelines/layout)
+  guidance. Review covered safe-area placement, measured touch targets,
+  dismiss/navigation controls, light/dark hierarchy, horizontal layouts and
+  keyboard avoidance. Mobile fixed typography follows the explicit repository
+  requirement; this is not a claim of Dynamic Type conformance or a complete
+  VoiceOver certification.
+- iOS 27.0, Trail Audit simulator: 402 × 874 logical points, DPR 3. Full native
+  review passed after isolating fixture state; the final prompt-shell revision
+  separately passed every light/dark portrait/landscape input scenario. Captured
+  68 full-flow scenes and 24 final input scenes. SSH fields/actions measured
+  48 pt high, settings Back 48 × 44 pt, and collapsed input 56 pt high.
+- iOS 18.4, iPhone 16 Plus: 430 × 932 logical points, DPR 3. The full final
+  native review passed (4 scenario tests plus teardown). All 68 captures were
+  saved. Native keyboard insets were 301 pt portrait and 181 pt landscape in
+  the input scenarios; editing, expanding, intent menus and draft retention
+  passed with these insets. Engine captures exclude the system keyboard pixels;
+  the accompanying metrics record the actual platform inset.
+- Fixed the integration fixture's cross-scenario state reuse and restoration
+  of old on-device AI history. Each appearance/orientation gets a fresh keyed
+  provider scope and a no-I/O history repository; production history is unchanged.
+  A screenshot and explicit existence assertion now precede expanded editing.
+- Final local UI/design/AI suite: 1,755 passed, one conditional skip. The suite
+  used `IANVS_ACP_RUST_LIBRARY=example/build/acp-native/libianvs_acp_ffi.dylib`
+  (absolute path at execution). Static analysis of the changed implementation
+  and native test passed. Earlier missing-library failures were test setup;
+  obsolete hosted-widget type assertions were updated while retaining checks
+  for one host editor, no duplicate output and no terminal writes.
+
+Representative original simulator captures and measured geometry are preserved
+in `docs/product/idea-ui-2026-10-31/`. The iOS runtime occasionally logs a rejected
+intermediate orientation request; final physical dimensions and orientation
+assertions passed. iOS 17/26, physical devices and comprehensive assistive-input
+testing were not exercised in this follow-up.
+
+Validation boundary: macOS 26 CI baseline candidates remain ungenerated because
+the user chose not to push or run remote CI. This is a recorded pre-merge gap,
+not evidence of cross-OS golden equivalence. Baselines are not copied across OS
+versions and comparator tolerances are unchanged.
+
+## Earlier AI workspace, Composer and shortcut review
 
 Date: 2026-10-28
 

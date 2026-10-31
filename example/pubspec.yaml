@@ -82,7 +82,7 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   # MaterialIcons codepoints are preserved for app and shared components.
-  # This bundled font supplies lighter Material Symbols glyphs at weight 300.
+  # This bundled font supplies Material Symbols outline glyphs at weight 400 for small IDE controls.
   uses-material-design: false
   fonts:
     - family: MaterialIcons
