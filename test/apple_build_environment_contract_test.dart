@@ -91,12 +91,14 @@ echo 'subject=C=US,O=Ianvs,OU=RIGHT12345,CN=Apple Development'
       final directory = Directory.systemTemp.createTempSync('ianvs-macos-env-');
       addTearDown(() => directory.deleteSync(recursive: true));
       final flutter = File('${directory.path}/flutter')
-        ..writeAsStringSync(r'''#!/usr/bin/env bash
+        ..writeAsStringSync(r'''
+#!/usr/bin/env bash
 set -euo pipefail
 test "$*" = "build macos --release --config-only"
 ''');
       final xcodebuild = File('${directory.path}/xcodebuild')
-        ..writeAsStringSync(r'''#!/usr/bin/env bash
+        ..writeAsStringSync(r'''
+#!/usr/bin/env bash
 set -euo pipefail
 test "$CARGO_PROFILE_RELEASE_STRIP" = none
 test "$IANVS_LOCAL_APPLE_DEVELOPMENT_SIGNING" = 1
@@ -126,7 +128,7 @@ exit 73
       );
       expect(result.exitCode, 73, reason: '${result.stdout}\n${result.stderr}');
       final configPath = RegExp(
-        r'signing-config=(.+)',
+        'signing-config=(.+)',
       ).firstMatch(result.stdout as String)!.group(1)!;
       expect(
         File(configPath).existsSync(),

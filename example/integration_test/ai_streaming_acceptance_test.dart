@@ -120,6 +120,11 @@ void main() {
       Future<void> ask(String text) async {
         final count = responses.length;
         await tester.pumpAndSettle();
+        // A task switch can retain focus while the old text-input connection
+        // is being closed. Blur first so hasAnyClients cannot accept a stale
+        // client from the previous turn, then reopen through the real field.
+        FocusManager.instance.primaryFocus?.unfocus();
+        await until(() => !tester.testTextInput.hasAnyClients);
         final prompt = find.byKey(const Key('ai-prompt'));
         await tester.tap(prompt);
         // The same EditableText survives task changes, but its input connection
@@ -136,7 +141,15 @@ void main() {
         );
         tester.testTextInput.enterText(text);
         await tester.pumpAndSettle();
-        expect(controller.draft, text);
+        expect(
+          controller.draft,
+          text,
+          reason:
+              'field=${editor.widget.controller.value}; '
+              'focused=${editor.widget.focusNode.hasFocus}; '
+              'readOnly=${editor.widget.readOnly}; '
+              'lifecycle=${tester.binding.lifecycleState}',
+        );
         expect(
           tester
               .widget<FilledButton>(find.byKey(const Key('ai-send')))
