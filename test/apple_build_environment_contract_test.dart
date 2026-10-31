@@ -99,6 +99,8 @@ test "$*" = "build macos --release --config-only"
         ..writeAsStringSync(r'''#!/usr/bin/env bash
 set -euo pipefail
 test "$CARGO_PROFILE_RELEASE_STRIP" = none
+test "$IANVS_LOCAL_APPLE_DEVELOPMENT_SIGNING" = 1
+test -x "$IANVS_CODESIGN_BIN"
 test -z "${IANVS_TEST_ENV_LEAK:-}"
 test -f "$XCODE_XCCONFIG_FILE"
 printf 'signing-config=%s\n' "$XCODE_XCCONFIG_FILE"

@@ -79,6 +79,10 @@ if [[ "$PLATFORM" == "macos" ]]; then
     # Avoid misaligned LINKEDIT in Rust proc-macro dylibs after stripping.
     # Keep this inside env -i so Xcode's Cargo subprocesses receive it.
     "CARGO_PROFILE_RELEASE_STRIP=none"
+    # ACP requests timestamps for every identity. Local Apple Development
+    # installation does not require a TSA; distribution signing is separate.
+    "IANVS_LOCAL_APPLE_DEVELOPMENT_SIGNING=1"
+    "IANVS_CODESIGN_BIN=$ROOT_DIR/tools/codesign_local_development.py"
   )
   if [[ -n "${DEVELOPER_DIR:-}" ]]; then
     apple_build_env+=("DEVELOPER_DIR=$DEVELOPER_DIR")
