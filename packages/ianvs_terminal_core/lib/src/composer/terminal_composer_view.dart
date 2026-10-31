@@ -1325,7 +1325,7 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
                   );
                   // ButtonStyle.side paints below Material ink. A foreground inner
                   // edge stays visible when hover and keyboard focus coexist; the
-                  // primary-colored outer edge separates it from the Dock surface.
+                  // focus-colored outer edge separates it from the Dock surface.
                   // Decorations change neither the button bounds nor its focus node.
                   return DecoratedBox(
                     position: DecorationPosition.foreground,
@@ -1333,7 +1333,7 @@ class _TerminalComposerViewState extends State<TerminalComposerView> {
                       shape: RoundedRectangleBorder(
                         borderRadius: radius,
                         side: focused
-                            ? BorderSide(color: tokens.primaryAction, width: 2)
+                            ? BorderSide(color: tokens.focus, width: 2)
                             : BorderSide.none,
                       ),
                     ),

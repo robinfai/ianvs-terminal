@@ -94,3 +94,14 @@ reconciliation. Initial rendering used Flutter 3.44.8; final comparison uses
 the pinned Flutter 3.44.2 SDK as well. Their pixel differences have the same
 status-bar-only bounds as the macOS 26 review; the current local PNGs update
 only macos-27. Each OS keeps its own original rendering.
+
+## 0.1.0 release preparation (2026-10-31)
+
+Reviewed 51 macOS 26 CI testImage captures from run 41174633399, artifact
+13033340481, against the previous baselines and the separately reviewed macOS 27
+IDE presentation. Changes reflect the intentional surface palette, icon, focus
+color, header, field, and shortcut layout changes. The original macOS 26 PNG
+bytes are retained; comparator thresholds are unchanged. Basename plus exact
+master-image pixel hash identified each destination. Flutter's flat failure
+artifact names collided for SSH dark and Profile general; those two captures
+remain pending a separate comparison, rather than using another OS's output.
