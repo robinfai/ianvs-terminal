@@ -4,6 +4,12 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Test release version (major.minor.patch)'
+        type: string
+        required: true
+        default: '0.1.0'
 
 permissions:
   contents: read
@@ -15,19 +21,23 @@ concurrency:
 
 jobs:
   release:
-    # Free Apple accounts cannot provide Developer ID signing/notarization.
-    # Opt in only after the production credentials below are configured.
-    if: github.ref == 'refs/heads/main' && vars.MACOS_RELEASE_ENABLED == 'true'
+    # Manual runs publish a prerelease; automatic stable releases remain opt-in.
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || vars.MACOS_RELEASE_ENABLED == 'true')
     runs-on: macos-15
     timeout-minutes: 90
     permissions:
       contents: write
     env:
+      CARGO_PROFILE_RELEASE_STRIP: none
       RELEASE_REPOSITORY: ${{ github.repository }}
       SPARKLE_PUBLIC_KEY: ${{ vars.SPARKLE_PUBLIC_KEY }}
       MACOS_SIGNING_IDENTITY: ${{ vars.MACOS_SIGNING_IDENTITY }}
       NOTARY_KEY_ID: ${{ vars.NOTARY_KEY_ID }}
       NOTARY_ISSUER_ID: ${{ vars.NOTARY_ISSUER_ID }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+      RELEASE_PRERELEASE: ${{ github.event_name == 'workflow_dispatch' }}
     steps:
       - name: Check out the merged commit
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
@@ -46,10 +56,10 @@ jobs:
           import os
           required = (
               'MACOS_CERTIFICATE_P12_BASE64', 'MACOS_CERTIFICATE_PASSWORD',
-              'NOTARY_API_KEY_BASE64', 'SPARKLE_PRIVATE_KEY', 'SPARKLE_PUBLIC_KEY',
-              'MACOS_SIGNING_IDENTITY', 'NOTARY_KEY_ID', 'NOTARY_ISSUER_ID',
+              'SPARKLE_PRIVATE_KEY', 'SPARKLE_PUBLIC_KEY', 'MACOS_SIGNING_IDENTITY',
           )
-          missing = [name for name in required if not os.environ.get(name)]
+          notary = ('NOTARY_API_KEY_BASE64', 'NOTARY_KEY_ID', 'NOTARY_ISSUER_ID') if os.environ.get('NOTARY_API_KEY_BASE64') else ('APPLE_ID', 'APPLE_TEAM_ID', 'APPLE_APP_SPECIFIC_PASSWORD')
+          missing = [name for name in required + notary if not os.environ.get(name)]
           if missing:
               raise SystemExit('Configure release secrets/variables before publishing: ' + ', '.join(missing))
           if not os.environ['MACOS_SIGNING_IDENTITY'].startswith('Developer ID Application:'):
@@ -60,17 +70,41 @@ jobs:
         id: version
         env:
           GH_TOKEN: ${{ github.token }}
+          REQUESTED_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
           build=$(git rev-list --count HEAD)
-          version="1.1.$build"
-          latest_build=$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq '[.[] | select(.draft == false and .prerelease == false) | .tag_name | select(test("^v1\\.1\\.[0-9]+$")) | split(".")[-1] | tonumber] | max // 0')
-          if (( build <= latest_build )); then
-            echo "Release $version already published or superseded."
-            echo 'publish=false' >> "$GITHUB_OUTPUT"
-          else
+          if [[ "$RELEASE_PRERELEASE" == true ]]; then
+            version="$REQUESTED_VERSION"
+            [[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || {
+              echo '::error::Version must be major.minor.patch'; exit 1;
+            }
+            test -f "docs/release/$version.md"
             echo 'publish=true' >> "$GITHUB_OUTPUT"
+          else
+            version="1.1.$build"
+            latest_build=$(gh api "repos/$GITHUB_REPOSITORY/releases" --paginate --jq '[.[] | select(.draft == false and .prerelease == false) | .tag_name | select(test("^v1\\.1\\.[0-9]+$")) | split(".")[-1] | tonumber] | max // 0' | sort -nr | head -1)
+            if (( build <= latest_build )); then
+              echo "Release $version already published or superseded."
+              echo 'publish=false' >> "$GITHUB_OUTPUT"
+              exit 0
+            else
+              echo 'publish=true' >> "$GITHUB_OUTPUT"
+            fi
           fi
+          # Fail on an API error; reject public releases before expensive builds.
+          gh api "repos/$GITHUB_REPOSITORY/releases" --paginate > "$RUNNER_TEMP/releases.json"
+          python3 - "$RUNNER_TEMP/releases.json" "v$version" <<'PYCODE'
+          import json, sys
+          text = open(sys.argv[1]).read()
+          decoder = json.JSONDecoder()
+          while text.strip():
+              releases, end = decoder.raw_decode(text.lstrip())
+              for release in releases:
+                  if release['tag_name'] == sys.argv[2] and not release['draft']:
+                      raise SystemExit('Refusing to replace published release ' + sys.argv[2])
+              text = text.lstrip()[end:]
+          PYCODE
           echo "RELEASE_BUILD=$build" >> "$GITHUB_ENV"
           echo "RELEASE_VERSION=$version" >> "$GITHUB_ENV"
           echo "RELEASE_OUTPUT=$RUNNER_TEMP/trail-release" >> "$GITHUB_ENV"
@@ -122,11 +156,13 @@ jobs:
           from pathlib import Path
           root = Path(os.environ['RUNNER_TEMP']) / 'trail-signing'
           for name, filename in [('MACOS_CERTIFICATE_P12_BASE64', 'certificate.p12'), ('NOTARY_API_KEY_BASE64', 'notary.p8')]:
-              (root / filename).write_bytes(base64.b64decode(os.environ[name], validate=True))
+              if os.environ.get(name):
+                  (root / filename).write_bytes(base64.b64decode(os.environ[name], validate=True))
           (root / 'sparkle.key').write_text(os.environ['SPARKLE_PRIVATE_KEY'])
           PY
           keychain="$signing_dir/release.keychain-db"
           keychain_password=$(openssl rand -hex 32)
+          echo "::add-mask::$keychain_password"
           security create-keychain -p "$keychain_password" "$keychain"
           security set-keychain-settings -lut 21600 "$keychain"
           security unlock-keychain -p "$keychain_password" "$keychain"
@@ -134,7 +170,9 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain" > /dev/null
           security list-keychains -d user -s "$keychain" login.keychain-db
           echo "SPARKLE_KEY_FILE=$signing_dir/sparkle.key" >> "$GITHUB_ENV"
-          echo "NOTARY_KEY_FILE=$signing_dir/notary.p8" >> "$GITHUB_ENV"
+          if [[ -f "$signing_dir/notary.p8" ]]; then
+            echo "NOTARY_KEY_FILE=$signing_dir/notary.p8" >> "$GITHUB_ENV"
+          fi
 
       - name: Build, sign, notarize, and sign the update feed
         if: steps.version.outputs.publish == 'true'
@@ -152,11 +190,27 @@ jobs:
             # A rerun may resume its own draft, but never replace another commit.
             test "$(gh release view "$tag" --json targetCommitish --jq .targetCommitish)" = "$GITHUB_SHA"
           else
-            gh release create "$tag" --draft --target "$GITHUB_SHA" --title "Trail $RELEASE_VERSION" --generate-notes
+            flags=(--generate-notes)
+            if [[ "$RELEASE_PRERELEASE" == true ]]; then
+              flags=(--prerelease --notes-file "docs/release/$RELEASE_VERSION.md")
+            fi
+            gh release create "$tag" --draft --target "$GITHUB_SHA" --title "Trail $RELEASE_VERSION" "${flags[@]}"
           fi
           gh release upload "$tag" "$RELEASE_OUTPUT/Trail-$RELEASE_VERSION-macOS-universal.zip" \
             "$RELEASE_OUTPUT/appcast.xml" "$RELEASE_OUTPUT/SHA256SUMS" --clobber
-          gh release edit "$tag" --draft=false --latest
+          if [[ "$RELEASE_PRERELEASE" == true ]]; then
+            gh release edit "$tag" --draft=false --prerelease --latest=false
+          else
+            gh release edit "$tag" --draft=false --prerelease=false --latest
+          fi
+
+      - name: Save notarization diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: notarization-result
+          path: ${{ runner.temp }}/trail-release/notarization*.json
+          if-no-files-found: ignore
 
       - name: Remove ephemeral signing material
         if: always()

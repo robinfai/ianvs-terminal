@@ -5,9 +5,16 @@ root=$(cd "$(dirname "$0")/../.." && pwd)
 : "${MACOS_SIGNING_IDENTITY:?Developer ID Application identity is required}"
 : "${SPARKLE_PUBLIC_KEY:?Sparkle public key is required}"
 : "${SPARKLE_KEY_FILE:?Sparkle private key file is required}"
-: "${NOTARY_KEY_FILE:?Apple notarization API key file is required}"
-: "${NOTARY_KEY_ID:?Notarization key ID is required}"
-: "${NOTARY_ISSUER_ID:?Notarization issuer ID is required}"
+if [[ -n "${NOTARY_KEY_FILE:-}" ]]; then
+  : "${NOTARY_KEY_ID:?Notarization key ID is required}"
+  : "${NOTARY_ISSUER_ID:?Notarization issuer ID is required}"
+  notary_auth=(--key "$NOTARY_KEY_FILE" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER_ID")
+else
+  : "${APPLE_ID:?Apple account email is required}"
+  : "${APPLE_TEAM_ID:?Apple developer team ID is required}"
+  : "${APPLE_APP_SPECIFIC_PASSWORD:?Apple app-specific password is required}"
+  notary_auth=(--apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD")
+fi
 : "${RELEASE_VERSION:?Release version is required}"
 : "${RELEASE_BUILD:?Monotonic build number is required}"
 : "${RELEASE_REPOSITORY:?Release repository is required}"
@@ -24,8 +31,12 @@ app="$root/example/build/macos/Build/Products/Release/Trail.app"
   echo 'The built app is missing Sparkle.framework' >&2
   exit 1
 }
+feed="https://github.com/$RELEASE_REPOSITORY/releases/latest/download/appcast.xml"
+if [[ "${RELEASE_PRERELEASE:-false}" == true ]]; then
+  feed="https://github.com/$RELEASE_REPOSITORY/releases/download/v$RELEASE_VERSION/appcast.xml"
+fi
 python3 "$root/tools/release/macos_release.py" configure "$app" --public-key "$SPARKLE_PUBLIC_KEY" \
-  --feed "https://github.com/$RELEASE_REPOSITORY/releases/latest/download/appcast.xml"
+  --feed "$feed"
 python3 "$root/tools/release/macos_release.py" sign "$app" --identity "$MACOS_SIGNING_IDENTITY" \
   --entitlements "$root/example/macos/Runner/Release.entitlements"
 python3 "$root/tools/verify_macos_native_library.py" \
@@ -40,8 +51,7 @@ while IFS= read -r -d '' binary; do
 done < <(find "$app" -type f -print0)
 archive="$RELEASE_OUTPUT/Trail-$RELEASE_VERSION-macOS-universal.zip"
 ditto -c -k --keepParent "$app" "$archive"
-xcrun notarytool submit "$archive" --key "$NOTARY_KEY_FILE" --key-id "$NOTARY_KEY_ID" \
-  --issuer "$NOTARY_ISSUER_ID" --wait --output-format json > "$RELEASE_OUTPUT/notarization.json"
+xcrun notarytool submit "$archive" "${notary_auth[@]}" --wait --timeout 45m --output-format json > "$RELEASE_OUTPUT/notarization.json"
 python3 - "$RELEASE_OUTPUT/notarization.json" <<'PY'
 import json, sys
 result = json.load(open(sys.argv[1]))
