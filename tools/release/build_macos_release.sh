@@ -20,6 +20,8 @@ fi
 : "${RELEASE_REPOSITORY:?Release repository is required}"
 : "${RELEASE_OUTPUT:?Output directory is required}"
 : "${SPARKLE_TOOLS:?Sparkle tools directory is required}"
+# Check credentials before the expensive universal build. Do not log history.
+xcrun notarytool history "${notary_auth[@]}" --output-format json > /dev/null
 xcrun swift "$root/tools/release/update_keys.swift" verify "$SPARKLE_KEY_FILE" > /dev/null
 mkdir -p "$RELEASE_OUTPUT"
 (

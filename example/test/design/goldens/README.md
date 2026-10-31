@@ -104,4 +104,6 @@ color, header, field, and shortcut layout changes. The original macOS 26 PNG
 bytes are retained; comparator thresholds are unchanged. Basename plus exact
 master-image pixel hash identified each destination. Flutter's flat failure
 artifact names collided for SSH dark and Profile general; those two captures
-remain pending a separate comparison, rather than using another OS's output.
+were then reviewed from run 41176466420, artifact 13033533996, which contained
+only those two failures. Their original macOS 26 captures complete the update;
+no macOS 27 output was copied across OS directories.
