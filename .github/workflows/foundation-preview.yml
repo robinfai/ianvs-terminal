@@ -80,6 +80,21 @@ jobs:
         id: web
         working-directory: example
         run: flutter build web --release --target lib/component_preview.dart --no-web-resources-cdn --base-href /
+      - name: Verify real Flutter Web in desktop and phone Chromium
+        if: ${{ !cancelled() && steps.web.outcome == 'success' }}
+        id: browser
+        timeout-minutes: 5
+        run: |
+          python3 -m pip install playwright==1.62.0
+          python3 tools/preview/browser_check.py
+      - name: Save browser evidence
+        if: ${{ !cancelled() && steps.web.outcome == 'success' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: foundation-browser-${{ github.sha }}
+          path: build/foundation-browser/
+          if-no-files-found: error
+          retention-days: 7
       - name: Save formatting suggestions
         if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -95,12 +110,13 @@ jobs:
           FORMAT_OUTCOME: ${{ steps.formatting.outcome }}
           ANALYSIS_OUTCOME: ${{ steps.analysis.outcome }}
           TEST_OUTCOME: ${{ steps.tests.outcome }}
+          BROWSER_OUTCOME: ${{ steps.browser.outcome }}
         run: |
           python3 - <<'PY'
           import json, os, pathlib
-          result = {key: os.environ[key] for key in ['SOURCE_SHA', 'FORMAT_OUTCOME', 'ANALYSIS_OUTCOME', 'TEST_OUTCOME']}
+          result = {key: os.environ[key] for key in ['SOURCE_SHA', 'FORMAT_OUTCOME', 'ANALYSIS_OUTCOME', 'TEST_OUTCOME', 'BROWSER_OUTCOME']}
           result['flutter'] = '3.44.2'
-          result['publishable'] = all(result[key] == 'success' for key in ['FORMAT_OUTCOME', 'ANALYSIS_OUTCOME', 'TEST_OUTCOME'])
+          result['publishable'] = all(result[key] == 'success' for key in ['FORMAT_OUTCOME', 'ANALYSIS_OUTCOME', 'TEST_OUTCOME', 'BROWSER_OUTCOME'])
           pathlib.Path('example/build/web/validation.json').write_text(json.dumps(result, indent=2) + '\n')
           PY
       - name: Save static build for private preview QA

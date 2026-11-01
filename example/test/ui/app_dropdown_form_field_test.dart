@@ -213,6 +213,40 @@ void main() {
     expect(find.byType(MenuItemButton), findsNothing);
   });
 
+  testWidgets('equivalent parent rebuild keeps an open menu usable', (
+    tester,
+  ) async {
+    late StateSetter rebuild;
+    String? selected = 'One';
+    await pumpHarness(
+      tester,
+      StatefulBuilder(
+        builder: (context, setState) {
+          rebuild = setState;
+          return SizedBox(
+            width: 280,
+            child: AppDropdownFormField<String>(
+              initialValue: selected,
+              items: [
+                for (final value in ['One', 'Two'])
+                  DropdownMenuItem(value: value, child: Text(value)),
+              ],
+              onChanged: (value) => selected = value,
+            ),
+          );
+        },
+      ),
+    );
+    await tester.tap(find.byType(AppDropdownFormField<String>));
+    await tester.pumpAndSettle();
+    rebuild(() {});
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(MenuItemButton, 'Two'));
+    await tester.pumpAndSettle();
+    expect(selected, 'Two');
+    expect(find.byType(MenuItemButton), findsNothing);
+  });
+
   testWidgets('menu matches its anchor and rows grow for large text', (
     tester,
   ) async {

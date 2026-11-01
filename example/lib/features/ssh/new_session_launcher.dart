@@ -507,13 +507,19 @@ class _SshProfileTile extends StatelessWidget {
                 AppMenuEntry(
                   key: Key('new-ssh-session-${profile.id}-connect'),
                   label: context.l10n.connect,
-                  onSelected: () => _selectImportedAction(context, _ImportedSshProfileAction.connect),
+                  onSelected: () => _selectImportedAction(
+                    context,
+                    _ImportedSshProfileAction.connect,
+                  ),
                 ),
                 AppMenuEntry(
                   key: Key('new-ssh-session-${profile.id}-import'),
                   label: context.l10n.importAction,
                   enabled: canImport,
-                  onSelected: () => _selectImportedAction(context, _ImportedSshProfileAction.import),
+                  onSelected: () => _selectImportedAction(
+                    context,
+                    _ImportedSshProfileAction.import,
+                  ),
                 ),
               ],
             )

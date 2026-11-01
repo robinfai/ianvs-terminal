@@ -39,22 +39,27 @@ class AppActionButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
     final touch = context.usesTouchControlDensity;
-    final height = touch ? 48.0 : switch (size) {
-      AppActionSize.dense => 28.0,
-      AppActionSize.compact => 32.0,
-      AppActionSize.regular => 36.0,
-    };
+    final height = touch
+        ? 48.0
+        : switch (size) {
+            AppActionSize.dense => 28.0,
+            AppActionSize.compact => 32.0,
+            AppActionSize.regular => 36.0,
+          };
     final metrics = ButtonStyle(
       minimumSize: WidgetStatePropertyAll(Size(height, height)),
       animationDuration: MediaQuery.disableAnimationsOf(context)
-          ? Duration.zero : const Duration(milliseconds: 120),
+          ? Duration.zero
+          : const Duration(milliseconds: 120),
     );
     final callback = loading ? null : onPressed;
     final spinner = SizedBox.square(
       dimension: 16,
-      child: CircularProgressIndicator(strokeWidth: 2,
+      child: CircularProgressIndicator(
+        strokeWidth: 2,
         value: MediaQuery.disableAnimationsOf(context) ? .75 : null,
-        semanticsLabel: tooltip ?? label),
+        semanticsLabel: tooltip ?? label,
+      ),
     );
     final iconSize = Theme.of(context).iconTheme.size ?? 20.0;
     if (label == null) {
@@ -64,10 +69,14 @@ class AppActionButton extends StatelessWidget {
         autofocus: autofocus,
         focusNode: focusNode,
         onPressed: callback,
-        style: metrics.merge(tone == AppActionTone.danger
-            ? IconButton.styleFrom(foregroundColor: colors.error)
-            : null),
-        icon: loading ? spinner : Icon(icon, size: iconSize),
+        style: metrics.merge(
+          tone == AppActionTone.danger
+              ? IconButton.styleFrom(foregroundColor: colors.error)
+              : null,
+        ),
+        icon: loading
+            ? spinner
+            : Icon(icon, size: iconSize, semanticLabel: tooltip),
       );
     }
     final content = icon == null && !loading
@@ -86,12 +95,14 @@ class AppActionButton extends StatelessWidget {
         autofocus: autofocus,
         focusNode: focusNode,
         onPressed: callback,
-        style: metrics.merge(tone == AppActionTone.danger
-            ? FilledButton.styleFrom(
-                backgroundColor: colors.error,
-                foregroundColor: colors.onError,
-              )
-            : null),
+        style: metrics.merge(
+          tone == AppActionTone.danger
+              ? FilledButton.styleFrom(
+                  backgroundColor: colors.error,
+                  foregroundColor: colors.onError,
+                )
+              : null,
+        ),
         child: content,
       ),
       AppActionTone.secondary => OutlinedButton(
@@ -113,7 +124,9 @@ class AppActionButton extends StatelessWidget {
     };
     return Semantics(
       liveRegion: loading,
-      child: tooltip == null ? button : Tooltip(message: tooltip, child: button),
+      child: tooltip == null
+          ? button
+          : Tooltip(message: tooltip, child: button),
     );
   }
 }

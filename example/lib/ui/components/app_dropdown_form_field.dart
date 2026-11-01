@@ -85,13 +85,30 @@ class _AppDropdownFieldState<T> extends FormFieldState<T> {
     if (oldWidget.initialValue != widget.initialValue) {
       setValue(widget.initialValue);
     }
-    if (_controller.isOpen && (!widget.enabled ||
-        oldWidget.configuration.items != configuration.items)) {
+    if (_controller.isOpen &&
+        (!widget.enabled ||
+            !_sameOptions(oldWidget.configuration.items, configuration.items))) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _controller.close();
       });
     }
     _syncItemFocus();
+  }
+
+  // Parent focus changes often rebuild an equivalent list of menu widgets.
+  // Only invalidate the open menu when its selectable options actually change.
+  bool _sameOptions(
+    List<DropdownMenuItem<T>>? before,
+    List<DropdownMenuItem<T>>? after,
+  ) {
+    if (before?.length != after?.length) return false;
+    for (var index = 0; index < (before?.length ?? 0); index++) {
+      if (before![index].value != after![index].value ||
+          before[index].enabled != after[index].enabled) {
+        return false;
+      }
+    }
+    return true;
   }
 
   void _syncItemFocus() {
@@ -197,7 +214,9 @@ class _AppDropdownFieldState<T> extends FormFieldState<T> {
             maximumSize: WidgetStatePropertyAll(Size(width, maxHeight)),
             side: WidgetStatePropertyAll(BorderSide(color: tokens.border)),
             shape: WidgetStatePropertyAll(
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(tokens.radius.lg)),
+              RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(tokens.radius.lg),
+              ),
             ),
             visualDensity: VisualDensity.standard,
           ),
@@ -282,7 +301,10 @@ class _AppDropdownFieldState<T> extends FormFieldState<T> {
                   textAlignVertical: TextAlignVertical.center,
                   decoration: config.decoration
                       .applyDefaults(theme.inputDecorationTheme)
-                      .copyWith(enabled: widget.enabled, errorText: errorText ?? config.decoration.errorText),
+                      .copyWith(
+                        enabled: widget.enabled,
+                        errorText: errorText ?? config.decoration.errorText,
+                      ),
                   isFocused: _focused || controller.isOpen,
                   isEmpty: selected < 0 && config.hint == null,
                   child: DefaultTextStyle(

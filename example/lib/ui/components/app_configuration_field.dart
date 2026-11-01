@@ -20,7 +20,8 @@ class AppConfigurationField extends StatelessWidget {
   final double labelWidth;
   final double breakpoint;
 
-  Widget get _labeledChild => child is TextField || child is TextFormField || child is AppTextFormField
+  Widget get _labeledChild =>
+      child is TextField || child is TextFormField || child is AppTextFormField
       ? Semantics(
           container: true,
           explicitChildNodes: true,

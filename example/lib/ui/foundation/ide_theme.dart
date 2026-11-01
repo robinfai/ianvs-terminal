@@ -343,8 +343,12 @@ ThemeData withIdePresentation(ThemeData base) {
     menuButtonTheme: MenuButtonThemeData(
       style: (base.menuButtonTheme.style ?? const ButtonStyle()).copyWith(
         minimumSize: WidgetStatePropertyAll(Size(0, touch ? 48 : 32)),
-        padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
-        shape: WidgetStatePropertyAll(RoundedRectangleBorder(borderRadius: BorderRadius.circular(6))),
+        padding: const WidgetStatePropertyAll(
+          EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        ),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+        ),
         animationDuration: Duration.zero,
         foregroundColor: foreground(t.text),
         textStyle: WidgetStatePropertyAll(typography.bodyMedium),
