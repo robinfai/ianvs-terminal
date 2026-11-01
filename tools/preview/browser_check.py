@@ -97,10 +97,12 @@ try:
                 confirm = reveal(page, page.get_by_role('button', name='Confirm close…', exact=True))
                 confirm.click()
                 expect(page.get_by_role('button', name='Keep session', exact=True)).to_be_visible()
+                page.screenshot(path=str(output / f'{name}-confirmation.png'))
                 page.keyboard.press('Enter')
                 expect(page.get_by_role('button', name='Keep session', exact=True)).not_to_be_visible()
                 assert not errors, errors
                 results.append({'viewport': name, 'status': 'passed', 'errors': errors})
+                print('BROWSER_PASSED', name, flush=True)
             except Exception as error:
                 page.screenshot(path=str(output / f'{name}-failure.png'))
                 (output / f'{name}-failure.html').write_text(page.content())
