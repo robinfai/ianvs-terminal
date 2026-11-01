@@ -1,5 +1,5 @@
 import 'package:ianvs_design/ianvs_design.dart';
-import 'package:ianvs_terminal/ianvs_terminal.dart' show ComposerTheme;
+import 'package:ianvs_terminal/composer_theme.dart' show ComposerTheme;
 
 import 'app_high_contrast.dart';
 import 'app_motion.dart';

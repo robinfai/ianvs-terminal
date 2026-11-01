@@ -9,6 +9,8 @@ class AppCompactRadioTile<T> extends StatelessWidget {
     this.subtitle,
     this.tileKey,
     this.grouped = false,
+    this.enabled = true,
+    this.focusNode,
   });
 
   final T value;
@@ -16,11 +18,15 @@ class AppCompactRadioTile<T> extends StatelessWidget {
   final Widget? subtitle;
   final Key? tileKey;
   final bool grouped;
+  final bool enabled;
+  final FocusNode? focusNode;
 
   @override
   Widget build(BuildContext context) {
     final tile = IanvsChoiceTile<T>(
       key: tileKey,
+      enabled: enabled,
+      focusNode: focusNode,
       value: value,
       title: title,
       subtitle: subtitle,

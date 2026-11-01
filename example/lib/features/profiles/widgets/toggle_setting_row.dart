@@ -62,19 +62,10 @@ class ToggleSettingRow extends StatelessWidget {
                     ),
                   ),
                   SizedBox(width: theme.spacing.md),
-                  SizedBox(
-                    width: 44,
-                    height: 28,
-                    child: FittedBox(
-                      fit: BoxFit.contain,
-                      child: Switch(
-                        value: value,
-                        materialTapTargetSize: Theme.of(
-                          context,
-                        ).materialTapTargetSize,
-                        padding: EdgeInsets.zero,
-                        onChanged: enabled ? onChanged : null,
-                      ),
+                  ExcludeFocus(
+                    child: AppSwitch(
+                      value: value,
+                      onChanged: enabled ? onChanged : null,
                     ),
                   ),
                 ],

@@ -504,23 +504,26 @@ class _SshProfileTile extends StatelessWidget {
         '${imported ? ' • OpenSSH config' : ''}',
       ),
       trailing: imported
-          ? PopupMenuButton<_ImportedSshProfileAction>(
+          ? AppMenuButton(
               key: Key('new-ssh-session-${profile.id}-actions'),
               tooltip: context.l10n.moreActionsFor(profile.name),
-              position: PopupMenuPosition.under,
-              icon: const Icon(Icons.more_horiz_rounded),
-              onSelected: (action) => _selectImportedAction(context, action),
-              itemBuilder: (context) => [
-                PopupMenuItem(
+              entries: [
+                AppMenuEntry(
                   key: Key('new-ssh-session-${profile.id}-connect'),
-                  value: _ImportedSshProfileAction.connect,
-                  child: Text(context.l10n.connect),
+                  label: context.l10n.connect,
+                  onSelected: () => _selectImportedAction(
+                    context,
+                    _ImportedSshProfileAction.connect,
+                  ),
                 ),
-                PopupMenuItem(
+                AppMenuEntry(
                   key: Key('new-ssh-session-${profile.id}-import'),
-                  value: _ImportedSshProfileAction.import,
+                  label: context.l10n.importAction,
                   enabled: canImport,
-                  child: Text(context.l10n.importAction),
+                  onSelected: () => _selectImportedAction(
+                    context,
+                    _ImportedSshProfileAction.import,
+                  ),
                 ),
               ],
             )
@@ -2608,8 +2611,9 @@ class _SshConnectionTimingFields extends StatelessWidget {
       AppConfigurationField(
         subtleLabel: true,
         label: context.l10n.connectTimeoutSeconds,
-        child: TextFormField(
+        child: AppTextFormField(
           key: const Key('ssh-connect-timeout'),
+          autovalidateMode: AutovalidateMode.disabled,
           controller: connectTimeout,
           focusNode: connectTimeoutFocus,
           keyboardType: TextInputType.number,
@@ -2620,8 +2624,9 @@ class _SshConnectionTimingFields extends StatelessWidget {
       AppConfigurationField(
         subtleLabel: true,
         label: context.l10n.keepaliveSeconds,
-        child: TextFormField(
+        child: AppTextFormField(
           key: const Key('ssh-keepalive-seconds'),
+          autovalidateMode: AutovalidateMode.disabled,
           controller: keepalive,
           focusNode: keepaliveFocus,
           keyboardType: TextInputType.number,
@@ -2632,8 +2637,9 @@ class _SshConnectionTimingFields extends StatelessWidget {
       AppConfigurationField(
         subtleLabel: true,
         label: context.l10n.keepaliveRetries,
-        child: TextFormField(
+        child: AppTextFormField(
           key: const Key('ssh-keepalive-count'),
+          autovalidateMode: AutovalidateMode.disabled,
           controller: keepaliveCount,
           focusNode: keepaliveCountFocus,
           keyboardType: TextInputType.number,

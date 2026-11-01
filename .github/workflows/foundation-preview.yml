@@ -1,0 +1,132 @@
+name: Flutter Foundation Preview
+
+on:
+  push:
+    branches: [feature/cupertino-material-foundation]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: foundation-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-and-build:
+    # UI tests exercise explicit macOS/iOS themes without compiling the native
+    # macOS PTY Rust hook. Native device acceptance remains a separate suite.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Check out exact revision
+        uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up pinned Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: '3.44.2'
+          channel: stable
+          cache: false
+      - name: Resolve locked dependencies
+        id: dependencies
+        run: |
+          flutter --version
+          flutter pub get --enforce-lockfile
+          cd example
+          flutter gen-l10n
+      - name: Check formatting and retain suggested patch
+        id: formatting
+        run: python3 tools/preview/check_format.py
+      - name: Analyze exact committed source
+        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
+        id: analysis
+        run: |
+          mkdir -p build
+          set -o pipefail
+          dart analyze --fatal-infos 2>&1 | tee build/foundation-analysis.txt
+      - name: Save static-check diagnostics
+        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: foundation-static-${{ github.sha }}
+          path: |
+            build/foundation-format.patch
+            build/foundation-analysis.txt
+          if-no-files-found: error
+          retention-days: 7
+      - name: Run foundation and migrated-page regression tests
+        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
+        id: tests
+        timeout-minutes: 10
+        working-directory: example
+        run: |
+          flutter test --no-pub --reporter expanded --timeout 2m \
+            test/ui/app_components_test.dart \
+            test/ui/app_choice_tile_test.dart \
+            test/ui/app_dropdown_form_field_test.dart \
+            test/ui/app_theme_contract_test.dart \
+            test/ui/app_motion_test.dart \
+            test/ui/app_notifications_test.dart \
+            test/ui/configuration_field_semantics_test.dart \
+            test/ui/desktop_action_contrast_test.dart \
+            test/ui/cupertino_foundation_test.dart \
+            test/ssh/mobile_ssh_form_test.dart \
+            test/ssh/new_session_launcher_test.dart
+      - name: Build real Flutter Web showcase
+        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
+        id: web
+        working-directory: example
+        run: flutter build web --release --target lib/component_preview.dart --no-web-resources-cdn --base-href /
+      - name: Verify real Flutter Web in desktop and phone Chromium
+        if: ${{ !cancelled() && steps.web.outcome == 'success' }}
+        id: browser
+        timeout-minutes: 5
+        run: |
+          python3 -m pip install playwright==1.62.0
+          python3 tools/preview/browser_check.py
+      - name: Save browser evidence
+        if: ${{ !cancelled() && steps.web.outcome == 'success' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: foundation-browser-${{ github.sha }}
+          path: build/foundation-browser/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Save formatting suggestions
+        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: foundation-format-${{ github.sha }}
+          path: build/foundation-format.patch
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Record build provenance and validation outcomes
+        if: ${{ !cancelled() && steps.web.outcome == 'success' }}
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+          FORMAT_OUTCOME: ${{ steps.formatting.outcome }}
+          ANALYSIS_OUTCOME: ${{ steps.analysis.outcome }}
+          TEST_OUTCOME: ${{ steps.tests.outcome }}
+          BROWSER_OUTCOME: ${{ steps.browser.outcome }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib
+          result = {key: os.environ[key] for key in ['SOURCE_SHA', 'FORMAT_OUTCOME', 'ANALYSIS_OUTCOME', 'TEST_OUTCOME', 'BROWSER_OUTCOME']}
+          result['flutter'] = '3.44.2'
+          result['publishable'] = all(result[key] == 'success' for key in ['FORMAT_OUTCOME', 'ANALYSIS_OUTCOME', 'TEST_OUTCOME', 'BROWSER_OUTCOME'])
+          web = pathlib.Path('example/build/web')
+          (web / 'validation.json').write_text(json.dumps(result, indent=2) + '\n')
+          manifest = [hashlib.sha256(path.read_bytes()).hexdigest() + '  ' + path.relative_to(web).as_posix() for path in sorted(web.rglob('*')) if path.is_file()]
+          (web / 'SHA256SUMS').write_text('\n'.join(manifest) + '\n')
+          PY
+      - name: Save static build for private preview QA
+        if: ${{ !cancelled() && steps.web.outcome == 'success' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: foundation-web-${{ github.sha }}
+          path: example/build/web/
+          if-no-files-found: error
+          retention-days: 7

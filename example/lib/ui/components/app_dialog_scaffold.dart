@@ -180,7 +180,7 @@ class AppDialogScaffold extends StatelessWidget {
         Material(
           color: context.usesAppleGroups
               ? context.groupedBackground
-              : theme.chrome,
+              : theme.panelElevated,
           child: header,
         ),
         if (!mobileHeader) const Divider(height: 1),
@@ -190,7 +190,7 @@ class AppDialogScaffold extends StatelessWidget {
           Material(
             color: context.usesAppleGroups
                 ? context.groupedBackground
-                : theme.chrome,
+                : theme.panelElevated,
             child: paddedFooter,
           ),
         ],

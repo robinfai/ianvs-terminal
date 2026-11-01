@@ -22,9 +22,9 @@ ThemeData withIdePresentation(ThemeData base) {
     focus: dark ? const Color(0xFF8BB4FF) : const Color(0xFF2F65CA),
     selected: dark ? const Color(0xFF25395D) : const Color(0xFFDCE8FC),
     onSelected: dark ? const Color(0xFFDFE1E5) : const Color(0xFF1E1F22),
-    controlRadius: 4,
-    panelRadius: 6,
-    dialogRadius: 8,
+    controlRadius: touch ? 10 : 8,
+    panelRadius: 12,
+    dialogRadius: touch ? 20 : 16,
   );
   final scheme = base.colorScheme.copyWith(
     primary: t.accent,
@@ -118,10 +118,14 @@ ThemeData withIdePresentation(ThemeData base) {
     backgroundColor: WidgetStatePropertyAll(t.raised),
     surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
     shape: WidgetStatePropertyAll(
-      shape.copyWith(side: BorderSide(color: t.border)),
+      RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(t.panelRadius),
+        side: BorderSide(color: t.separator),
+      ),
     ),
     padding: const WidgetStatePropertyAll(EdgeInsets.all(4)),
-    elevation: const WidgetStatePropertyAll(4),
+    elevation: const WidgetStatePropertyAll(8),
+    shadowColor: WidgetStatePropertyAll(scheme.shadow.withValues(alpha: .20)),
   );
   return base.copyWith(
     colorScheme: scheme,
@@ -205,7 +209,7 @@ ThemeData withIdePresentation(ThemeData base) {
       side: BorderSide(color: t.border),
     ),
     dialogTheme: base.dialogTheme.copyWith(
-      backgroundColor: t.canvas,
+      backgroundColor: t.raised,
       titleTextStyle: typography.titleMedium,
       contentTextStyle: typography.bodyMedium,
       shape: RoundedRectangleBorder(
@@ -228,7 +232,10 @@ ThemeData withIdePresentation(ThemeData base) {
           color: states.contains(WidgetState.disabled) ? t.subtle : t.text,
         ),
       ),
-      shape: shape.copyWith(side: BorderSide(color: t.border)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(t.panelRadius),
+        side: BorderSide(color: t.separator),
+      ),
     ),
     scrollbarTheme: base.scrollbarTheme.copyWith(
       thumbColor: WidgetStatePropertyAll(t.border),
@@ -334,7 +341,15 @@ ThemeData withIdePresentation(ThemeData base) {
       ),
     ),
     menuButtonTheme: MenuButtonThemeData(
-      style: base.menuButtonTheme.style?.copyWith(
+      style: (base.menuButtonTheme.style ?? const ButtonStyle()).copyWith(
+        minimumSize: WidgetStatePropertyAll(Size(0, touch ? 48 : 32)),
+        padding: const WidgetStatePropertyAll(
+          EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        ),
+        shape: WidgetStatePropertyAll(
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+        ),
+        animationDuration: Duration.zero,
         foregroundColor: foreground(t.text),
         textStyle: WidgetStatePropertyAll(typography.bodyMedium),
         backgroundColor: WidgetStateProperty.resolveWith(
