@@ -388,12 +388,12 @@ void main() {
     expect(find.text('Create'), findsOneWidget);
     expect(find.text('Disabled'), findsOneWidget);
     expect(tapCount, 1);
-    expect(enabledButton.height, 32);
-    expect(denseIconButton.height, 32);
-    expect(denseIconButton.width, 32);
+    expect(enabledButton.height, 36);
+    expect(denseIconButton.height, 28);
+    expect(denseIconButton.width, 28);
     expect(iconOnlyButton.height, 32);
     expect(iconOnlyButton.width, 32);
-    expect(disabledButton.height, 32);
+    expect(disabledButton.height, 36);
     expect(
       tester.widget<IconButton>(find.byKey(const Key('dense-action'))).tooltip,
       isNull,
@@ -484,8 +484,8 @@ void main() {
     final footerButtonSize = tester.getSize(
       find.byKey(const Key('dialog-cancel')),
     );
-    expect(closeButtonSize.height, 32);
-    expect(closeButtonSize.width, 32);
+    expect(closeButtonSize.height, 28);
+    expect(closeButtonSize.width, 28);
     expect(footerButtonSize.height, 32);
   });
 

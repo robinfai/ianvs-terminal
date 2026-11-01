@@ -18,3 +18,8 @@ export 'foundation/app_terminal_colors.dart';
 export 'foundation/app_theme.dart';
 export 'foundation/app_theme_tokens.dart';
 export 'foundation/terminal_theme_presets.dart';
+export 'components/app_menu.dart';
+export 'components/app_text_form_field.dart';
+export 'components/app_selection_controls.dart';
+export 'components/app_confirmation.dart';
+export 'components/app_status.dart';

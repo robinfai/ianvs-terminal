@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../foundation/app_theme_tokens.dart';
+import 'app_menu.dart';
 
 /// A form select whose anchored menu shares the field's typography and shape.
 /// Menu rows adapt to pointer/touch input and grow with their content.
@@ -20,6 +21,9 @@ class AppDropdownFormField<T> extends StatelessWidget {
     this.selectedItemBuilder,
     this.hint,
     this.fieldHeight,
+    this.validator,
+    this.onSaved,
+    this.autovalidateMode = AutovalidateMode.disabled,
   });
   final List<DropdownMenuItem<T>>? items;
   final ValueChanged<T?>? onChanged;
@@ -35,6 +39,9 @@ class AppDropdownFormField<T> extends StatelessWidget {
   final DropdownButtonBuilder? selectedItemBuilder;
   final Widget? hint;
   final double? fieldHeight;
+  final FormFieldValidator<T>? validator;
+  final FormFieldSetter<T>? onSaved;
+  final AutovalidateMode autovalidateMode;
 
   @override
   Widget build(BuildContext context) =>
@@ -45,6 +52,9 @@ class _AppDropdownField<T> extends FormField<T> {
   _AppDropdownField({required this.configuration})
     : super(
         initialValue: configuration.initialValue,
+        validator: configuration.validator,
+        onSaved: configuration.onSaved,
+        autovalidateMode: configuration.autovalidateMode,
         enabled:
             configuration.onChanged != null &&
             (configuration.items?.isNotEmpty ?? false),
@@ -74,6 +84,12 @@ class _AppDropdownFieldState<T> extends FormFieldState<T> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.initialValue != widget.initialValue) {
       setValue(widget.initialValue);
+    }
+    if (_controller.isOpen && (!widget.enabled ||
+        oldWidget.configuration.items != configuration.items)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _controller.close();
+      });
     }
     _syncItemFocus();
   }
@@ -168,20 +184,20 @@ class _AppDropdownFieldState<T> extends FormFieldState<T> {
           onOpen: _focusSelectedItem,
           crossAxisUnconstrained: false,
           alignmentOffset: const Offset(0, 4),
-          style: MenuStyle(
+          style: appMenuStyle(context).copyWith(
             alignment: AlignmentDirectional.bottomStart,
-            backgroundColor: WidgetStatePropertyAll(tokens.panel),
+            backgroundColor: WidgetStatePropertyAll(tokens.overlay),
             surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
             shadowColor: WidgetStatePropertyAll(
               theme.colorScheme.shadow.withValues(alpha: 0.22),
             ),
-            elevation: const WidgetStatePropertyAll(4),
+            elevation: const WidgetStatePropertyAll(8),
             padding: const WidgetStatePropertyAll(EdgeInsets.all(4)),
             minimumSize: WidgetStatePropertyAll(Size(width, 0)),
             maximumSize: WidgetStatePropertyAll(Size(width, maxHeight)),
             side: WidgetStatePropertyAll(BorderSide(color: tokens.border)),
             shape: WidgetStatePropertyAll(
-              RoundedRectangleBorder(borderRadius: radius),
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(tokens.radius.lg)),
             ),
             visualDensity: VisualDensity.standard,
           ),
@@ -200,7 +216,7 @@ class _AppDropdownFieldState<T> extends FormFieldState<T> {
                           items[index].onTap?.call();
                           config.onChanged?.call(items[index].value);
                         },
-                  style: ButtonStyle(
+                  style: appMenuItemStyle(context).copyWith(
                     minimumSize: WidgetStatePropertyAll(Size(0, rowHeight)),
                     padding: const WidgetStatePropertyAll(
                       EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -233,7 +249,7 @@ class _AppDropdownFieldState<T> extends FormFieldState<T> {
                         : MaterialTapTargetSize.shrinkWrap,
                     animationDuration: Duration.zero,
                   ),
-                  trailingIcon: SizedBox.square(
+                  leadingIcon: SizedBox.square(
                     dimension: 16,
                     child: index == selected
                         ? Icon(
@@ -266,7 +282,7 @@ class _AppDropdownFieldState<T> extends FormFieldState<T> {
                   textAlignVertical: TextAlignVertical.center,
                   decoration: config.decoration
                       .applyDefaults(theme.inputDecorationTheme)
-                      .copyWith(enabled: widget.enabled),
+                      .copyWith(enabled: widget.enabled, errorText: errorText ?? config.decoration.errorText),
                   isFocused: _focused || controller.isOpen,
                   isEmpty: selected < 0 && config.hint == null,
                   child: DefaultTextStyle(
@@ -292,7 +308,7 @@ class _AppDropdownFieldState<T> extends FormFieldState<T> {
                           ),
                           SizedBox(width: tokens.spacing.md),
                           Icon(
-                            Icons.arrow_drop_down,
+                            Icons.unfold_more_rounded,
                             size: config.iconSize ?? theme.iconTheme.size ?? 24,
                             color: widget.enabled
                                 ? tokens.textMuted
