@@ -1516,22 +1516,22 @@ class _DefaultsAndAppearanceDialogState
                           },
                         ),
                       ] else ...[
-                        AppSectionHeader(
+                        _PermissionSummary<LocalTerminalOsc52Policy>(
+                          key: const Key('defaults-osc52-options-summary'),
                           title: context.l10n.osc52Clipboard,
                           description: context.l10n.osc52ClipboardDescription,
-                        ),
-                        SizedBox(height: theme.spacing.sm),
-                        _SettingsRadioPanel<LocalTerminalOsc52Policy>(
+                          value: _selectedOsc52Policy,
+                          valueLabel:
+                              _selectedOsc52Policy ==
+                                      LocalTerminalOsc52Policy.profile &&
+                                  mobileNavigation
+                              ? context.l10n.mobileUseConnectionPolicy
+                              : context.l10n.osc52PolicyName(
+                                  _selectedOsc52Policy.name,
+                                ),
                           panelKey: const Key('defaults-osc52-options'),
-                          groupValue: _selectedOsc52Policy,
-                          onChanged: (value) {
-                            if (value == null) {
-                              return;
-                            }
-                            setState(() {
-                              _selectedOsc52Policy = value;
-                            });
-                          },
+                          onChanged: (value) =>
+                              setState(() => _selectedOsc52Policy = value),
                           options: [
                             for (final policy
                                 in LocalTerminalOsc52Policy.values)
@@ -1542,34 +1542,28 @@ class _DefaultsAndAppearanceDialogState
                                   'default-osc52-policy-${policy.name}',
                                 ),
                                 value: policy,
-                                title:
-                                    mobileNavigation && policy.name == 'profile'
-                                    ? context.l10n.mobileUseConnectionPolicy
-                                    : context.l10n.osc52PolicyName(policy.name),
+                                title: context.l10n.osc52PolicyName(
+                                  policy.name,
+                                ),
                                 subtitle: context.l10n.osc52PolicyDescription(
                                   policy.name,
                                 ),
                               ),
                           ],
                         ),
-                        SizedBox(height: theme.spacing.xxl),
-                        AppSectionHeader(
+                        const SizedBox(height: 16),
+                        _PermissionSummary<LocalTerminalOpenUrlPolicy>(
+                          key: const Key('defaults-open-url-options-summary'),
                           title: context.l10n.terminalUrlRequests,
                           description:
                               context.l10n.terminalUrlRequestsDescription,
-                        ),
-                        SizedBox(height: theme.spacing.sm),
-                        _SettingsRadioPanel<LocalTerminalOpenUrlPolicy>(
+                          value: _selectedOpenUrlPolicy,
+                          valueLabel: context.l10n.openUrlPolicyName(
+                            _selectedOpenUrlPolicy.name,
+                          ),
                           panelKey: const Key('defaults-open-url-options'),
-                          groupValue: _selectedOpenUrlPolicy,
-                          onChanged: (value) {
-                            if (value == null) {
-                              return;
-                            }
-                            setState(() {
-                              _selectedOpenUrlPolicy = value;
-                            });
-                          },
+                          onChanged: (value) =>
+                              setState(() => _selectedOpenUrlPolicy = value),
                           options: [
                             for (final policy
                                 in LocalTerminalOpenUrlPolicy.values)
@@ -1589,31 +1583,23 @@ class _DefaultsAndAppearanceDialogState
                               ),
                           ],
                         ),
-                        SizedBox(height: theme.spacing.xxl),
-                        AppSectionHeader(
+                        const SizedBox(height: 16),
+                        _PermissionSummary<LocalTerminalRequestAttentionPolicy>(
+                          key: const Key(
+                            'defaults-request-attention-options-summary',
+                          ),
                           title: context.l10n.terminalAttentionRequests,
-                          description: (context.usesMobileNavigation
-                              ? context.l10n.mobileAttentionDescription
-                              : context
-                                    .l10n
-                                    .terminalAttentionRequestsDescription),
-                        ),
-                        SizedBox(height: theme.spacing.sm),
-                        _SettingsRadioPanel<
-                          LocalTerminalRequestAttentionPolicy
-                        >(
+                          description: context.l10n.mobileAttentionDescription,
+                          value: _selectedRequestAttentionPolicy,
+                          valueLabel: context.l10n.requestAttentionPolicyName(
+                            _selectedRequestAttentionPolicy.name,
+                          ),
                           panelKey: const Key(
                             'defaults-request-attention-options',
                           ),
-                          groupValue: _selectedRequestAttentionPolicy,
-                          onChanged: (value) {
-                            if (value == null) {
-                              return;
-                            }
-                            setState(() {
-                              _selectedRequestAttentionPolicy = value;
-                            });
-                          },
+                          onChanged: (value) => setState(
+                            () => _selectedRequestAttentionPolicy = value,
+                          ),
                           options: [
                             for (final policy
                                 in LocalTerminalRequestAttentionPolicy.values)
@@ -1627,19 +1613,14 @@ class _DefaultsAndAppearanceDialogState
                                 title: context.l10n.requestAttentionPolicyName(
                                   policy.name,
                                 ),
-                                subtitle: mobileNavigation
-                                    ? context.l10n
-                                          .mobileAttentionPolicyDescription(
-                                            policy.name,
-                                          )
-                                    : context.l10n
-                                          .requestAttentionPolicyDescription(
-                                            policy.name,
-                                          ),
+                                subtitle: context.l10n
+                                    .mobileAttentionPolicyDescription(
+                                      policy.name,
+                                    ),
                               ),
                           ],
                         ),
-                        SizedBox(height: theme.spacing.xxl),
+                        const SizedBox(height: 16),
                         AppSectionHeader(
                           title: context.l10n.terminalVariableReports,
                           description:
@@ -1947,7 +1928,7 @@ class _DefaultsAndAppearanceDialogState
                                   DataApiDeployment.remote) ...[
                                 SizedBox(height: theme.spacing.md),
                                 SizedBox(height: theme.spacing.xl),
-                                AppFormGroup(
+                                AppSettingsSection(
                                   children: [
                                     if (_accountBusy)
                                       const LinearProgressIndicator(),
@@ -2550,7 +2531,7 @@ class _DefaultsAndAppearanceDialogState
                             child: Text(
                               hasChanges
                                   ? context.l10n.settingsUnsavedChanges
-                                  : context.l10n.settingsNoChanges,
+                                  : '',
                               key: const Key('defaults-change-status'),
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(color: theme.textSubtle),
@@ -2636,7 +2617,7 @@ class _DefaultsBodyLayout extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SizedBox(
-          width: 208,
+          width: 210,
           child: _DefaultsSectionNavigation(
             selectedSection: selectedSection,
             onSectionSelected: onSectionSelected,
@@ -2649,7 +2630,7 @@ class _DefaultsBodyLayout extends StatelessWidget {
             child: Align(
               alignment: Alignment.topCenter,
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 704),
+                constraints: const BoxConstraints(maxWidth: 640),
                 child: child,
               ),
             ),
@@ -2858,26 +2839,10 @@ class _DefaultsSettingsGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.appTheme;
-    if (context.usesAppleGroups) {
-      return AppFormGroup(key: groupKey, title: title, children: [child]);
-    }
-    final content = Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        AppSectionHeader(title: title),
-        SizedBox(height: theme.spacing.lg),
-        child,
-      ],
-    );
-    return KeyedSubtree(
+    return Padding(
       key: groupKey,
-      child: decorated
-          ? Padding(
-              padding: EdgeInsets.symmetric(vertical: theme.spacing.sm),
-              child: content,
-            )
-          : content,
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: AppSettingsSection(title: title, children: [child]),
     );
   }
 }
@@ -4178,4 +4143,65 @@ class _MobileSettingsDisclosure extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: children,
         );
+}
+
+/// Choosing a policy stages it in the parent; dismissing never changes it.
+class _PermissionSummary<T> extends StatelessWidget {
+  const _PermissionSummary({
+    super.key,
+    required this.title,
+    required this.description,
+    required this.value,
+    required this.valueLabel,
+    required this.options,
+    required this.onChanged,
+    required this.panelKey,
+  });
+  final String title;
+  final String description;
+  final String valueLabel;
+  final T value;
+  final List<_SettingsRadioOptionData<T>> options;
+  final ValueChanged<T> onChanged;
+  final Key panelKey;
+  @override
+  Widget build(BuildContext context) => AppGroupedSection(
+    children: [
+      ListTile(
+        minTileHeight: 72,
+        title: Text(title, style: const TextStyle(fontSize: 17)),
+        subtitle: Text(valueLabel, style: const TextStyle(fontSize: 15)),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () async {
+          final selected = await Navigator.of(context).push<T>(
+            MaterialPageRoute(
+              builder: (pageContext) => Scaffold(
+                backgroundColor: pageContext.groupedBackground,
+                appBar: AppBar(
+                  title: Text(title),
+                  backgroundColor: pageContext.groupedBackground,
+                ),
+                body: ListView(
+                  padding: const EdgeInsets.all(20),
+                  children: [
+                    Text(description),
+                    const SizedBox(height: 24),
+                    _SettingsRadioPanel<T>(
+                      panelKey: panelKey,
+                      groupValue: value,
+                      onChanged: (next) {
+                        if (next != null) Navigator.of(pageContext).pop(next);
+                      },
+                      options: options,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+          if (selected != null && context.mounted) onChanged(selected);
+        },
+      ),
+    ],
+  );
 }

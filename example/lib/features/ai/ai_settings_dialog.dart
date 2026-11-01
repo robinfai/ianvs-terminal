@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 
 import '../../ui/components/app_configuration_field.dart';
 import '../../ui/components/app_dropdown_form_field.dart';
+import '../../ui/components/app_grouped_section.dart';
+import '../../ui/components/app_mobile_header.dart';
 import '../../ui/components/app_notifications.dart';
 import '../../ui/foundation/app_motion.dart';
 import 'acp/acp_installation.dart';
@@ -68,6 +70,8 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
   bool _busy = false;
   bool _loaded = false;
   bool _tested = false;
+  bool _showKey = false;
+  Timer? _successTimer;
   bool _detecting = false;
   bool _autoDetectionAttempted = false;
   bool _savedAcpUnsupported = false;
@@ -330,7 +334,13 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
           },
         ], cancellation);
       }
-      if (mounted) setState(() => _tested = true);
+      if (mounted) {
+        setState(() => _tested = true);
+        _successTimer?.cancel();
+        _successTimer = Timer(const Duration(seconds: 2), () {
+          if (mounted) setState(() => _tested = false);
+        });
+      }
     } on Object catch (failure) {
       if (mounted) {
         setState(
@@ -347,6 +357,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
     _detectionEpoch++;
     _test?.cancel();
     _endpointFocus.dispose();
+    _successTimer?.cancel();
     _keyFocus.dispose();
     _modelFocus.dispose();
     _endpoint.dispose();
@@ -358,311 +369,341 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    key: const Key('ai-settings-dialog'),
-    // A tight preferred width avoids intrinsic layout through the anchored
-    // dropdown. Dialog still clamps this to the available window width.
-    constraints: const BoxConstraints.tightFor(width: 680),
-    title: Text(t('AI connection', 'AI 连接')),
-    scrollable: true,
-    content: SizedBox(
+  Widget build(BuildContext context) {
+    final content = SizedBox(
       width: 632,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          AppConfigurationField(
-            label: t('Connection type', '连接方式'),
-            child: AppDropdownFormField<AiBackendKind>(
-              isExpanded: true,
-              key: const Key('ai-backend'),
-              initialValue: _backend,
-              decoration: const InputDecoration(),
-              items: [
-                DropdownMenuItem(
-                  value: AiBackendKind.llm,
-                  child: Text(t('Model API', '模型 API')),
+          AppSettingsSection(
+            title: t('Connection', '连接'),
+            children: [
+              AppConfigurationField(
+                label: t('Connection type', '连接方式'),
+                child: AppDropdownFormField<AiBackendKind>(
+                  isExpanded: true,
+                  key: const Key('ai-backend'),
+                  initialValue: _backend,
+                  decoration: const InputDecoration(),
+                  items: [
+                    DropdownMenuItem(
+                      value: AiBackendKind.llm,
+                      child: Text(t('Model API', '模型 API')),
+                    ),
+                    if (_supportsLocalAcp)
+                      const DropdownMenuItem(
+                        value: AiBackendKind.acp,
+                        child: Text('Codex ACP'),
+                      ),
+                  ],
+                  onChanged: !_loaded || _busy || !_supportsLocalAcp
+                      ? null
+                      : _selectBackend,
                 ),
-                if (_supportsLocalAcp)
-                  const DropdownMenuItem(
-                    value: AiBackendKind.acp,
-                    child: Text('Codex ACP'),
+              ),
+              const SizedBox(height: 16),
+              if (_savedAcpUnsupported) ...[
+                Text(
+                  t(
+                    'Local Codex ACP is available on desktop only. Configure a Model API connection for this device. Your saved connection stays unchanged until you save; saving does not send a task.',
+                    '本地 Codex ACP 仅支持桌面。请为此设备配置模型 API 连接。保存前保留原连接设置；保存不会发送任务。',
                   ),
+                  key: const Key('ai-acp-unavailable-on-mobile'),
+                ),
+                const SizedBox(height: 16),
               ],
-              onChanged: !_loaded || _busy || !_supportsLocalAcp
-                  ? null
-                  : _selectBackend,
-            ),
-          ),
-          const SizedBox(height: 16),
-          if (_savedAcpUnsupported) ...[
-            Text(
-              t(
-                'Local Codex ACP is available on desktop only. Configure a Model API connection for this device. Your saved connection stays unchanged until you save; saving does not send a task.',
-                '本地 Codex ACP 仅支持桌面。请为此设备配置模型 API 连接。保存前保留原连接设置；保存不会发送任务。',
-              ),
-              key: const Key('ai-acp-unavailable-on-mobile'),
-            ),
-            const SizedBox(height: 16),
-          ],
-          Text(
-            _backend == AiBackendKind.acp
-                ? t(
-                    'Run Codex ACP on this Mac using your Codex login. Commands are reviewed here and sent to the current terminal.',
-                    '在本机运行 Codex ACP，使用已有 Codex 登录。命令在此批准后发送到当前终端。',
-                  )
-                : t(
-                    'Connect directly to an OpenAI-compatible endpoint. Configuration stays on this device.',
-                    '直接连接 OpenAI 兼容端点。配置仅保存在本机。',
-                  ),
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          const SizedBox(height: 20),
-          if (_backend == AiBackendKind.acp) ...[
-            Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: TextButton.icon(
-                key: const Key('ai-detect-acp'),
-                onPressed: _loaded && !_busy && !_detecting ? _detectAcp : null,
-                icon: const Icon(Icons.search, size: 18),
-                label: Text(t('Auto-detect', '自动检测')),
-              ),
-            ),
-            if (_detecting) ...[
-              const LinearProgressIndicator(),
               Text(
-                t(
-                  'Looking for a local Codex ACP installation…',
-                  '正在查找本机 Codex ACP…',
-                ),
+                _backend == AiBackendKind.acp
+                    ? t(
+                        'Run Codex ACP on this Mac using your Codex login. Commands are reviewed here and sent to the current terminal.',
+                        '在本机运行 Codex ACP，使用已有 Codex 登录。命令在此批准后发送到当前终端。',
+                      )
+                    : t(
+                        'Connect directly to an OpenAI-compatible endpoint. Configuration stays on this device.',
+                        '直接连接 OpenAI 兼容端点。配置仅保存在本机。',
+                      ),
+                style: Theme.of(context).textTheme.bodySmall,
               ),
-            ],
-            if (_discoveryNotice != null)
-              Semantics(
-                liveRegion: true,
-                child: Text(
-                  aiErrorText(_discoveryNotice!, zh),
-                  key: const Key('ai-acp-discovery-notice'),
-                ),
-              ),
-            const SizedBox(height: 12),
-            AppConfigurationField(
-              label: t('Executable path', '可执行文件路径'),
-              child: TextField(
-                key: const Key('ai-agent-command'),
-                controller: _agentCommand,
-                enabled: _loaded && !_busy,
-                autocorrect: false,
-                onChanged: _edited,
-                decoration: const InputDecoration(),
-              ),
-            ),
-            const SizedBox(height: 16),
-            AppConfigurationField(
-              label: t('Arguments (JSON array)', '启动参数（JSON 数组）'),
-              child: TextField(
-                key: const Key('ai-agent-arguments'),
-                controller: _agentArguments,
-                enabled: _loaded && !_busy,
-                autocorrect: false,
-                onChanged: _edited,
-                decoration: const InputDecoration(),
-              ),
-            ),
-            const SizedBox(height: 16),
-          ] else ...[
-            AppConfigurationField(
-              key: _endpointField,
-              label: 'Endpoint',
-              child: TextField(
-                key: const Key('ai-endpoint'),
-                controller: _endpoint,
-                focusNode: _endpointFocus,
-                enabled: _loaded && !_busy,
-                autocorrect: false,
-                keyboardType: TextInputType.url,
-                onChanged: _edited,
-                decoration: InputDecoration(
-                  errorText: _fieldErrors['endpoint'],
-                  errorMaxLines: 3,
-                  hintText: 'https://api.example.com/v1',
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            AppConfigurationField(
-              key: _keyField,
-              label: 'API Key',
-              child: TextField(
-                key: const Key('ai-api-key'),
-                controller: _key,
-                focusNode: _keyFocus,
-                enabled: _loaded && !_busy,
-                obscureText: true,
-                autocorrect: false,
-                enableSuggestions: false,
-                onChanged: _edited,
-                decoration: InputDecoration(
-                  errorText: _fieldErrors['key'],
-                  errorMaxLines: 3,
-                ),
-              ),
-            ),
-          ],
-          const SizedBox(height: 16),
-          AppConfigurationField(
-            key: _modelField,
-            label: t('Model', '模型'),
-            child: TextField(
-              key: const Key('ai-model'),
-              controller: _model,
-              focusNode: _modelFocus,
-              enabled: _loaded && !_busy,
-              autocorrect: false,
-              onChanged: _edited,
-              decoration: InputDecoration(
-                errorText: _fieldErrors['model'],
-                errorMaxLines: 3,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          AppConfigurationField(
-            label: t('Command approval', '命令审批'),
-            child: AppDropdownFormField<AiApprovalMode>(
-              key: const Key('ai-approval-mode'),
-              initialValue: _approvalMode,
-              isExpanded: true,
-              decoration: const InputDecoration(),
-              items: [
-                DropdownMenuItem(
-                  value: AiApprovalMode.smart,
-                  child: Text(t('Smart review', '智能审核')),
-                ),
-                DropdownMenuItem(
-                  value: AiApprovalMode.manual,
-                  child: Text(t('Confirm every command', '每次确认')),
-                ),
-              ],
-              onChanged: !_loaded || _busy
-                  ? null
-                  : (value) {
-                      if (value != null) setState(() => _approvalMode = value);
-                    },
-            ),
-          ),
-          if (_approvalMode == AiApprovalMode.smart) ...[
-            const SizedBox(height: 16),
-            AppConfigurationField(
-              label: t('Review sensitivity', '审核敏感性'),
-              child: AppDropdownFormField<AiApprovalSensitivity>(
-                key: const Key('ai-approval-sensitivity'),
-                initialValue: _approvalSensitivity,
-                isExpanded: true,
-                decoration: const InputDecoration(),
-                items: [
-                  DropdownMenuItem(
-                    value: AiApprovalSensitivity.cautious,
-                    child: Text(t('Cautious', '谨慎')),
+              const SizedBox(height: 20),
+              if (_backend == AiBackendKind.acp) ...[
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: TextButton.icon(
+                    key: const Key('ai-detect-acp'),
+                    onPressed: _loaded && !_busy && !_detecting
+                        ? _detectAcp
+                        : null,
+                    icon: const Icon(Icons.search, size: 18),
+                    label: Text(t('Auto-detect', '自动检测')),
                   ),
-                  DropdownMenuItem(
-                    value: AiApprovalSensitivity.balanced,
-                    child: Text(t('Standard', '标准')),
-                  ),
-                  DropdownMenuItem(
-                    value: AiApprovalSensitivity.relaxed,
-                    child: Text(t('Relaxed · confirm high risk', '宽松 · 高危确认')),
+                ),
+                if (_detecting) ...[
+                  const LinearProgressIndicator(),
+                  Text(
+                    t(
+                      'Looking for a local Codex ACP installation…',
+                      '正在查找本机 Codex ACP…',
+                    ),
                   ),
                 ],
-                onChanged: !_loaded || _busy
-                    ? null
-                    : (value) {
-                        if (value != null) {
-                          setState(() => _approvalSensitivity = value);
-                        }
-                      },
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(switch (_approvalSensitivity) {
-              AiApprovalSensitivity.cautious => t(
-                'Automatically allow low-risk, read-only commands. Confirm changes.',
-                '自动放行低风险只读命令；修改操作需确认。',
-              ),
-              AiApprovalSensitivity.balanced => t(
-                'Automatically allow low-risk reads and recoverable changes. Confirm medium and high risk.',
-                '自动放行低风险查询和可恢复修改；中、高风险需确认。',
-              ),
-              AiApprovalSensitivity.relaxed => t(
-                'Automatically allow low- and medium-risk actions within your task. Confirm high-risk actions.',
-                '自动放行任务范围内的低、中风险操作；高危操作需确认。',
-              ),
-            }, style: Theme.of(context).textTheme.bodySmall),
-          ],
-          const SizedBox(height: 8),
-          Text(
-            _approvalMode == AiApprovalMode.smart
-                ? t(
-                    'Each command is independently reviewed using this connection. Unclear risk, unavailable review, and your explicit confirmation requirements still need confirmation. Reviews add time and usage.',
-                    '每条命令使用此连接独立审核。风险不明、审核不可用或你明确要求确认时，仍需确认。审核会增加等待时间和用量。',
-                  )
-                : t(
-                    'Review and confirm every command before it runs.',
-                    '执行前逐条审阅并确认命令。',
+                if (_discoveryNotice != null)
+                  Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      aiErrorText(_discoveryNotice!, zh),
+                      key: const Key('ai-acp-discovery-notice'),
+                    ),
                   ),
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 4,
-            children: [
-              if (_backend == AiBackendKind.llm)
-                TextButton(
-                  key: const Key('ai-use-mock'),
-                  onPressed: _loaded && !_busy
-                      ? () =>
-                            setState(() => _fill(const AiConfiguration.mock()))
-                      : null,
-                  child: Text(t('Local mock', '本机 Mock')),
+                const SizedBox(height: 12),
+                AppConfigurationField(
+                  label: t('Executable path', '可执行文件路径'),
+                  child: TextField(
+                    key: const Key('ai-agent-command'),
+                    controller: _agentCommand,
+                    enabled: _loaded && !_busy,
+                    autocorrect: false,
+                    onChanged: _edited,
+                    decoration: const InputDecoration(),
+                  ),
                 ),
-              TextButton(
-                key: const Key('ai-test-connection'),
-                onPressed: _loaded && !_busy && !_detecting
-                    ? _checkConnection
-                    : null,
-                child: Text(t('Test connection', '测试连接')),
+                const SizedBox(height: 16),
+                AppConfigurationField(
+                  label: t('Arguments (JSON array)', '启动参数（JSON 数组）'),
+                  child: TextField(
+                    key: const Key('ai-agent-arguments'),
+                    controller: _agentArguments,
+                    enabled: _loaded && !_busy,
+                    autocorrect: false,
+                    onChanged: _edited,
+                    decoration: const InputDecoration(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ] else ...[
+                AppConfigurationField(
+                  key: _endpointField,
+                  label: 'Endpoint',
+                  stackedOnPhone: true,
+                  child: TextField(
+                    key: const Key('ai-endpoint'),
+                    controller: _endpoint,
+                    focusNode: _endpointFocus,
+                    enabled: _loaded && !_busy,
+                    autocorrect: false,
+                    keyboardType: TextInputType.url,
+                    onChanged: _edited,
+                    decoration: InputDecoration(
+                      errorText: _fieldErrors['endpoint'],
+                      errorMaxLines: 3,
+                      hintText: 'https://api.example.com/v1',
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                AppConfigurationField(
+                  key: _keyField,
+                  label: 'API Key',
+                  child: TextField(
+                    key: const Key('ai-api-key'),
+                    controller: _key,
+                    focusNode: _keyFocus,
+                    enabled: _loaded && !_busy,
+                    obscureText: !_showKey,
+                    autocorrect: false,
+                    enableSuggestions: false,
+                    onChanged: _edited,
+                    decoration: InputDecoration(
+                      suffixIcon: IconButton(
+                        tooltip: _showKey
+                            ? t('Hide API key', '隐藏 API Key')
+                            : t('Show API key', '显示 API Key'),
+                        onPressed: () => setState(() => _showKey = !_showKey),
+                        icon: Icon(
+                          _showKey
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                        ),
+                      ),
+                      errorText: _fieldErrors['key'],
+                      errorMaxLines: 3,
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+              AppConfigurationField(
+                key: _modelField,
+                label: t('Model', '模型'),
+                child: TextField(
+                  key: const Key('ai-model'),
+                  controller: _model,
+                  focusNode: _modelFocus,
+                  enabled: _loaded && !_busy,
+                  autocorrect: false,
+                  onChanged: _edited,
+                  decoration: InputDecoration(
+                    errorText: _fieldErrors['model'],
+                    errorMaxLines: 3,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+          const SizedBox(height: 24),
+          AppSettingsSection(
+            title: t('Command approval', '命令审批'),
+            children: [
+              AppConfigurationField(
+                label: t('Command approval', '命令审批'),
+                child: AppDropdownFormField<AiApprovalMode>(
+                  key: const Key('ai-approval-mode'),
+                  initialValue: _approvalMode,
+                  isExpanded: true,
+                  decoration: const InputDecoration(),
+                  items: [
+                    DropdownMenuItem(
+                      value: AiApprovalMode.smart,
+                      child: Text(t('Smart review', '智能审核')),
+                    ),
+                    DropdownMenuItem(
+                      value: AiApprovalMode.manual,
+                      child: Text(t('Confirm every command', '每次确认')),
+                    ),
+                  ],
+                  onChanged: !_loaded || _busy
+                      ? null
+                      : (value) {
+                          if (value != null) {
+                            setState(() => _approvalMode = value);
+                          }
+                        },
+                ),
+              ),
+              if (_approvalMode == AiApprovalMode.smart) ...[
+                const SizedBox(height: 16),
+                AppConfigurationField(
+                  label: t('Review sensitivity', '审核敏感性'),
+                  child: AppDropdownFormField<AiApprovalSensitivity>(
+                    key: const Key('ai-approval-sensitivity'),
+                    initialValue: _approvalSensitivity,
+                    isExpanded: true,
+                    decoration: const InputDecoration(),
+                    items: [
+                      DropdownMenuItem(
+                        value: AiApprovalSensitivity.cautious,
+                        child: Text(t('Cautious', '谨慎')),
+                      ),
+                      DropdownMenuItem(
+                        value: AiApprovalSensitivity.balanced,
+                        child: Text(t('Standard', '标准')),
+                      ),
+                      DropdownMenuItem(
+                        value: AiApprovalSensitivity.relaxed,
+                        child: Text(
+                          t('Relaxed · confirm high risk', '宽松 · 高危确认'),
+                        ),
+                      ),
+                    ],
+                    onChanged: !_loaded || _busy
+                        ? null
+                        : (value) {
+                            if (value != null) {
+                              setState(() => _approvalSensitivity = value);
+                            }
+                          },
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(switch (_approvalSensitivity) {
+                  AiApprovalSensitivity.cautious => t(
+                    'Automatically allow low-risk, read-only commands. Confirm changes.',
+                    '自动放行低风险只读命令；修改操作需确认。',
+                  ),
+                  AiApprovalSensitivity.balanced => t(
+                    'Automatically allow low-risk reads and recoverable changes. Confirm medium and high risk.',
+                    '自动放行低风险查询和可恢复修改；中、高风险需确认。',
+                  ),
+                  AiApprovalSensitivity.relaxed => t(
+                    'Automatically allow low- and medium-risk actions within your task. Confirm high-risk actions.',
+                    '自动放行任务范围内的低、中风险操作；高危操作需确认。',
+                  ),
+                }, style: Theme.of(context).textTheme.bodySmall),
+              ],
+              const SizedBox(height: 8),
+              Text(
+                _approvalMode == AiApprovalMode.smart
+                    ? t(
+                        'Each command is independently reviewed using this connection. Unclear risk, unavailable review, and your explicit confirmation requirements still need confirmation. Reviews add time and usage.',
+                        '每条命令使用此连接独立审核。风险不明、审核不可用或你明确要求确认时，仍需确认。审核会增加等待时间和用量。',
+                      )
+                    : t(
+                        'Review and confirm every command before it runs.',
+                        '执行前逐条审阅并确认命令。',
+                      ),
+                style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
           ),
-          if (_busy || !_loaded) const LinearProgressIndicator(),
-          if (!_loaded) Text(t('Loading saved configuration…', '正在读取已保存的配置…')),
-          if (_tested)
-            Text(
-              jsonEncode(widget.settings.configuration?.toJson()) ==
-                      jsonEncode(_value.toJson())
-                  ? t('Connection succeeded.', '连接成功。')
-                  : t('Connection succeeded. Not saved yet.', '连接成功，尚未保存。'),
-              key: const Key('ai-connection-ok'),
-            ),
-          if (_error != null)
-            Text(
-              aiErrorText(_error!, zh),
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-          const SizedBox(height: 8),
-          if (_backend == AiBackendKind.llm)
-            Text(
-              t(
-                'For an iPhone, use the Mac’s LAN address instead of 127.0.0.1.',
-                '在 iPhone 上使用时，请将 127.0.0.1 替换为 Mac 的局域网地址。',
+          const SizedBox(height: 24),
+          AppSettingsSection(
+            title: t('Connection test', '连接测试'),
+            children: [
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  if (_backend == AiBackendKind.llm)
+                    TextButton(
+                      key: const Key('ai-use-mock'),
+                      onPressed: _loaded && !_busy
+                          ? () => setState(
+                              () => _fill(const AiConfiguration.mock()),
+                            )
+                          : null,
+                      child: Text(t('Local mock', '本机 Mock')),
+                    ),
+                  TextButton(
+                    key: const Key('ai-test-connection'),
+                    onPressed: _loaded && !_busy && !_detecting
+                        ? _checkConnection
+                        : null,
+                    child: Text(t('Test connection', '测试连接')),
+                  ),
+                ],
               ),
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
+              if (_busy || !_loaded) const LinearProgressIndicator(),
+              if (!_loaded)
+                Text(t('Loading saved configuration…', '正在读取已保存的配置…')),
+              if (_tested)
+                Text(
+                  jsonEncode(widget.settings.configuration?.toJson()) ==
+                          jsonEncode(_value.toJson())
+                      ? t('Connection succeeded.', '连接成功。')
+                      : t('Connection succeeded. Not saved yet.', '连接成功，尚未保存。'),
+                  key: const Key('ai-connection-ok'),
+                ),
+              if (_error != null)
+                Text(
+                  aiErrorText(_error!, zh),
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              const SizedBox(height: 8),
+              if (_backend == AiBackendKind.llm)
+                Text(
+                  t(
+                    'For an iPhone, use the Mac’s LAN address instead of 127.0.0.1.',
+                    '在 iPhone 上使用时，请将 127.0.0.1 替换为 Mac 的局域网地址。',
+                  ),
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+            ],
+          ),
         ],
       ),
-    ),
-    actions: [
+    );
+    final actions = <Widget>[
       if (widget.settings.configuration != null)
         TextButton(
           key: const Key('ai-remove-settings'),
@@ -678,6 +719,45 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
         onPressed: _loaded && !_busy && !_detecting ? _save : null,
         child: Text(t('Save', '保存')),
       ),
-    ],
-  );
+    ];
+    if (context.usesAppleGroups) {
+      return Dialog.fullscreen(
+        key: const Key('ai-settings-dialog'),
+        backgroundColor: context.groupedBackground,
+        child: SafeArea(
+          child: Column(
+            children: [
+              AppMobileHeader(title: t('AI connection', 'AI 连接')),
+              Expanded(
+                child: SingleChildScrollView(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: const EdgeInsets.all(20),
+                  child: content,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                child: OverflowBar(
+                  alignment: MainAxisAlignment.end,
+                  overflowAlignment: OverflowBarAlignment.end,
+                  spacing: 8,
+                  children: actions,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    return AlertDialog(
+      key: const Key('ai-settings-dialog'),
+      constraints: const BoxConstraints.tightFor(width: 680),
+      backgroundColor: context.groupedBackground,
+      title: Text(t('AI connection', 'AI 连接')),
+      scrollable: true,
+      content: content,
+      actions: actions,
+    );
+  }
 }

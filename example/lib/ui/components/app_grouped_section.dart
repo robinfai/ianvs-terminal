@@ -109,3 +109,22 @@ class AppFormGroup extends StatelessWidget {
     );
   }
 }
+
+/// Shared settings surface: inset rows on iPhone and bounded groups on Mac.
+class AppSettingsSection extends StatelessWidget {
+  const AppSettingsSection({super.key, this.title, required this.children});
+  final String? title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    if (context.usesAppleGroups) {
+      return AppFormGroup(title: title, children: children);
+    }
+    return AppGroupedSection(
+      title: title,
+      padding: const EdgeInsets.all(16),
+      children: children,
+    );
+  }
+}

@@ -213,90 +213,91 @@ final class _MasterKeyManagementPanelState
                   : context.l10n.portableMasterKeyDescription,
             ),
             SizedBox(height: theme.spacing.sm),
-            AppPanel(
+            AppSettingsSection(
               key: const Key('master-key-management-panel'),
-              tone: AppPanelTone.panel,
-              padding: EdgeInsets.all(theme.spacing.xl),
-              child: usesAppleKeychain
-                  ? Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        ExcludeSemantics(
-                          child: Icon(
-                            Icons.cloud_done_rounded,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
+              children: [
+                if (usesAppleKeychain)
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ExcludeSemantics(
+                        child: Icon(
+                          Icons.cloud_done_rounded,
+                          color: Theme.of(context).colorScheme.primary,
                         ),
-                        SizedBox(width: theme.spacing.sm),
-                        Expanded(
+                      ),
+                      SizedBox(width: theme.spacing.sm),
+                      Expanded(
+                        child: Text(
+                          context.l10n.appleMasterKeyStorageDescription,
+                          key: const Key('master-key-apple-keychain-status'),
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        spacing: theme.spacing.sm,
+                        runSpacing: theme.spacing.sm,
+                        children: [
+                          AppActionButton(
+                            buttonKey: const Key('master-key-copy'),
+                            tone: AppActionTone.secondary,
+                            size: AppActionSize.compact,
+                            icon: Icons.copy_rounded,
+                            label: context.l10n.copyForAnotherDevice,
+                            onPressed: _controller.busy
+                                ? null
+                                : _confirmAndCopy,
+                          ),
+                          AppActionButton(
+                            buttonKey: const Key('master-key-import'),
+                            tone: AppActionTone.secondary,
+                            size: AppActionSize.compact,
+                            icon: Icons.content_paste_rounded,
+                            label: context.l10n.pasteFromAnotherDevice,
+                            onPressed: _controller.busy
+                                ? null
+                                : _showImportDialog,
+                          ),
+                        ],
+                      ),
+                      if (_controller.busy) ...[
+                        SizedBox(height: theme.spacing.sm),
+                        const LinearProgressIndicator(),
+                      ],
+                      if (_controller.status case final status?) ...[
+                        SizedBox(height: theme.spacing.sm),
+                        Semantics(
+                          liveRegion: true,
                           child: Text(
-                            context.l10n.appleMasterKeyStorageDescription,
-                            key: const Key('master-key-apple-keychain-status'),
+                            status,
+                            key: const Key('master-key-status'),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: theme.textSubtle),
                           ),
                         ),
                       ],
-                    )
-                  : Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Wrap(
-                          spacing: theme.spacing.sm,
-                          runSpacing: theme.spacing.sm,
-                          children: [
-                            AppActionButton(
-                              buttonKey: const Key('master-key-copy'),
-                              tone: AppActionTone.secondary,
-                              size: AppActionSize.compact,
-                              icon: Icons.copy_rounded,
-                              label: context.l10n.copyForAnotherDevice,
-                              onPressed: _controller.busy
-                                  ? null
-                                  : _confirmAndCopy,
-                            ),
-                            AppActionButton(
-                              buttonKey: const Key('master-key-import'),
-                              tone: AppActionTone.secondary,
-                              size: AppActionSize.compact,
-                              icon: Icons.content_paste_rounded,
-                              label: context.l10n.pasteFromAnotherDevice,
-                              onPressed: _controller.busy
-                                  ? null
-                                  : _showImportDialog,
-                            ),
-                          ],
+                      if (_controller.error case final error?) ...[
+                        SizedBox(height: theme.spacing.sm),
+                        Semantics(
+                          liveRegion: true,
+                          child: Text(
+                            error,
+                            key: const Key('master-key-error'),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(context).colorScheme.error,
+                                ),
+                          ),
                         ),
-                        if (_controller.busy) ...[
-                          SizedBox(height: theme.spacing.sm),
-                          const LinearProgressIndicator(),
-                        ],
-                        if (_controller.status case final status?) ...[
-                          SizedBox(height: theme.spacing.sm),
-                          Semantics(
-                            liveRegion: true,
-                            child: Text(
-                              status,
-                              key: const Key('master-key-status'),
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: theme.textSubtle),
-                            ),
-                          ),
-                        ],
-                        if (_controller.error case final error?) ...[
-                          SizedBox(height: theme.spacing.sm),
-                          Semantics(
-                            liveRegion: true,
-                            child: Text(
-                              error,
-                              key: const Key('master-key-error'),
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: Theme.of(context).colorScheme.error,
-                                  ),
-                            ),
-                          ),
-                        ],
                       ],
-                    ),
+                    ],
+                  ),
+              ],
             ),
           ],
         );

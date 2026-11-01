@@ -24,7 +24,8 @@ abstract final class AppNotifications {
             ? TextStyle(color: Theme.of(context).colorScheme.onErrorContainer)
             : null,
       ),
-      duration: Duration(seconds: kind == AppNoticeKind.failure ? 8 : 2),
+      duration: const Duration(seconds: 2),
+      persist: kind == AppNoticeKind.failure,
       showCloseIcon: kind == AppNoticeKind.failure,
       backgroundColor: kind == AppNoticeKind.failure
           ? Theme.of(context).colorScheme.errorContainer
@@ -160,7 +161,10 @@ class _AppNotificationHostState extends State<AppNotificationHost> {
     required AppNoticeKind kind,
   }) {
     // Only passive text is coalesced. Actions own separate callbacks/resources.
-    final passive = !hasActions && notice.action == null && !notice.persist;
+    final passive =
+        !hasActions &&
+        notice.action == null &&
+        (!notice.persist || kind == AppNoticeKind.failure);
     if (passive &&
         kind != AppNoticeKind.failure &&
         _entries.any((entry) => entry.kind == AppNoticeKind.failure)) {

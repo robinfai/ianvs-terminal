@@ -452,7 +452,8 @@ class _SshProfileListState extends State<_SshProfileList> {
                 subtitle: Text(context.l10n.tryDifferentNameHostUser),
               );
             }
-            return Column(
+            return AppGroupedSection(
+              separated: true,
               children: [
                 for (final profile in filteredProfiles)
                   _SshProfileTile(
@@ -494,7 +495,10 @@ class _SshProfileTile extends StatelessWidget {
     return ListTile(
       key: Key('new-ssh-session-${profile.id}'),
       leading: Icon(imported ? Icons.description_outlined : AppIcons.server),
-      title: Text(profile.name),
+      title: Text(
+        profile.name,
+        style: TextStyle(fontSize: context.usesMobileNavigation ? 17 : 14),
+      ),
       subtitle: Text(
         '${connection.user}@${connection.host}:${connection.port}'
         '${imported ? ' • OpenSSH config' : ''}',

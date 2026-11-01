@@ -429,9 +429,10 @@ class _ShortcutEditorPanelState extends State<ShortcutEditorPanel> {
       },
     );
 
-    final list = AppPanel(
+    final list = Material(
       key: const Key('shortcut-editor-list-panel'),
-      tone: AppPanelTone.panel,
+      color: context.groupedSurface,
+      borderRadius: BorderRadius.circular(10),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(theme.radius.md),
         child: visibleActions.isEmpty

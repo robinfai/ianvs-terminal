@@ -159,6 +159,7 @@ class _SshHostKeyPromptDialogState extends State<SshHostKeyPromptDialog> {
     final palette = context.appTheme;
     return AlertDialog(
       key: const Key('ssh-host-key-prompt-dialog'),
+      backgroundColor: context.groupedBackground,
       scrollable: true,
       icon: Icon(
         changed ? Icons.warning_amber_rounded : Icons.shield_outlined,
@@ -181,33 +182,41 @@ class _SshHostKeyPromptDialogState extends State<SshHostKeyPromptDialog> {
                   : context.l10n.sshUnknownHostWarning,
             ),
             SizedBox(height: palette.spacing.lg),
-            AppFieldRow(
-              label: context.l10n.server,
-              control: SelectableText('${event.host}:${event.port}'),
-            ),
-            SizedBox(height: palette.spacing.md),
-            AppFieldRow(
-              label: context.l10n.algorithm,
-              control: SelectableText(event.algorithm!),
-            ),
-            SizedBox(height: palette.spacing.md),
-            AppFieldRow(
-              label: context.l10n.sha256Fingerprint,
-              control: SelectableText(
-                event.fingerprint!,
-                key: const Key('ssh-host-key-fingerprint'),
-              ),
+            AppSettingsSection(
+              children: [
+                AppFieldRow(
+                  label: context.l10n.server,
+                  control: SelectableText('${event.host}:${event.port}'),
+                ),
+                SizedBox(height: palette.spacing.md),
+                AppFieldRow(
+                  label: context.l10n.algorithm,
+                  control: SelectableText(event.algorithm!),
+                ),
+                SizedBox(height: palette.spacing.md),
+                AppFieldRow(
+                  label: context.l10n.sha256Fingerprint,
+                  control: SelectableText(
+                    event.fingerprint!,
+                    key: const Key('ssh-host-key-fingerprint'),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(fontFamily: 'monospace'),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
       ),
       actions: [
-        TextButton(
+        FilledButton(
+          autofocus: true,
           key: const Key('ssh-host-key-reject'),
           onPressed: () => Navigator.of(context).pop(false),
           child: Text(context.l10n.reject),
         ),
-        FilledButton(
+        TextButton(
           key: const Key('ssh-host-key-accept'),
           onPressed: () => Navigator.of(context).pop(true),
           child: Text(
@@ -371,6 +380,7 @@ class _SshAuthenticationPromptDialogState
     );
     return AlertDialog(
       key: const Key('ssh-auth-prompt-dialog'),
+      backgroundColor: context.groupedBackground,
       scrollable: true,
       insetPadding: EdgeInsets.symmetric(
         horizontal: horizontalInset,

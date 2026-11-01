@@ -125,7 +125,7 @@ class _SavedRecordingsShelf extends StatelessWidget {
           label: context.l10n.replayHubTitle,
           child: Material(
             key: const Key('saved-recordings-shelf'),
-            color: palette.chrome,
+            color: context.groupedBackground,
             child: DecoratedBox(
               decoration: BoxDecoration(
                 border: Border(left: BorderSide(color: palette.border)),
@@ -212,9 +212,27 @@ class _SavedRecordingsShelf extends StatelessWidget {
             ),
           ),
         ),
-        SliverList.builder(
-          itemCount: ordered.length,
-          itemBuilder: (context, index) => _entry(context, ordered[index]),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          sliver: SliverList.builder(
+            itemCount: ordered.length,
+            itemBuilder: (context, index) => Material(
+              color: context.groupedSurface,
+              borderRadius: BorderRadius.vertical(
+                top: index == 0 ? const Radius.circular(16) : Radius.zero,
+                bottom: index == ordered.length - 1
+                    ? const Radius.circular(16)
+                    : Radius.zero,
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                children: [
+                  if (index > 0) const Divider(height: .5, indent: 56),
+                  _entry(context, ordered[index]),
+                ],
+              ),
+            ),
+          ),
         ),
         SliverToBoxAdapter(child: SizedBox(height: palette.spacing.lg)),
       ],
@@ -354,7 +372,17 @@ class _SavedRecordingsShelf extends StatelessWidget {
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
       ),
+      titleTextStyle: Theme.of(context).textTheme.bodyLarge?.copyWith(
+        fontSize: context.usesMobileNavigation ? 17 : 14,
+      ),
+      subtitleTextStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
+        fontSize: context.usesMobileNavigation ? 15 : 12,
+        color: palette.textSubtle,
+      ),
       subtitle: Text(details),
+      trailing: entry.isReadable
+          ? const Icon(Icons.chevron_right, size: 18)
+          : null,
       contentPadding: EdgeInsets.symmetric(
         horizontal: palette.spacing.lg,
         vertical: palette.spacing.xs,

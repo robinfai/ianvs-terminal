@@ -941,7 +941,7 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
             label: context.l10n.sftpPanelFor(widget.target.displayAddress),
             explicitChildNodes: true,
             child: Material(
-              color: palette.panel,
+              color: context.groupedBackground,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -1298,6 +1298,12 @@ class _SftpErrorState extends StatelessWidget {
                 context,
               ).textTheme.bodySmall?.copyWith(color: palette.textMuted),
             ),
+            const SizedBox(height: 12),
+            SelectableText(
+              error.toString(),
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: palette.danger),
+            ),
             SizedBox(height: palette.spacing.lg),
             TextButton.icon(
               key: const Key('sftp-retry'),
@@ -1373,7 +1379,7 @@ class _SftpDirectoryList extends StatelessWidget {
     return Scrollbar(
       child: ListView.separated(
         key: const Key('sftp-directory-list'),
-        padding: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         itemCount: entries.length,
         separatorBuilder: (context, _) => const Divider(height: 1, indent: 52),
         itemBuilder: (context, index) {
@@ -1454,6 +1460,7 @@ class _SftpDirectoryRow extends StatelessWidget {
         child: ListTile(
           key: ValueKey('sftp-entry-${entry.name}'),
           dense: !mobile,
+          tileColor: context.groupedSurface,
           selected: highlighted,
           selectedTileColor: palette.selected,
           enabled: !busy,

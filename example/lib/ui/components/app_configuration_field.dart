@@ -11,7 +11,7 @@ class AppConfigurationField extends StatelessWidget {
     this.stackedOnPhone = false,
     this.subtleLabel = false,
     this.showLabel = true,
-    this.labelWidth = 120,
+    this.labelWidth = 110,
     this.breakpoint = 520,
   });
 

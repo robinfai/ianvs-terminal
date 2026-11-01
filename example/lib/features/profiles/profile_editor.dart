@@ -1974,7 +1974,7 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final showSideNavigation = constraints.maxWidth >= 680;
-                const sideNavigationWidth = 208.0;
+                const sideNavigationWidth = 210.0;
                 final sectionNavigation = _buildSectionNavigation(
                   context,
                   vertical: showSideNavigation,
@@ -2012,41 +2012,40 @@ class _ProfileEditorDialogState extends State<ProfileEditorDialog> {
                                 description:
                                     context.l10n.generalProfileDescription,
                                 children: [
-                                  Divider(height: 1, color: theme.border),
-                                  SizedBox(
-                                    height: context.usesMobileNavigation
-                                        ? theme.spacing.xl
-                                        : theme.spacing.xxl,
-                                  ),
-                                  _ProfileLabeledControl(
-                                    label: context.l10n.name,
-                                    child: TextFormField(
-                                      key: const Key('profile-editor-name'),
-                                      controller: _nameController,
-                                      focusNode: _nameFocusNode,
-                                      decoration: _profileFieldDecoration(),
-                                      validator: (value) => _requiredFieldError(
-                                        value ?? '',
-                                        context.l10n.name,
+                                  _ProfileFormGroup(
+                                    children: [
+                                      _ProfileLabeledControl(
+                                        label: context.l10n.name,
+                                        child: TextFormField(
+                                          key: const Key('profile-editor-name'),
+                                          controller: _nameController,
+                                          focusNode: _nameFocusNode,
+                                          decoration: _profileFieldDecoration(),
+                                          validator: (value) =>
+                                              _requiredFieldError(
+                                                value ?? '',
+                                                context.l10n.name,
+                                              ),
+                                        ),
                                       ),
-                                    ),
-                                  ),
-                                  SizedBox(
-                                    height: context.usesMobileNavigation
-                                        ? theme.spacing.xl
-                                        : theme.spacing.xxl,
-                                  ),
-                                  _ProfileLabeledControl(
-                                    label: context.l10n.tags,
-                                    helperText: context.l10n.tagsCommaHelp,
-                                    child: TextFormField(
-                                      key: const Key('profile-editor-tags'),
-                                      controller: _tagsController,
-                                      focusNode: _tagsFocusNode,
-                                      decoration: _profileFieldDecoration(),
-                                      validator: (value) =>
-                                          _tagsError(value ?? ''),
-                                    ),
+                                      SizedBox(
+                                        height: context.usesMobileNavigation
+                                            ? theme.spacing.xl
+                                            : theme.spacing.xxl,
+                                      ),
+                                      _ProfileLabeledControl(
+                                        label: context.l10n.tags,
+                                        helperText: context.l10n.tagsCommaHelp,
+                                        child: TextFormField(
+                                          key: const Key('profile-editor-tags'),
+                                          controller: _tagsController,
+                                          focusNode: _tagsFocusNode,
+                                          decoration: _profileFieldDecoration(),
+                                          validator: (value) =>
+                                              _tagsError(value ?? ''),
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
@@ -3611,45 +3610,17 @@ class _ProfileFormGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.appTheme;
-    final textTheme = Theme.of(context).textTheme;
-
     return Padding(
-      padding: EdgeInsets.only(bottom: theme.spacing.lg),
-      child: SizedBox(
-        width: double.infinity,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (title != null) ...[
-              Text(
-                title!,
-                style: textTheme.titleMedium?.copyWith(
-                  color: theme.textPrimary,
-                ),
-              ),
-              if (description != null) ...[
-                SizedBox(height: theme.spacing.xs),
-                Text(
-                  description!,
-                  style: textTheme.bodySmall?.copyWith(color: theme.textSubtle),
-                ),
-              ],
-              SizedBox(
-                height: context.usesMobileNavigation
-                    ? theme.spacing.md
-                    : theme.spacing.lg,
-              ),
-              Divider(height: 1, color: theme.border),
-              SizedBox(
-                height: context.usesMobileNavigation
-                    ? theme.spacing.lg
-                    : theme.spacing.xl,
-              ),
-            ],
-            ...children,
+      padding: const EdgeInsets.only(bottom: 24),
+      child: AppSettingsSection(
+        title: title,
+        children: [
+          if (description != null) ...[
+            Text(description!, style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: 12),
           ],
-        ),
+          ...children,
+        ],
       ),
     );
   }

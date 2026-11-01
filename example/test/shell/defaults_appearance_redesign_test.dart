@@ -160,38 +160,42 @@ void main() {
     }),
   );
 
-  testWidgets('data settings keep key storage details out of the account panel', (
-    tester,
-  ) async {
-    await _pumpDefaultsDialog(
-      tester,
-      surfaceSize: const Size(390, 844),
-      platform: TargetPlatform.iOS,
-      masterKeyRepository: PortableMasterKeyRepository(
-        storage: const FlutterSecurePortableMasterKeyStorage.iosPrdDeviceOnly(),
-        allowLegacyMigration: false,
-      ),
-      openDataServiceInitially: true,
-      dataApiConfiguration: DataApiConfiguration.remote('https://example.test'),
-    );
+  testWidgets(
+    'data settings keep key storage details out of the account panel',
+    (tester) async {
+      await _pumpDefaultsDialog(
+        tester,
+        surfaceSize: const Size(390, 844),
+        platform: TargetPlatform.iOS,
+        masterKeyRepository: PortableMasterKeyRepository(
+          storage:
+              const FlutterSecurePortableMasterKeyStorage.iosPrdDeviceOnly(),
+          allowLegacyMigration: false,
+        ),
+        openDataServiceInitially: true,
+        dataApiConfiguration: DataApiConfiguration.remote(
+          'https://example.test',
+        ),
+      );
 
-    final dataPanel = find.byKey(const Key('defaults-data-api-panel'));
-    expect(
-      find.descendant(
-        of: dataPanel,
-        matching: find.textContaining("this device's Keychain"),
-      ),
-      findsNothing,
-    );
-    expect(
-      find.descendant(
-        of: dataPanel,
-        matching: find.textContaining('local file'),
-      ),
-      findsNothing,
-    );
-    expect(tester.takeException(), isNull);
-  });
+      final dataPanel = find.byKey(const Key('defaults-data-api-panel'));
+      expect(
+        find.descendant(
+          of: dataPanel,
+          matching: find.textContaining("this device's Keychain"),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: dataPanel,
+          matching: find.textContaining('local file'),
+        ),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('AI settings distinguishes loading from unreadable configuration', (
     tester,
@@ -252,6 +256,7 @@ void main() {
       expect(find.text(missing), findsOneWidget);
       await tester.tap(entry);
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const Key('ai-use-mock')));
       await tester.tap(find.byKey(const Key('ai-use-mock')));
       await tester.tap(find.byKey(const Key('ai-save-settings')));
       await tester.pumpAndSettle();
@@ -398,7 +403,7 @@ void main() {
     tester,
   ) async {
     await _pumpDefaultsDialog(tester, surfaceSize: const Size(1200, 900));
-    expect(find.text('No changes'), findsOneWidget);
+    expect(find.text('No changes'), findsNothing);
     await tester.tap(find.byKey(const Key('defaults-language-options')));
     await tester.pumpAndSettle();
     await tester.tap(
@@ -417,7 +422,7 @@ void main() {
       find.byKey(const Key('default-language-option-system')).last,
     );
     await tester.pumpAndSettle();
-    expect(find.text('No changes'), findsOneWidget);
+    expect(find.text('No changes'), findsNothing);
     expect(
       tester
           .widget<FilledButton>(find.byKey(const Key('defaults-save')))
@@ -456,7 +461,7 @@ void main() {
           .initialValue,
       profile.id,
     );
-    expect(find.text('No changes'), findsOneWidget);
+    expect(find.text('No changes'), findsNothing);
   });
 
   for (final brightness in Brightness.values) {
@@ -912,12 +917,67 @@ void main() {
     });
   }
 
+  for (final save in [false, true]) {
+    testWidgets('permission detail stages until parent save=$save', (
+      tester,
+    ) async {
+      DefaultsAndAppearanceSelection? result;
+      final profile = defaultTerminalProfile();
+      await _pumpDefaultsDialogLauncher(
+        tester,
+        profiles: [profile],
+        configuredDefaultProfileId: profile.id,
+        effectiveDefaultProfileId: profile.id,
+        platform: TargetPlatform.iOS,
+        onSelection: (value) => result = value,
+      );
+      final security = find.byKey(const Key('defaults-section-security'));
+      await tester.ensureVisible(security);
+      await tester.tap(security);
+      await tester.pumpAndSettle();
+      final summary = find.byKey(const Key('defaults-osc52-options-summary'));
+      await tester.tap(summary);
+      await tester.pumpAndSettle();
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const Key('defaults-save')))
+            .onPressed,
+        isNull,
+      );
+      await tester.tap(summary);
+      await tester.pumpAndSettle();
+      final policy = find.byKey(const Key('default-osc52-policy-disabled'));
+      await tester.ensureVisible(policy);
+      await tester.tap(policy);
+      await tester.pumpAndSettle();
+      expect(result, isNull);
+      if (save) {
+        await tester.tap(find.byKey(const Key('defaults-save')));
+      } else {
+        await tester.tap(find.byKey(const Key('defaults-mobile-back')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('defaults-mobile-back')));
+      }
+      await tester.pumpAndSettle();
+      expect(
+        result?.osc52Policy,
+        save ? LocalTerminalOsc52Policy.disabled : null,
+      );
+    });
+  }
+
   testWidgets('compact defaults dialog keeps the touch-friendly radio layout', (
     tester,
   ) async {
     await _pumpDefaultsDialog(tester, surfaceSize: const Size(390, 844));
 
     expect(find.byKey(const Key('defaults-section-general')), findsNothing);
+    final summary = find.byKey(const Key('defaults-osc52-options-summary'));
+    await tester.ensureVisible(summary);
+    await tester.tap(summary);
+    await tester.pumpAndSettle();
     expect(find.byKey(const Key('defaults-osc52-options')), findsOneWidget);
     expect(
       find.byKey(const Key('default-osc52-policy-profile')),
@@ -991,17 +1051,17 @@ Future<void> _pumpDefaultsDialogLauncher(
   required ValueChanged<DefaultsAndAppearanceSelection?> onSelection,
   TerminalViewMode? preferredTerminalMode,
   AiSettingsController? aiSettings,
+  TargetPlatform platform = TargetPlatform.macOS,
 }) async {
   tester.view.devicePixelRatio = 1;
-  tester.view.physicalSize = const Size(1200, 900);
+  tester.view.physicalSize = platform == TargetPlatform.iOS
+      ? const Size(390, 844)
+      : const Size(1200, 900);
   addTearDown(tester.view.resetDevicePixelRatio);
   addTearDown(tester.view.resetPhysicalSize);
   await tester.pumpWidget(
     MaterialApp(
-      theme: buildIanvsTerminalTheme(
-        Brightness.light,
-        platform: TargetPlatform.macOS,
-      ),
+      theme: buildIanvsTerminalTheme(Brightness.light, platform: platform),
       home: Builder(
         builder: (context) => Scaffold(
           body: TextButton(
