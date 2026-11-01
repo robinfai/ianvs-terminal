@@ -87,7 +87,10 @@ class _AppDropdownFieldState<T> extends FormFieldState<T> {
     }
     if (_controller.isOpen &&
         (!widget.enabled ||
-            !_sameOptions(oldWidget.configuration.items, configuration.items))) {
+            !_sameOptions(
+              oldWidget.configuration.items,
+              configuration.items,
+            ))) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _controller.close();
       });
@@ -101,7 +104,9 @@ class _AppDropdownFieldState<T> extends FormFieldState<T> {
     List<DropdownMenuItem<T>>? before,
     List<DropdownMenuItem<T>>? after,
   ) {
-    if (before?.length != after?.length) return false;
+    if (before?.length != after?.length) {
+      return false;
+    }
     for (var index = 0; index < (before?.length ?? 0); index++) {
       if (before![index].value != after![index].value ||
           before[index].enabled != after[index].enabled) {

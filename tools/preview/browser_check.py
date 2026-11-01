@@ -18,6 +18,8 @@ results = []
 
 
 def reveal(page, locator):
+    size = page.viewport_size
+    page.mouse.move(size["width"] / 2, size["height"] / 2)
     for _ in range(16):
         if locator.count() and locator.first.is_visible():
             locator.first.scroll_into_view_if_needed()

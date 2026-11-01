@@ -113,11 +113,14 @@ jobs:
           BROWSER_OUTCOME: ${{ steps.browser.outcome }}
         run: |
           python3 - <<'PY'
-          import json, os, pathlib
+          import hashlib, json, os, pathlib
           result = {key: os.environ[key] for key in ['SOURCE_SHA', 'FORMAT_OUTCOME', 'ANALYSIS_OUTCOME', 'TEST_OUTCOME', 'BROWSER_OUTCOME']}
           result['flutter'] = '3.44.2'
           result['publishable'] = all(result[key] == 'success' for key in ['FORMAT_OUTCOME', 'ANALYSIS_OUTCOME', 'TEST_OUTCOME', 'BROWSER_OUTCOME'])
-          pathlib.Path('example/build/web/validation.json').write_text(json.dumps(result, indent=2) + '\n')
+          web = pathlib.Path('example/build/web')
+          (web / 'validation.json').write_text(json.dumps(result, indent=2) + '\n')
+          manifest = [hashlib.sha256(path.read_bytes()).hexdigest() + '  ' + path.relative_to(web).as_posix() for path in sorted(web.rglob('*')) if path.is_file()]
+          (web / 'SHA256SUMS').write_text('\n'.join(manifest) + '\n')
           PY
       - name: Save static build for private preview QA
         if: ${{ !cancelled() && steps.web.outcome == 'success' }}

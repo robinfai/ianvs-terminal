@@ -44,7 +44,7 @@ Desktop uses MenuAnchor, MenuItemButton and SubmenuButton: framework layout hand
 
 Touch uses a modal action sheet with a bounded scrollable list. A submenu replaces the list, with explicit Back and Close controls; system Back and Escape return one level before dismissing. Disabled leaf commands cannot execute. Commands run after the sheet closes so navigation/dialog actions do not overlap its route. Selection checkmarks and destructive styling are shared with desktop. Shortcut labels are hints; owners register their actual shortcut actions (the showcase registers Cmd+N).
 
-Menu lifetime, hover crossing, Tab behavior and screen-reader output are inherited from Flutter but **have not been exercised at runtime in this environment**. They remain acceptance items, not verified claims.
+Widget regression tests exercise menu keyboard selection, focus restoration, cancellation, touch drill-down, dynamic disabling and viewport edges. CI also exercises the compiled Flutter Web showcase in Chromium at desktop and phone sizes. VoiceOver/TalkBack and physical-device pointer/touch behavior remain separate acceptance items. See the exact run outcomes below before treating a candidate artifact as publishable.
 
 ## Preview build
 
@@ -76,12 +76,11 @@ Passed locally:
 - `bash -n tools/preview/build_foundation.sh`.
 - Flutter 3.44.2 and ianvs_design 0.4.0 source API checks for new menu, switch, form and theme properties.
 
-Prepared, **not executed**:
-- `test/ui/cupertino_foundation_test.dart`: loading prevents duplicate execution; password reveal and validation; dropdown reset; submenu keyboard selection/focus; Escape/outside cancel; touch drill-down/back/disabled; edge positioning; safe destructive default; desktop/mobile/theme smoke.
-- Existing `test/ui/app_dropdown_form_field_test.dart` and `test/ui/app_theme_contract_test.dart` (radius expectations updated).
-- Existing profile/SSH/widget/full application regression tests.
+CI uses pinned Flutter 3.44.2 and analyzes the exact committed source with `dart analyze --fatal-infos`. It runs 11 targeted component, theme, semantics, motion, notification, mobile SSH and full SSH launcher test files. Formatter suggestions are captured separately and never silently substituted into the source being tested.
 
-Not performed: Dart analyzer/formatter, Flutter compilation, widget execution, browser QA/screenshots, VoiceOver/TalkBack, iOS/macOS real-device acceptance, pixel/contrast remeasurement, private deployment. Static parsing does not prove Dart type correctness or runtime behavior.
+The browser harness (`tools/preview/browser_check.py`) serves the actual release Web build and captures desktop/phone screenshots, theme changes, submenu keyboard/hover operation, viewport-edge bounds, focus restoration, outside cancellation, touch back/close and safe confirmation defaults. `validation.json` includes the source SHA and all gate outcomes; `publishable` must be true before hosting.
+
+Not performed: full repository test suite, VoiceOver/TalkBack, iOS/macOS real-device acceptance, pixel/contrast remeasurement, private deployment. A phone-sized Chromium viewport is not an iOS device test.
 
 ## Local SDK blocker and CI continuation
 
@@ -91,7 +90,7 @@ The environment initially had no Flutter/Dart SDK. Flutter source was cloned suc
 
 The network gateway returned `CONNECT tunnel failed, response 403` (exit 56). The release metadata endpoint also returned 403, including an escalated request. The official regional mirror was unavailable through the same gateway. No automatic approval reviewer rejection was reported; this is a network-access failure. pub.dev and GitHub source reads succeeded.
 
-At the initial local-only checkpoint there was no built Flutter Web package, verified screenshot or preview URL. User-authorized GitHub Actions has since successfully installed the pinned SDK and resolved locked dependencies; it is now running validation. Local CLI Actions reads are unavailable, so workflow status/logs/artifacts are read through the connected GitHub tools. Sites registration/publication remains deferred until a validated build exists. Resume by providing the approved SDK/artifact download access or a preinstalled Flutter 3.44.2 SDK, then run validation and publish the actual output. The source must be compiled and reviewed before application release.
+At the initial local-only checkpoint there was no built Flutter Web package, verified screenshot or preview URL. User-authorized GitHub Actions has since successfully installed the pinned SDK and resolved locked dependencies; it is now running validation. Local CLI Actions reads are unavailable, so workflow status/logs/artifacts are read through the connected GitHub tools. Sites registration/publication remains deferred until a validated build exists. The parent task will materialize the final GitHub artifact through the connected file tools and publish the actual output. No repeated local download attempts are required. The source must be compiled and reviewed before application release.
 
 ## Acceptance checklist after SDK access
 

@@ -388,8 +388,9 @@ class _AppMenuSheetState extends State<_AppMenuSheet> {
                                         Navigator.of(context).pop(entry);
                                       } else {
                                         setState(() => _path.add(entry));
-                                        if (_scroll.hasClients)
+                                        if (_scroll.hasClients) {
                                           _scroll.jumpTo(0);
+                                        }
                                       }
                                     },
                             ),
