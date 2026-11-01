@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { SessionProvider } from './state/SessionContext'
+import { initializeTheme, ThemeProvider } from './state/ThemeContext'
 import { App } from './App'
 import './styles.css'
 
@@ -9,10 +10,14 @@ if (!container) {
   throw new Error('Root element #root was not found.')
 }
 
+initializeTheme()
+
 createRoot(container).render(
   <StrictMode>
-    <SessionProvider>
-      <App />
-    </SessionProvider>
+    <ThemeProvider>
+      <SessionProvider>
+        <App />
+      </SessionProvider>
+    </ThemeProvider>
   </StrictMode>,
 )

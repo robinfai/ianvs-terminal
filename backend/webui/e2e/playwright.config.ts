@@ -12,9 +12,12 @@ export default defineConfig({
   reporter: [['list']],
   outputDir: './test-results',
   use: {
-    channel: 'chrome',
+    ...(process.env.CHROMIUM_PATH
+      ? { launchOptions: { executablePath: process.env.CHROMIUM_PATH } }
+      : { channel: 'chrome' }),
     headless: true,
-    locale: 'en-US',
+    actionTimeout: 15_000,
+    locale: 'zh-CN',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
