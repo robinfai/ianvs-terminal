@@ -9,7 +9,8 @@ class AppTextFormField extends StatefulWidget {
     this.textInputAction, this.autofillHints, this.enabled = true,
     this.readOnly = false, this.password = false, this.revealLabel,
     this.concealLabel, this.autovalidateMode = AutovalidateMode.onUserInteraction,
-  }) : assert(!password || (revealLabel != null && concealLabel != null));
+  }) : assert(!password || (revealLabel != null && concealLabel != null),
+    'Password fields require localized reveal and conceal labels.');
 
   final TextEditingController? controller;
   final String? initialValue;

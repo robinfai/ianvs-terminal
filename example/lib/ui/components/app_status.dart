@@ -25,7 +25,7 @@ class AppStatus extends StatelessWidget {
             color: error ? context.appTheme.danger : context.appTheme.success),
           const SizedBox(width: 12),
           Expanded(child: Text(message)),
-          if (action != null) action!,
+          ?action,
         ]),
       ),
     ),

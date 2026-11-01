@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -135,8 +136,10 @@ class _AppMenuButtonState extends State<AppMenuButton> {
   }
 
   Widget _entry(AppMenuEntry entry, {FocusNode? focus}) {
-    if (entry.divider) return const Padding(
-      padding: EdgeInsets.symmetric(vertical: 4), child: Divider());
+    if (entry.divider) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 4), child: Divider());
+    }
     final leading = SizedBox.square(dimension: 18,
       child: entry.selected ? const Icon(Icons.check_rounded, size: 18)
         : entry.icon == null ? null : Icon(entry.icon, size: 18));
@@ -198,7 +201,7 @@ class _AppMenuButtonState extends State<AppMenuButton> {
       return Focus(onKeyEvent: (_, event) {
         if (active && _focus.hasPrimaryFocus && event is KeyDownEvent && (event.logicalKey == LogicalKeyboardKey.arrowDown ||
             event.logicalKey == LogicalKeyboardKey.arrowUp)) {
-          _open();
+          unawaited(_open());
           return KeyEventResult.handled;
         }
         return KeyEventResult.ignored;
@@ -228,7 +231,7 @@ class _AppMenuSheetState extends State<_AppMenuSheet> {
   void dispose() { _scroll.dispose(); super.dispose(); }
   void _back() {
     if (_path.isEmpty) { Navigator.of(context).pop(); }
-    else { setState(() => _path.removeLast()); if (_scroll.hasClients) _scroll.jumpTo(0); }
+    else { setState(_path.removeLast); if (_scroll.hasClients) _scroll.jumpTo(0); }
   }
   @override
   Widget build(BuildContext context) {

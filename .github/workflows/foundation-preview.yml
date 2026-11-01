@@ -14,7 +14,9 @@ concurrency:
 
 jobs:
   validate-and-build:
-    runs-on: macos-26
+    # UI tests exercise explicit macOS/iOS themes without compiling the native
+    # macOS PTY Rust hook. Native device acceptance remains a separate suite.
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
       - name: Check out exact revision
@@ -61,7 +63,7 @@ jobs:
         timeout-minutes: 10
         working-directory: example
         run: |
-          flutter test --timeout 2m \
+          flutter test --no-pub --reporter expanded --timeout 2m \
             test/ui/app_components_test.dart \
             test/ui/app_choice_tile_test.dart \
             test/ui/app_dropdown_form_field_test.dart \

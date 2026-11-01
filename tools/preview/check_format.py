@@ -17,6 +17,12 @@ else:
         subprocess.run(['dart', 'format', *files], check=True)
         patch = subprocess.check_output(['git', 'diff', '--binary', '--', *files])
         output.write_bytes(patch)
+        if patch:
+            # Human-readable suggestions remain available in the CI log even
+            # when an artifact download is unavailable to the reviewer.
+            print('FOUNDATION_FORMAT_PATCH_BEGIN', flush=True)
+            print(patch.decode(), end='', flush=True)
+            print('FOUNDATION_FORMAT_PATCH_END', flush=True)
     finally:
         subprocess.run(['git', 'restore', '--source=HEAD', '--worktree', '--', *files], check=True)
     if patch:
