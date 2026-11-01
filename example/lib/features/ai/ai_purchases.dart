@@ -69,7 +69,9 @@ class AiPurchaseClient implements AiPurchaseApi {
         }
         if (response.statusCode != 200) {
           throw AiFailure(
-            response.statusCode == 403
+            path != '/verify'
+                ? 'purchase_unavailable'
+                : response.statusCode == 403
                 ? 'purchase_account_mismatch'
                 : 'purchase_verification_pending',
           );

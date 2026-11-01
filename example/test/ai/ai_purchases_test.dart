@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:app/features/ai/ai_models.dart';
 import 'package:app/features/ai/ai_purchase_page.dart';
@@ -72,6 +74,8 @@ class FakePurchaseStore implements AiPurchaseStore {
   }
 }
 
+class _PurchaseHttpOverrides extends HttpOverrides {}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late FakePurchaseStore store;
@@ -90,6 +94,49 @@ void main() {
     );
   });
   tearDown(() => controller.dispose());
+  test(
+    'catalog failure is not reported as an unpaid delivery; verification stays retryable',
+    () => HttpOverrides.runWithHttpOverrides(() async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      server.listen((request) async {
+        expect(request.headers.value('authorization'), 'Bearer test-token');
+        if (request.method == 'POST') {
+          final body = jsonDecode(await utf8.decoder.bind(request).join());
+          expect(body, {'transaction_id': '123'});
+        }
+        request.response.statusCode = 503;
+        await request.response.close();
+      });
+      final client = AiPurchaseClient(
+        AiConfiguration(
+          endpoint: 'http://127.0.0.1:${server.port}/v1/ai',
+          apiKey: 'test-token',
+          model: 'default',
+        ),
+      );
+      await expectLater(
+        client.catalog(),
+        throwsA(
+          isA<AiFailure>().having(
+            (e) => e.code,
+            'code',
+            'purchase_unavailable',
+          ),
+        ),
+      );
+      await expectLater(
+        client.verify('123'),
+        throwsA(
+          isA<AiFailure>().having(
+            (e) => e.code,
+            'code',
+            'purchase_verification_pending',
+          ),
+        ),
+      );
+    }, _PurchaseHttpOverrides()),
+  );
   test('finishes only after durable credit and refreshes balance', () async {
     await controller.configure(api);
     api.gate = Completer<void>();
