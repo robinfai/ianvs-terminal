@@ -32,7 +32,15 @@ void main() {
           find.byKey(const Key('ai-prompt')),
           '保留这段尚未发送的补充要求',
         );
-        await tester.tap(find.byKey(const Key('ai-close')));
+        if (phone) {
+          await tester.tap(find.byKey(const Key('ai-mobile-task-menu')));
+          await tester.pumpAndSettle();
+          await tester.tap(find.byTooltip('更多操作'));
+          await tester.pumpAndSettle();
+          await tester.tap(find.byKey(const Key('ai-observe-terminal')));
+        } else {
+          await tester.tap(find.byKey(const Key('ai-close')));
+        }
         await tester.pumpAndSettle();
         expect(find.byKey(const Key('ai-preview-observation')), findsOneWidget);
         expect(find.byType(TerminalAiWorkspace), findsNothing);
@@ -58,7 +66,15 @@ void main() {
           '保留这段尚未发送的补充要求',
         );
         if (!phone) {
-          await tester.tap(find.byKey(const Key('ai-close')));
+          if (phone) {
+            await tester.tap(find.byKey(const Key('ai-mobile-task-menu')));
+            await tester.pumpAndSettle();
+            await tester.tap(find.byTooltip('更多操作'));
+            await tester.pumpAndSettle();
+            await tester.tap(find.byKey(const Key('ai-observe-terminal')));
+          } else {
+            await tester.tap(find.byKey(const Key('ai-close')));
+          }
           await tester.pumpAndSettle();
           await tester.tap(
             find.descendant(

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:app/features/sftp/sftp_file_actions.dart';
 import 'package:app/features/sftp/sftp_side_panel.dart';
 import 'package:app/ui/app_ui.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,6 +14,7 @@ class _Source implements SftpDirectoryDataSource, SftpFileDataSource {
   bool empty = false;
   final mutations = <SftpEntryMutationRequest>[];
   final downloads = <SftpFileTransferRequest>[];
+  final uploads = <SftpFileTransferRequest>[];
   @override
   SftpDirectoryLoadOperation startListDirectory(SftpDirectoryRequest request) =>
       SftpDirectoryLoadOperation(
@@ -37,7 +39,10 @@ class _Source implements SftpDirectoryDataSource, SftpFileDataSource {
   }
 
   @override
-  Future<void> uploadFile(SftpFileTransferRequest request) async {}
+  Future<void> uploadFile(SftpFileTransferRequest request) async {
+    uploads.add(request);
+  }
+
   @override
   Future<void> createDirectory(SftpEntryMutationRequest request) async {
     if (failCreate) throw StateError('Test failure');
@@ -68,8 +73,9 @@ Future<SftpFileActions> _pump(
   WidgetTester tester,
   ValueNotifier<int> version,
   _Source source,
-  _Platform platform,
-) async {
+  _Platform platform, {
+  Future<XFile?> Function()? picker,
+}) async {
   final actions = SftpFileActions(platform: platform);
   addTearDown(actions.dispose);
   addTearDown(version.dispose);
@@ -83,6 +89,7 @@ Future<SftpFileActions> _pump(
         body: ValueListenableBuilder<int>(
           valueListenable: version,
           builder: (_, value, _) => SftpSidePanel(
+            pickUploadFile: picker,
             target: SftpSessionTarget(
               sessionId: 'same-session',
               sessionEpoch: value,
@@ -113,6 +120,36 @@ Future<void> _menu(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets(
+    'upload requires destination confirmation and does not retarget after profile changes',
+    (tester) async {
+      final source = _Source();
+      final version = ValueNotifier(0);
+      await _pump(
+        tester,
+        version,
+        source,
+        _Platform(),
+        picker: () async => XFile('/tmp/upload.txt'),
+      );
+      await tester.tap(find.byKey(const Key('sftp-upload-file')));
+      await tester.pumpAndSettle();
+      expect(source.uploads, isEmpty);
+      version.value++;
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+      expect(source.uploads, isEmpty);
+      await tester.tap(find.byKey(const Key('sftp-upload-file')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+      expect(source.uploads, hasLength(1));
+      expect(source.uploads.single.remotePath, '/directory1/upload.txt');
+      expect(source.uploads.single.target.host, 'host1.test');
+    },
+  );
+
   testWidgets(
     'SFTP empty desktop directory offers creation without an entry menu',
     (tester) async {

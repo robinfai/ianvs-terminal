@@ -7,9 +7,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../../data/services/data_api_runtime.dart';
 import '../../platform/development_secret_file.dart';
 import '../../startup/app_environment.dart';
 import 'ai_models.dart';
+import 'ai_usage.dart';
 
 abstract interface class AiConfigurationStore {
   Future<AiConfiguration?> read();
@@ -87,12 +89,22 @@ class SecureAiConfigurationStore implements AiConfigurationStore {
 }
 
 class AiSettingsController extends ChangeNotifier {
-  AiSettingsController(this.store) {
+  AiSettingsController(this.store, {this.gatewayConfiguration}) {
     loaded = _load();
   }
   final AiConfigurationStore store;
   late final Future<void> loaded;
-  AiConfiguration? configuration;
+  final AiConfiguration? gatewayConfiguration;
+  late final AiUsageController? usage = gatewayConfiguration == null
+      ? null
+      : AiUsageController(AiUsageClient(gatewayConfiguration!));
+  AiConfiguration? _customConfiguration;
+  AiConfiguration? get customConfiguration => _customConfiguration;
+  AiConfiguration? get configuration =>
+      _customConfiguration ?? gatewayConfiguration;
+  set configuration(AiConfiguration? value) => _customConfiguration = value;
+  bool get usesGateway =>
+      _customConfiguration == null && gatewayConfiguration != null;
   bool loading = true;
   String? error;
   bool _disposed = false;
@@ -139,12 +151,23 @@ class AiSettingsController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    usage?.dispose();
     super.dispose();
   }
 }
 
 final aiSettingsProvider = Provider<AiSettingsController>((ref) {
-  final controller = AiSettingsController(createAiConfigurationStore());
+  final runtime = ref.watch(dataApiRuntimeProvider);
+  final controller = AiSettingsController(
+    createAiConfigurationStore(),
+    gatewayConfiguration: runtime?.canAccessResources == true
+        ? AiConfiguration(
+            endpoint: runtime!.baseUri.resolve('/v1/ai').toString(),
+            apiKey: runtime.resourceAccessToken!,
+            model: 'default',
+          )
+        : null,
+  );
   ref.onDispose(controller.dispose);
   return controller;
 });

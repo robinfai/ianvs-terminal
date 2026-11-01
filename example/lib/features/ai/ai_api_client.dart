@@ -92,7 +92,10 @@ class AiApiClient implements AiStreamingApi {
         if (response.statusCode < 200 || response.statusCode >= 300) {
           throw AiFailure(switch (response.statusCode) {
             401 || 403 => 'authentication',
-            429 => 'rate_limit',
+            429 =>
+              response.headers.value('x-ai-quota-exhausted') == 'true'
+                  ? 'quota_exceeded'
+                  : 'rate_limit',
             _ => 'http_${response.statusCode}',
           });
         }

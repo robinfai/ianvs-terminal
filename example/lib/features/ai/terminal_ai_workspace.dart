@@ -20,6 +20,7 @@ import 'ai_models.dart';
 import 'ai_request_indicator.dart';
 import 'ai_settings_dialog.dart';
 import 'ai_strings.dart';
+import 'ai_usage_page.dart';
 import 'ios_voice_input.dart';
 import 'terminal_ai_controller.dart';
 import 'terminal_ai_message.dart';
@@ -281,8 +282,18 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
 
   AiTranscriptEntry? _lastEntry;
 
+  bool _usageWasBusy = false;
+  String? _usageLastError;
   void _changed() {
     if (!mounted) return;
+    if (c.settings.usesGateway &&
+        ((_usageWasBusy && !c.busy) ||
+            (c.error == 'quota_exceeded' && _usageLastError != c.error))) {
+      final usage = c.settings.usage;
+      scheduleMicrotask(() => unawaited(usage?.refresh()));
+    }
+    _usageWasBusy = c.busy;
+    _usageLastError = c.error;
     if (_draftFocusRequest != c.draftFocusRequest) {
       final request = c.draftFocusRequest;
       final taskId = c.taskId;
@@ -669,6 +680,11 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
       _draftEditorOpen = false;
       if (mounted) _focus.unfocus();
     }
+  }
+
+  Future<void> _openUsage() async {
+    final usage = c.settings.usage;
+    if (usage != null) await showAiUsage(context, usage);
   }
 
   Future<void> _openSettings() => showAiSettings(
@@ -1621,7 +1637,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     final review = _desktopReview!;
     return Material(
       key: const Key('ai-desktop-review'),
-      color: context.appTheme.panel,
+      color: context.appTheme.canvas,
       child: Column(
         children: [
           Padding(
@@ -1747,7 +1763,8 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                 }
               },
               itemBuilder: (_) => [
-                for (final (index, task) in c.tasks.indexed)
+                for (final (index, task)
+                    in c.tasks.where((task) => task.started).indexed)
                   PopupMenuItem(
                     value: task.id,
                     child: Column(
@@ -1800,6 +1817,13 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                 semanticLabel: t('New task', '新任务'),
               ),
             ),
+          if (!compact && c.settings.usesGateway)
+            IconButton(
+              key: const Key('ai-open-usage'),
+              tooltip: t('AI quota and usage', 'AI 额度与用量'),
+              onPressed: _openUsage,
+              icon: const Icon(Icons.account_balance_wallet_outlined),
+            ),
           if (!compact)
             IconButton(
               key: const Key('ai-open-settings'),
@@ -1834,6 +1858,76 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
       ),
     ),
   );
+
+  Widget _historyResumeButton() => Padding(
+    padding: const EdgeInsets.all(16),
+    child: FilledButton.icon(
+      key: const Key('ai-history-resume'),
+      onPressed: _resuming || !_paneInteractive ? null : _restoreHistoricalTask,
+      icon: const Icon(Icons.play_arrow_rounded),
+      label: Text(
+        _resuming ? t('Restoring…', '恢复中…') : t('Resume task', '恢复任务'),
+      ),
+    ),
+  );
+
+  Future<void> _restoreHistoricalTask() async {
+    final owner = c;
+    final id = c.taskId;
+    final revision = _paneRevision;
+    bool current() =>
+        mounted &&
+        identical(c, owner) &&
+        c.taskId == id &&
+        revision == _paneRevision &&
+        _paneInteractive;
+    setState(() => _resuming = true);
+    try {
+      final wanted = owner.historyCwd;
+      final actual = await owner.prepareHistoryResume();
+      if (!mounted || !current()) return;
+      if (wanted.isEmpty || actual.cwd != wanted || !actual.canRunCommand) {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(t('Working directory was not restored', '未能恢复历史目录')),
+            content: Text(
+              '${t('Requested: ', '历史目录：')}${wanted.isEmpty ? t('Unknown', '未知') : wanted}\n${t('Current directory: ', '当前停留目录：')}${actual.cwd.isEmpty ? t('Unknown', '无法确认') : actual.cwd}\n${t('Continue here?', '是否在当前目录继续恢复任务？')}',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(t('Cancel', '取消')),
+              ),
+              FilledButton(
+                onPressed: actual.canRunCommand && actual.cwd.isNotEmpty
+                    ? () => Navigator.pop(context, true)
+                    : null,
+                child: Text(t('Continue here', '在此目录继续')),
+              ),
+            ],
+          ),
+        );
+        if (confirmed != true || !current()) return;
+      }
+      await owner.resumeHistory(actual.guard);
+    } on Object {
+      if (mounted && current()) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              t(
+                'Could not verify the terminal directory. Task remains archived; reconnect and try again.',
+                '无法确认终端当前目录，任务尚未恢复。请重连后再试。',
+              ),
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _resuming = false);
+    }
+  }
 
   String get _resumeLabel => c.hasDeferredSupplement
       ? t('Send saved requirements', '发送已暂存要求')
@@ -2009,6 +2103,11 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
           Wrap(
             spacing: 8,
             children: [
+              if (c.error == 'quota_exceeded' && c.settings.usesGateway)
+                TextButton(
+                  onPressed: _openUsage,
+                  child: Text(t('View quota and usage', '查看额度与用量')),
+                ),
               if (c.canEndFollowUp)
                 TextButton(
                   key: const Key('ai-end-follow-up'),
@@ -2778,6 +2877,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     bool tiny = false,
     int maxLines = 4,
   }) {
+    if (c.restoredHistory) return _historyResumeButton();
     final palette = context.appTheme;
     if (tiny) {
       return Padding(
@@ -3145,7 +3245,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
           );
       final workspace = Material(
         key: const Key('terminal-ai-workspace'),
-        color: context.appTheme.panel,
+        color: context.appTheme.canvas,
         child: ExcludeFocus(
           excluding: !widget.active,
           child: IgnorePointer(

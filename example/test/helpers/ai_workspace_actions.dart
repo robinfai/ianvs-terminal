@@ -14,6 +14,10 @@ Future<void> observeAiTerminal(
   bool compactMobile = true,
 }) async {
   if (compactMobile) await openAiMobileTaskMenu(tester);
+  if (compactMobile && find.byTooltip('More actions').evaluate().isNotEmpty) {
+    await tester.tap(find.byTooltip('More actions'));
+    await tester.pumpAndSettle();
+  }
   final action = find.byKey(
     Key(compactMobile ? 'ai-observe-terminal' : 'ai-close'),
   );

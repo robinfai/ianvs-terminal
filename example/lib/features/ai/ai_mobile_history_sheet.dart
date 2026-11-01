@@ -31,7 +31,7 @@ class _AiMobileHistorySheetState extends State<AiMobileHistorySheet> {
       listenable: widget.controller,
       builder: (context, _) {
         final controller = widget.controller;
-        final tasks = controller.tasks.toList();
+        final tasks = controller.tasks.where((task) => task.started).toList();
         final positions = {
           for (var i = 0; i < tasks.length; i++) tasks[i].id: i,
         };
@@ -60,32 +60,24 @@ class _AiMobileHistorySheetState extends State<AiMobileHistorySheet> {
             .toList();
         return LayoutBuilder(
           builder: (context, constraints) {
-            final compact = constraints.maxHeight < 300;
-            return Material(
-              color: context.groupedBackground,
-              child: SafeArea(
-                top: false,
+            final compact =
+                constraints.maxHeight -
+                    MediaQuery.viewInsetsOf(context).bottom <
+                300;
+            return Scaffold(
+              backgroundColor: context.groupedBackground,
+              body: SafeArea(
                 child: Column(
                   children: [
                     if (!compact) ...[
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Center(
-                          child: Container(
-                            width: 36,
-                            height: 4,
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.outlineVariant,
-                              borderRadius: BorderRadius.circular(2),
-                            ),
-                          ),
-                        ),
-                      ),
                       SizedBox(
                         height: 48,
                         child: NavigationToolbar(
                           centerMiddle: true,
-                          leading: PopupMenuButton<String>(
+                          leading: BackButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                          ),
+                          trailing: PopupMenuButton<String>(
                             tooltip: t('More actions', '更多操作'),
                             onSelected: (action) =>
                                 Navigator.of(context).pop(action),
@@ -111,11 +103,6 @@ class _AiMobileHistorySheetState extends State<AiMobileHistorySheet> {
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-                          trailing: IconButton(
-                            tooltip: t('Close', '关闭'),
-                            onPressed: () => Navigator.of(context).pop(),
-                            icon: const Icon(Icons.close),
-                          ),
                         ),
                       ),
                     ],
@@ -125,10 +112,8 @@ class _AiMobileHistorySheetState extends State<AiMobileHistorySheet> {
                         children: [
                           Expanded(child: _searchField()),
                           if (compact)
-                            IconButton(
-                              tooltip: t('Close', '关闭'),
+                            BackButton(
                               onPressed: () => Navigator.of(context).pop(),
-                              icon: const Icon(Icons.close),
                             ),
                         ],
                       ),
@@ -150,7 +135,7 @@ class _AiMobileHistorySheetState extends State<AiMobileHistorySheet> {
                               padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
                               children: [
                                 if (_query.isNotEmpty)
-                                  AppGroupedSection(
+                                  _HistoryCards(
                                     title: t('Search results', '搜索结果'),
                                     separated: true,
                                     children: [
@@ -163,7 +148,7 @@ class _AiMobileHistorySheetState extends State<AiMobileHistorySheet> {
                                   )
                                 else ...[
                                   if (current.isNotEmpty)
-                                    AppGroupedSection(
+                                    _HistoryCards(
                                       title: t('Current conversation', '当前会话'),
                                       children: [
                                         _conversation(current.first, true),
@@ -172,7 +157,7 @@ class _AiMobileHistorySheetState extends State<AiMobileHistorySheet> {
                                   if (current.isNotEmpty && recent.isNotEmpty)
                                     const SizedBox(height: 24),
                                   if (recent.isNotEmpty)
-                                    AppGroupedSection(
+                                    _HistoryCards(
                                       title: t('Recent conversations', '最近会话'),
                                       separated: true,
                                       children: [
@@ -242,7 +227,7 @@ class _AiMobileHistorySheetState extends State<AiMobileHistorySheet> {
         fillColor: theme.colorScheme.surfaceContainerHighest,
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
+          borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(context.appTheme.radius.lg),
@@ -347,4 +332,27 @@ class _AiMobileHistorySheetState extends State<AiMobileHistorySheet> {
       ),
     );
   }
+}
+
+class _HistoryCards extends StatelessWidget {
+  const _HistoryCards({
+    required this.title,
+    required this.children,
+    this.separated = false,
+  });
+  final String title;
+  final List<Widget> children;
+  final bool separated;
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Text(title, style: Theme.of(context).textTheme.labelLarge),
+      ),
+      for (final child in children)
+        Padding(padding: const EdgeInsets.only(bottom: 12), child: child),
+    ],
+  );
 }

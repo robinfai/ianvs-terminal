@@ -84,6 +84,22 @@ String aiErrorText(String code, bool zh) {
       'API key was rejected. Check your AI settings.',
       'API Key 验证失败，请检查 AI 设置。',
     ),
+    'quota_exceeded': (
+      'Available AI quota is insufficient for this request, or the daily request limit has been reached. Check quota and usage; wait for the reset or contact your administrator.',
+      '可用 AI 额度不足以支付本次请求，或已达到每日请求次数上限。请查看额度与用量，等待重置或联系管理员。',
+    ),
+    'usage_authentication': (
+      'Your session has expired or access is denied. Sign in again to view usage.',
+      '登录已过期或无权访问，请重新登录后查看用量。',
+    ),
+    'usage_unavailable': (
+      'This backend does not currently provide usage information.',
+      '当前后端暂不提供额度与用量信息。',
+    ),
+    'usage_connection': (
+      'Could not refresh usage. Check your connection and retry.',
+      '无法更新额度与用量，请检查网络后重试。',
+    ),
     'rate_limit': (
       'The provider is rate limiting requests. Try again later.',
       '服务正在限流，请稍后重试。',

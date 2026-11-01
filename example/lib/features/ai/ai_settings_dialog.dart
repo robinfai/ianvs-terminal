@@ -15,6 +15,7 @@ import 'ai_api_client.dart';
 import 'ai_models.dart';
 import 'ai_settings.dart';
 import 'ai_strings.dart';
+import 'ai_usage_page.dart';
 
 Future<void> showAiSettings(
   BuildContext context,
@@ -36,6 +37,8 @@ Future<void> showAiSettings(
     context,
     result
         ? (zh ? 'AI 连接已保存' : 'AI connection saved')
+        : settings.usesGateway
+        ? (zh ? '已恢复后端 AI 服务' : 'Backend AI service restored')
         : (zh ? 'AI 连接已移除' : 'AI connection removed'),
     kind: AppNoticeKind.success,
   );
@@ -68,6 +71,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
   String? _apiModel;
   String? _acpModel;
   bool _busy = false;
+  bool _customize = false;
   bool _loaded = false;
   bool _tested = false;
   bool _showKey = false;
@@ -95,7 +99,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
   Future<void> _load() async {
     await widget.settings.loaded;
     if (!mounted) return;
-    final value = widget.settings.configuration;
+    final value = widget.settings.customConfiguration;
     if (value != null) _fill(value);
     setState(() {
       _loaded = true;
@@ -370,6 +374,42 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
 
   @override
   Widget build(BuildContext context) {
+    if (_loaded && widget.settings.usesGateway && !_customize) {
+      return AlertDialog(
+        title: Text(t('AI service', 'AI 服务')),
+        content: SizedBox(
+          width: 420,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  t(
+                    'Using your signed-in backend AI service.',
+                    '当前使用已登录的后端 AI 服务。',
+                  ),
+                ),
+                if (widget.settings.usage case final usage?)
+                  AiUsageSummary(
+                    controller: usage,
+                    onDetails: () => showAiUsage(context, usage),
+                  ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => setState(() => _customize = true),
+            child: Text(t('Custom connection', '自定义连接')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(t('Done', '完成')),
+          ),
+        ],
+      );
+    }
     final content = SizedBox(
       width: 632,
       child: Column(
@@ -708,7 +748,11 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
         TextButton(
           key: const Key('ai-remove-settings'),
           onPressed: _busy || _detecting ? null : () => _save(remove: true),
-          child: Text(t('Disconnect', '断开配置')),
+          child: Text(
+            widget.settings.gatewayConfiguration == null
+                ? t('Disconnect', '断开配置')
+                : t('Use backend service', '使用后端服务'),
+          ),
         ),
       TextButton(
         onPressed: _busy ? null : () => Navigator.of(context).pop(),

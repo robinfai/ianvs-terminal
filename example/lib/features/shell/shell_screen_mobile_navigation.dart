@@ -150,7 +150,7 @@ class _MobileTerminalToolbar extends StatelessWidget {
       ),
     );
     return Material(
-      color: context.appTheme.panel,
+      color: context.appTheme.canvas,
       child: Row(
         children: [
           action(

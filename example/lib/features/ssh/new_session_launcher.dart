@@ -1721,366 +1721,420 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                       ? const EdgeInsets.all(12)
                                       : EdgeInsets.zero,
                                   children: [
-                                    if (mobile) ...[
-                                      nameField(),
-                                      const SizedBox(height: 12),
-                                      AppConfigurationField(
-                                        subtleLabel: true,
-                                        label: context.l10n.port,
-                                        child: portControl(),
-                                      ),
-                                      if (widget.allowSaveChoice) ...[
-                                        const SizedBox(height: 12),
-                                        saveChoice(),
-                                      ],
-                                      const SizedBox(height: 20),
-                                    ],
-                                    AppConfigurationField(
-                                      subtleLabel: true,
-                                      label: context.l10n.sshAutoInject,
-                                      child: AppDropdownFormField<String>(
-                                        key: const Key('ssh-auto-inject'),
-                                        initialValue: _sshAutoInject == null
-                                            ? 'inherit'
-                                            : (_sshAutoInject! ? 'on' : 'off'),
-                                        isExpanded: true,
-                                        items: [
-                                          DropdownMenuItem(
-                                            value: 'inherit',
-                                            child: Text(
-                                              context.l10n.sshInjectionInherit,
-                                            ),
+                                    AppFormGroup(
+                                      children: [
+                                        if (mobile) ...[
+                                          nameField(),
+                                          const SizedBox(height: 12),
+                                          AppConfigurationField(
+                                            subtleLabel: true,
+                                            label: context.l10n.port,
+                                            child: portControl(),
                                           ),
-                                          DropdownMenuItem(
-                                            value: 'on',
-                                            child: Text(
-                                              context.l10n.sshInjectionOn,
-                                            ),
-                                          ),
-                                          DropdownMenuItem(
-                                            value: 'off',
-                                            child: Text(
-                                              context.l10n.sshInjectionOff,
-                                            ),
-                                          ),
+                                          if (widget.allowSaveChoice) ...[
+                                            const SizedBox(height: 12),
+                                            saveChoice(),
+                                          ],
+                                          const SizedBox(height: 20),
                                         ],
-                                        onChanged: (value) => setState(
-                                          () =>
-                                              _sshAutoInject = switch (value) {
-                                                'on' => true,
-                                                'off' => false,
-                                                _ => null,
-                                              },
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 20),
-                                    AppConfigurationField(
-                                      subtleLabel: true,
-                                      label: context.l10n.hostKeyPolicy,
-                                      child:
-                                          AppDropdownFormField<
-                                            terminal.TerminalSshHostKeyPolicy
-                                          >(
-                                            key: const Key(
-                                              'ssh-host-key-policy',
-                                            ),
+                                        AppConfigurationField(
+                                          subtleLabel: true,
+                                          label: context.l10n.sshAutoInject,
+                                          child: AppDropdownFormField<String>(
+                                            key: const Key('ssh-auto-inject'),
+                                            initialValue: _sshAutoInject == null
+                                                ? 'inherit'
+                                                : (_sshAutoInject!
+                                                      ? 'on'
+                                                      : 'off'),
                                             isExpanded: true,
-                                            initialValue: _hostKeyPolicy,
+                                            items: [
+                                              DropdownMenuItem(
+                                                value: 'inherit',
+                                                child: Text(
+                                                  context
+                                                      .l10n
+                                                      .sshInjectionInherit,
+                                                ),
+                                              ),
+                                              DropdownMenuItem(
+                                                value: 'on',
+                                                child: Text(
+                                                  context.l10n.sshInjectionOn,
+                                                ),
+                                              ),
+                                              DropdownMenuItem(
+                                                value: 'off',
+                                                child: Text(
+                                                  context.l10n.sshInjectionOff,
+                                                ),
+                                              ),
+                                            ],
+                                            onChanged: (value) => setState(
+                                              () => _sshAutoInject =
+                                                  switch (value) {
+                                                    'on' => true,
+                                                    'off' => false,
+                                                    _ => null,
+                                                  },
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 20),
+                                        AppConfigurationField(
+                                          subtleLabel: true,
+                                          label: context.l10n.hostKeyPolicy,
+                                          child:
+                                              AppDropdownFormField<
+                                                terminal.TerminalSshHostKeyPolicy
+                                              >(
+                                                key: const Key(
+                                                  'ssh-host-key-policy',
+                                                ),
+                                                isExpanded: true,
+                                                initialValue: _hostKeyPolicy,
+                                                decoration:
+                                                    _iconlessSshInputDecoration(
+                                                      context,
+                                                    ),
+                                                items: [
+                                                  DropdownMenuItem(
+                                                    value: terminal
+                                                        .TerminalSshHostKeyPolicy
+                                                        .acceptNew,
+                                                    child: Text(
+                                                      context
+                                                          .l10n
+                                                          .acceptNewHostsRecommended,
+                                                    ),
+                                                  ),
+                                                  DropdownMenuItem(
+                                                    value: terminal
+                                                        .TerminalSshHostKeyPolicy
+                                                        .strict,
+                                                    child: Text(
+                                                      context
+                                                          .l10n
+                                                          .askBeforeTrusting,
+                                                    ),
+                                                  ),
+                                                  DropdownMenuItem(
+                                                    value: terminal
+                                                        .TerminalSshHostKeyPolicy
+                                                        .insecure,
+                                                    child: Text(
+                                                      context
+                                                          .l10n
+                                                          .doNotVerifyUnsafe,
+                                                    ),
+                                                  ),
+                                                ],
+                                                onChanged: (value) => setState(
+                                                  () {
+                                                    _hostKeyPolicy =
+                                                        value ??
+                                                        terminal
+                                                            .TerminalSshHostKeyPolicy
+                                                            .acceptNew;
+                                                  },
+                                                ),
+                                              ),
+                                        ),
+                                        SizedBox(height: palette.spacing.md),
+                                        AppConfigurationField(
+                                          subtleLabel: true,
+                                          label: context
+                                              .l10n
+                                              .knownHostsFileOptional,
+                                          child: TextFormField(
+                                            key: const Key(
+                                              'ssh-known-hosts-file',
+                                            ),
+                                            controller: _knownHostsFile,
                                             decoration:
                                                 _iconlessSshInputDecoration(
                                                   context,
                                                 ),
-                                            items: [
-                                              DropdownMenuItem(
-                                                value: terminal
-                                                    .TerminalSshHostKeyPolicy
-                                                    .acceptNew,
-                                                child: Text(
-                                                  context
-                                                      .l10n
-                                                      .acceptNewHostsRecommended,
-                                                ),
-                                              ),
-                                              DropdownMenuItem(
-                                                value: terminal
-                                                    .TerminalSshHostKeyPolicy
-                                                    .strict,
-                                                child: Text(
-                                                  context
-                                                      .l10n
-                                                      .askBeforeTrusting,
-                                                ),
-                                              ),
-                                              DropdownMenuItem(
-                                                value: terminal
-                                                    .TerminalSshHostKeyPolicy
-                                                    .insecure,
-                                                child: Text(
-                                                  context
-                                                      .l10n
-                                                      .doNotVerifyUnsafe,
-                                                ),
-                                              ),
-                                            ],
-                                            onChanged: (value) => setState(() {
-                                              _hostKeyPolicy =
-                                                  value ??
-                                                  terminal
-                                                      .TerminalSshHostKeyPolicy
-                                                      .acceptNew;
-                                            }),
                                           ),
-                                    ),
-                                    SizedBox(height: palette.spacing.md),
-                                    AppConfigurationField(
-                                      subtleLabel: true,
-                                      label:
-                                          context.l10n.knownHostsFileOptional,
-                                      child: TextFormField(
-                                        key: const Key('ssh-known-hosts-file'),
-                                        controller: _knownHostsFile,
-                                        decoration: _iconlessSshInputDecoration(
-                                          context,
                                         ),
-                                      ),
-                                    ),
-                                    SizedBox(height: palette.spacing.md),
-                                    _SshConnectionTimingFields(
-                                      connectTimeout: _connectTimeout,
-                                      keepalive: _keepalive,
-                                      keepaliveCount: _keepaliveCount,
-                                      connectTimeoutFocus: _connectTimeoutFocus,
-                                      keepaliveFocus: _keepaliveFocus,
-                                      keepaliveCountFocus: _keepaliveCountFocus,
-                                      validator: _boundedInteger,
-                                    ),
-                                    SizedBox(height: palette.spacing.md),
-                                    AppConfigurationField(
-                                      subtleLabel: true,
-                                      label: context.l10n.proxyCommandOptional,
-                                      child: TextFormField(
-                                        key: const Key('ssh-proxy-command'),
-                                        controller: _proxyCommand,
-                                        decoration: _iconlessSshInputDecoration(
-                                          context,
+                                        SizedBox(height: palette.spacing.md),
+                                        _SshConnectionTimingFields(
+                                          connectTimeout: _connectTimeout,
+                                          keepalive: _keepalive,
+                                          keepaliveCount: _keepaliveCount,
+                                          connectTimeoutFocus:
+                                              _connectTimeoutFocus,
+                                          keepaliveFocus: _keepaliveFocus,
+                                          keepaliveCountFocus:
+                                              _keepaliveCountFocus,
+                                          validator: _boundedInteger,
                                         ),
-                                      ),
-                                    ),
-                                    SizedBox(height: palette.spacing.md),
-                                    AppConfigurationField(
-                                      subtleLabel: true,
-                                      label: context.l10n.proxyJumpOptional,
-                                      helper: context.l10n.proxyJumpHelp,
-                                      child: TextFormField(
-                                        key: const Key('ssh-proxy-jump'),
-                                        controller: _proxyJump,
-                                        focusNode: _proxyJumpFocus,
-                                        decoration: _iconlessSshInputDecoration(
-                                          context,
-                                        ),
-                                        validator: (value) {
-                                          if ((value ?? '').trim().isEmpty) {
-                                            return null;
-                                          }
-                                          try {
-                                            parseSshProxyJumpProfiles(
-                                              value ?? '',
-                                            );
-                                            return null;
-                                          } on FormatException catch (error) {
-                                            return error.message;
-                                          }
-                                        },
-                                      ),
-                                    ),
-                                    SizedBox(height: palette.spacing.md),
-                                    AppConfigurationField(
-                                      subtleLabel: true,
-                                      label: context.l10n.portForwards,
-                                      helper: context.l10n.portForwardsHelp,
-                                      child: TextFormField(
-                                        key: const Key('ssh-port-forwards'),
-                                        controller: _portForwards,
-                                        focusNode: _portForwardsFocus,
-                                        minLines: 2,
-                                        maxLines: 5,
-                                        decoration: _iconlessSshInputDecoration(
-                                          context,
-                                        ),
-                                        validator: (value) {
-                                          try {
-                                            parseSshPortForwards(value ?? '');
-                                            return null;
-                                          } on FormatException catch (error) {
-                                            return error.message;
-                                          }
-                                        },
-                                      ),
-                                    ),
-                                    SwitchListTile(
-                                      key: const Key('ssh-agent-forwarding'),
-                                      contentPadding: EdgeInsets.zero,
-                                      value: _agentForwarding,
-                                      title: Text(context.l10n.forwardSshAgent),
-                                      subtitle:
-                                          context.usesMobileNavigation &&
-                                              !_agentForwarding
-                                          ? null
-                                          : Text(
-                                              context.l10n.agentSocketHelp,
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .bodySmall
-                                                  ?.copyWith(
-                                                    color: palette.textSubtle,
-                                                  ),
-                                            ),
-                                      onChanged: (value) => setState(
-                                        () => _agentForwarding = value,
-                                      ),
-                                    ),
-                                    if (_agentForwarding)
-                                      AppConfigurationField(
-                                        subtleLabel: true,
-                                        label: context.l10n.agentSocketOptional,
-                                        child: TextFormField(
-                                          key: const Key('ssh-agent-socket'),
-                                          controller: _agentSocket,
-                                          decoration:
-                                              _iconlessSshInputDecoration(
-                                                context,
-                                              ),
-                                        ),
-                                      ),
-                                    SwitchListTile(
-                                      key: const Key('ssh-x11-forwarding'),
-                                      contentPadding: EdgeInsets.zero,
-                                      value: _x11Forwarding,
-                                      title: Text(context.l10n.forwardX11),
-                                      subtitle:
-                                          context.usesMobileNavigation &&
-                                              !_x11Forwarding
-                                          ? null
-                                          : Text(
-                                              context.l10n.x11ForwardingHelp,
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .bodySmall
-                                                  ?.copyWith(
-                                                    color: palette.textSubtle,
-                                                  ),
-                                            ),
-                                      onChanged: (value) => setState(
-                                        () => _x11Forwarding = value,
-                                      ),
-                                    ),
-                                    if (_x11Forwarding) ...[
-                                      AppConfigurationField(
-                                        subtleLabel: true,
-                                        label: context.l10n.localX11Target,
-                                        child: TextFormField(
-                                          key: const Key('ssh-x11-target'),
-                                          controller: _x11Target,
-                                          focusNode: _x11TargetFocus,
-                                          decoration:
-                                              _iconlessSshInputDecoration(
-                                                context,
-                                              ),
-                                          validator: (value) {
-                                            if (!_x11Forwarding) {
-                                              return null;
-                                            }
-                                            if ((value ?? '').trim().isEmpty) {
-                                              return null;
-                                            }
-                                            try {
-                                              parseSshForwardEndpoint(
-                                                value ?? '',
-                                              );
-                                              return null;
-                                            } on FormatException catch (error) {
-                                              return error.message;
-                                            }
-                                          },
-                                        ),
-                                      ),
-                                      SizedBox(height: palette.spacing.md),
-                                      AppConfigurationField(
-                                        subtleLabel: true,
-                                        label: context
-                                            .l10n
-                                            .x11AuthenticationCookie,
-                                        helper: context.l10n.x11CookieRequired,
-                                        child: TextFormField(
-                                          key: const Key('ssh-x11-cookie'),
-                                          controller: _x11Cookie,
-                                          focusNode: _x11CookieFocus,
-                                          obscureText: _obscureX11Cookie,
-                                          enableSuggestions: false,
-                                          autocorrect: false,
-                                          decoration: _iconlessSshInputDecoration(
-                                            context,
-                                            suffixIcon: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                _SecretVisibilityButton(
-                                                  key: const Key(
-                                                    'ssh-x11-cookie-visibility',
-                                                  ),
-                                                  obscured: _obscureX11Cookie,
-                                                  label: context
-                                                      .l10n
-                                                      .x11AuthenticationCookie,
-                                                  onPressed: () => setState(() {
-                                                    _obscureX11Cookie =
-                                                        !_obscureX11Cookie;
-                                                  }),
+                                        SizedBox(height: palette.spacing.md),
+                                        AppConfigurationField(
+                                          subtleLabel: true,
+                                          label:
+                                              context.l10n.proxyCommandOptional,
+                                          child: TextFormField(
+                                            key: const Key('ssh-proxy-command'),
+                                            controller: _proxyCommand,
+                                            decoration:
+                                                _iconlessSshInputDecoration(
+                                                  context,
                                                 ),
-                                                IconButton(
-                                                  key: const Key(
-                                                    'ssh-clear-x11-cookie',
-                                                  ),
-                                                  tooltip: context
-                                                      .l10n
-                                                      .forgetSavedX11Cookie,
-                                                  padding: EdgeInsets.zero,
-                                                  constraints: BoxConstraints(
-                                                    minWidth: palette
-                                                        .controls
-                                                        .regular,
-                                                    minHeight: palette
-                                                        .controls
-                                                        .regular,
-                                                  ),
-                                                  iconSize: 18,
-                                                  onPressed: () => setState(() {
-                                                    _x11Cookie.clear();
-                                                    _clearX11AuthCookie = true;
-                                                  }),
-                                                  icon: const Icon(
-                                                    Icons
-                                                        .delete_outline_rounded,
-                                                  ),
+                                          ),
+                                        ),
+                                        SizedBox(height: palette.spacing.md),
+                                        AppConfigurationField(
+                                          subtleLabel: true,
+                                          label: context.l10n.proxyJumpOptional,
+                                          helper: context.l10n.proxyJumpHelp,
+                                          child: TextFormField(
+                                            key: const Key('ssh-proxy-jump'),
+                                            controller: _proxyJump,
+                                            focusNode: _proxyJumpFocus,
+                                            decoration:
+                                                _iconlessSshInputDecoration(
+                                                  context,
                                                 ),
-                                              ],
+                                            validator: (value) {
+                                              if ((value ?? '')
+                                                  .trim()
+                                                  .isEmpty) {
+                                                return null;
+                                              }
+                                              try {
+                                                parseSshProxyJumpProfiles(
+                                                  value ?? '',
+                                                );
+                                                return null;
+                                              } on FormatException catch (
+                                                error
+                                              ) {
+                                                return error.message;
+                                              }
+                                            },
+                                          ),
+                                        ),
+                                        SizedBox(height: palette.spacing.md),
+                                        AppConfigurationField(
+                                          subtleLabel: true,
+                                          label: context.l10n.portForwards,
+                                          helper: context.l10n.portForwardsHelp,
+                                          child: TextFormField(
+                                            key: const Key('ssh-port-forwards'),
+                                            controller: _portForwards,
+                                            focusNode: _portForwardsFocus,
+                                            minLines: 2,
+                                            maxLines: 5,
+                                            decoration:
+                                                _iconlessSshInputDecoration(
+                                                  context,
+                                                ),
+                                            validator: (value) {
+                                              try {
+                                                parseSshPortForwards(
+                                                  value ?? '',
+                                                );
+                                                return null;
+                                              } on FormatException catch (
+                                                error
+                                              ) {
+                                                return error.message;
+                                              }
+                                            },
+                                          ),
+                                        ),
+                                        SwitchListTile(
+                                          key: const Key(
+                                            'ssh-agent-forwarding',
+                                          ),
+                                          contentPadding: EdgeInsets.zero,
+                                          value: _agentForwarding,
+                                          title: Text(
+                                            context.l10n.forwardSshAgent,
+                                          ),
+                                          subtitle:
+                                              context.usesMobileNavigation &&
+                                                  !_agentForwarding
+                                              ? null
+                                              : Text(
+                                                  context.l10n.agentSocketHelp,
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .bodySmall
+                                                      ?.copyWith(
+                                                        color:
+                                                            palette.textSubtle,
+                                                      ),
+                                                ),
+                                          onChanged: (value) => setState(
+                                            () => _agentForwarding = value,
+                                          ),
+                                        ),
+                                        if (_agentForwarding)
+                                          AppConfigurationField(
+                                            subtleLabel: true,
+                                            label: context
+                                                .l10n
+                                                .agentSocketOptional,
+                                            child: TextFormField(
+                                              key: const Key(
+                                                'ssh-agent-socket',
+                                              ),
+                                              controller: _agentSocket,
+                                              decoration:
+                                                  _iconlessSshInputDecoration(
+                                                    context,
+                                                  ),
                                             ),
                                           ),
-                                          validator: (value) {
-                                            if (!_x11Forwarding) {
-                                              return null;
-                                            }
-                                            final cookie = (value ?? '').trim();
-                                            if (!RegExp(
-                                              r'^[0-9A-Fa-f]{32}$',
-                                            ).hasMatch(cookie)) {
-                                              return 'Enter exactly 32 hexadecimal characters';
-                                            }
-                                            return null;
-                                          },
+                                        SwitchListTile(
+                                          key: const Key('ssh-x11-forwarding'),
+                                          contentPadding: EdgeInsets.zero,
+                                          value: _x11Forwarding,
+                                          title: Text(context.l10n.forwardX11),
+                                          subtitle:
+                                              context.usesMobileNavigation &&
+                                                  !_x11Forwarding
+                                              ? null
+                                              : Text(
+                                                  context
+                                                      .l10n
+                                                      .x11ForwardingHelp,
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .bodySmall
+                                                      ?.copyWith(
+                                                        color:
+                                                            palette.textSubtle,
+                                                      ),
+                                                ),
+                                          onChanged: (value) => setState(
+                                            () => _x11Forwarding = value,
+                                          ),
                                         ),
-                                      ),
-                                    ],
+                                        if (_x11Forwarding) ...[
+                                          AppConfigurationField(
+                                            subtleLabel: true,
+                                            label: context.l10n.localX11Target,
+                                            child: TextFormField(
+                                              key: const Key('ssh-x11-target'),
+                                              controller: _x11Target,
+                                              focusNode: _x11TargetFocus,
+                                              decoration:
+                                                  _iconlessSshInputDecoration(
+                                                    context,
+                                                  ),
+                                              validator: (value) {
+                                                if (!_x11Forwarding) {
+                                                  return null;
+                                                }
+                                                if ((value ?? '')
+                                                    .trim()
+                                                    .isEmpty) {
+                                                  return null;
+                                                }
+                                                try {
+                                                  parseSshForwardEndpoint(
+                                                    value ?? '',
+                                                  );
+                                                  return null;
+                                                } on FormatException catch (
+                                                  error
+                                                ) {
+                                                  return error.message;
+                                                }
+                                              },
+                                            ),
+                                          ),
+                                          SizedBox(height: palette.spacing.md),
+                                          AppConfigurationField(
+                                            subtleLabel: true,
+                                            label: context
+                                                .l10n
+                                                .x11AuthenticationCookie,
+                                            helper:
+                                                context.l10n.x11CookieRequired,
+                                            child: TextFormField(
+                                              key: const Key('ssh-x11-cookie'),
+                                              controller: _x11Cookie,
+                                              focusNode: _x11CookieFocus,
+                                              obscureText: _obscureX11Cookie,
+                                              enableSuggestions: false,
+                                              autocorrect: false,
+                                              decoration: _iconlessSshInputDecoration(
+                                                context,
+                                                suffixIcon: Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    _SecretVisibilityButton(
+                                                      key: const Key(
+                                                        'ssh-x11-cookie-visibility',
+                                                      ),
+                                                      obscured:
+                                                          _obscureX11Cookie,
+                                                      label: context
+                                                          .l10n
+                                                          .x11AuthenticationCookie,
+                                                      onPressed: () => setState(
+                                                        () {
+                                                          _obscureX11Cookie =
+                                                              !_obscureX11Cookie;
+                                                        },
+                                                      ),
+                                                    ),
+                                                    IconButton(
+                                                      key: const Key(
+                                                        'ssh-clear-x11-cookie',
+                                                      ),
+                                                      tooltip: context
+                                                          .l10n
+                                                          .forgetSavedX11Cookie,
+                                                      padding: EdgeInsets.zero,
+                                                      constraints:
+                                                          BoxConstraints(
+                                                            minWidth: palette
+                                                                .controls
+                                                                .regular,
+                                                            minHeight: palette
+                                                                .controls
+                                                                .regular,
+                                                          ),
+                                                      iconSize: 18,
+                                                      onPressed: () => setState(
+                                                        () {
+                                                          _x11Cookie.clear();
+                                                          _clearX11AuthCookie =
+                                                              true;
+                                                        },
+                                                      ),
+                                                      icon: const Icon(
+                                                        Icons
+                                                            .delete_outline_rounded,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              validator: (value) {
+                                                if (!_x11Forwarding) {
+                                                  return null;
+                                                }
+                                                final cookie = (value ?? '')
+                                                    .trim();
+                                                if (!RegExp(
+                                                  r'^[0-9A-Fa-f]{32}$',
+                                                ).hasMatch(cookie)) {
+                                                  return 'Enter exactly 32 hexadecimal characters';
+                                                }
+                                                return null;
+                                              },
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
                                   ],
                                 ),
                                 if (!mobile &&

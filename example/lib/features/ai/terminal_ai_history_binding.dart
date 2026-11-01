@@ -40,7 +40,15 @@ class TerminalAiHistoryBinding {
 
   Future<void> _load() async {
     try {
-      final documents = await repository.load();
+      final documents =
+          (await (repository is ProfileScopedAiHistoryRepository
+                  ? (repository as ProfileScopedAiHistoryRepository)
+                        .loadForProfile(controller.profileId)
+                  : repository.load()))
+              .where(
+                (document) => document['profileId'] == controller.profileId,
+              )
+              .toList();
       if (_disposed) return;
       for (final document in documents) {
         if (document['id'] case final String id) _previous[id] = document;

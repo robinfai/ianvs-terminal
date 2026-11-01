@@ -21,9 +21,14 @@ abstract interface class TerminalAiHistoryRepository {
   });
 }
 
+abstract interface class ProfileScopedAiHistoryRepository {
+  Future<List<Map<String, Object?>>> loadForProfile(String? profileId);
+}
+
 /// Content-only local history. No model credentials, executable approvals or
 /// process handles are serialized. Atomic replacement preserves the last save.
-class LocalTerminalAiHistoryRepository implements TerminalAiHistoryRepository {
+class LocalTerminalAiHistoryRepository
+    implements TerminalAiHistoryRepository, ProfileScopedAiHistoryRepository {
   LocalTerminalAiHistoryRepository({Future<Directory> Function()? directory})
     : _directory = directory ?? _defaultDirectory;
   static Future<Directory> _defaultDirectory() async => AppEnvironment.current
@@ -43,7 +48,14 @@ class LocalTerminalAiHistoryRepository implements TerminalAiHistoryRepository {
         Error.throwWithStackTrace(error, stack);
       });
 
-  Future<List<Map<String, Object?>>> _load() async {
+  @override
+  Future<List<Map<String, Object?>>> loadForProfile(String? profileId) =>
+      _load(profileId: profileId, scoped: true);
+
+  Future<List<Map<String, Object?>>> _load({
+    String? profileId,
+    bool scoped = false,
+  }) async {
     final root = await _root();
     if (!await root.exists()) return [];
     final files = await root
@@ -70,6 +82,7 @@ class LocalTerminalAiHistoryRepository implements TerminalAiHistoryRepository {
           await file.readAsString(),
           documentName: 'AI history',
         );
+        if (scoped && data['profileId'] != profileId) continue;
         if (data['schema'] == 1 && data['id'] is String) {
           if (bytes + length > 64 * 1024 * 1024) continue;
           bytes += length;
@@ -125,6 +138,7 @@ class LocalTerminalAiHistoryRepository implements TerminalAiHistoryRepository {
         throw StateError('AI history exceeds its storage budget');
       }
       await writeStringAtomically(file, data);
+      _startupHistory = null;
     });
     _writes = write.catchError((Object _, StackTrace _) {});
     return write;

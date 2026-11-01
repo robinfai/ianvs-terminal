@@ -6,6 +6,7 @@ import UIKit
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
+  private var fileExport: TrailFileExport?
   private var voiceInput: TrailVoiceInput?
   private var externalUrlChannel: FlutterMethodChannel?
   private var buildIdentityChannel: FlutterMethodChannel?
@@ -22,6 +23,9 @@ import UIKit
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "TrailFileExport") {
+      fileExport = TrailFileExport(messenger: registrar.messenger())
+    }
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "TrailVoiceInput") {
       voiceInput = TrailVoiceInput(messenger: registrar.messenger())
     }
@@ -54,6 +58,23 @@ import UIKit
         binaryMessenger: registrar.messenger()
       )
       channel.setMethodCallHandler { call, result in
+        if call.method == "setPageBackground",
+           let args = call.arguments as? [String: Any], let argb = args["argb"] as? NSNumber {
+          let value = argb.uint32Value
+          let color = UIColor(red: CGFloat((value >> 16) & 255) / 255,
+                              green: CGFloat((value >> 8) & 255) / 255,
+                              blue: CGFloat(value & 255) / 255,
+                              alpha: CGFloat((value >> 24) & 255) / 255)
+          for scene in UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }) {
+            for window in scene.windows {
+              window.backgroundColor = color
+              window.rootViewController?.view.backgroundColor = color
+              window.overrideUserInterfaceStyle = (args["dark"] as? Bool == true) ? .dark : .light
+            }
+          }
+          result(nil)
+          return
+        }
         guard call.method == "openExternalUrl" else {
           result(FlutterMethodNotImplemented)
           return
@@ -259,5 +280,39 @@ private final class TrailVoiceInput {
   deinit {
     observers.forEach { NotificationCenter.default.removeObserver($0) }
     finish(nil)
+  }
+}
+
+private final class TrailFileExport: NSObject, UIDocumentPickerDelegate {
+  private let channel: FlutterMethodChannel
+  private var pending: FlutterResult?
+  init(messenger: FlutterBinaryMessenger) {
+    channel = FlutterMethodChannel(name: "app/file_export", binaryMessenger: messenger)
+    super.init()
+    channel.setMethodCallHandler { [weak self] call, result in
+      guard let self, call.method == "export",
+            let args = call.arguments as? [String: Any], let path = args["path"] as? String else {
+        result(FlutterMethodNotImplemented); return
+      }
+      guard self.pending == nil else {
+        result(FlutterError(code: "busy", message: "File export is already open", details: nil)); return
+      }
+      guard FileManager.default.fileExists(atPath: path),
+            var presenter = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene })
+              .flatMap({ $0.windows }).first(where: { $0.isKeyWindow })?.rootViewController else {
+        result(FlutterError(code: "unavailable", message: "Cannot export file", details: nil)); return
+      }
+      while let presented = presenter.presentedViewController { presenter = presented }
+      self.pending = result
+      let picker = UIDocumentPickerViewController(forExporting: [URL(fileURLWithPath: path)], asCopy: true)
+      picker.delegate = self
+      presenter.present(picker, animated: true)
+    }
+  }
+  func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+    pending?(!urls.isEmpty); pending = nil
+  }
+  func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+    pending?(false); pending = nil
   }
 }

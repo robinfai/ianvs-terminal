@@ -827,7 +827,12 @@ class SessionController extends Notifier<SessionState> {
     _appPreferencesDocument = preparation.appPreferencesDocument;
     final effectiveDefaultProfileId = _effectiveDefaultProfileIdFor(
       runtimeProfiles,
-      preferredProfileId: preparation.effectiveDefaultProfileId,
+      preferredProfileId:
+          (defaultTargetPlatform == TargetPlatform.iOS ||
+              defaultTargetPlatform == TargetPlatform.android)
+          ? bootstrapDefaultProfileIdOverride ??
+                preparation.appPreferences.defaults.defaultProfileId
+          : preparation.effectiveDefaultProfileId,
     );
     final runtimeProfileIds = runtimeProfiles
         .map((profile) => profile.id)
@@ -837,7 +842,9 @@ class SessionController extends Notifier<SessionState> {
     String? layoutRestoreError;
     final canHaveSavedLayout =
         _configBootstrapSource != LocalTerminalConfigBootstrapSource.defaults;
-    if (_localConfigDocument.layout.restoreLayout) {
+    if (_localConfigDocument.layout.restoreLayout &&
+        defaultTargetPlatform != TargetPlatform.iOS &&
+        defaultTargetPlatform != TargetPlatform.android) {
       try {
         final layoutDocument = await ref
             .read(localTerminalLayoutRepositoryProvider)
@@ -886,7 +893,8 @@ class SessionController extends Notifier<SessionState> {
 
     if (initialTabs.isEmpty &&
         effectiveDefaultProfileId != null &&
-        launchPolicy.opensDefaultSessionOnEmptyLayout) {
+        (launchPolicy.opensDefaultSessionOnEmptyLayout ||
+            preparation.effectiveDefaultProfileId != null)) {
       final initialProfile = runtimeProfiles.firstWhere(
         (profile) => profile.id == effectiveDefaultProfileId,
         orElse: () => runtimeProfiles.first,
@@ -6034,7 +6042,9 @@ class SessionController extends Notifier<SessionState> {
     if (_hasProfileId(profiles, configuredDefaultId)) {
       return configuredDefaultId;
     }
-    if (profiles.isEmpty) {
+    if (profiles.isEmpty ||
+        defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.android) {
       return null;
     }
     return profiles.first.id;

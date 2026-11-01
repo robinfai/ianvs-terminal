@@ -312,3 +312,144 @@ This initial integration is for native iOS/macOS authorization only; web and
 Android continue using password login. Apple revocation/server-notification
 handling and user-initiated unlinking are not implemented in this version.
 Do not deploy this as a replacement for the existing password recovery path.
+
+### AI gateway
+
+The authenticated client defaults to `/v1/ai/chat/completions`. Provider secrets
+remain in the permission-restricted server configuration. Add `ai_gateway`:
+
+```json
+{
+  "default_model": "deepseek",
+  "daily_requests": 100,
+  "daily_quota_points": 500000,
+  "user_daily_quota_points": {"USER_UUID": 1000000},
+  "models": {
+    "deepseek": {
+      "provider": "deepseek",
+      "endpoint": "https://api.deepseek.com/v1",
+      "api_key": "SERVER_SECRET",
+      "model": "deepseek-flash",
+      "max_output_tokens": 4096,
+      "pricing": {
+        "input_nano_usd_per_token": 300,
+        "cached_input_nano_usd_per_token": 6,
+        "output_nano_usd_per_token": 1200
+      }
+    }
+  }
+}
+```
+
+1 USD-equivalent = 500,000 quota points = 1,000,000,000 nano-USD.
+The ledger uses integer nano-USD, preserving fractional points without rounding
+small cached requests to zero. Rates are **administrator-defined user quota
+tariffs**, not a provider invoice. The example uses a fixed DeepSeek peak tariff;
+it does not automatically change with provider discounts or Chinese holidays.
+
+Cost = (prompt_tokens - cached_tokens) * input_rate + cached_tokens * cache_rate
++ completion_tokens * output_rate. Reasoning tokens already included in completion
+usage are not added again. DeepSeek cache-hit and OpenAI cached-token fields are
+supported. Additional provider aliases may use `provider: openai` with separate
+credentials and explicit prices. Only text Chat Completions and function tools
+are supported: extended cache writes, media, hosted tools and tiered context rates
+are not priced. Configure only models compatible with this pricing scope.
+
+Each authenticated user has a UTC daily monetary budget shared across providers;
+zero disables access, and user ID overrides replace the default. A separate daily
+request cap limits abuse (including failed provider attempts). Before contacting
+the provider, the gateway atomically reserves estimated input bytes + protocol
+overhead and the configured maximum output. This is conservative estimation,
+not an exact tokenizer. Actual usage settles the reservation, including any
+estimate overrun; subsequent admissions see the real balance. Concurrent calls
+cannot reuse reserved funds. Counters persist across restarts and replicas.
+
+Streaming enables upstream `stream_options.include_usage`. Explicit provider
+rejections refund the reservation. Disconnects, timeouts, missing/malformed usage,
+or failed settlement retain a **pending reservation**, not a claimed actual cost.
+Pending amounts reduce that day's available budget; manual reconciliation is
+required if exact historical billing is needed. There is no automatic expiry,
+retry, failover or provider-invoice reconciliation. Midnight opens a new daily
+bucket; settlement still belongs to the admission day. Old buckets are retained.
+
+`GET /v1/ai/models` exposes model prices without credentials.
+`GET /v1/ai/usage` exposes only the current user's token totals, spent/reserved
+nano-USD, pending requests, remaining points and next UTC reset. Payloads are
+bounded to 1 MiB, estimated input to 100k tokens and responses to 8 MiB.
+DeepSeek runs non-thinking mode for compatibility with the terminal tool loop.
+
+Pricing research and conversion examples: [AI gateway rates](../docs/AI_GATEWAY_RATES.md).
+
+
+### Bifrost-inspired governance (2026-11-01)
+
+This is an implementation in the existing Go backend, not a bundled Bifrost server
+or SDK. It adopts Bifrost's scoped access policies and custom-pricing structure.
+The application's authenticated user ID is the policy owner; callers cannot
+choose another user or forward their own gateway identity. Existing auth and
+provider credentials remain unchanged.
+
+New configuration (inside `ai_gateway`):
+
+```json
+{
+  "daily_budget_nano_usd": 1000000000,
+  "pricing_catalog": {
+    "ds-flash-peak": {
+      "version": "deepseek-2026-11-01-peak",
+      "input_nano_usd_per_token": 300,
+      "cached_input_nano_usd_per_token": 6,
+      "output_nano_usd_per_token": 1200
+    }
+  },
+  "users": {
+    "USER_UUID": {
+      "disabled": false,
+      "daily_budget_nano_usd": 2000000000,
+      "daily_requests": 200,
+      "allowed_models": ["deepseek"],
+      "pricing_overrides": {
+        "deepseek": {
+          "version": "customer-plan-v1",
+          "input_nano_usd_per_token": 150,
+          "cached_input_nano_usd_per_token": 3,
+          "output_nano_usd_per_token": 600
+        }
+      }
+    }
+  }
+}
+```
+
+Models reference `"price_id": "ds-flash-peak"` instead of inline `pricing`.
+A price ID and inline pricing cannot coexist. The catalog requires a version;
+inline legacy prices remain readable. Resolution: user/alias override, then
+model's catalog reference or inline price. This release supports exact aliases,
+not wildcard matching or dynamic remote price synchronization.
+
+Budget resolution: user policy, legacy user points override, default monetary
+budget, legacy default points. One dollar is 1e9 nano-USD. Zero denies admission;
+an omitted override inherits its parent. `allowed_models` omitted/null inherits
+all models, while `[]` denies all. `disabled` denies all inference. UTC daily
+windows and the existing budget storage keys are retained, so upgrading does
+not reset spend. The model catalog is filtered by the user's policy.
+
+`GET /v1/ai/requests?before=<next_cursor>` returns the caller's ledger (50 per page).
+`X-AI-Request-ID` correlates a response with its entry. Each entry stores provider,
+model, immutable effective price snapshot, reservation, actual usage, timestamps,
+and `pending` / `settled` / `refunded` status. It stores neither prompt content nor
+credentials. Reservation + ledger creation and settlement + ledger update are
+atomic transactions; settlement is idempotent by server-generated request ID.
+This does not deduplicate client retries: a new provider call is a new billable
+request. Refunds are separate from successful completions in usage counters.
+
+Unknown usage remains pending, with a durable record for operator reconciliation;
+no public refund endpoint is exposed. Existing pre-upgrade counters remain valid,
+but historical requests cannot be reconstructed into detailed ledger entries.
+Legacy pending amounts are preserved. Automatic reconciliation, team budgets,
+provider-wide budgets, cache-write usage adapters and general Bifrost feature
+parity are not included. Keep the existing conservative pre-admission reservation
+rather than adopting Bifrost's documented charge-after-response overshoot behavior.
+
+References: [Bifrost scoped pricing](https://docs.getbifrost.ai/providers/custom-pricing),
+[Bifrost budgets](https://docs.getbifrost.ai/features/governance/budget-and-limits).

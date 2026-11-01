@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:ffi/ffi.dart';
 import 'package:file_selector/file_selector.dart';
+import 'package:flutter/services.dart';
 
 typedef SftpDownloadToPath = Future<void> Function(String localPath);
 typedef SftpUploadFromPath = Future<void> Function(String localPath);
@@ -190,8 +191,16 @@ final class SftpFileActions {
     required String suggestedName,
     required SftpDownloadToPath download,
   }) async {
+    Directory? temporary;
     try {
-      final destination = await _platform.chooseSaveLocation(suggestedName);
+      final mobileExport =
+          Platform.isIOS && _platform is IoSftpFileActionPlatform;
+      temporary = mobileExport
+          ? await Directory.systemTemp.createTemp('sftp-export-')
+          : null;
+      final destination = temporary == null
+          ? await _platform.chooseSaveLocation(suggestedName)
+          : '${temporary.path}/${_safeLocalEditFileName(suggestedName)}';
       if (destination == null) {
         return null;
       }
@@ -200,6 +209,12 @@ final class SftpFileActions {
         remotePath: remotePath,
         operation: () => download(destination),
       );
+      if (mobileExport) {
+        final exported = await const MethodChannel(
+          'app/file_export',
+        ).invokeMethod<bool>('export', {'path': destination});
+        if (exported != true) return null;
+      }
       _emit(
         SftpFileActionEvent(
           sessionId: sessionId,
@@ -219,6 +234,12 @@ final class SftpFileActions {
         ),
       );
       rethrow;
+    } finally {
+      if (temporary != null) {
+        await temporary
+            .delete(recursive: true)
+            .catchError((Object _) => temporary!);
+      }
     }
   }
 

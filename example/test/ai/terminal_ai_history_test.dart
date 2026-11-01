@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:app/features/ai/ai_models.dart';
 import 'package:app/features/ai/ai_settings.dart';
 import 'package:app/features/ai/terminal_ai_connections.dart';
 import 'package:app/features/ai/terminal_ai_controller.dart';
@@ -13,6 +14,101 @@ import 'terminal_ai_test.dart'
     show FakeApi, FakeTerminal, MemoryAiStore, commandReply;
 
 void main() {
+  test(
+    'history isolates profiles, excludes unsent drafts and opens a fresh task',
+    () async {
+      final settings = AiSettingsController(MemoryAiStore());
+      await settings.loaded;
+      final first = TerminalAiController(
+        settings: settings,
+        terminal: FakeTerminal(),
+        api: FakeApi(),
+        profileId: 'ssh-a',
+      );
+      final second = TerminalAiController(
+        settings: settings,
+        terminal: FakeTerminal(),
+        api: FakeApi(),
+        profileId: 'ssh-b',
+      );
+      addTearDown(() {
+        first.dispose();
+        second.dispose();
+        settings.dispose();
+      });
+      first.setDraft('Unsent request');
+      expect(first.exportHistory({}), isEmpty);
+      await first.refreshContext();
+      await first.runUserCommand('pwd');
+      final saved = first.exportHistory({});
+      second.restoreHistory(saved);
+      expect(second.tasks.where((task) => task.started), isEmpty);
+      final reopened = TerminalAiController(
+        settings: settings,
+        terminal: FakeTerminal(),
+        api: FakeApi(),
+        profileId: 'ssh-a',
+      );
+      addTearDown(reopened.dispose);
+      reopened.restoreHistory(saved);
+      expect(reopened.transcript, isEmpty);
+      expect(reopened.restoredHistory, isFalse);
+      expect(reopened.tasks.where((task) => task.started), hasLength(1));
+    },
+  );
+
+  test(
+    'failed history cd exposes actual cwd and sends no inference until explicit resume',
+    () async {
+      final settings = AiSettingsController(MemoryAiStore());
+      await settings.loaded;
+      final port = FakeTerminal();
+      final api = FakeApi();
+      final controller = TerminalAiController(
+        settings: settings,
+        terminal: port,
+        api: api,
+      );
+      addTearDown(() {
+        controller.dispose();
+        settings.dispose();
+      });
+      controller.restoreHistory([
+        {
+          'id': 'saved-cwd',
+          'cwd': "/missing/a'b",
+          'title': 'Inspect',
+          'transcript': [
+            {
+              'id': 'old',
+              'role': 'user',
+              'text': 'Inspect only',
+              'state': 'message',
+            },
+          ],
+        },
+      ]);
+      controller.selectTask('saved-cwd');
+      await controller.refreshContext();
+      final actual = await controller.prepareHistoryResume();
+      expect(port.writes.single.command, r"cd -- '/missing/a'\''b'");
+      expect(actual.cwd, '/tmp');
+      expect(api.requests, isEmpty);
+      expect(controller.canRunUserCommand, isFalse);
+      expect(controller.restoredHistory, isTrue);
+      await expectLater(
+        controller.resumeHistory('stale'),
+        throwsA(isA<AiFailure>()),
+      );
+      expect(api.requests, isEmpty);
+      await controller.resumeHistory(actual.guard);
+      expect(api.requests, hasLength(1));
+      expect(controller.restoredHistory, isFalse);
+      expect(controller.transcript.first.text, 'Inspect only');
+      expect(port.writes, hasLength(1));
+    },
+  );
+
   test(
     'manual commands round trip as read-only history without tool calls',
     () async {
@@ -33,6 +129,8 @@ void main() {
         api: FakeApi(),
       );
       restored.restoreHistory(documents);
+      expect(restored.transcript, isEmpty);
+      restored.selectTask(restored.tasks.last.id);
       expect(restored.historyError, isNull);
       expect(restored.transcript.single.action?.command, 'pwd');
       expect(restored.tasks.last.commandName, 'pwd');
@@ -48,6 +146,7 @@ void main() {
         api: FakeApi(),
       );
       recovered.restoreHistory(documents);
+      recovered.selectTask(recovered.tasks.last.id);
       expect(recovered.historyError, isNull);
       expect(recovered.transcript.single.action?.command, 'pwd');
       expect(recovered.tasks.last.commandName, 'pwd');
@@ -130,6 +229,8 @@ void main() {
       final writerA = TerminalAiHistoryBinding(a, repository);
       final writerB = TerminalAiHistoryBinding(b, repository);
       await Future.wait([writerA.loaded, writerB.loaded]);
+      a.selectTask(a.tasks.last.id);
+      b.selectTask(b.tasks.last.id);
       a.readingAnchor = (id: 'message', offset: 31);
       await writerA.flush(requireSaved: true);
       final file = File('${directory.path}/ai-history/saved-task.json');
@@ -277,6 +378,8 @@ void main() {
       restored.restoreHistory(
         serialized.map((d) => Map<String, Object?>.from(d as Map)),
       );
+      expect(restored.restoredHistory, isFalse);
+      restored.selectTask(restored.tasks.last.id);
       expect(restored.restoredHistory, isTrue);
       expect(restored.followUpEnded, isTrue);
       expect(restored.canApprove, isFalse);
@@ -353,6 +456,8 @@ void main() {
         LocalTerminalAiHistoryRepository(directory: () async => directory),
       );
       await reader.loaded;
+      expect(restored.restoredHistory, isFalse);
+      restored.selectTask(restored.tasks.last.id);
       expect(restored.restoredHistory, isTrue);
       final source = restored.restoredSourceIds.single;
       expect(source, startsWith('saved-'));

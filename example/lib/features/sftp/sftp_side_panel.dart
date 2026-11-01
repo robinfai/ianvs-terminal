@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -430,9 +431,11 @@ class SftpSidePanel extends StatefulWidget {
     required this.onClose,
     this.initialPath = '/',
     this.highlightedName,
+    this.pickUploadFile,
   });
 
   final String initialPath;
+  final Future<XFile?> Function()? pickUploadFile;
   final String? highlightedName;
   final SftpSessionTarget target;
   final SftpDirectoryDataSource dataSource;
@@ -584,6 +587,87 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
     });
   }
 
+  bool _uploading = false;
+  Future<void> _uploadFile() async {
+    if (_uploading) return;
+    final source = _fileDataSource;
+    if (source == null) return;
+    final revision = _locationRevision;
+    final target = widget.target;
+    final directory = _path;
+    setState(() => _uploading = true);
+    try {
+      final file = await (widget.pickUploadFile?.call() ?? openFile());
+      if (!mounted || file == null || !_locationIsCurrent(revision)) return;
+      if (file.name.isEmpty ||
+          file.name.contains('/') ||
+          file.name.contains(r'\') ||
+          file.name == '..') {
+        throw StateError('Invalid filename');
+      }
+      final remotePath = _childSftpPath(directory, file.name);
+      // Upload may overwrite an existing remote file. Make the destination explicit.
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(
+            Localizations.localeOf(context).languageCode == 'zh'
+                ? '上传文件'
+                : 'Upload file',
+          ),
+          content: Text(
+            '$remotePath\n${Localizations.localeOf(context).languageCode == 'zh' ? '如果同名文件已存在，将被替换。' : 'An existing file with this name will be replaced.'}',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(MaterialLocalizations.of(context).cancelButtonLabel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(MaterialLocalizations.of(context).okButtonLabel),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !_locationIsCurrent(revision)) return;
+      await widget.fileActions.runRemoteOperation(
+        sessionId: target.operationScopeId,
+        remotePath: remotePath,
+        operation: () {
+          _requireLocation(revision);
+          return source.uploadFile(
+            SftpFileTransferRequest(
+              target: target,
+              remotePath: remotePath,
+              localPath: file.path,
+            ),
+          );
+        },
+      );
+      if (mounted && _locationIsCurrent(revision)) {
+        _refresh();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.l10n.sftpUploaded(file.name))),
+        );
+      }
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              Localizations.localeOf(context).languageCode == 'zh'
+                  ? '上传失败，请检查连接后重试。'
+                  : 'Upload failed. Check the connection and try again.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
+
   Future<void> _downloadFile(SftpDirectoryEntry entry) async {
     final revision = _locationRevision;
     final target = widget.target;
@@ -688,6 +772,17 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
           value: _SftpEntryMenuAction.copyFullPath,
           child: Text(context.l10n.copyFullPath),
         ),
+        if (entry.isFile)
+          PopupMenuItem<_SftpEntryMenuAction>(
+            key: const Key('sftp-context-download'),
+            value: _SftpEntryMenuAction.download,
+            enabled: _fileDataSource != null && !isBusy,
+            child: Text(
+              Localizations.localeOf(context).languageCode == 'zh'
+                  ? '下载文件'
+                  : 'Download file',
+            ),
+          ),
         if (entry.isFile && !context.usesMobileNavigation)
           PopupMenuItem<_SftpEntryMenuAction>(
             key: const Key('sftp-context-edit-locally'),
@@ -721,6 +816,8 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
         if (mounted) {
           _showMessage(context.l10n.copiedPath(remotePath));
         }
+      case _SftpEntryMenuAction.download:
+        await _downloadFile(entry);
       case _SftpEntryMenuAction.editLocally:
         await _editLocally(entry);
       case _SftpEntryMenuAction.createDirectory:
@@ -948,6 +1045,9 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
                   _SftpPanelHeader(
                     target: widget.target,
                     onClose: widget.onClose,
+                    onUpload: _fileDataSource == null || _uploading
+                        ? null
+                        : _uploadFile,
                     onCreateDirectory: _fileDataSource == null
                         ? null
                         : _createDirectory,
@@ -1014,11 +1114,13 @@ class _SftpPanelHeader extends StatelessWidget {
     required this.target,
     required this.onClose,
     this.onCreateDirectory,
+    this.onUpload,
   });
 
   final SftpSessionTarget target;
   final VoidCallback onClose;
   final VoidCallback? onCreateDirectory;
+  final VoidCallback? onUpload;
 
   @override
   Widget build(BuildContext context) {
@@ -1042,6 +1144,14 @@ class _SftpPanelHeader extends StatelessWidget {
         subtitle: target.displayAddress,
         leading: close,
         actions: [
+          IconButton(
+            key: const Key('sftp-upload-file'),
+            onPressed: onUpload,
+            tooltip: Localizations.localeOf(context).languageCode == 'zh'
+                ? '上传文件'
+                : 'Upload file',
+            icon: const Icon(Icons.upload_file_outlined),
+          ),
           if (onCreateDirectory != null)
             IconButton(
               key: const Key('sftp-create-folder'),
@@ -1095,6 +1205,14 @@ class _SftpPanelHeader extends StatelessWidget {
                   ),
                 ],
               ),
+            ),
+            IconButton(
+              key: const Key('sftp-upload-file'),
+              onPressed: onUpload,
+              tooltip: Localizations.localeOf(context).languageCode == 'zh'
+                  ? '上传文件'
+                  : 'Upload file',
+              icon: const Icon(Icons.upload_file_outlined),
             ),
             if (onCreateDirectory != null)
               IconButton(
@@ -1302,7 +1420,9 @@ class _SftpErrorState extends StatelessWidget {
             SelectableText(
               error.toString(),
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: palette.danger),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: palette.danger),
             ),
             SizedBox(height: palette.spacing.lg),
             TextButton.icon(
@@ -1381,7 +1501,7 @@ class _SftpDirectoryList extends StatelessWidget {
         key: const Key('sftp-directory-list'),
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         itemCount: entries.length,
-        separatorBuilder: (context, _) => const Divider(height: 1, indent: 52),
+        separatorBuilder: (context, _) => const SizedBox(height: 6),
         itemBuilder: (context, index) {
           final entry = entries[index];
           final remotePath = _childSftpPath(parentPath, entry.name);
@@ -1516,11 +1636,24 @@ class _SftpDirectoryRow extends StatelessWidget {
         ),
       ),
     );
-    return mobile ? row : MergeSemantics(child: row);
+    return mobile
+        ? Material(
+            color: context.groupedSurface,
+            borderRadius: BorderRadius.circular(context.appTheme.radius.lg),
+            clipBehavior: Clip.antiAlias,
+            child: row,
+          )
+        : MergeSemantics(child: row);
   }
 }
 
-enum _SftpEntryMenuAction { copyFullPath, editLocally, createDirectory, delete }
+enum _SftpEntryMenuAction {
+  copyFullPath,
+  download,
+  editLocally,
+  createDirectory,
+  delete,
+}
 
 String _normalizeSftpPath(String path) {
   final segments = <String>[];

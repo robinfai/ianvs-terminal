@@ -19,6 +19,7 @@ import 'package:app/features/sessions/session_state.dart';
 import 'package:app/features/shell/shell_action_registry.dart';
 import 'package:app/features/ssh/ssh_feature_access.dart';
 import 'package:app/platform/app_shutdown_coordinator.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -106,6 +107,18 @@ class _BootstrapOverrideSessionController extends SessionController {
 
   @override
   String? get bootstrapDefaultProfileIdOverride => profileId;
+}
+
+class _SshStartupBackend extends FakePtyBackend {
+  @override
+  PtyRuntimeCapabilities get runtimeCapabilities =>
+      PtyRuntimeCapabilities.fromJson({
+        'schema_version': 1,
+        'runtime_contract': 'ianvs-runtime-contract-v1',
+        'frame_schema_versions': <String>[],
+        'recording_schema_versions': <int>[],
+        'features': ['session-config.json.v1', 'ssh-session.v1'],
+      });
 }
 
 class _TestAppPreferencesRepository extends AppPreferencesRepository {
@@ -5524,6 +5537,57 @@ void main() {
       );
     },
   );
+
+  for (final configured in [false, true]) {
+    test(
+      'iOS startup requires an explicit default profile: $configured',
+      () async {
+        debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+        addTearDown(() => debugDefaultTargetPlatformOverride = null);
+        final container = ProviderContainer(
+          overrides: [
+            ptySessionBackendProvider.overrideWithValue(_SshStartupBackend()),
+            profileRepositoryProvider.overrideWithValue(
+              _TestProfileRepository(
+                TerminalProfilesDocument(
+                  profiles: [
+                    sshProfile.copyWith(
+                      connection: const terminal.TerminalConnectionConfig.ssh(
+                        host: 'example.test',
+                        user: 'test',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            localTerminalConfigRepositoryProvider.overrideWithValue(
+              _TestLocalTerminalConfigRepository(
+                LocalTerminalConfigDocument(
+                  defaultProfileId: configured ? 'ssh' : null,
+                ),
+              ),
+            ),
+            appPreferencesRepositoryProvider.overrideWithValue(
+              _TestAppPreferencesRepository(
+                TerminalAppPreferencesDocument(
+                  defaults: TerminalAppDefaults(
+                    defaultProfileId: configured ? 'ssh' : null,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        container.read(sessionControllerProvider.notifier);
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        final state = container.read(sessionControllerProvider);
+        expect(state.defaultProfileId, configured ? 'ssh' : null);
+        expect(state.tabs.length, configured ? 1 : 0, reason: state.lastError);
+      },
+    );
+  }
 
   test(
     'bootstrap prefers explicit override over current config defaults',

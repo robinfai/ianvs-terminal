@@ -72,6 +72,11 @@ extension _ShellScreenAi on _ShellScreenState {
         final runtime = ref.read(terminalRuntimeControllerProvider);
         final controller = TerminalAiController(
           settings: ref.read(aiSettingsProvider),
+          profileId: _sessionState.tabs
+              .expand((tab) => tab.effectivePanes)
+              .where((pane) => pane.sessionId == sessionId)
+              .firstOrNull
+              ?.profileId,
           defaultInputIntent: InputIntent.command,
           terminal: TerminalAiConnections(
             sessionId: sessionId,

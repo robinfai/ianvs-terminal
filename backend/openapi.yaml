@@ -20,6 +20,85 @@ tags:
   - name: resources
   - name: migrations
 paths:
+  /v1/ai/requests:
+    get:
+      operationId: listAIRequests
+      summary: Current user's request ledger with immutable pricing snapshots.
+      security: [{bearerAuth: []}]
+      parameters:
+        - in: query
+          name: before
+          schema: {type: string}
+          description: Opaque next_cursor from the previous page.
+      responses:
+        '200':
+          description: Up to 50 records and next_cursor. Includes pending, settled and refunded requests, never prompts or credentials.
+        '401':
+          description: Authentication required.
+  /v1/ai/usage:
+    get:
+      operationId: getAIUsage
+      summary: Current user's UTC daily token spend and pending reservations.
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Token totals, spend in nano-USD and remaining quota points.
+        '401':
+          description: Authentication required.
+  /v1/ai/models:
+    get:
+      operationId: listAIModels
+      summary: List server model aliases, token prices and the authenticated user's daily limits.
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Model aliases, default model, daily_requests, quota_unit and UTC reset timezone. No provider credentials.
+        '401':
+          description: Authentication required.
+        '503':
+          description: Gateway is not configured.
+  /v1/ai/chat/completions:
+    post:
+      operationId: createAICompletion
+      summary: Authenticated OpenAI-compatible completion with a durable per-user UTC daily token-cost budget and request cap.
+      description: Each admitted upstream attempt consumes one request, including failures and client cancellations. Output tokens are capped by server configuration. Request body limit is 1 MiB and response limit is 8 MiB.
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [messages]
+              properties:
+                model: {type: string, default: default}
+                messages: {type: array, minItems: 1, items: {type: object}}
+                stream: {type: boolean, default: false}
+                tools: {type: array, items: {type: object}}
+                tool_choice: {}
+                parallel_tool_calls: {type: boolean}
+                reasoning_effort: {type: string}
+      responses:
+        '200':
+          description: Chat completion JSON or streamed SSE chunks.
+          content:
+            application/json:
+              schema: {type: object}
+            text/event-stream:
+              schema: {type: string}
+        '400':
+          description: Invalid request or unknown model alias.
+        '401':
+          description: Authentication required.
+        '429':
+          description: Daily request quota exhausted.
+          headers:
+            Retry-After:
+              schema: {type: integer, minimum: 1}
+        '502':
+          description: Provider unavailable or rejected the request.
+        '503':
+          description: Gateway or durable quota storage unavailable.
   /v1/auth/apple/challenge:
     post:
       tags: [auth]

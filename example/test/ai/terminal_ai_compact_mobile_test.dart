@@ -233,7 +233,7 @@ void main() {
       await tester.tap(find.byTooltip('清除搜索'));
       await tester.pumpAndSettle();
       expect(find.text('诊断部署失败'), findsOneWidget);
-      await tester.tap(find.byTooltip('关闭'));
+      await tester.tap(find.byType(BackButton));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('ai-history-search')), findsNothing);
       expect(tester.takeException(), isNull);
@@ -243,6 +243,8 @@ void main() {
   testWidgets('stale history selection cannot switch a replacement task', (
     tester,
   ) async {
+    api.respond = (_) async => const AiReply(text: 'Saved response');
+    await tester.runAsync(() => controller.ask('Saved task'));
     final original = controller.taskId;
     controller.newTask();
     await mount(tester);
@@ -268,8 +270,8 @@ void main() {
       await tester.tap(find.byKey(const Key('ai-history-search')));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      expect(find.byTooltip('关闭').hitTestable(), findsOneWidget);
-      await tester.tap(find.byTooltip('关闭'));
+      expect(find.byType(BackButton).hitTestable(), findsOneWidget);
+      await tester.tap(find.byType(BackButton));
       await tester.pumpAndSettle();
     });
   }

@@ -20,6 +20,29 @@ void main() {
   tearDown(() async => server.close(force: true));
 
   test(
+    'gateway quota rejection is distinct from provider rate limiting',
+    () async {
+      var quota = true;
+      server.listen((request) async {
+        request.response.statusCode = 429;
+        if (quota) request.response.headers.set('X-AI-Quota-Exhausted', 'true');
+        await request.response.close();
+      });
+      await expectLater(
+        const AiApiClient().complete(configuration, [], AiCancellation()),
+        throwsA(
+          isA<AiFailure>().having((e) => e.code, 'code', 'quota_exceeded'),
+        ),
+      );
+      quota = false;
+      await expectLater(
+        const AiApiClient().complete(configuration, [], AiCancellation()),
+        throwsA(isA<AiFailure>().having((e) => e.code, 'code', 'rate_limit')),
+      );
+    },
+  );
+
+  test(
     'real HTTP request sends configured auth, model, messages and tool schema',
     () async {
       Map<String, Object?>? body;

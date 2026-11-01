@@ -97,6 +97,10 @@ func (a *API) Handler() http.Handler {
 }
 
 func (a *API) routes() {
+	a.mux.Handle("POST /v1/ai/chat/completions", a.protected(a.aiCompletions))
+	a.mux.Handle("GET /v1/ai/models", a.protected(a.aiModels))
+	a.mux.Handle("GET /v1/ai/usage", a.protected(a.aiUsage))
+	a.mux.Handle("GET /v1/ai/requests", a.protected(a.aiLedger))
 	a.mux.HandleFunc("GET /healthz", a.health)
 	a.mux.HandleFunc("POST /v1/auth/apple/challenge", a.appleChallenge)
 	a.mux.HandleFunc("POST /v1/auth/apple/begin", a.beginAppleLogin)

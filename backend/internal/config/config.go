@@ -29,6 +29,7 @@ const (
 )
 
 type Config struct {
+	AIGateway                       *AIGateway
 	AppleClientIDs                  []string
 	Mode                            Mode
 	Address                         string
@@ -43,23 +44,25 @@ type Config struct {
 }
 
 type fileConfig struct {
-	AppleClientIDs                  []string `json:"apple_client_ids"`
-	SchemaVersion                   *int     `json:"schema_version"`
-	Mode                            *string  `json:"mode"`
-	Address                         *string  `json:"address"`
-	DatabaseDriver                  *string  `json:"database_driver"`
-	DatabaseDSN                     *string  `json:"database_dsn"`
-	LocalAccessToken                *string  `json:"local_access_token"`
-	ExitOnStdinClose                *bool    `json:"exit_on_stdin_close"`
-	AuthTokenTTLSeconds             *int64   `json:"auth_token_ttl_seconds"`
-	AllowRegistration               *bool    `json:"allow_registration"`
-	AllowInsecureSensitiveTransport *bool    `json:"allow_insecure_sensitive_transport"`
-	TrustProxyHeaders               *bool    `json:"trust_proxy_headers"`
+	AIGateway                       *AIGateway `json:"ai_gateway"`
+	AppleClientIDs                  []string   `json:"apple_client_ids"`
+	SchemaVersion                   *int       `json:"schema_version"`
+	Mode                            *string    `json:"mode"`
+	Address                         *string    `json:"address"`
+	DatabaseDriver                  *string    `json:"database_driver"`
+	DatabaseDSN                     *string    `json:"database_dsn"`
+	LocalAccessToken                *string    `json:"local_access_token"`
+	ExitOnStdinClose                *bool      `json:"exit_on_stdin_close"`
+	AuthTokenTTLSeconds             *int64     `json:"auth_token_ttl_seconds"`
+	AllowRegistration               *bool      `json:"allow_registration"`
+	AllowInsecureSensitiveTransport *bool      `json:"allow_insecure_sensitive_transport"`
+	TrustProxyHeaders               *bool      `json:"trust_proxy_headers"`
 }
 
 var runtimeGOOS = runtime.GOOS
 
 var currentConfigurationFields = map[string]struct{}{
+	"ai_gateway":                         {},
 	"apple_client_ids":                   {},
 	"schema_version":                     {},
 	"mode":                               {},
@@ -264,7 +267,11 @@ func (raw fileConfig) validate() (Config, error) {
 			return Config{}, errors.New("apple_client_ids must contain nonempty Apple bundle or service identifiers")
 		}
 	}
+	if err := raw.AIGateway.Validate(); err != nil {
+		return Config{}, err
+	}
 	return Config{
+		AIGateway:                       raw.AIGateway,
 		AppleClientIDs:                  raw.AppleClientIDs,
 		Mode:                            mode,
 		Address:                         address,

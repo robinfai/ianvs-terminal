@@ -270,6 +270,7 @@ void main() {
       );
       addTearDown(restored.dispose);
       restored.restoreHistory(controller.exportHistory({}));
+      restored.selectTask(restored.tasks.last.id);
       expect(
         restored.transcript
             .where((entry) => entry.state == AiEntryState.accepted)

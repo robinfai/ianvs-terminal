@@ -141,32 +141,33 @@ void main() {
     }
   }
 
-  testWidgets('history menu distinguishes command and draft tasks safely', (
-    tester,
-  ) async {
-    await prepare();
-    await controller.refreshContext();
-    await controller.runUserCommand('printf private-argument');
-    controller.newTask();
-    controller.setDraft('private draft content');
-    controller.newTask();
-    await mount(tester);
-    await tester.tap(find.byTooltip('Session tasks'));
-    await tester.pumpAndSettle();
-    expect(find.text('printf'), findsOneWidget);
-    expect(find.text('Draft'), findsOneWidget);
-    expect(find.textContaining('Task 1'), findsOneWidget);
-    expect(find.textContaining('Task 2'), findsOneWidget);
-    expect(find.textContaining('Task 3'), findsOneWidget);
-    expect(find.textContaining('private-argument'), findsNothing);
-    expect(find.textContaining('private draft content'), findsNothing);
-    await tester.tap(find.text('printf'));
-    await tester.pumpAndSettle();
-    expect(
-      controller.transcript.single.action?.command,
-      'printf private-argument',
-    );
-  });
+  testWidgets(
+    'history menu contains started tasks and excludes unsent drafts',
+    (tester) async {
+      await prepare();
+      await controller.refreshContext();
+      await controller.runUserCommand('printf private-argument');
+      controller.newTask();
+      controller.setDraft('private draft content');
+      controller.newTask();
+      await mount(tester);
+      await tester.tap(find.byTooltip('Session tasks'));
+      await tester.pumpAndSettle();
+      expect(find.text('printf'), findsOneWidget);
+      expect(find.text('Draft'), findsNothing);
+      expect(find.textContaining('Task 1'), findsOneWidget);
+      expect(find.textContaining('Task 2'), findsNothing);
+      expect(find.textContaining('Task 3'), findsNothing);
+      expect(find.textContaining('private-argument'), findsNothing);
+      expect(find.textContaining('private draft content'), findsNothing);
+      await tester.tap(find.text('printf'));
+      await tester.pumpAndSettle();
+      expect(
+        controller.transcript.single.action?.command,
+        'printf private-argument',
+      );
+    },
+  );
 
   for (final scene in [
     (name: 'light', size: const Size(1728, 1084), dark: false, reduced: false),
@@ -682,7 +683,7 @@ void main() {
           await tester.pump();
           expect(
             ModalRoute.of(
-              tester.element(find.byType(AlertDialog)),
+              tester.element(find.byKey(const Key('ai-settings-dialog'))),
             )!.animation!.isCompleted,
             true,
           );

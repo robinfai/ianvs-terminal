@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'data/configuration/data_api_configuration.dart';
@@ -57,13 +60,53 @@ class IanvsTerminalApp extends ConsumerWidget {
         platform: defaultTargetPlatform,
         highContrast: true,
       ),
-      builder: (context, child) => PhoneTextScalePolicy(
-        child: AppNotificationHost(
-          topInset: desktopShellChromeHeight(context),
-          child: child!,
+      builder: (context, child) => _NativePageSurface(
+        child: PhoneTextScalePolicy(
+          child: AppNotificationHost(
+            topInset: desktopShellChromeHeight(context),
+            child: child!,
+          ),
         ),
       ),
       home: ShellScreen(activeDataApiDeployment: activeDataApiDeployment),
     );
   }
+}
+
+/// The native view remains visible around the system keyboard's rounded corners.
+/// Keep it in the same theme as Flutter, including an explicit app appearance.
+class _NativePageSurface extends StatefulWidget {
+  const _NativePageSurface({required this.child});
+  final Widget child;
+  @override
+  State<_NativePageSurface> createState() => _NativePageSurfaceState();
+}
+
+class _NativePageSurfaceState extends State<_NativePageSurface> {
+  int? _color;
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final color = context.appTheme.canvas.toARGB32();
+    if (defaultTargetPlatform == TargetPlatform.iOS && color != _color) {
+      _color = color;
+      unawaited(_sync(color, Theme.of(context).brightness == Brightness.dark));
+    }
+  }
+
+  Future<void> _sync(int color, bool dark) async {
+    try {
+      await const MethodChannel(
+        'app/window_bridge',
+      ).invokeMethod<void>('setPageBackground', {'argb': color, 'dark': dark});
+    } on MissingPluginException {
+      // Widget tests and preview hosts have no native window.
+    } on PlatformException {
+      // Native appearance can be applied on the next theme change.
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      ColoredBox(color: context.appTheme.canvas, child: widget.child);
 }

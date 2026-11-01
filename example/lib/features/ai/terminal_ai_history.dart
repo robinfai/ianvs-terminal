@@ -8,9 +8,13 @@ extension TerminalAiHistory on TerminalAiController {
   /// credentials. Native output is serialized by the native-record adapter.
   List<Map<String, Object?>> exportHistory(Map<String, Object?> sources) => [
     for (final task in _tasks)
-      if (task.transcript.isNotEmpty || task.draft.isNotEmpty)
+      if (task.transcript.isNotEmpty)
         {
           'schema': 1,
+          'profileId': profileId,
+          'cwd': task.restoredHistory
+              ? task.historyCwd
+              : task.context?.cwd ?? task.target?.cwd,
           'id': task.historyId ??= '$historyNamespace-${task.id}',
           'title': task.title,
           'draft': task.draft,
@@ -171,11 +175,10 @@ extension TerminalAiHistory on TerminalAiController {
   /// A restored task is an immutable execution history. Users may start a new
   /// task on the current target, but cannot revive its old proposals or tools.
   void restoreHistory(Iterable<Map<String, Object?>> documents) {
-    final selectLatest =
-        _task.transcript.isEmpty && _task.draft.isEmpty && !busy;
-    _AiTask? latest;
     for (final document in documents) {
       try {
+        if (document['profileId'] != profileId) continue;
+        if ((document['transcript'] as List? ?? []).isEmpty) continue;
         final id = document['id']! as String;
         if (!id.startsWith('saved-') || _tasks.any((t) => t.historyId == id)) {
           continue;
@@ -183,6 +186,7 @@ extension TerminalAiHistory on TerminalAiController {
         final task = _AiTask(id)
           ..historyId = id
           ..restoredHistory = true
+          ..historyCwd = document['cwd'] as String?
           ..followUpEnded = true
           ..takenOver = true
           ..title = document['title'] as String? ?? ''
@@ -229,14 +233,106 @@ extension TerminalAiHistory on TerminalAiController {
           }
         }
         _tasks.add(task);
-        latest ??= task;
       } on Object {
         // One invalid document must not erase unrelated recoverable histories.
         historyError = 'history_invalid';
       }
     }
-    if (selectLatest && latest != null) _task = latest;
     _emit();
+  }
+
+  String get historyCwd =>
+      _task.historyCwd ??
+      _transcript.reversed
+          .map((e) => e.target?.cwd)
+          .whereType<String>()
+          .where((cwd) => cwd.isNotEmpty)
+          .firstOrNull ??
+      '';
+
+  /// Only the explicitly requested directory change runs here. Old tools and
+  /// proposals remain archived, and no model request starts before confirmation.
+  Future<AiTerminalContext> prepareHistoryResume() async {
+    if (!restoredHistory || _disposed || !_appActive) {
+      throw const AiFailure('stale_context');
+    }
+    final task = _task;
+    final revision = _connectionRevision;
+    final fresh = await terminal.readContext();
+    if (!identical(task, _task) || revision != _connectionRevision) {
+      throw const AiFailure('stale_context');
+    }
+    final cwd = historyCwd;
+    if (cwd.isNotEmpty &&
+        fresh.cwd != cwd &&
+        fresh.canRunCommand &&
+        !cwd.contains(RegExp(r'[\x00\r\n]'))) {
+      final cancellation = _cancellation = AiCancellation();
+      final quoted = "'${cwd.replaceAll("'", r"'\''")}'";
+      try {
+        await terminal.execute(
+          AiAction(
+            id: 'restore-cwd-${++_entrySerial}',
+            kind: AiActionKind.runCommand,
+            command: 'cd -- $quoted',
+            reason: 'Restore task working directory',
+            rawCall: const {},
+          ),
+          fresh,
+          cancellation,
+        );
+      } on Object {
+        // Read the actual terminal again even when submission/cd failed.
+      }
+    }
+    final current = await terminal.readContext();
+    if (!identical(task, _task) ||
+        revision != _connectionRevision ||
+        _disposed) {
+      throw const AiFailure('stale_context');
+    }
+    context = current;
+    _emit();
+    return current;
+  }
+
+  Future<void> resumeHistory(String expectedGuard) async {
+    if (!restoredHistory || !_appActive || _disposed) return;
+    final archived = _task;
+    final fresh = await terminal.readContext();
+    if (!identical(archived, _task) ||
+        fresh.guard != expectedGuard ||
+        !fresh.canRunCommand) {
+      throw const AiFailure('stale_context');
+    }
+    newTask();
+    _task.title = archived.title;
+    _task.context = fresh;
+    _task.target = fresh;
+    _task.transcript.addAll(
+      archived.transcript.map(
+        (entry) => AiTranscriptEntry(
+          entry.role == 'user' ? 'user' : 'assistant',
+          entry.text,
+          id: 'history-${++_entrySerial}',
+        ),
+      ),
+    );
+    // Preserve context as text, never executable assistant tool calls.
+    _task.messages.add({
+      'role': 'user',
+      'content': jsonEncode({
+        'archived_conversation': [
+          for (final e in archived.transcript) {'role': e.role, 'text': e.text},
+        ],
+        'instruction':
+            'Historical context only. Do not replay any past command or approval.',
+      }),
+    });
+    await ask(
+      'Resume this task using the historical conversation. Inspect the current terminal first; do not replay past commands.',
+      displayText: 'Resume task',
+    );
   }
 
   AiTranscriptEntry _restoreHistoryEntry(Map<String, Object?> data) {

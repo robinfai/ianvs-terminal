@@ -184,6 +184,8 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
           if (entry != null) await _review(entry);
         case 'ssh-settings':
           await widget.onConfigureTerminal?.call();
+        case 'ai-usage':
+          await _openUsage();
         case 'ai-settings':
           await _openSettings();
         case 'end':
@@ -396,6 +398,12 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
                           t('SSH connection settings', 'SSH 连接设置'),
                           Icons.settings_outlined,
                         ),
+                      if (owner.settings.usesGateway)
+                        choice(
+                          'ai-usage',
+                          t('AI quota and usage', 'AI 额度与用量'),
+                          Icons.account_balance_wallet_outlined,
+                        ),
                       choice(
                         'ai-settings',
                         t('AI connection', 'AI 连接'),
@@ -440,7 +448,7 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
   }
 
   List<AiTaskSummary> get _mobileMenuTasks {
-    final tasks = c.tasks;
+    final tasks = c.tasks.where((task) => task.started).toList();
     final positions = {for (var i = 0; i < tasks.length; i++) tasks[i].id: i};
     return tasks.toList()..sort((a, b) {
       if (a.id == b.id) return 0;
@@ -462,20 +470,9 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
     _refreshMobile(() => _mobileDetailsOpen = true);
     String? choice;
     try {
-      choice = await showModalBottomSheet<String>(
-        context: context,
-        isScrollControlled: true,
-        useSafeArea: true,
-        showDragHandle: true,
-        clipBehavior: Clip.antiAlias,
-        builder: (context) => Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.viewInsetsOf(context).bottom,
-          ),
-          child: FractionallySizedBox(
-            heightFactor: 0.92,
-            child: AiMobileHistorySheet(controller: owner),
-          ),
+      choice = await Navigator.of(context).push<String>(
+        MaterialPageRoute(
+          builder: (_) => AiMobileHistorySheet(controller: owner),
         ),
       );
     } finally {
@@ -505,7 +502,7 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
   }
 
   Widget _mobileTaskPicker({required Widget child}) {
-    if (Theme.of(context).platform == TargetPlatform.iOS) {
+    if (_useCompactMobile) {
       return Semantics(
         button: true,
         label: t('Conversation history', '历史会话'),
@@ -730,6 +727,7 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
   Widget _mobileComposer({bool short = false}) => ListenableBuilder(
     listenable: Listenable.merge([_input, _focus]),
     builder: (context, _) {
+      if (c.restoredHistory) return _historyResumeButton();
       final editing =
           _focus.hasFocus ||
           !_input.value.composing.isCollapsed ||
@@ -876,15 +874,25 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
                   horizontal: 16,
                   vertical: 8,
                 ),
-                child: Text(
-                  c.error == 'response_too_large'
-                      ? t(
-                          'The response reached the size limit. Ask for a shorter reply or fewer items at a time. Tell AI where to continue to avoid repeating earlier content.',
-                          '响应已达大小上限。请缩短回复或分批请求，并说明从哪里继续，避免重复已有内容。',
-                        )
-                      : aiErrorText(c.error!, zh),
-                  key: const Key('ai-mobile-recovery-message'),
-                  style: Theme.of(context).textTheme.bodySmall,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      c.error == 'response_too_large'
+                          ? t(
+                              'The response reached the size limit. Ask for a shorter reply or fewer items at a time. Tell AI where to continue to avoid repeating earlier content.',
+                              '响应已达大小上限。请缩短回复或分批请求，并说明从哪里继续，避免重复已有内容。',
+                            )
+                          : aiErrorText(c.error!, zh),
+                      key: const Key('ai-mobile-recovery-message'),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    if (c.error == 'quota_exceeded' && c.settings.usesGateway)
+                      TextButton(
+                        onPressed: _openUsage,
+                        child: Text(t('View quota and usage', '查看额度与用量')),
+                      ),
+                  ],
                 ),
               ),
             ),

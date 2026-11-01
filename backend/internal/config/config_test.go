@@ -12,6 +12,7 @@ import (
 const validLocalConfiguration = `{
   "schema_version": 1,
   "apple_client_ids": [],
+  "ai_gateway": null,
   "mode": "local",
   "address": "127.0.0.1:0",
   "database_driver": "sqlite",

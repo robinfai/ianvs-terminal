@@ -178,6 +178,7 @@ class AiTaskSummary {
     this.commandName = '',
     this.preview = '',
     this.visitOrder = 0,
+    this.started = false,
   });
   final String id;
   final String title;
@@ -195,6 +196,7 @@ class AiTaskSummary {
   final String commandName;
   final String preview;
   final int visitOrder;
+  final bool started;
 }
 
 class _AiDraftAttachment {
@@ -230,6 +232,7 @@ class _AiTask {
   int visitOrder = 0;
   String? historyId;
   bool restoredHistory = false;
+  String? historyCwd;
   final historySourceIds = <String>{};
   String title = '';
   String draft = '';
@@ -314,6 +317,7 @@ class TerminalAiController extends ChangeNotifier {
     AiActionReviewer? reviewer,
     this.onAgentEvent,
     this.maxSteps = 24,
+    this.profileId,
     this.defaultInputIntent = InputIntent.ai,
   }) : assert(maxSteps > 0, 'maxSteps must be positive'),
        api = api ?? const AiApiClient(),
@@ -335,6 +339,7 @@ class TerminalAiController extends ChangeNotifier {
   /// Hosts running long, supervised tasks may provide a larger turn budget.
   /// This never changes the requirement to approve each writing action.
   final int maxSteps;
+  final String? profileId;
   late final StreamSubscription<void> _inputSubscription;
   final _tasks = <_AiTask>[];
   late _AiTask _task;
@@ -400,6 +405,7 @@ class TerminalAiController extends ChangeNotifier {
         commandName: _taskCommandName(task),
         visitOrder: task.visitOrder,
         preview: task.displayPreview,
+        started: task.transcript.isNotEmpty,
       ),
     ),
   );
