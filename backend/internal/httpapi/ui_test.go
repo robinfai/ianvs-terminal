@@ -16,7 +16,7 @@ func TestEmbeddedWebUIRoutesDoNotShadowTheAPI(t *testing.T) {
 
 	root := request(t, handler, http.MethodGet, "/", nil, nil)
 	if root.Code != http.StatusOK ||
-		!strings.Contains(root.Body.String(), "Ianvs SSH Profile Vault") {
+		!strings.Contains(root.Body.String(), "<title>Ianvs 配置控制台</title>") {
 		t.Fatalf("root status = %d, body = %s", root.Code, root.Body.String())
 	}
 	if got := root.Header().Get("Content-Security-Policy"); !strings.Contains(got, "default-src 'self'") ||
