@@ -587,8 +587,24 @@ class _DelayedFramePtyBackend extends _CountingPtyBackend {
   }
 }
 
+void testDesktop(String description, WidgetTesterCallback callback) {
+  testWidgets(description, (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    try {
+      await callback(tester);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  // These lifecycle fixtures exercise desktop automatic session startup.
+  // Mobile startup is covered separately with an explicit platform override.
+  setUp(() => debugDefaultTargetPlatformOverride = TargetPlatform.macOS);
+  tearDown(() => debugDefaultTargetPlatformOverride = null);
 
   test(
     'runtime provider teardown retries a temporarily busy native close',
@@ -2530,7 +2546,7 @@ void main() {
     expect(tab.paneFor(rootSessionId)?.title, 'Deploy');
   });
 
-  testWidgets('terminal content preview follows active tab visible panes', (
+  testDesktop('terminal content preview follows active tab visible panes', (
     tester,
   ) async {
     final coreBindings = FakePtyBackend();
@@ -2649,7 +2665,7 @@ void main() {
     expect(published, hasLength(publishCount));
   });
 
-  testWidgets('nested SSH contexts reset observations and restore the parent', (
+  testDesktop('nested SSH contexts reset observations and restore the parent', (
     tester,
   ) async {
     final bindings = _EventfulPtyBackend(FakePtyBackend());
@@ -2914,7 +2930,7 @@ void main() {
     expect(pane().shellIntegration.currentDirectory, '/local');
   });
 
-  testWidgets(
+  testDesktop(
     'shell capabilities stay isolated across panes and reset with their session',
     (tester) async {
       final bindings = _EventfulPtyBackend(FakePtyBackend());
@@ -3015,7 +3031,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  testDesktop(
     'shell hook metadata updates per-session shell integration state',
     (tester) async {
       final bindings = _EventfulPtyBackend(FakePtyBackend());
@@ -3108,7 +3124,7 @@ void main() {
     },
   );
 
-  testWidgets('OSC 1337 mark and integration version update shell state', (
+  testDesktop('OSC 1337 mark and integration version update shell state', (
     tester,
   ) async {
     final bindings = _EventfulPtyBackend(FakePtyBackend());
@@ -3169,7 +3185,7 @@ void main() {
     expect(integration.recentCommands, isEmpty);
   });
 
-  testWidgets(
+  testDesktop(
     'OSC 1337 ReportVariable denies first then reports allowed product state',
     (tester) async {
       final fakeBackend = FakePtyBackend();
@@ -3270,7 +3286,7 @@ void main() {
     },
   );
 
-  testWidgets('frames without current global coordinates drop prompt marks', (
+  testDesktop('frames without current global coordinates drop prompt marks', (
     tester,
   ) async {
     final bindings = _EventfulPtyBackend(FakePtyBackend());
@@ -3324,7 +3340,7 @@ void main() {
     expect(marks, isEmpty);
   });
 
-  testWidgets('shell hook metadata switches to a matching profile', (
+  testDesktop('shell hook metadata switches to a matching profile', (
     tester,
   ) async {
     final defaultProfile = defaultTerminalProfile().copyWith(
@@ -3400,7 +3416,7 @@ void main() {
     expect(pane.shellIntegration.username, 'root');
   });
 
-  testWidgets('automatic profile switching restores the baseline profile', (
+  testDesktop('automatic profile switching restores the baseline profile', (
     tester,
   ) async {
     final defaultProfile = defaultTerminalProfile().copyWith(
@@ -3498,7 +3514,7 @@ void main() {
     expect(pane.shellIntegration.username, 'dev');
   });
 
-  testWidgets('automatic profile restore preserves split pane OSC metadata', (
+  testDesktop('automatic profile restore preserves split pane OSC metadata', (
     tester,
   ) async {
     final defaultProfile = defaultTerminalProfile().copyWith(
@@ -3643,7 +3659,7 @@ void main() {
     expect(pane.shellIntegration.username, 'dev');
   });
 
-  testWidgets(
+  testDesktop(
     'shell context ignores OSC metadata when shell integration is disabled',
     (tester) async {
       final baseProfile = defaultTerminalProfile();
@@ -3717,7 +3733,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  testDesktop(
     'shell context remote cwd does not trigger local directory profile switch',
     (tester) async {
       final localProfile = defaultTerminalProfile().copyWith(
@@ -3816,7 +3832,7 @@ void main() {
     },
   );
 
-  testWidgets('shell command scrolled-out zones evict prompt marks', (
+  testDesktop('shell command scrolled-out zones evict prompt marks', (
     tester,
   ) async {
     final bindings = _EventfulPtyBackend(FakePtyBackend());
@@ -3925,7 +3941,7 @@ void main() {
     expect(pane.shellIntegration.promptMarks.single.globalLine, 84);
   });
 
-  testWidgets('shell context user variables are allowlisted and capped', (
+  testDesktop('shell context user variables are allowlisted and capped', (
     tester,
   ) async {
     final bindings = _EventfulPtyBackend(FakePtyBackend());
@@ -3989,7 +4005,7 @@ void main() {
     expect(userVariables['IANVS_TEST'], isNot(contains('\u0007')));
   });
 
-  testWidgets(
+  testDesktop(
     'OSC notification metadata is bounded and duplicate bursts collapse',
     (tester) async {
       final bindings = _EventfulPtyBackend(FakePtyBackend());
@@ -4053,7 +4069,7 @@ void main() {
     },
   );
 
-  testWidgets('OSC 99 updates and closes a correlated notification', (
+  testDesktop('OSC 99 updates and closes a correlated notification', (
     tester,
   ) async {
     final bindings = _EventfulPtyBackend(FakePtyBackend());
@@ -4161,7 +4177,7 @@ void main() {
     expect(notifications, isEmpty);
   });
 
-  testWidgets(
+  testDesktop(
     'OSC 99 reports only current explicit notification interactions',
     (tester) async {
       final backend = FakePtyBackend();
@@ -4376,7 +4392,7 @@ void main() {
     },
   );
 
-  testWidgets('OSC 99 positive expiry removes product notification state', (
+  testDesktop('OSC 99 positive expiry removes product notification state', (
     tester,
   ) async {
     final backend = FakePtyBackend();
@@ -4459,7 +4475,7 @@ void main() {
     );
   });
 
-  testWidgets('RIS clears protocol session state and restores profile baseline', (
+  testDesktop('RIS clears protocol session state and restores profile baseline', (
     tester,
   ) async {
     final localProfile = defaultTerminalProfile().copyWith(
@@ -4670,7 +4686,7 @@ void main() {
     expect(pane.recentNotifications, isEmpty);
   });
 
-  testWidgets('OSC progress and badge metadata update pane state', (
+  testDesktop('OSC progress and badge metadata update pane state', (
     tester,
   ) async {
     final bindings = _EventfulPtyBackend(FakePtyBackend());
@@ -4829,7 +4845,7 @@ void main() {
     expect(pane.namedProgress, isEmpty);
   });
 
-  testWidgets(
+  testDesktop(
     'OSC indeterminate progress displays state instead of zero percent',
     (tester) async {
       final bindings = _EventfulPtyBackend(FakePtyBackend());

@@ -11,6 +11,7 @@ import 'package:app/features/recording/local_session_recording_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/sessions/session_state.dart';
 import 'package:app/platform/app_shutdown_coordinator.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
@@ -676,6 +677,11 @@ Future<_RecordingHarness> _createHarness({
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  // These lifecycle fixtures exercise desktop automatic session startup.
+  // Mobile startup is covered separately with an explicit platform override.
+  setUp(() => debugDefaultTargetPlatformOverride = TargetPlatform.macOS);
+  tearDown(() => debugDefaultTargetPlatformOverride = null);
 
   test(
     'start and stop save redacted current data outside relaunch intent',

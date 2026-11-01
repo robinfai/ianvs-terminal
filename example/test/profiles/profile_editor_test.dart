@@ -213,7 +213,7 @@ void main() {
       }
       expect(
         tester.getSize(_findByKey(const Key('profile-editor-save'))).height,
-        32,
+        36,
       );
       final shellFieldHeight = tester
           .getSize(_findByKey(const Key('profile-editor-shell')))
@@ -338,7 +338,7 @@ void main() {
         tester
             .getSize(_findByKey(const Key('profile-editor-fallback-1-remove')))
             .height,
-        32,
+        28,
       );
       await tester.tap(
         _findByKey(const Key('profile-editor-fallback-1-remove')),
