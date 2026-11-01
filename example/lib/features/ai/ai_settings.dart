@@ -89,15 +89,30 @@ class SecureAiConfigurationStore implements AiConfigurationStore {
 }
 
 class AiSettingsController extends ChangeNotifier {
-  AiSettingsController(this.store, {this.gatewayConfiguration}) {
+  AiSettingsController(this.store, {AiConfiguration? gatewayConfiguration}) {
+    _gatewayConfiguration = gatewayConfiguration;
     loaded = _load();
   }
   final AiConfigurationStore store;
   late final Future<void> loaded;
-  final AiConfiguration? gatewayConfiguration;
-  late final AiUsageController? usage = gatewayConfiguration == null
+  AiConfiguration? _gatewayConfiguration;
+  AiConfiguration? get gatewayConfiguration => _gatewayConfiguration;
+  AiUsageController? _usage;
+  AiUsageController? get usage => _usage ??= gatewayConfiguration == null
       ? null
       : AiUsageController(AiUsageClient(gatewayConfiguration!));
+
+  void updateGatewayConfiguration(AiConfiguration? value) {
+    if (_disposed ||
+        (_gatewayConfiguration?.hasSameValues(value) ?? value == null)) {
+      return;
+    }
+    _usage?.dispose();
+    _usage = null;
+    _gatewayConfiguration = value;
+    notifyListeners();
+  }
+
   AiConfiguration? _customConfiguration;
   AiConfiguration? get customConfiguration => _customConfiguration;
   AiConfiguration? get configuration =>
@@ -151,23 +166,36 @@ class AiSettingsController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
-    usage?.dispose();
+    _usage?.dispose();
     super.dispose();
   }
 }
 
+final aiConfigurationStoreProvider = Provider<AiConfigurationStore>(
+  (ref) => createAiConfigurationStore(),
+);
+
+AiConfiguration? _gatewayConfiguration(DataApiRuntime? runtime) =>
+    runtime?.canAccessResources == true
+    ? AiConfiguration(
+        endpoint: runtime!.baseUri.resolve('/v1/ai').toString(),
+        apiKey: runtime.resourceAccessToken!,
+        model: 'default',
+      )
+    : null;
+
 final aiSettingsProvider = Provider<AiSettingsController>((ref) {
-  final runtime = ref.watch(dataApiRuntimeProvider);
+  // Existing SSH/AI sessions retain this controller. Runtime refreshes must
+  // update it in place instead of leaving those sessions with a disposed copy.
   final controller = AiSettingsController(
-    createAiConfigurationStore(),
-    gatewayConfiguration: runtime?.canAccessResources == true
-        ? AiConfiguration(
-            endpoint: runtime!.baseUri.resolve('/v1/ai').toString(),
-            apiKey: runtime.resourceAccessToken!,
-            model: 'default',
-          )
-        : null,
+    ref.read(aiConfigurationStoreProvider),
+    gatewayConfiguration: _gatewayConfiguration(
+      ref.read(dataApiRuntimeProvider),
+    ),
   );
+  ref.listen<DataApiRuntime?>(dataApiRuntimeProvider, (_, runtime) {
+    controller.updateGatewayConfiguration(_gatewayConfiguration(runtime));
+  });
   ref.onDispose(controller.dispose);
   return controller;
 });
