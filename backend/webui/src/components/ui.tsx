@@ -9,7 +9,7 @@ import {
   type TextareaHTMLAttributes,
 } from 'react'
 
-export function Spinner({ label = 'Loading' }: { label?: string }) {
+export function Spinner({ label = '正在加载' }: { label?: string }) {
   return (
     <span className="spinner" role="status" aria-label={label}>
       <span className="spinner__ring" aria-hidden="true" />
@@ -39,7 +39,7 @@ export function Button({
       aria-busy={busy || undefined}
       {...rest}
     >
-      {busy ? <Spinner label="Working" /> : icon}
+      {busy ? <Spinner label="正在处理" /> : icon}
       {children}
     </button>
   )
@@ -68,12 +68,12 @@ function FieldBase({ label, hint, error, required, children }: FieldBaseProps) {
             <span aria-hidden="true" className="field__required">
               *
             </span>
-            <span className="sr-only">(required)</span>
+            <span className="sr-only">（必填）</span>
           </>
         ) : null}
       </label>
       {children(id, describedBy)}
-      {hint && !error ? (
+      {hint ? (
         <p id={hintId} className="field__hint">
           {hint}
         </p>
@@ -267,7 +267,8 @@ export function EmptyState({
 }
 
 const FOCUSABLE_SELECTOR =
-  'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+  'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
+const dialogStack: string[] = []
 
 export function Dialog({
   open,
@@ -284,23 +285,29 @@ export function Dialog({
 }) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const previouslyFocused = useRef<HTMLElement | null>(null)
+  const titleId = useId()
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
 
   useEffect(() => {
     if (!open) return
     previouslyFocused.current = document.activeElement as HTMLElement | null
     const dialog = dialogRef.current
-    const first = dialog?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
-    first?.focus()
+    dialogStack.push(titleId)
+    const first = dialog?.querySelector<HTMLElement>('[data-dialog-initial-focus]') ?? dialog?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)
+    ;(first ?? dialog)?.focus()
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (dialogStack[dialogStack.length - 1] !== titleId) return
       if (event.key === 'Escape') {
         event.preventDefault()
-        onClose()
+        closeRef.current()
         return
       }
       if (event.key !== 'Tab' || !dialog) return
-      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
-      if (focusable.length === 0) return
+      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(el => el.getClientRects().length > 0 && el.tabIndex >= 0)
+      if (focusable.length === 0) { event.preventDefault(); dialog.focus(); return }
+      if (!dialog.contains(document.activeElement)) { event.preventDefault(); focusable[0].focus(); return }
       const firstEl = focusable[0]
       const lastEl = focusable[focusable.length - 1]
       if (event.shiftKey && document.activeElement === firstEl) {
@@ -314,9 +321,11 @@ export function Dialog({
     document.addEventListener('keydown', handleKeyDown)
     return () => {
       document.removeEventListener('keydown', handleKeyDown)
-      previouslyFocused.current?.focus()
+      const index = dialogStack.indexOf(titleId)
+      if (index !== -1) dialogStack.splice(index, 1)
+      if (previouslyFocused.current?.isConnected) previouslyFocused.current.focus()
     }
-  }, [open, onClose])
+  }, [open, titleId])
 
   if (!open) return null
 
@@ -326,13 +335,14 @@ export function Dialog({
         className="dialog"
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-labelledby={titleId}
+        tabIndex={-1}
         ref={dialogRef}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className="dialog__header">
-          <h2 className="dialog__title">{title}</h2>
-          <button type="button" className="icon-button" aria-label={`Close ${title}`} onClick={onClose}>
+          <h2 id={titleId} className="dialog__title">{title}</h2>
+          <button type="button" className="icon-button" aria-label={`关闭${title}`} onClick={onClose}>
             ✕
           </button>
         </header>

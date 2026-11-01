@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test:unit": "node --test --experimental-strip-types test/*.test.ts",
     "preview": "vite preview",
-    "test:e2e": "playwright test --config e2e/playwright.config.ts"
+    "test:e2e": "playwright test --config e2e/playwright.config.ts",
+    "test:ui": "playwright test --config e2e/ui.config.ts"
   },
   "dependencies": {
     "react": "^18.3.1",

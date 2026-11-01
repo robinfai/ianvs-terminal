@@ -217,15 +217,15 @@ function KeyPromptDialog({
   return (
     <Dialog
       open
-      title="Encryption key required"
+      title="提供数据密钥"
       onClose={onCancel}
       footer={
         <>
           <Button type="submit" variant="primary" form="key-prompt-form" busy={busy}>
-            Unlock
+            继续本地操作
           </Button>
           <Button type="button" onClick={onCancel}>
-            Cancel
+            取消
           </Button>
         </>
       }
@@ -238,15 +238,15 @@ function KeyPromptDialog({
           if (value.length > 0) onSubmit(value)
         }}
       >
-        <p className="secondary">{reason}</p>
+        <p className="secondary">{reason.includes("Modifying") ? "改写现有敏感配置前，需要在本地解密并重新加密。" : reason.includes("Saving") ? "保存敏感配置前，需要使用数据密钥在本地加密。" : "此操作需要数据密钥。解密是否成功将在实际操作时校验；密钥不会上传服务器。"}</p>
         <TextField
-          label="Encryption key"
+          label="数据密钥"
           type="password"
           value={value}
           onChange={(event) => setValue(event.target.value)}
           autoComplete="off"
           required
-          hint="Your client-owned data key. It stays in memory until refresh, sign out or forget."
+          hint="仅保存在本页内存，刷新、退出或忘记后清除。输入密钥不代表已经校验成功。"
         />
         {error ? (
           <Notice tone="error" role="alert">

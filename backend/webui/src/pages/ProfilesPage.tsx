@@ -30,10 +30,10 @@ import {
 import type { ResourceWrite } from '../types'
 
 const AUTH_LABELS: Record<SshAuthMethod, string> = {
-  auto: 'Auto',
-  password: 'Password',
-  public_key: 'Public key',
-  keyboard_interactive: 'Keyboard interactive',
+  auto: '自动',
+  password: '密码',
+  public_key: '公钥',
+  keyboard_interactive: '键盘交互',
 }
 
 const AUTH_OPTIONS: SshAuthMethod[] = ['auto', 'password', 'public_key', 'keyboard_interactive']
@@ -71,6 +71,7 @@ export function ProfilesPage() {
   const [editor, setEditor] = useState<{ mode: 'create' } | { mode: 'edit'; profile: SshProfile } | null>(null)
   const [deleting, setDeleting] = useState<SshProfile | null>(null)
   const [saving, setSaving] = useState(false)
+  const [feedback, setFeedback] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     if (!session.client) return
@@ -104,6 +105,7 @@ export function ProfilesPage() {
       const makeClient = (key?: string) =>
         new DataApiClient({ baseUrl: session.baseUrl, token, key })
       setSaving(true)
+      setFeedback(null)
       setError(null)
       try {
         // Load the freshest state. A collection that already holds encrypted
@@ -130,7 +132,7 @@ export function ProfilesPage() {
         }
         if (sensitive) {
           const key = await session.requestKey(
-            'Modifying the SSH profile collection requires the encryption key to re-encrypt the existing secrets.',
+            '修改配置集合需要数据密钥，以重新加密并保留已有敏感字段。密钥不会发送到服务器。',
           )
           if (!key) return false
           keyValue = key
@@ -147,7 +149,7 @@ export function ProfilesPage() {
         // requires the key so this client can encrypt before upload.
         if (sensitiveEnvelope && !keyValue) {
           const key = await session.requestKey(
-            'Saving SSH profile secrets requires the encryption key.',
+            '保存敏感字段需要数据密钥，仅在当前浏览器中用于加密。',
           )
           if (!key) return false
           keyValue = key
@@ -165,9 +167,9 @@ export function ProfilesPage() {
       } catch (err) {
         if (err instanceof SensitiveDataAuthenticationError) {
           session.clearKey()
-          setError('The encryption key is invalid. Enter the correct key and try again.')
+          setError('无法解密：密钥不匹配或数据已损坏。请确认密钥后重试，原数据未修改。')
         } else if (err instanceof ApiError && err.code === 'revision_conflict') {
-          setError('The profile collection changed on the server. Reload and try again.')
+          setError('服务器配置已更新，本次修改尚未保存。请保留当前输入，关闭编辑后刷新并核对最新版本。')
         } else {
           setError(err instanceof Error ? err.message : String(err))
         }
@@ -179,7 +181,7 @@ export function ProfilesPage() {
     [session],
   )
 
-  const openCreate = () => setEditor({ mode: 'create' })
+  const openCreate = () => { setError(null); setEditor({ mode: 'create' }) }
 
   const handleSave = async (values: FormValues) => {
     let ok = false
@@ -187,7 +189,7 @@ export function ProfilesPage() {
       const original = editor.profile
       ok = await mutate((current) => {
         const target = current.profiles.find((profile) => profile.id === original.id)
-        if (!target || !isSshProfile(target)) return null
+        if (!target || !isSshProfile(target)) throw new Error('此配置已被其他客户端删除，请关闭编辑并刷新列表。')
         const updated: SshProfile = {
           ...target,
           name: values.name.trim(),
@@ -210,18 +212,19 @@ export function ProfilesPage() {
         return { ...current, profiles: [...current.profiles, profile] }
       })
     }
-    if (ok) setEditor(null)
+    if (ok) { setEditor(null); setFeedback('配置已保存。敏感字段仅以加密形式提交。') }
   }
 
   const handleDelete = async (profile: SshProfile) => {
     const ok = await mutate((current) => {
-      if (!current.profiles.some((item) => item.id === profile.id)) return null
+      if (!current.profiles.some((item) => item.id === profile.id)) throw new Error('此配置已不存在，请关闭确认框并刷新列表。')
       return { ...current, profiles: current.profiles.filter((item) => item.id !== profile.id) }
     })
-    if (ok) setDeleting(null)
+    if (ok) { setDeleting(null); setFeedback('配置已删除。其他客户端将在同步后更新。') }
   }
 
   const openView = (profile: SshProfile) => {
+    setError(null)
     setView({ profile, secrets: null })
   }
 
@@ -230,7 +233,7 @@ export function ProfilesPage() {
     setDecrypting(true)
     setError(null)
     try {
-      const key = await session.requestKey('Decrypt the SSH profile secrets for this collection.')
+      const key = await session.requestKey('在当前浏览器中解密此配置的敏感字段。数据密钥不会发送到服务器。')
       if (!key) return
       const client = new DataApiClient({ baseUrl: session.baseUrl, token: session.token ?? '', key })
       const resource = await client.getResource('profile', 'default', true)
@@ -242,7 +245,7 @@ export function ProfilesPage() {
     } catch (err) {
       if (err instanceof SensitiveDataAuthenticationError) {
         session.clearKey()
-        setError('The encryption key is invalid. Enter the correct key and try again.')
+        setError('无法解密：密钥不匹配或数据已损坏。请确认密钥后重试，原数据未修改。')
       } else {
         setError(err instanceof Error ? err.message : String(err))
       }
@@ -257,18 +260,18 @@ export function ProfilesPage() {
     <div className="page">
       <header className="page__header">
         <div>
-          <h1 className="page__title">SSH Profiles</h1>
+          <h1 className="page__title">SSH 配置</h1>
           <p className="page__subtitle">
-            Manage the SSH profiles in this encrypted vault. Secrets stay locked until you choose
-            to decrypt them.
+            管理自己的 SSH 连接。名称、主机等普通字段可见；密码和私钥在浏览器中加密，按需解密。
           </p>
         </div>
         <div className="page__actions">
           <Badge tone={session.key ? 'success' : 'warning'}>
-            {session.key ? 'Key ready' : 'Key asked on demand'}
+            {session.key ? '密钥已暂存 · 由实际解密验证' : '敏感操作时索取密钥'}
           </Badge>
-          <Button variant="primary" onClick={openCreate}>
-            New profile
+          <Button onClick={() => void load()} disabled={loading || saving}>刷新</Button>
+          <Button variant="primary" onClick={openCreate} disabled={loading || !document}>
+            新建配置
           </Button>
         </div>
       </header>
@@ -279,26 +282,30 @@ export function ProfilesPage() {
         </Notice>
       ) : null}
 
+      {feedback ? <Notice tone="success" role="status">{feedback}</Notice> : null}
+
       {loading ? (
         <div className="row">
           <Spinner />
-          <span className="secondary">Loading profiles…</span>
+          <span className="secondary">正在加载配置…</span>
         </div>
+      ) : !document && error ? (
+        <EmptyState title="无法加载配置" description="请检查连接后重试；不会覆盖已有数据。" action={<Button onClick={() => void load()}>重新加载</Button>} />
       ) : profiles.length === 0 ? (
         <EmptyState
-          title="No SSH profiles"
-          description="Profiles are stored as one synced document. Create your first profile with the “New profile” button above."
+          title="还没有 SSH 配置"
+          description="配置保存在同一份同步文档中。点击「新建配置」添加第一台主机。"
         />
       ) : (
         <div className="table-wrapper card">
           <table className="table">
             <thead>
               <tr>
-                <th scope="col">Name</th>
-                <th scope="col">Target</th>
-                <th scope="col">Auth</th>
+                <th scope="col">名称</th>
+                <th scope="col">连接目标</th>
+                <th scope="col">认证方式</th>
                 <th scope="col">
-                  <span className="sr-only">Actions</span>
+                  <span className="sr-only">操作</span>
                 </th>
               </tr>
             </thead>
@@ -317,10 +324,10 @@ export function ProfilesPage() {
                   </td>
                   <td>
                     <div className="row">
-                      <Button onClick={() => openView(profile)}>View</Button>
-                      <Button onClick={() => setEditor({ mode: 'edit', profile })}>Edit</Button>
-                      <Button variant="danger" onClick={() => setDeleting(profile)}>
-                        Delete
+                      <Button onClick={() => openView(profile)}>查看</Button>
+                      <Button onClick={() => { setError(null); setEditor({ mode: 'edit', profile }) }}>编辑</Button>
+                      <Button variant="danger" onClick={() => { setError(null); setDeleting(profile) }}>
+                        删除
                       </Button>
                     </div>
                   </td>
@@ -334,6 +341,7 @@ export function ProfilesPage() {
       {view ? (
         <ProfileViewDialog
           view={view}
+          error={error}
           hasSensitive={hasSensitive}
           decrypting={decrypting}
           onDecrypt={decryptSecrets}
@@ -347,6 +355,7 @@ export function ProfilesPage() {
 
       {editor ? (
         <ProfileEditor
+          requestError={error}
           mode={editor.mode}
           profile={editor.mode === 'edit' ? editor.profile : undefined}
           saving={saving}
@@ -357,6 +366,7 @@ export function ProfilesPage() {
 
       {deleting ? (
         <DeleteConfirm
+          error={error}
           profile={deleting}
           saving={saving}
           onCancel={() => setDeleting(null)}
@@ -417,6 +427,7 @@ function looksLikePrivateKeyContents(value: string): boolean {
 }
 
 function ProfileViewDialog({
+  error,
   view,
   hasSensitive,
   decrypting,
@@ -424,6 +435,7 @@ function ProfileViewDialog({
   onClose,
   onEdit,
 }: {
+  error: string | null
   view: ViewState
   hasSensitive: boolean
   decrypting: boolean
@@ -441,27 +453,28 @@ function ProfileViewDialog({
       footer={
         <>
           <Button variant="secondary" onClick={onEdit}>
-            Edit
+            编辑
           </Button>
-          <Button onClick={onClose}>Close</Button>
+          <Button onClick={onClose}>关闭</Button>
         </>
       }
     >
+      {error ? <Notice tone="error" role="alert">{error}</Notice> : null}
       <dl className="kv-list">
         <div className="kv">
-          <dt>Host</dt>
+          <dt>主机地址</dt>
           <dd className="mono break-word">{connection.host || '—'}</dd>
         </div>
         <div className="kv">
-          <dt>User</dt>
+          <dt>SSH 用户名</dt>
           <dd>{connection.user || '—'}</dd>
         </div>
         <div className="kv">
-          <dt>Port</dt>
+          <dt>端口</dt>
           <dd>{connection.port}</dd>
         </div>
         <div className="kv">
-          <dt>Auth</dt>
+          <dt>认证方式</dt>
           <dd>
             <Badge tone="info">{AUTH_LABELS[connection.auth] ?? connection.auth}</Badge>
           </dd>
@@ -473,32 +486,32 @@ function ProfileViewDialog({
           {hasSensitive ? (
             <div className="row">
               <Button onClick={onDecrypt} busy={decrypting}>
-                Decrypt secrets
+                解密敏感字段
               </Button>
               <span className="muted profile-secret-hint">
-                The collection holds encrypted secrets. You will be asked for the encryption key.
+                此集合含加密字段，查看时按需索取数据密钥。
               </span>
             </div>
           ) : (
-            <Notice tone="info">No encrypted secrets are stored for this collection.</Notice>
+            <Notice tone="info">此配置集合没有加密字段。</Notice>
           )}
         </div>
       ) : (
         <dl className="kv-list">
           <div className="kv">
-            <dt>Private key</dt>
+            <dt>私钥</dt>
             <dd>
               {secrets.privateKeys?.length
-                ? `${secrets.privateKeys.length} encrypted key${secrets.privateKeys.length === 1 ? '' : 's'} stored`
+                ? `已保存 ${secrets.privateKeys.length} 个私钥`
                 : '—'}
             </dd>
           </div>
           <div className="kv">
-            <dt>Password</dt>
+            <dt>密码</dt>
             <dd className="mono break-word">{secrets.password ?? '—'}</dd>
           </div>
           <div className="kv">
-            <dt>Passphrase</dt>
+            <dt>私钥口令</dt>
             <dd className="mono break-word">{secrets.privateKeyPassphrase ?? '—'}</dd>
           </div>
           <div className="kv">
@@ -512,12 +525,14 @@ function ProfileViewDialog({
 }
 
 function ProfileEditor({
+  requestError,
   mode,
   profile,
   saving,
   onSave,
   onClose,
 }: {
+  requestError: string | null
   mode: 'create' | 'edit'
   profile?: SshProfile
   saving: boolean
@@ -552,14 +567,14 @@ function ProfileEditor({
 
     setError(null)
     if (file.size > MAX_PRIVATE_KEY_BYTES) {
-      setError('Private key files must be 64 KB or smaller.')
+      setError('私钥文件不能超过 64 KB。')
       input.value = ''
       return
     }
     try {
       const contents = (await file.text()).trim()
       if (!looksLikePrivateKeyContents(contents)) {
-        setError('Select a supported SSH private key, not a public key file.')
+        setError('请选择支持的 SSH 私钥文件，不是公钥文件。')
         input.value = ''
         return
       }
@@ -570,7 +585,7 @@ function ProfileEditor({
         clearPrivateKeys: false,
       }))
     } catch {
-      setError('The selected private key could not be read.')
+      setError('无法读取所选私钥，请重新选择文件。')
       input.value = ''
     }
   }
@@ -579,15 +594,15 @@ function ProfileEditor({
     event.preventDefault()
     setError(null)
     if (!values.name.trim()) {
-      setError('Enter a profile name.')
+      setError('请输入配置名称。')
       return
     }
     if (!values.host.trim()) {
-      setError('Enter the SSH host.')
+      setError('请输入 SSH 主机地址。')
       return
     }
     if (!values.user.trim()) {
-      setError('Enter the SSH user.')
+      setError('请输入 SSH 用户名。')
       return
     }
     if (
@@ -595,7 +610,13 @@ function ProfileEditor({
       values.privateKeyContents === null &&
       (mode === 'create' || values.clearPrivateKeys)
     ) {
-      setError('Select a private key file for public key authentication.')
+      setError('使用公钥认证时，请选择私钥文件。')
+      return
+    }
+    if (saving) return
+    const port = Number(values.port)
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      setError('端口必须是 1–65535 之间的整数。')
       return
     }
     onSave(values)
@@ -606,45 +627,49 @@ function ProfileEditor({
   return (
     <Dialog
       open
-      title={isEdit ? `Edit profile — ${profile?.name}` : 'New SSH profile'}
-      onClose={onClose}
+      title={isEdit ? `编辑配置 · ${profile?.name}` : '新建 SSH 配置'}
+      onClose={() => { if (!saving) onClose() }}
       footer={
         <>
           <Button type="submit" variant="primary" form="profile-editor-form" busy={saving}>
-            Save
+            保存
           </Button>
           <Button type="button" onClick={onClose} disabled={saving}>
-            Cancel
+            取消
           </Button>
         </>
       }
     >
       <form id="profile-editor-form" className="stack" onSubmit={submit}>
+        {requestError ? <Notice tone="error" role="alert">{requestError}</Notice> : null}
         <div className="form-grid">
           <TextField
-            label="Name"
+            label="名称"
             value={values.name}
             onChange={(event) => update('name', event.target.value)}
             placeholder="Production"
             required
           />
           <TextField
-            label="Host"
+            label="主机地址"
             value={values.host}
             onChange={(event) => update('host', event.target.value)}
             placeholder="prod.example.com"
             required
           />
           <TextField
-            label="User"
+            label="SSH 用户名"
             value={values.user}
             onChange={(event) => update('user', event.target.value)}
             placeholder="root"
             required
           />
           <TextField
-            label="Port"
+            label="端口"
             type="number"
+            min={1}
+            max={65535}
+            step={1}
             value={values.port}
             onChange={(event) => update('port', event.target.value)}
             placeholder="22"
@@ -652,7 +677,7 @@ function ProfileEditor({
           />
         </div>
         <SelectField
-          label="Auth method"
+          label="认证方式"
           value={values.auth}
           onChange={(event) => update('auth', event.target.value as SshAuthMethod)}
         >
@@ -664,59 +689,59 @@ function ProfileEditor({
         </SelectField>
         <TextField
           key={`${values.privateKeyFileName ?? 'none'}-${values.clearPrivateKeys}`}
-          label="Private key file"
+          label="私钥文件"
           type="file"
           onChange={selectPrivateKey}
           disabled={saving}
           hint={
             values.privateKeyFileName
-              ? `Selected: ${values.privateKeyFileName}. Only its contents will be encrypted and saved.`
+              ? `已选择：${values.privateKeyFileName}。内容将在本机加密后保存。`
               : isEdit
-                ? 'Choose a file to replace the stored key. Otherwise the encrypted key is preserved.'
-                : 'The browser exposes the file name, not its local path. Only the key contents are encrypted and saved.'
+                ? '选择文件会替换已有私钥；不选择则保留已有加密私钥。'
+                : '浏览器只显示文件名，不读取路径。私钥内容在本机加密后保存。'
           }
         />
         <div className="form-grid">
           <TextField
-            label="Password"
+            label="密码"
             type="password"
             value={values.password}
-            onChange={(event) => update('password', event.target.value)}
+            onChange={(event) => setValues(current => ({ ...current, password: event.target.value, clearPassword: false }))}
             autoComplete="new-password"
             hint={
               isEdit
-                ? 'Leave blank to keep the stored value; tick “Clear” to remove it.'
-                : 'Optional. Encrypted with your data key.'
+                ? '留空保留原值；勾选下方清除选项才会删除。'
+                : '选填，使用你的数据密钥加密。'
             }
           />
           <TextField
-            label="Key passphrase"
+            label="私钥口令"
             type="password"
             value={values.privateKeyPassphrase}
-            onChange={(event) => update('privateKeyPassphrase', event.target.value)}
+            onChange={(event) => setValues(current => ({ ...current, privateKeyPassphrase: event.target.value, clearPrivateKeyPassphrase: false }))}
             autoComplete="new-password"
             hint={
               isEdit
-                ? 'Leave blank to keep the stored value; tick “Clear” to remove it.'
-                : 'Optional. Encrypted with your data key.'
+                ? '留空保留原值；勾选下方清除选项才会删除。'
+                : '选填，使用你的数据密钥加密。'
             }
           />
         </div>
         {isEdit ? (
           <div className="form-grid">
             <CheckboxField
-              label="Clear stored password"
+              label="清除已存密码"
               checked={values.clearPassword}
-              onChange={(value) => update('clearPassword', value)}
+              onChange={(value) => setValues(current => ({ ...current, clearPassword: value, password: value ? '' : current.password }))}
             />
             <CheckboxField
-              label="Clear stored passphrase"
+              label="清除已存私钥口令"
               checked={values.clearPrivateKeyPassphrase}
-              onChange={(value) => update('clearPrivateKeyPassphrase', value)}
+              onChange={(value) => setValues(current => ({ ...current, clearPrivateKeyPassphrase: value, privateKeyPassphrase: value ? '' : current.privateKeyPassphrase }))}
             />
             <CheckboxField
-              label="Clear stored private key"
-              hint="The key remains stored unless you select a replacement or clear it."
+              label="清除已存私钥"
+              hint="除非选择替换文件或明确清除，否则保留已有私钥。"
               checked={values.clearPrivateKeys}
               onChange={(value) => {
                 setValues((current) => ({
@@ -740,11 +765,13 @@ function ProfileEditor({
 }
 
 function DeleteConfirm({
+  error,
   profile,
   saving,
   onCancel,
   onConfirm,
 }: {
+  error: string | null
   profile: SshProfile
   saving: boolean
   onCancel: () => void
@@ -753,22 +780,22 @@ function DeleteConfirm({
   return (
     <Dialog
       open
-      title="Delete profile"
-      onClose={onCancel}
+      title="删除配置"
+      onClose={() => { if (!saving) onCancel() }}
       footer={
         <>
           <Button variant="danger" onClick={onConfirm} busy={saving}>
-            Delete
+            删除
           </Button>
-          <Button onClick={onCancel} disabled={saving}>
-            Cancel
+          <Button data-dialog-initial-focus onClick={onCancel} disabled={saving}>
+            取消
           </Button>
         </>
       }
     >
+      {error ? <Notice tone="error" role="alert">{error}</Notice> : null}
       <p>
-        Delete SSH profile <strong>{profile.name}</strong>? Any encrypted secrets it holds are
-        removed with it.
+        确定删除 SSH 配置 <strong>{profile.name}</strong>？该配置的加密字段也会删除，并随同步传播。此操作无法在控制台撤销。
       </p>
     </Dialog>
   )
