@@ -137,6 +137,7 @@ func (a *API) health(w http.ResponseWriter, r *http.Request) {
 		"status":    "ok",
 		"mode":      a.cfg.Mode,
 		"server_id": a.store.ServerID(),
+		"apple_web": a.cfg.AppleWeb,
 		"time":      time.Now().UTC(),
 	})
 }
@@ -607,6 +608,9 @@ func (a *API) withSecurityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("Content-Security-Policy", "default-src 'self'; connect-src 'self'; img-src 'self'; script-src 'self'; style-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
+		if a.cfg.Mode == config.ModeRemote && a.cfg.AppleWeb != nil && isWebUIRequest(r) {
+			w.Header().Set("Content-Security-Policy", "default-src 'self'; connect-src 'self'; img-src 'self'; script-src 'self' https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js; style-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
+		}
 		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.Header().Set("X-Content-Type-Options", "nosniff")

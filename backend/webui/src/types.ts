@@ -2,7 +2,13 @@
 
 export type Mode = 'local' | 'remote'
 
+export interface AppleWebConfig {
+  client_id: string
+  redirect_uri: string
+}
+
 export interface Health {
+  apple_web?: AppleWebConfig | null
   status: 'ok'
   mode: Mode
   server_id: string

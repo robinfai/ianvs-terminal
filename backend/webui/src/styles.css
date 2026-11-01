@@ -1265,3 +1265,8 @@ body { overflow-wrap: break-word; }
 .page-stack > .button, .card__body .stack > .button { align-self: flex-start; }
 .main:focus { outline: none; }
 @media (max-width: 40rem) { .metric-grid { grid-template-columns: minmax(0, 1fr); } }
+
+.apple-signin { padding-block-end: var(--space-4, 1rem); margin-block-end: var(--space-4, 1rem); border-bottom: 1px solid var(--border); }
+/* Apple's monochrome sign-in treatment, independent of the console accent. */
+.apple-signin__button { background: #000; color: #fff; border: 1px solid #888; width: 100%; min-height: 44px; }
+.apple-signin__button:hover:not(:disabled) { background: #222; color: #fff; }

@@ -253,6 +253,13 @@ paths:
                   status: {type: string, const: ok}
                   mode: {type: string, enum: [local, remote]}
                   server_id: {type: string}
+                  apple_web:
+                    type: [object, 'null']
+                    description: Public Sign in with Apple JS configuration; null when web login is disabled.
+                    required: [client_id, redirect_uri]
+                    properties:
+                      client_id: {type: string}
+                      redirect_uri: {type: string, format: uri}
                   time: {type: string, format: date-time}
         '401': {$ref: '#/components/responses/LocalAccessDenied'}
         '403': {$ref: '#/components/responses/LocalOnly'}

@@ -97,6 +97,14 @@ export class DataApiClient {
     return this.request<Health>('GET', '/healthz')
   }
 
+  appleChallenge(): Promise<{ nonce: string }> {
+    return this.request('POST', '/v1/auth/apple/challenge', { body: {} })
+  }
+
+  beginApple(identityToken: string, nonce: string, username = '', password = ''): Promise<PreparedAuthOperation> {
+    return this.request('POST', '/v1/auth/apple/begin', { body: { identity_token: identityToken, nonce, username, password } })
+  }
+
   beginRegister(username: string, password: string): Promise<PreparedAuthOperation> {
     return this.request('POST', '/v1/auth/register/begin', {
       body: { username, password },

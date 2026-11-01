@@ -2,7 +2,8 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { ApiError, DataApiClient } from '../api/client'
 import { useSession } from '../state/SessionContext'
 import { Badge, Button, Dialog, Notice, Spinner, TextField } from '../components/ui'
-import type { Mode } from '../types'
+import { AppleSignIn } from '../components/AppleSignIn'
+import type { AppleWebConfig, Mode } from '../types'
 
 function errorMessage(error: unknown): string {
   if (!(error instanceof ApiError)) return '无法确认请求结果，请检查连接后重试。'
@@ -20,10 +21,11 @@ export function ConnectPage() {
   const session = useSession()
   const [mode, setMode] = useState<Mode | 'detecting' | 'error'>('detecting')
   const [error, setError] = useState<string | null>(null)
+  const [appleWeb, setAppleWeb] = useState<AppleWebConfig | null>(null)
   const [recovery, setRecovery] = useState(false)
   const detect = async () => {
     setMode('detecting'); setError(null)
-    try { setMode((await new DataApiClient({ baseUrl: session.baseUrl }).health()).mode) }
+    try { const health = await new DataApiClient({ baseUrl: session.baseUrl }).health(); setMode(health.mode); setAppleWeb(health.apple_web ?? null) }
     catch (err) {
       // The existing local service protects health with its sidecar token.
       if (err instanceof ApiError && (err.status === 401 || err.status === 403)) setMode('local')
@@ -37,6 +39,7 @@ export function ConnectPage() {
       <div className="terminal-login__body">
         <div className="terminal-login__intro"><p className="terminal-line">连接你的工作空间</p><h1 id="login-title">登录 Ianvs</h1><p>管理 SSH 配置与账户会话。登录无需数据密钥，敏感内容在需要时于本地解锁。</p></div>
         {mode === 'detecting' && <div className="row"><Spinner label="正在连接服务" /><span>正在检查服务…</span></div>}
+        {mode === 'remote' && appleWeb && <AppleSignIn config={appleWeb} />}
         {mode === 'remote' && <RemoteAccess baseUrl={session.baseUrl} />}
         {mode === 'local' && <LocalForm />}
         {mode === 'error' && <div className="stack"><Notice tone="error" role="alert">{error}</Notice><Button onClick={detect}>重新连接</Button></div>}
