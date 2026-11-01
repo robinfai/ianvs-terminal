@@ -143,6 +143,44 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('mobile Escape backs out one level before dismissing', (tester) async {
+    await pump(tester, AppMenuButton(tooltip: 'Actions', entries: [
+      AppMenuEntry(label: 'Split', children: [
+        AppMenuEntry(label: 'Horizontally', onSelected: () {}),
+      ]),
+    ]), platform: TargetPlatform.iOS, size: const Size(375, 667));
+    await tester.tap(find.byTooltip('Actions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Split'));
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.text('Horizontally'), findsNothing);
+    expect(find.byType(BottomSheet), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.byType(BottomSheet), findsNothing);
+  });
+
+  testWidgets('disabling a desktop trigger closes its open menu', (tester) async {
+    late StateSetter rebuild;
+    var enabled = true;
+    await pump(tester, StatefulBuilder(builder: (context, setState) {
+      rebuild = setState;
+      return AppMenuButton(tooltip: 'Actions', enabled: enabled, entries: [
+        AppMenuEntry(label: 'Execute', onSelected: () {}),
+        const AppMenuEntry(label: 'Disabled submenu', enabled: false,
+          children: [AppMenuEntry(label: 'Unavailable')]),
+      ]);
+    }));
+    await tester.tap(find.byTooltip('Actions'));
+    await tester.pumpAndSettle();
+    expect(tester.widget<SubmenuButton>(find.byType(SubmenuButton)).menuChildren, isEmpty);
+    rebuild(() => enabled = false);
+    await tester.pumpAndSettle();
+    expect(find.text('Execute'), findsNothing);
+  });
+
   testWidgets('edge anchored submenu remains in viewport', (tester) async {
     await pump(tester, Align(alignment: Alignment.bottomRight,
       child: AppMenuButton(tooltip: 'Actions', entries: [

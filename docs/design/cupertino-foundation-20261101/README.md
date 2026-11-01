@@ -1,9 +1,9 @@
 # Cupertino / Material foundation — implementation handoff
 
-Status: source implementation prepared; **not runtime-validated or deployed**.
+Status: source implementation pushed with user authorization; **CI validation in progress, not deployed**.
 Base: `967bd3a0cd2c262a85aae8ac86f7b73e933fa058`.
 Branch: `feature/cupertino-material-foundation`.
-No Flutter source push, PR, merge, design package publication, or product deployment was performed.
+User authorized the independent branch push and preview CI on 2026-11-01. Initial commit: `17d5a417a3198d9c42d89efe68530bebf9d4f1d8`; initial run: https://github.com/robinfai/ianvs-terminal/actions/runs/41291965564 . No PR, merge, design package publication or product deployment was performed.
 
 ## Design contract
 
@@ -83,7 +83,7 @@ Prepared, **not executed**:
 
 Not performed: Dart analyzer/formatter, Flutter compilation, widget execution, browser QA/screenshots, VoiceOver/TalkBack, iOS/macOS real-device acceptance, pixel/contrast remeasurement, private deployment. Static parsing does not prove Dart type correctness or runtime behavior.
 
-## Exact blocker
+## Local SDK blocker and CI continuation
 
 The environment initially had no Flutter/Dart SDK. Flutter source was cloned successfully from GitHub and pinned to the project's 3.44.2 tag. Bootstrapping `/workspace/flutter-sdk/bin/flutter --version` tried to download:
 
@@ -91,7 +91,7 @@ The environment initially had no Flutter/Dart SDK. Flutter source was cloned suc
 
 The network gateway returned `CONNECT tunnel failed, response 403` (exit 56). The release metadata endpoint also returned 403, including an escalated request. The official regional mirror was unavailable through the same gateway. No automatic approval reviewer rejection was reported; this is a network-access failure. pub.dev and GitHub source reads succeeded.
 
-Consequently there is no built Flutter Web package, verified screenshot or preview URL. Sites registration/publication was deliberately not started without a build. Resume by providing the approved SDK/artifact download access or a preinstalled Flutter 3.44.2 SDK, then run validation and publish the actual output. The source must be compiled and reviewed before application release.
+At the initial local-only checkpoint there was no built Flutter Web package, verified screenshot or preview URL. User-authorized GitHub Actions has since successfully installed the pinned SDK and resolved locked dependencies; it is now running validation. Local CLI Actions reads are unavailable, so workflow status/logs/artifacts are read through the connected GitHub tools. Sites registration/publication remains deferred until a validated build exists. Resume by providing the approved SDK/artifact download access or a preinstalled Flutter 3.44.2 SDK, then run validation and publish the actual output. The source must be compiled and reviewed before application release.
 
 ## Acceptance checklist after SDK access
 

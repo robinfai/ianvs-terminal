@@ -41,13 +41,27 @@ jobs:
       - name: Analyze exact committed source
         if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
         id: analysis
-        run: dart analyze --fatal-infos
+        run: |
+          mkdir -p build
+          set -o pipefail
+          dart analyze --fatal-infos 2>&1 | tee build/foundation-analysis.txt
+      - name: Save static-check diagnostics
+        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: foundation-static-${{ github.sha }}
+          path: |
+            build/foundation-format.patch
+            build/foundation-analysis.txt
+          if-no-files-found: error
+          retention-days: 7
       - name: Run foundation and migrated-page regression tests
         if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
         id: tests
+        timeout-minutes: 10
         working-directory: example
         run: |
-          flutter test \
+          flutter test --timeout 2m \
             test/ui/app_components_test.dart \
             test/ui/app_choice_tile_test.dart \
             test/ui/app_dropdown_form_field_test.dart \
@@ -57,7 +71,8 @@ jobs:
             test/ui/configuration_field_semantics_test.dart \
             test/ui/desktop_action_contrast_test.dart \
             test/ui/cupertino_foundation_test.dart \
-            test/ssh/mobile_ssh_form_test.dart
+            test/ssh/mobile_ssh_form_test.dart \
+            test/ssh/new_session_launcher_test.dart
       - name: Build real Flutter Web showcase
         if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
         id: web

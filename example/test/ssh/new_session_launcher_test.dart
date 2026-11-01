@@ -443,11 +443,11 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         tester
-            .widget<PopupMenuItem<void>>(
+            .widget<MenuItemButton>(
               find.byKey(const Key('new-ssh-session-openssh-host-import')),
             )
-            .enabled,
-        isFalse,
+            .onPressed,
+        isNull,
       );
       await tester.tapAt(Offset.zero);
       await tester.pumpAndSettle();
