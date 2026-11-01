@@ -1270,3 +1270,8 @@ body { overflow-wrap: break-word; }
 /* Apple's monochrome sign-in treatment, independent of the console accent. */
 .apple-signin__button { background: #000; color: #fff; border: 1px solid #888; width: 100%; min-height: 44px; }
 .apple-signin__button:hover:not(:disabled) { background: #222; color: #fff; }
+
+.admin-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 16px; }
+.admin-columns { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(0, 2fr); gap: 24px; align-items: start; }
+.admin-json { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 360px; overflow: auto; }
+@media (max-width: 760px) { .admin-columns { grid-template-columns: minmax(0, 1fr); } }

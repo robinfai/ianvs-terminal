@@ -93,6 +93,10 @@ export class DataApiClient {
     return payload as T
   }
 
+  admin<T>(path: string, options: RequestOptions & { method?: string } = {}): Promise<T> {
+    return this.request<T>(options.method ?? 'GET', '/v1/admin/ai/' + path, options)
+  }
+
   health(): Promise<Health> {
     return this.request<Health>('GET', '/healthz')
   }
@@ -139,7 +143,7 @@ export class DataApiClient {
     return this.request<void>('POST', '/v1/auth/logout')
   }
 
-  me(): Promise<{ user: User }> {
+  me(): Promise<{ user: User; is_admin?: boolean }> {
     return this.request('GET', '/v1/me')
   }
 

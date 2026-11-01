@@ -30,6 +30,16 @@ func TestOpenAPIPathsMatchImplementedHTTPRoutes(t *testing.T) {
 
 	operations := readOpenAPIOperations(t)
 	wantOperationIDs := map[string]string{
+		"GET /v1/admin/ai/gateway":              "getAdminAIGateway",
+		"PUT /v1/admin/ai/gateway":              "updateAdminAIGateway",
+		"POST /v1/admin/ai/providers/{id}/test": "testAdminAIProvider",
+		"GET /v1/admin/ai/users":                "listAdminAIUsers",
+		"GET /v1/admin/ai/users/{id}":           "getAdminAIUser",
+		"PUT /v1/admin/ai/users/{id}/policy":    "updateAdminAIUserPolicy",
+		"POST /v1/admin/ai/users/{id}/credits":  "adjustAdminAICredits",
+		"GET /v1/admin/ai/requests":             "listAdminAIRequests",
+		"GET /v1/admin/ai/audit":                "listAdminAIAudit",
+
 		"GET /v1/ai/purchases/products":             "listAICreditProducts",
 		"GET /v1/ai/purchases":                      "listAIPurchases",
 		"POST /v1/ai/purchases/verify":              "verifyAIPurchase",

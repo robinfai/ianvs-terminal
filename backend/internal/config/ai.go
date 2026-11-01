@@ -20,6 +20,8 @@ type AIGateway struct {
 	Models               map[string]AIModel      `json:"models"`
 }
 type AIModel struct {
+	ProviderID      string  `json:"provider_id,omitempty"`
+	Disabled        bool    `json:"disabled,omitempty"`
 	PriceID         string  `json:"price_id,omitempty"`
 	Pricing         AIPrice `json:"pricing"`
 	Provider        string  `json:"provider"`
@@ -40,7 +42,7 @@ func (g *AIGateway) Validate() error {
 		return errors.New("invalid default AI money budget")
 	}
 	for user, policy := range g.Users {
-		if user == "" || (policy.DailyBudgetNanoUSD != nil && (*policy.DailyBudgetNanoUSD < 0 || *policy.DailyBudgetNanoUSD > 2000000000000)) || (policy.DailyRequests != nil && *policy.DailyRequests < 0) {
+		if user == "" || (policy.DailyBudgetNanoUSD != nil && (*policy.DailyBudgetNanoUSD < 0 || *policy.DailyBudgetNanoUSD > 2000000000000)) || (policy.DailyRequests != nil && (*policy.DailyRequests < 0 || *policy.DailyRequests > 1000000)) {
 			return errors.New("invalid AI user policy")
 		}
 		for _, alias := range policy.AllowedModels {
@@ -122,7 +124,7 @@ func (p AIPrice) Valid() bool {
 }
 func (g *AIGateway) Allows(user, alias string) bool {
 	p := g.Users[user]
-	if p.Disabled {
+	if p.Disabled || g.Models[alias].Disabled {
 		return false
 	}
 	if p.AllowedModels == nil {

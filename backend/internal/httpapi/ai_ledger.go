@@ -18,6 +18,7 @@ import (
 
 // A durable per-request record contains pricing/usage only, never prompts or secrets.
 type aiLedgerEntry struct {
+	ProviderID    string         `json:"provider_id,omitempty"`
 	PaidReserved  int64          `json:"purchased_reserved_nano_usd,omitempty"`
 	PaidSpent     int64          `json:"purchased_spent_nano_usd,omitempty"`
 	ID            string         `json:"id"`
@@ -70,7 +71,7 @@ func (a *API) reserveAISpend(ctx context.Context, user, alias string, m config.A
 	if err != nil {
 		return aiLedgerEntry{}, err
 	}
-	entry := aiLedgerEntry{ID: id, BudgetKey: aiAccountKey(user), Model: alias, Provider: m.Provider, UpstreamModel: m.Model, Price: m.Pricing, Reserved: reserved, Status: "pending", CreatedAt: time.Now().UTC()}
+	entry := aiLedgerEntry{ID: id, BudgetKey: aiAccountKey(user), Model: alias, ProviderID: m.ProviderID, Provider: m.Provider, UpstreamModel: m.Model, Price: m.Pricing, Reserved: reserved, Status: "pending", CreatedAt: time.Now().UTC()}
 	err = a.store.DB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lockedAIWallet(tx, user, func(wallet *aiWallet) error {
 			return lockedAIAccount(tx, entry.BudgetKey, func(account *aiAccount) error {

@@ -32,6 +32,7 @@ type Config struct {
 	AIGateway                       *AIGateway
 	AppleClientIDs                  []string
 	AppleWeb                        *AppleWeb
+	AIAdmin                         *AIAdmin
 	Mode                            Mode
 	Address                         string
 	DatabaseDriver                  string
@@ -48,6 +49,7 @@ type fileConfig struct {
 	AIGateway                       *AIGateway `json:"ai_gateway"`
 	AppleClientIDs                  []string   `json:"apple_client_ids"`
 	AppleWeb                        *AppleWeb  `json:"apple_web"`
+	AIAdmin                         *AIAdmin   `json:"ai_admin"`
 	SchemaVersion                   *int       `json:"schema_version"`
 	Mode                            *string    `json:"mode"`
 	Address                         *string    `json:"address"`
@@ -66,6 +68,7 @@ var runtimeGOOS = runtime.GOOS
 var currentConfigurationFields = map[string]struct{}{
 	"ai_gateway":                         {},
 	"apple_client_ids":                   {},
+	"ai_admin":                           {},
 	"apple_web":                          {},
 	"schema_version":                     {},
 	"mode":                               {},
@@ -270,6 +273,9 @@ func (raw fileConfig) validate() (Config, error) {
 			return Config{}, errors.New("apple_client_ids must contain nonempty Apple bundle or service identifiers")
 		}
 	}
+	if err := raw.AIAdmin.Validate(mode); err != nil {
+		return Config{}, err
+	}
 	if err := raw.AppleWeb.Validate(mode, raw.AppleClientIDs); err != nil {
 		return Config{}, err
 	}
@@ -280,6 +286,7 @@ func (raw fileConfig) validate() (Config, error) {
 		AIGateway:                       raw.AIGateway,
 		AppleClientIDs:                  raw.AppleClientIDs,
 		AppleWeb:                        raw.AppleWeb,
+		AIAdmin:                         raw.AIAdmin,
 		Mode:                            mode,
 		Address:                         address,
 		DatabaseDriver:                  driver,

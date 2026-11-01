@@ -21,6 +21,7 @@ interface KeyPromptState {
 }
 
 interface SessionState {
+  isAdmin: boolean
   baseUrl: string
   token: string | null
   key: string | null
@@ -55,6 +56,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(() => readStoredToken())
   const [key, setKeyState] = useState<string | null>(null)
   const [mode, setMode] = useState<Mode | null>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
   const [user, setUser] = useState<User | null>(null)
   const [restoring, setRestoring] = useState<boolean>(() => Boolean(readStoredToken()))
   const [keyPrompt, setKeyPrompt] = useState<KeyPromptState | null>(null)
@@ -78,7 +80,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       setToken(newToken)
       clearKey()
       setMode(health.mode)
-      setUser(response.user)
+      setUser(response.user); setIsAdmin(response.is_admin === true)
       return response.user
     },
     [baseUrl, clearKey],
@@ -89,13 +91,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const client = new DataApiClient({ baseUrl, token })
     const [health, response] = await Promise.all([client.health(), client.me()])
     setMode(health.mode)
-    setUser(response.user)
+    setUser(response.user); setIsAdmin(response.is_admin === true)
   }, [baseUrl, token])
 
   const signOut = useCallback(() => {
     clearToken()
     clearKey()
-    setUser(null)
+    setUser(null); setIsAdmin(false)
     setMode(null)
   }, [clearKey, clearToken])
 
@@ -146,14 +148,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       .then(([health, response]) => {
         if (cancelled) return
         setMode(health.mode)
-        setUser(response.user)
+        setUser(response.user); setIsAdmin(response.is_admin === true)
       })
       .catch((error) => {
         if (cancelled) return
         if (!(error instanceof ApiError) || (error.status !== 401 && error.status !== 403)) return
         clearToken()
         clearKey()
-        setUser(null)
+        setUser(null); setIsAdmin(false)
         setMode(null)
       })
       .finally(() => {
@@ -170,6 +172,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [baseUrl, token])
 
   const value: SessionContextValue = {
+    isAdmin,
     baseUrl,
     token,
     key,

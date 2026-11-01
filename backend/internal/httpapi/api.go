@@ -99,14 +99,23 @@ func (a *API) Handler() http.Handler {
 }
 
 func (a *API) routes() {
-	a.mux.Handle("POST /v1/ai/chat/completions", a.protected(a.aiCompletions))
-	a.mux.Handle("GET /v1/ai/models", a.protected(a.aiModels))
+	a.mux.Handle("POST /v1/admin/ai/providers/{id}/test", a.adminOnly(a.adminProviderTest))
+	a.mux.Handle("GET /v1/admin/ai/gateway", a.adminOnly(a.adminGatewayGet))
+	a.mux.Handle("PUT /v1/admin/ai/gateway", a.adminOnly(a.adminGatewayPut))
+	a.mux.Handle("GET /v1/admin/ai/users", a.adminOnly(a.adminUsers))
+	a.mux.Handle("GET /v1/admin/ai/users/{id}", a.adminOnly(a.adminUserGet))
+	a.mux.Handle("PUT /v1/admin/ai/users/{id}/policy", a.adminOnly(a.adminUserPolicy))
+	a.mux.Handle("POST /v1/admin/ai/users/{id}/credits", a.adminOnly(a.adminCreditAdjust))
+	a.mux.Handle("GET /v1/admin/ai/requests", a.adminOnly(a.adminRecords))
+	a.mux.Handle("GET /v1/admin/ai/audit", a.adminOnly(a.adminAuditList))
+	a.mux.Handle("POST /v1/ai/chat/completions", a.aiRuntime(func(api *API) protectedHandler { return api.aiCompletions }))
+	a.mux.Handle("GET /v1/ai/models", a.aiRuntime(func(api *API) protectedHandler { return api.aiModels }))
 	a.mux.HandleFunc("POST /v1/ai/purchases/apple/notifications", a.applePurchaseNotification)
-	a.mux.Handle("GET /v1/ai/purchases/products", a.protected(a.aiPurchaseProducts))
-	a.mux.Handle("POST /v1/ai/purchases/verify", a.protected(a.aiPurchaseVerify))
-	a.mux.Handle("GET /v1/ai/purchases", a.protected(a.aiPurchases))
-	a.mux.Handle("GET /v1/ai/usage", a.protected(a.aiUsage))
-	a.mux.Handle("GET /v1/ai/requests", a.protected(a.aiLedger))
+	a.mux.Handle("GET /v1/ai/purchases/products", a.aiRuntime(func(api *API) protectedHandler { return api.aiPurchaseProducts }))
+	a.mux.Handle("POST /v1/ai/purchases/verify", a.aiRuntime(func(api *API) protectedHandler { return api.aiPurchaseVerify }))
+	a.mux.Handle("GET /v1/ai/purchases", a.aiRuntime(func(api *API) protectedHandler { return api.aiPurchases }))
+	a.mux.Handle("GET /v1/ai/usage", a.aiRuntime(func(api *API) protectedHandler { return api.aiUsage }))
+	a.mux.Handle("GET /v1/ai/requests", a.aiRuntime(func(api *API) protectedHandler { return api.aiLedger }))
 	a.mux.HandleFunc("GET /healthz", a.health)
 	a.mux.HandleFunc("POST /v1/auth/apple/challenge", a.appleChallenge)
 	a.mux.HandleFunc("POST /v1/auth/apple/begin", a.beginAppleLogin)
@@ -296,7 +305,7 @@ func (a *API) logout(w http.ResponseWriter, r *http.Request, _ model.User, rawTo
 }
 
 func (a *API) me(w http.ResponseWriter, _ *http.Request, user model.User, _ string) {
-	writeJSON(w, http.StatusOK, map[string]any{"user": auth.View(user)})
+	writeJSON(w, http.StatusOK, map[string]any{"user": auth.View(user), "is_admin": a.isAIAdmin(user)})
 }
 
 func (a *API) listResources(w http.ResponseWriter, r *http.Request, user model.User, _ string) {

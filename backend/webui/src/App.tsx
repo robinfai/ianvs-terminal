@@ -15,7 +15,7 @@ const NAV_ITEMS: { view: View; label: string }[] = [
   { view: 'profiles', label: 'SSH 配置' },
   { view: 'sync', label: '同步与换机' },
   { view: 'settings', label: '安全与会话' },
-  { view: 'admin', label: '管理预览（未接入）' },
+  { view: 'admin', label: 'AI 网关管理' },
 ]
 function readHash(locationHash = window.location.hash): View {
   const hash = locationHash.replace(/^#\/?/, '')
@@ -95,7 +95,7 @@ export function App() {
         <span><span className="brand__name">Ianvs</span><span className="brand__sub">用户控制台</span></span>
       </a>
       <nav className="nav" aria-label="主导航">
-        {NAV_ITEMS.map((item) => <a key={item.view} className="nav__link" href={`#/${item.view}`} aria-current={view === item.view ? 'page' : undefined}>{item.label}</a>)}
+        {NAV_ITEMS.filter(item => item.view !== 'admin' || session.isAdmin).map((item) => <a key={item.view} className="nav__link" href={`#/${item.view}`} aria-current={view === item.view ? 'page' : undefined}>{item.label}</a>)}
       </nav>
       <div className="sidebar__footer">
         <span>当前服务</span><span className="break-word">{session.baseUrl}</span>

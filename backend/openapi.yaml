@@ -20,6 +20,145 @@ tags:
   - name: resources
   - name: migrations
 paths:
+  /v1/admin/ai/gateway:
+    get:
+      operationId: getAdminAIGateway
+      summary: getAdminAIGateway (deployment-authorized administrators only).
+      security: [{bearerAuth: []}]
+      responses:
+        '200': {description: Successful administrator operation; secrets are never returned.}
+        '400': {description: Invalid query, configuration, amount, or reason.}
+        '401': {description: Authentication required.}
+        '403': {description: Administrator membership required.}
+        '404': {description: Target does not exist.}
+        '409': {description: Configuration revision or idempotency conflict.}
+        '503': {description: Storage or encrypted configuration unavailable.}
+    put:
+      operationId: updateAdminAIGateway
+      summary: updateAdminAIGateway (deployment-authorized administrators only).
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200': {description: Successful administrator operation; secrets are never returned.}
+        '400': {description: Invalid query, configuration, amount, or reason.}
+        '401': {description: Authentication required.}
+        '403': {description: Administrator membership required.}
+        '404': {description: Target does not exist.}
+        '409': {description: Configuration revision or idempotency conflict.}
+        '503': {description: Storage or encrypted configuration unavailable.}
+  /v1/admin/ai/providers/{id}/test:
+    post:
+      operationId: testAdminAIProvider
+      summary: testAdminAIProvider (deployment-authorized administrators only).
+      security: [{bearerAuth: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Successful administrator operation; secrets are never returned.}
+        '400': {description: Invalid query, configuration, amount, or reason.}
+        '401': {description: Authentication required.}
+        '403': {description: Administrator membership required.}
+        '404': {description: Target does not exist.}
+        '409': {description: Configuration revision or idempotency conflict.}
+        '503': {description: Storage or encrypted configuration unavailable.}
+  /v1/admin/ai/users:
+    get:
+      operationId: listAdminAIUsers
+      summary: listAdminAIUsers (deployment-authorized administrators only).
+      security: [{bearerAuth: []}]
+      responses:
+        '200': {description: Successful administrator operation; secrets are never returned.}
+        '400': {description: Invalid query, configuration, amount, or reason.}
+        '401': {description: Authentication required.}
+        '403': {description: Administrator membership required.}
+        '404': {description: Target does not exist.}
+        '409': {description: Configuration revision or idempotency conflict.}
+        '503': {description: Storage or encrypted configuration unavailable.}
+  /v1/admin/ai/users/{id}:
+    get:
+      operationId: getAdminAIUser
+      summary: getAdminAIUser (deployment-authorized administrators only).
+      security: [{bearerAuth: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: Successful administrator operation; secrets are never returned.}
+        '400': {description: Invalid query, configuration, amount, or reason.}
+        '401': {description: Authentication required.}
+        '403': {description: Administrator membership required.}
+        '404': {description: Target does not exist.}
+        '409': {description: Configuration revision or idempotency conflict.}
+        '503': {description: Storage or encrypted configuration unavailable.}
+  /v1/admin/ai/users/{id}/policy:
+    put:
+      operationId: updateAdminAIUserPolicy
+      summary: updateAdminAIUserPolicy (deployment-authorized administrators only).
+      security: [{bearerAuth: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200': {description: Successful administrator operation; secrets are never returned.}
+        '400': {description: Invalid query, configuration, amount, or reason.}
+        '401': {description: Authentication required.}
+        '403': {description: Administrator membership required.}
+        '404': {description: Target does not exist.}
+        '409': {description: Configuration revision or idempotency conflict.}
+        '503': {description: Storage or encrypted configuration unavailable.}
+  /v1/admin/ai/users/{id}/credits:
+    post:
+      operationId: adjustAdminAICredits
+      summary: adjustAdminAICredits (deployment-authorized administrators only).
+      security: [{bearerAuth: []}]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object}
+      responses:
+        '200': {description: Successful administrator operation; secrets are never returned.}
+        '400': {description: Invalid query, configuration, amount, or reason.}
+        '401': {description: Authentication required.}
+        '403': {description: Administrator membership required.}
+        '404': {description: Target does not exist.}
+        '409': {description: Configuration revision or idempotency conflict.}
+        '503': {description: Storage or encrypted configuration unavailable.}
+  /v1/admin/ai/requests:
+    get:
+      operationId: listAdminAIRequests
+      summary: listAdminAIRequests (deployment-authorized administrators only).
+      security: [{bearerAuth: []}]
+      responses:
+        '200': {description: Successful administrator operation; secrets are never returned.}
+        '400': {description: Invalid query, configuration, amount, or reason.}
+        '401': {description: Authentication required.}
+        '403': {description: Administrator membership required.}
+        '404': {description: Target does not exist.}
+        '409': {description: Configuration revision or idempotency conflict.}
+        '503': {description: Storage or encrypted configuration unavailable.}
+  /v1/admin/ai/audit:
+    get:
+      operationId: listAdminAIAudit
+      summary: listAdminAIAudit (deployment-authorized administrators only).
+      security: [{bearerAuth: []}]
+      responses:
+        '200': {description: Successful administrator operation; secrets are never returned.}
+        '400': {description: Invalid query, configuration, amount, or reason.}
+        '401': {description: Authentication required.}
+        '403': {description: Administrator membership required.}
+        '404': {description: Target does not exist.}
+        '409': {description: Configuration revision or idempotency conflict.}
+        '503': {description: Storage or encrypted configuration unavailable.}
   /v1/ai/purchases/products:
     get:
       operationId: listAICreditProducts
