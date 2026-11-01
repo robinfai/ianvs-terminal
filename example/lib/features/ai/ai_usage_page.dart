@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../ui/app_ui.dart';
+import 'ai_purchase_page.dart';
 import 'ai_strings.dart';
 import 'ai_usage.dart';
 
@@ -46,7 +47,7 @@ class _AiUsageSummaryState extends State<AiUsageSummary> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  t('Today’s AI quota', '今日 AI 额度'),
+                  t('AI credits', 'AI 可用额度'),
                   style: theme.textTheme.titleMedium,
                 ),
                 const SizedBox(height: 8),
@@ -63,14 +64,20 @@ class _AiUsageSummaryState extends State<AiUsageSummary> {
                   LinearProgressIndicator(
                     value: usage.budget == 0
                         ? 0
-                        : (usage.remaining / usage.budget).clamp(0.0, 1.0),
+                        : (usage.dailyRemaining / usage.budget).clamp(0.0, 1.0),
                     semanticsLabel: t('Remaining quota', '剩余额度'),
                   ),
                   const SizedBox(height: 12),
                   Text(
                     t(
-                      'Daily allowance ${aiQuotaPoints(usage.budget)} · Used ${aiQuotaPoints(usage.spent)}',
-                      '每日额度 ${aiQuotaPoints(usage.budget)} 点 · 已用 ${aiQuotaPoints(usage.spent)} 点',
+                      'Daily allowance ${aiQuotaPoints(usage.budget)} · Remaining ${aiQuotaPoints(usage.dailyRemaining)}',
+                      '每日额度 ${aiQuotaPoints(usage.budget)} 点 · 剩余 ${aiQuotaPoints(usage.dailyRemaining)} 点',
+                    ),
+                  ),
+                  Text(
+                    t(
+                      'Purchased credits available ${aiQuotaPoints(usage.purchasedRemaining)} · No expiry',
+                      '购买额度可用 ${aiQuotaPoints(usage.purchasedRemaining)} 点 · 长期有效',
                     ),
                   ),
                   if (usage.reserved > 0 || usage.pending > 0)
@@ -85,8 +92,8 @@ class _AiUsageSummaryState extends State<AiUsageSummary> {
                       liveRegion: true,
                       child: Text(
                         t(
-                          'No quota available. Wait for the reset or contact your administrator.',
-                          '当前可用额度不足，请等待重置或联系管理员调整额度。',
+                          'No credits available. Buy credits or wait for the daily reset.',
+                          '当前可用额度不足，可购买额度或等待每日额度重置。',
                         ),
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: theme.colorScheme.error,
@@ -96,8 +103,8 @@ class _AiUsageSummaryState extends State<AiUsageSummary> {
                   const SizedBox(height: 8),
                   Text(
                     t(
-                      'Resets ${_localTime(context, usage.resetAt)} (local time)',
-                      '${_localTime(context, usage.resetAt)} 重置（本地时间）',
+                      'Daily allowance resets ${_localTime(context, usage.resetAt)} (local time)',
+                      '每日额度于 ${_localTime(context, usage.resetAt)} 重置（本地时间）',
                     ),
                     style: theme.textTheme.bodySmall,
                   ),
@@ -126,6 +133,7 @@ class _AiUsageSummaryState extends State<AiUsageSummary> {
                 Wrap(
                   spacing: 8,
                   children: [
+                    const AiPurchaseButton(),
                     TextButton.icon(
                       onPressed: state.loading
                           ? null

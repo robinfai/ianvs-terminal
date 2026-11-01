@@ -18,6 +18,8 @@ import (
 
 // A durable per-request record contains pricing/usage only, never prompts or secrets.
 type aiLedgerEntry struct {
+	PaidReserved  int64          `json:"purchased_reserved_nano_usd,omitempty"`
+	PaidSpent     int64          `json:"purchased_spent_nano_usd,omitempty"`
 	ID            string         `json:"id"`
 	BudgetKey     string         `json:"budget_key,omitempty"`
 	Model         string         `json:"model"`
@@ -69,18 +71,25 @@ func (a *API) reserveAISpend(ctx context.Context, user, alias string, m config.A
 		return aiLedgerEntry{}, err
 	}
 	entry := aiLedgerEntry{ID: id, BudgetKey: aiAccountKey(user), Model: alias, Provider: m.Provider, UpstreamModel: m.Model, Price: m.Pricing, Reserved: reserved, Status: "pending", CreatedAt: time.Now().UTC()}
-	value, _ := json.Marshal(entry)
 	err = a.store.DB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := lockedAIAccount(tx, entry.BudgetKey, func(account *aiAccount) error {
-			if reserved <= 0 || reserved > a.aiBudget(user)-account.Spent-account.Reserved {
-				return errAIBudget
-			}
-			account.Reserved += reserved
-			account.Pending++
-			return nil
+		if err := lockedAIWallet(tx, user, func(wallet *aiWallet) error {
+			return lockedAIAccount(tx, entry.BudgetKey, func(account *aiAccount) error {
+				free := max(int64(0), a.aiBudget(user)-(account.Spent-account.PaidSpent)-(account.Reserved-account.PaidReserved))
+				paid := max(int64(0), reserved-free)
+				if reserved <= 0 || a.cfg.AIGateway.Users[user].Disabled || paid > wallet.Balance-wallet.Reserved {
+					return errAIBudget
+				}
+				entry.PaidReserved = paid
+				wallet.Reserved += paid
+				account.PaidReserved += paid
+				account.Reserved += reserved
+				account.Pending++
+				return nil
+			})
 		}); err != nil {
 			return err
 		}
+		value, _ := json.Marshal(entry)
 		return tx.Create(&model.Setting{Key: aiLedgerPrefix(user) + id, Value: string(value)}).Error
 	})
 	return entry, err
@@ -106,20 +115,37 @@ func (a *API) settleAISpend(ctx context.Context, user, id string, actual aiAccou
 		if entry.Status != "pending" {
 			return nil
 		} // Idempotent settlement, including after restart.
-		if err := lockedAIAccount(tx, entry.BudgetKey, func(account *aiAccount) error {
-			if account.Reserved < entry.Reserved || account.Pending < 1 {
-				return errors.New("inconsistent AI reservation")
-			}
-			account.Reserved -= entry.Reserved
-			account.Pending--
-			account.Spent += actual.Spent
-			account.Input += actual.Input
-			account.Cached += actual.Cached
-			account.Output += actual.Output
-			if status == "settled" {
-				account.Settled++
-			}
-			return nil
+		if actual.Spent < 0 || (status == "refunded" && actual.Spent != 0) {
+			return errors.New("invalid settlement amount")
+		}
+		if err := lockedAIWallet(tx, user, func(wallet *aiWallet) error {
+			return lockedAIAccount(tx, entry.BudgetKey, func(account *aiAccount) error {
+				if account.Reserved < entry.Reserved || account.PaidReserved < entry.PaidReserved || wallet.Reserved < entry.PaidReserved || account.Pending < 1 {
+					return errors.New("inconsistent AI reservation")
+				}
+				// Preserve the original day's reservation across midnight. Actual
+				// spend may exceed an estimate; record debt rather than lose charges.
+				paid := int64(0)
+				if entry.PaidReserved > 0 {
+					paid = max(int64(0), actual.Spent-(entry.Reserved-entry.PaidReserved))
+				}
+				wallet.Reserved -= entry.PaidReserved
+				wallet.Balance -= paid
+				wallet.Spent += paid
+				entry.PaidSpent = paid
+				account.PaidReserved -= entry.PaidReserved
+				account.PaidSpent += paid
+				account.Reserved -= entry.Reserved
+				account.Pending--
+				account.Spent += actual.Spent
+				account.Input += actual.Input
+				account.Cached += actual.Cached
+				account.Output += actual.Output
+				if status == "settled" {
+					account.Settled++
+				}
+				return nil
+			})
 		}); err != nil {
 			return err
 		}

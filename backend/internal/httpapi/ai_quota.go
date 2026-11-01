@@ -13,13 +13,15 @@ import (
 )
 
 type aiAccount struct {
-	Spent    int64 `json:"spent_nano_usd"`
-	Reserved int64 `json:"reserved_nano_usd"`
-	Input    int64 `json:"input_tokens"`
-	Cached   int64 `json:"cached_input_tokens"`
-	Output   int64 `json:"output_tokens"`
-	Settled  int64 `json:"settled_requests"`
-	Pending  int64 `json:"pending_requests"`
+	PaidSpent    int64 `json:"purchased_spent_nano_usd"`
+	PaidReserved int64 `json:"purchased_reserved_nano_usd"`
+	Spent        int64 `json:"spent_nano_usd"`
+	Reserved     int64 `json:"reserved_nano_usd"`
+	Input        int64 `json:"input_tokens"`
+	Cached       int64 `json:"cached_input_tokens"`
+	Output       int64 `json:"output_tokens"`
+	Settled      int64 `json:"settled_requests"`
+	Pending      int64 `json:"pending_requests"`
 }
 
 func aiAccountKey(user string) string {
@@ -84,11 +86,19 @@ func (a *API) aiUsage(w http.ResponseWriter, r *http.Request, user model.User, _
 		return
 	}
 	budget := a.aiBudget(user.ID)
-	remaining := budget - account.Spent - account.Reserved
+	wallet, err := a.readAIWallet(r.Context(), user.ID)
+	if err != nil {
+		writeError(w, 503, "quota_unavailable", "Could not read purchased quota")
+		return
+	}
+	remaining := budget - (account.Spent - account.PaidSpent) - (account.Reserved - account.PaidReserved)
 	if remaining < 0 {
 		remaining = 0
 	}
-	writeJSON(w, 200, map[string]any{"usage": account, "daily_budget_nano_usd": budget, "remaining_nano_usd": remaining, "daily_quota_points": float64(budget) / 2000, "remaining_quota_points": float64(remaining) / 2000, "quota_points_per_usd": 500000, "reset_timezone": "UTC", "reset_at": time.Now().UTC().Truncate(24 * time.Hour).Add(24 * time.Hour)})
+	dailyRemaining := remaining
+	purchasedRemaining := max(int64(0), wallet.Balance-wallet.Reserved)
+	remaining += purchasedRemaining
+	writeJSON(w, 200, map[string]any{"purchased_balance_nano_usd": max(int64(0), wallet.Balance), "purchased_remaining_nano_usd": purchasedRemaining, "daily_remaining_nano_usd": dailyRemaining, "usage": account, "daily_budget_nano_usd": budget, "remaining_nano_usd": remaining, "daily_quota_points": float64(budget) / 2000, "remaining_quota_points": float64(remaining) / 2000, "quota_points_per_usd": 500000, "reset_timezone": "UTC", "reset_at": time.Now().UTC().Truncate(24 * time.Hour).Add(24 * time.Hour)})
 }
 
 type aiTokenUsage struct {

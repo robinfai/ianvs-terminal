@@ -45,6 +45,7 @@ var requestIDFallback atomic.Uint64
 type requestIDContextKey struct{}
 
 type API struct {
+	purchaseLimiter      *peerRateLimiter
 	appleVerifier        *auth.AppleTokenVerifier
 	cfg                  config.Config
 	auth                 *auth.Service
@@ -72,6 +73,7 @@ func newWithLogger(
 	logger *slog.Logger,
 ) *API {
 	api := &API{
+		purchaseLimiter:      newAnonymousAuthRateLimiter(),
 		appleVerifier:        auth.NewAppleTokenVerifier(),
 		cfg:                  cfg,
 		auth:                 authService,
@@ -99,6 +101,10 @@ func (a *API) Handler() http.Handler {
 func (a *API) routes() {
 	a.mux.Handle("POST /v1/ai/chat/completions", a.protected(a.aiCompletions))
 	a.mux.Handle("GET /v1/ai/models", a.protected(a.aiModels))
+	a.mux.HandleFunc("POST /v1/ai/purchases/apple/notifications", a.applePurchaseNotification)
+	a.mux.Handle("GET /v1/ai/purchases/products", a.protected(a.aiPurchaseProducts))
+	a.mux.Handle("POST /v1/ai/purchases/verify", a.protected(a.aiPurchaseVerify))
+	a.mux.Handle("GET /v1/ai/purchases", a.protected(a.aiPurchases))
 	a.mux.Handle("GET /v1/ai/usage", a.protected(a.aiUsage))
 	a.mux.Handle("GET /v1/ai/requests", a.protected(a.aiLedger))
 	a.mux.HandleFunc("GET /healthz", a.health)

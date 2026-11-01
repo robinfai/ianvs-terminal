@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'data/configuration/data_api_configuration.dart';
+import 'features/ai/ai_purchases.dart';
 import 'features/preferences/app_preferences_models.dart';
 import 'features/sessions/session_controller.dart';
 import 'features/shell/shell_screen.dart';
@@ -19,6 +20,7 @@ class IanvsTerminalApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(aiPurchaseProvider);
     final themeMode = switch (ref.watch(
       sessionControllerProvider.select((state) => state.themeMode),
     )) {

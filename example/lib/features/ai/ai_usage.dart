@@ -17,7 +17,11 @@ Map<String, Object?> _object(Object? value) =>
 
 class AiUsageSnapshot {
   AiUsageSnapshot.fromJson(Map<String, Object?> json)
-    : budget = _amount(json, 'daily_budget_nano_usd'),
+    : purchasedRemaining = (json['purchased_remaining_nano_usd'] as int?) ?? 0,
+      dailyRemaining =
+          (json['daily_remaining_nano_usd'] as int?) ??
+          _amount(json, 'remaining_nano_usd'),
+      budget = _amount(json, 'daily_budget_nano_usd'),
       remaining = _amount(json, 'remaining_nano_usd'),
       spent = _amount(_object(json['usage']), 'spent_nano_usd'),
       reserved = _amount(_object(json['usage']), 'reserved_nano_usd'),
@@ -26,6 +30,8 @@ class AiUsageSnapshot {
       output = _amount(_object(json['usage']), 'output_tokens'),
       pending = _amount(_object(json['usage']), 'pending_requests'),
       resetAt = DateTime.parse(json['reset_at']! as String);
+  final int purchasedRemaining;
+  final int dailyRemaining;
   final int budget;
   final int remaining;
   final int spent;

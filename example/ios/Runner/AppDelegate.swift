@@ -1,5 +1,6 @@
 import AVFoundation
 import Speech
+import StoreKit
 import CoreFoundation
 import Flutter
 import UIKit
@@ -7,6 +8,7 @@ import UIKit
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
   private var fileExport: TrailFileExport?
+  private var aiPurchases: TrailAiPurchases?
   private var voiceInput: TrailVoiceInput?
   private var externalUrlChannel: FlutterMethodChannel?
   private var buildIdentityChannel: FlutterMethodChannel?
@@ -23,6 +25,9 @@ import UIKit
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "TrailAiPurchases") {
+      aiPurchases = TrailAiPurchases(messenger: registrar.messenger())
+    }
     if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "TrailFileExport") {
       fileExport = TrailFileExport(messenger: registrar.messenger())
     }
@@ -315,4 +320,88 @@ private final class TrailFileExport: NSObject, UIDocumentPickerDelegate {
   func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
     pending?(false); pending = nil
   }
+}
+
+/// StoreKit owns unfinished transactions until the backend confirms delivery.
+/// This bridge never grants quota and never finishes a purchase on receipt alone.
+@MainActor
+private final class TrailAiPurchases {
+  private let channel: FlutterMethodChannel
+  private var products: [String: Product] = [:]
+  private var transactions: [UInt64: StoreKit.Transaction] = [:]
+  private var updates: Task<Void, Never>?
+  private var purchasing = false
+
+  init(messenger: FlutterBinaryMessenger) {
+    channel = FlutterMethodChannel(name: "app/ai_purchases", binaryMessenger: messenger)
+    channel.setMethodCallHandler { [weak self] call, result in
+      Task { @MainActor [weak self] in
+        guard let self else { return }
+        do { try await self.handle(call, result: result) }
+        catch { result(FlutterError(code: "store_unavailable", message: "App Store is unavailable. Please retry.", details: nil)) }
+      }
+    }
+    updates = Task { [weak self] in
+      for await update in StoreKit.Transaction.updates {
+        guard let self else { return }
+        if case .verified(let transaction) = update {
+          self.transactions[transaction.id] = transaction
+          self.channel.invokeMethod("transactionsChanged", arguments: nil)
+        }
+      }
+    }
+  }
+
+  private func value(_ transaction: StoreKit.Transaction) -> [String: Any] {
+    ["transaction_id": String(transaction.id), "product_id": transaction.productID,
+     "app_account_token": transaction.appAccountToken?.uuidString.lowercased() ?? ""]
+  }
+
+  private func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) async throws {
+    let args = call.arguments as? [String: Any] ?? [:]
+    switch call.method {
+    case "products":
+      let ids = args["ids"] as? [String] ?? []
+      let found = try await Product.products(for: ids)
+      products = Dictionary(uniqueKeysWithValues: found.filter { $0.type == .consumable }.map { ($0.id, $0) })
+      result(products.values.sorted { $0.price < $1.price }.map {
+        ["id": $0.id, "title": $0.displayName, "price": $0.displayPrice]
+      })
+    case "purchase":
+      guard !purchasing else { result(FlutterError(code: "purchase_busy", message: nil, details: nil)); return }
+      guard AppStore.canMakePayments,
+            let id = args["product_id"] as? String, let product = products[id],
+            let rawToken = args["app_account_token"] as? String, let token = UUID(uuidString: rawToken) else {
+        result(FlutterError(code: "purchase_unavailable", message: nil, details: nil)); return
+      }
+      purchasing = true
+      defer { purchasing = false }
+      switch try await product.purchase(options: [.appAccountToken(token)]) {
+      case .success(let verification):
+        guard case .verified(let transaction) = verification else {
+          result(FlutterError(code: "purchase_unverified", message: nil, details: nil)); return
+        }
+        transactions[transaction.id] = transaction
+        result(["status": "purchased", "transaction": value(transaction)])
+      case .pending: result(["status": "pending"])
+      case .userCancelled: result(["status": "cancelled"])
+      @unknown default: result(["status": "pending"])
+      }
+    case "unfinished":
+      for await verification in StoreKit.Transaction.unfinished {
+        if case .verified(let transaction) = verification { transactions[transaction.id] = transaction }
+      }
+      result(transactions.values.filter { $0.productType == .consumable }.map(value))
+    case "finish":
+      guard let raw = args["transaction_id"] as? String, let id = UInt64(raw),
+            let transaction = transactions[id] else {
+        result(FlutterError(code: "transaction_missing", message: nil, details: nil)); return
+      }
+      await transaction.finish()
+      transactions.removeValue(forKey: id)
+      result(nil)
+    default: result(FlutterMethodNotImplemented)
+    }
+  }
+  deinit { updates?.cancel() }
 }

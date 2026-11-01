@@ -1,0 +1,12 @@
+{
+  "apple_purchases": {
+    "bundle_id": "work.ianvs.trail",
+    "issuer_id": "REPLACE_WITH_APP_STORE_CONNECT_ISSUER_ID",
+    "key_id": "REPLACE_WITH_IN_APP_PURCHASE_KEY_ID",
+    "private_key_file": "/etc/ianvs-api/apple-iap.p8",
+    "environment": "Production",
+    "products": {
+      "work.ianvs.trail.ai.credits.small": 497500
+    }
+  }
+}

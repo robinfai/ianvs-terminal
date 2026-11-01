@@ -160,7 +160,7 @@ void main() {
           });
         }
         expect(find.text('0 points remaining'), findsOneWidget);
-        expect(find.textContaining('No quota available.'), findsOneWidget);
+        expect(find.textContaining('No credits available.'), findsOneWidget);
         expect(find.textContaining('Reserved 1 points'), findsWidgets);
         await tester.scrollUntilVisible(find.text('Load more'), 250);
         await tester.tap(find.text('Load more'));

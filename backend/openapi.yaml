@@ -20,6 +20,76 @@ tags:
   - name: resources
   - name: migrations
 paths:
+  /v1/ai/purchases/products:
+    get:
+      operationId: listAICreditProducts
+      summary: Available consumable credit packs and the authenticated account's StoreKit UUID.
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: enabled, app_account_token and products containing id and quota_points. Prices must come from StoreKit.
+        '401':
+          description: Authentication required.
+  /v1/ai/purchases/verify:
+    post:
+      operationId: verifyAIPurchase
+      summary: Verify a transaction directly with Apple and atomically credit the bound account once.
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [transaction_id]
+              additionalProperties: false
+              properties:
+                transaction_id: {type: string, pattern: '^[0-9]{1,64}$'}
+      responses:
+        '200':
+          description: Purchase status credited or revoked. Duplicate delivery returns the persisted record without additional credit.
+        '400':
+          description: Invalid or ineligible transaction.
+        '401':
+          description: Authentication required.
+        '403':
+          description: Transaction belongs to another Trail account.
+        '429':
+          description: Retry delivery later.
+        '503':
+          description: Delivery pending. Do not finish the StoreKit transaction; retry later.
+  /v1/ai/purchases:
+    get:
+      operationId: listAIPurchases
+      summary: Most recent 50 credit purchases belonging to the authenticated account.
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: data contains transaction_id, product_id, credit_nano_usd, environment, status and created_at.
+        '401':
+          description: Authentication required.
+  /v1/ai/purchases/apple/notifications:
+    post:
+      operationId: receiveApplePurchaseNotification
+      summary: App Store V2 notification wake-up; known transactions are re-fetched from Apple before changing credit.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [signedPayload]
+              properties:
+                signedPayload: {type: string}
+      responses:
+        '200':
+          description: Notification processed or irrelevant to a known purchase. No credit is granted based on notification content.
+        '400':
+          description: Malformed notification.
+        '429':
+          description: Retry notification later.
+        '503':
+          description: Verification temporarily unavailable; Apple should retry.
   /v1/ai/requests:
     get:
       operationId: listAIRequests
@@ -42,7 +112,7 @@ paths:
       security: [{bearerAuth: []}]
       responses:
         '200':
-          description: Token totals, spend in nano-USD and remaining quota points.
+          description: Token totals, spend in nano-USD and combined remaining quota points. daily_remaining_nano_usd excludes purchased credit; purchased_balance_nano_usd and purchased_remaining_nano_usd persist across daily resets.
         '401':
           description: Authentication required.
   /v1/ai/models:

@@ -8,6 +8,7 @@ import (
 
 // AIGateway keeps provider credentials and per-user UTC daily budgets server-side.
 type AIGateway struct {
+	ApplePurchases       *ApplePurchases         `json:"apple_purchases,omitempty"`
 	PricingCatalog       map[string]AIPrice      `json:"pricing_catalog,omitempty"`
 	BudgetNanoUSD        *int64                  `json:"daily_budget_nano_usd,omitempty"`
 	Users                map[string]AIUserPolicy `json:"users,omitempty"`
@@ -31,6 +32,9 @@ type AIModel struct {
 func (g *AIGateway) Validate() error {
 	if g == nil {
 		return nil
+	}
+	if err := g.ApplePurchases.Validate(); err != nil {
+		return err
 	}
 	if g.BudgetNanoUSD != nil && (*g.BudgetNanoUSD < 0 || *g.BudgetNanoUSD > 2000000000000) {
 		return errors.New("invalid default AI money budget")
@@ -104,7 +108,7 @@ type AIPrice struct {
 }
 
 // User policy is the app's authenticated-user equivalent of a scoped virtual key.
-// nil allowed_models inherits all models; [] denies all. Explicit zero budget denies access.
+// nil allowed_models inherits all models; [] denies all. Explicit zero daily budget provides no free allowance; purchased credit remains available.
 type AIUserPolicy struct {
 	Disabled           bool               `json:"disabled,omitempty"`
 	DailyBudgetNanoUSD *int64             `json:"daily_budget_nano_usd,omitempty"`
