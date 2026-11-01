@@ -6,8 +6,44 @@ import 'package:flutter/material.dart';
 import '../foundation/app_theme_tokens.dart';
 import 'app_panel.dart';
 
+enum AppNoticeKind { information, success, failure }
+
 /// One presentation path for desktop notices and mobile snack bars.
 abstract final class AppNotifications {
+  static final _mobileFailures = Expando<Object>();
+  static AppNotificationController message(
+    BuildContext context,
+    String message, {
+    AppNoticeKind kind = AppNoticeKind.failure,
+  }) => show(
+    context,
+    SnackBar(
+      content: Text(
+        message,
+        style: kind == AppNoticeKind.failure && !usesDesktopHost(context)
+            ? TextStyle(color: Theme.of(context).colorScheme.onErrorContainer)
+            : null,
+      ),
+      duration: Duration(seconds: kind == AppNoticeKind.failure ? 8 : 2),
+      showCloseIcon: kind == AppNoticeKind.failure,
+      backgroundColor: kind == AppNoticeKind.failure
+          ? Theme.of(context).colorScheme.errorContainer
+          : null,
+      // Match the error container on phones; desktop cards use their theme.
+      closeIconColor: kind == AppNoticeKind.failure
+          ? Theme.of(context).colorScheme.onErrorContainer
+          : null,
+    ),
+    icon: switch (kind) {
+      AppNoticeKind.failure => Icons.error_outline,
+      AppNoticeKind.success => Icons.check_circle_outline,
+      AppNoticeKind.information => Icons.info_outline,
+    },
+    deduplicationKey: '${kind.name}:$message',
+    replaceCurrent: kind == AppNoticeKind.failure,
+    kind: kind,
+  );
+
   static bool usesDesktopHost(BuildContext context) => _host(context) != null;
 
   static AppNotificationController show(
@@ -17,6 +53,7 @@ abstract final class AppNotifications {
     IconData icon = Icons.info_outline,
     bool replaceCurrent = false,
     bool hasActions = false,
+    AppNoticeKind kind = AppNoticeKind.information,
   }) {
     final host = _host(context);
     if (host != null) {
@@ -25,6 +62,7 @@ abstract final class AppNotifications {
         deduplicationKey: deduplicationKey,
         icon: icon,
         hasActions: hasActions,
+        kind: kind,
       );
     }
     final messenger = ScaffoldMessenger.maybeOf(context);
@@ -34,8 +72,28 @@ abstract final class AppNotifications {
         () {},
       );
     }
+    if (kind != AppNoticeKind.failure &&
+        _mobileFailures[messenger] != null &&
+        notice.action == null &&
+        !hasActions) {
+      return AppNotificationController._(
+        Future.value(SnackBarClosedReason.remove),
+        () {},
+      );
+    }
     if (replaceCurrent) messenger.hideCurrentSnackBar();
     final controller = messenger.showSnackBar(notice);
+    if (kind == AppNoticeKind.failure) {
+      final identity = Object();
+      _mobileFailures[messenger] = identity;
+      unawaited(
+        controller.closed.then((_) {
+          if (identical(_mobileFailures[messenger], identity)) {
+            _mobileFailures[messenger] = null;
+          }
+        }),
+      );
+    }
     return AppNotificationController._(controller.closed, controller.close);
   }
 
@@ -99,9 +157,18 @@ class _AppNotificationHostState extends State<AppNotificationHost> {
     required String? deduplicationKey,
     required IconData icon,
     required bool hasActions,
+    required AppNoticeKind kind,
   }) {
     // Only passive text is coalesced. Actions own separate callbacks/resources.
     final passive = !hasActions && notice.action == null && !notice.persist;
+    if (passive &&
+        kind != AppNoticeKind.failure &&
+        _entries.any((entry) => entry.kind == AppNoticeKind.failure)) {
+      return AppNotificationController._(
+        Future.value(SnackBarClosedReason.remove),
+        () {},
+      );
+    }
     final identity = passive
         ? deduplicationKey ??
               (notice.content is Text ? (notice.content as Text).data : null)
@@ -111,6 +178,7 @@ class _AppNotificationHostState extends State<AppNotificationHost> {
       identity: identity,
       icon: icon,
       isPassive: passive,
+      kind: kind,
     );
     setState(() {
       if (identity != null) {
@@ -222,6 +290,7 @@ class _Notice {
     required this.identity,
     required this.icon,
     required this.isPassive,
+    required this.kind,
   });
 
   final SnackBar content;
@@ -230,6 +299,7 @@ class _Notice {
   final key = UniqueKey();
   final closed = Completer<SnackBarClosedReason>();
   final bool isPassive;
+  final AppNoticeKind kind;
 }
 
 class _NotificationCard extends StatefulWidget {
@@ -255,7 +325,10 @@ class _NotificationCardState extends State<_NotificationCard> {
 
   void _restartTimer() {
     _timer?.cancel();
-    if (_hovered || _focused || MediaQuery.accessibleNavigationOf(context)) {
+    if (widget.entry.content.persist ||
+        _hovered ||
+        _focused ||
+        MediaQuery.accessibleNavigationOf(context)) {
       return;
     }
     _timer = Timer(widget.entry.content.duration, () {
@@ -322,7 +395,9 @@ class _NotificationCardState extends State<_NotificationCard> {
                         child: Icon(
                           widget.entry.icon,
                           size: 18,
-                          color: tokens.textMuted,
+                          color: widget.entry.icon == Icons.error_outline
+                              ? theme.colorScheme.error
+                              : tokens.textMuted,
                         ),
                       ),
                     ),

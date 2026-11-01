@@ -5,7 +5,6 @@ extension _ShellScreenStateRecording on _ShellScreenState {
     SessionController sessionController,
     String? sessionId,
   ) async {
-    final l10n = context.l10n;
     if (sessionId == null) {
       return;
     }
@@ -21,9 +20,7 @@ extension _ShellScreenStateRecording on _ShellScreenState {
       }
       return;
     }
-    if (await sessionController.startSessionRecording(sessionId)) {
-      _showShellSnackBar(l10n.recordingReplayStarted);
-    }
+    await sessionController.startSessionRecording(sessionId);
   }
 
   void _showRecordingSavedSnackBar(String path) {

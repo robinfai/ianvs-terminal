@@ -3799,8 +3799,8 @@
   "syncInProgress": "Merging and syncing…",
   "syncPending": "Saved locally. Waiting to sync.",
   "syncConflicts": "Both devices changed the same fields. Choose which conflicting values to keep.",
-  "syncUnavailable": "Sync could not finish. Local data is available; check the API connection and encryption key, then retry.",
-  "syncAuthenticationRequired": "Please sign in to the API again. Local data is still available. Choose Reconnect / sign in, then retry sync.",
+  "syncUnavailable": "Sync failed. Local data is preserved.",
+  "syncAuthenticationRequired": "Your session has expired. Sign out and sign in again.",
   "syncLocalFirstDescription": "Changes save locally first. Independent changes merge automatically; conflicting values never overwrite either side without your choice.",
   "syncKeepLocal": "Keep local conflicting values",
   "syncUseRemote": "Use API conflicting values",
@@ -4193,27 +4193,88 @@
   "terminalColorPreviewSelection": "Selected text",
   "reopenedPanePlacementFallback": "The original pane position is no longer available. Reopened beside the active pane.",
   "sftpDownloaded": "Downloaded {name}",
-  "@sftpDownloaded": {"placeholders": {"name": {"type": "String"}}},
+  "@sftpDownloaded": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "sftpEditingLocally": "Editing {name} locally. Save to upload changes.",
-  "@sftpEditingLocally": {"placeholders": {"name": {"type": "String"}}},
+  "@sftpEditingLocally": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "sftpUploaded": "Changes to {name} uploaded.",
-  "@sftpUploaded": {"placeholders": {"name": {"type": "String"}}},
+  "@sftpUploaded": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "sftpDirectoryReadFailed": "Cannot open {path}. Check that the directory exists, your account has access, and the SSH connection is available.",
-  "@sftpDirectoryReadFailed": {"placeholders": {"path": {"type": "String"}}},
+  "@sftpDirectoryReadFailed": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
   "sftpLocationChanged": "The remote location changed. Close this dialog and try again.",
   "sftpCreateFailed": "Could not create {name}. Check for an existing item with that name, directory permissions, and the connection.",
- "@sftpCreateFailed": {"placeholders":{"name":{"type":"String"}}},
+  "@sftpCreateFailed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "sftpValidDirectoryName": "Enter one valid directory name without slashes or control characters.",
- "layoutRestoreIncomplete": "Some panes could not be restored. The previous layout is preserved. You can replace it with the current layout to resume saving.",
- "useCurrentLayout": "Use current layout",
+  "layoutRestoreIncomplete": "Some panes could not be restored. The previous layout is preserved. You can replace it with the current layout to resume saving.",
+  "useCurrentLayout": "Use current layout",
   "sshNotificationConnectionFailed": "SSH connection failed",
   "sshNotificationConnectionInterrupted": "SSH connection interrupted",
   "triggerMatchedInSession": "Trigger matched in {session}",
-  "@triggerMatchedInSession": {"placeholders": {"session": {"type": "String"}}},
+  "@triggerMatchedInSession": {
+    "placeholders": {
+      "session": {
+        "type": "String"
+      }
+    }
+  },
   "recordingOpenInvalid": "This file is not a valid recording. Choose a recording exported by Trail.",
   "recordingOpenUnsupported": "This recording format is not supported. Choose a recording exported by this version of Trail.",
   "recordingOpenUnreadable": "This file could not be read. Download it to your device and select it again.",
   "recordingOpenFailed": "Could not open the recording. Please select the file again.",
   "sftpCurrentDirectory": "Current directory",
-  "sftpViewFullPath": "View full path"
+  "sftpViewFullPath": "View full path",
+  "signInMethod": "Sign-in method",
+  "passwordSignIn": "Username and password",
+  "appleSignIn": "Sign in with Apple",
+  "appleLinkExisting": "Link Apple to an existing account",
+  "appleLinkExistingHelp": "Verify your existing username and password, then authorize Apple. Your account and synced data stay together.",
+  "accountSignedIn": "Signed in",
+  "accountUsernameUnavailable": "Account connected",
+  "accountSignOut": "Sign out",
+  "accountSignOutHelp": "Sign out before using another account or sign-in method.",
+  "accountSessionExpired": "Session expired. Sign out before signing in again.",
+  "syncNetworkFailure": "Cannot reach the sync service. Check your connection and retry.",
+  "syncTimeoutFailure": "The sync request timed out. Please retry.",
+  "syncTlsFailure": "The secure connection could not be verified. Check the service address and certificate.",
+  "syncKeyMissingFailure": "The encryption key is unavailable. Check keychain access.",
+  "syncKeyMismatchFailure": "The current key cannot decrypt sync data. Verify that this device uses the same master key as the original device.",
+  "syncInvalidDataFailure": "Sync data is incompatible or damaged. Check the client and server versions.",
+  "syncRejectedFailure": "The server rejected the sync request.",
+  "syncRevisionFailure": "Remote data is changing. Please retry shortly.",
+  "syncStorageFailure": "Cannot read or save local sync data. Check available storage and file permissions.",
+  "syncCompleted": "Sync complete",
+  "syncProfiles": "Connections",
+  "syncPreferences": "Preferences",
+  "syncTerminalConfig": "Terminal settings",
+  "syncTerminalRepairRequired": "Remote terminal settings contain missing or nonstandard fields. Back up and repair the original version, then retry sync.",
+  "syncRepairTerminal": "Back up and repair terminal settings"
 }

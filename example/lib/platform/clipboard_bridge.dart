@@ -20,6 +20,7 @@ class ClipboardBridge {
   ) async {
     if (value.isEmpty) return;
     String message;
+    var kind = AppNoticeKind.success;
     try {
       await copy(value);
       if (!context.mounted) return;
@@ -27,14 +28,9 @@ class ClipboardBridge {
     } on PlatformException {
       if (!context.mounted) return;
       message = context.l10n.clipboardCopyFailed;
+      kind = AppNoticeKind.failure;
     }
-    AppNotifications.show(
-      context,
-      SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
-      deduplicationKey: 'clipboard-$message',
-      icon: Icons.content_copy,
-      replaceCurrent: true,
-    );
+    AppNotifications.message(context, message, kind: kind);
   }
 
   static Future<void> writeText(String value, String selection) async {

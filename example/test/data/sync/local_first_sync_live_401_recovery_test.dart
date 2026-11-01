@@ -73,7 +73,7 @@ void main() {
     },
   );
 
-  test('ordinary transport failure remains generic unavailable', () async {
+  test('transport failure retains a network diagnosis', () async {
     final coordinator = LocalFirstSyncCoordinator(
       documents: <SyncDocumentBinding>[
         SyncDocumentBinding(
@@ -95,7 +95,7 @@ void main() {
     await coordinator.synchronize();
 
     expect(coordinator.phase, LocalFirstSyncPhase.unavailable);
-    expect(coordinator.failureReason, LocalFirstSyncFailureReason.unavailable);
+    expect(coordinator.failureReason, LocalFirstSyncFailureReason.network);
   });
 }
 

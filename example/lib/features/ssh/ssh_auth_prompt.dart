@@ -86,9 +86,9 @@ final class SshHostKeyPromptPresenter {
             accept: accepted == true,
           );
           if (!responseAccepted && context.mounted) {
-            AppNotifications.show(
+            AppNotifications.message(
               context,
-              SnackBar(content: Text(context.l10n.sshHostKeyPromptInactive)),
+              context.l10n.sshHostKeyPromptInactive,
             );
           }
         })
@@ -296,11 +296,9 @@ final class SshAuthenticationPromptPresenter {
             cancel: responses == null,
           );
           if (!accepted && context.mounted) {
-            AppNotifications.show(
+            AppNotifications.message(
               context,
-              SnackBar(
-                content: Text(context.l10n.sshAuthenticationPromptInactive),
-              ),
+              context.l10n.sshAuthenticationPromptInactive,
             );
           }
         })

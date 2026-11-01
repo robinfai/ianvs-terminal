@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import '../../features/config/data_api_terminal_config_repository.dart';
@@ -360,6 +361,11 @@ SyncDocumentBinding _terminalConfigBinding(TerminalConfigRepository local) {
   return SyncDocumentBinding(
     kind: DataApiTerminalConfigRepository.resourceKind,
     id: DataApiTerminalConfigRepository.resourceId,
+    repairRemote: (client) async {
+      await DataApiTerminalConfigRepository(
+        client: client,
+      ).repairNonCanonicalCurrentDocument();
+    },
     readLocal: () async => (await local.load())?.toJson(),
     writeLocal: (json) => local.save(
       json == null
@@ -508,8 +514,45 @@ TerminalAppPreferencesDocument _decodePreferencesJson(SyncJson json) {
 
 LocalTerminalConfigDocument _decodeTerminalConfigJson(SyncJson json) {
   final decoded = LocalTerminalConfigDocument.fromJson(json);
-  if (!dataApiJsonEquivalent(decoded.toJson(), json)) {
+  if (!dataApiJsonEquivalent(
+    decoded.toJson(),
+    withKnownTerminalConfigDefaults(json),
+  )) {
+    if (const bool.fromEnvironment('IANVS_SYNC_DIAGNOSTICS')) {
+      try {
+        File(
+          '${Directory.systemTemp.path}/trail-config-shape.json',
+        ).writeAsStringSync(
+          jsonEncode(_shapeDifferences(json, decoded.toJson())),
+        );
+      } on Object {
+        /* Diagnostic failure must not change validation. */
+      }
+    }
     throw const NonCanonicalCurrentTerminalConfigException();
   }
   return decoded;
+}
+
+// Opt-in diagnostic lists schema paths and change kinds, never user values.
+List<String> _shapeDifferences(
+  Object? source,
+  Object? target, [
+  String path = '',
+]) {
+  if (dataApiJsonEquivalent(source, target)) return [];
+  if (source is Map && target is Map) {
+    return [
+      if (source.keys.any((key) => !target.containsKey(key)))
+        '$path: extra fields',
+      for (final key in target.keys)
+        if (!source.containsKey(key))
+          '$path/$key: missing'
+        else
+          ..._shapeDifferences(source[key], target[key], '$path/$key'),
+    ];
+  }
+  return [
+    '$path: ${source.runtimeType == target.runtimeType ? 'normalized' : 'type changed'}',
+  ];
 }

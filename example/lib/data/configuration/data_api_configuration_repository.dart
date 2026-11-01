@@ -6,6 +6,7 @@ import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
 import 'package:ffi/ffi.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../../platform/corrupt_file_quarantine.dart';
 import '../../platform/local_json_file.dart';
@@ -22,6 +23,33 @@ abstract interface class DataApiConfigurationRepository {
   Future<DataApiConfiguration> load();
 
   Future<void> save(DataApiConfiguration configuration);
+}
+
+/// Non-secret account details suitable for display in settings.
+final class DataApiAccountInfo {
+  const DataApiAccountInfo({
+    required this.baseUri,
+    required this.username,
+    required this.expiresAt,
+  });
+  final Uri baseUri;
+  final String? username;
+  final DateTime expiresAt;
+}
+
+abstract interface class DataApiAccountManager
+    implements
+        DataApiConfigurationRepository,
+        DataApiRemoteConfigurationConnector {
+  Future<DataApiAccountInfo?> loadAccountInfo();
+  Future<void> signOut();
+}
+
+extension DataApiAccountSettings on DataApiAccountManager {
+  Future<DataApiConfiguration> loadForSettings() =>
+      this is DataApiConfigurationRecoveryLoader
+      ? (this as DataApiConfigurationRecoveryLoader).loadForRecovery()
+      : load();
 }
 
 typedef DataApiSagaJournalWriter =
@@ -103,17 +131,43 @@ final class DataApiRemoteLoginRequest {
     );
   }
 
+  factory DataApiRemoteLoginRequest.apple({
+    required Uri baseUri,
+    String? username,
+    String? password,
+    String? encryptionKey,
+  }) {
+    final origin = DataApiConfiguration.remote(
+      baseUri.toString(),
+    ).remoteBaseUri!;
+    if (!isSecureDataApiRemoteOrigin(origin)) {
+      throw const FormatException('Remote authentication requires HTTPS.');
+    }
+    final linking = username != null || password != null;
+    return DataApiRemoteLoginRequest._(
+      baseUri: origin,
+      username: linking ? normalizeDataApiUsername(username ?? '') : '',
+      password: linking ? validateDataApiPassword(password ?? '') : '',
+      encryptionKey: encryptionKey == null
+          ? null
+          : validateDataApiEncryptionKey(encryptionKey),
+      useApple: true,
+    );
+  }
+
   const DataApiRemoteLoginRequest._({
     required this.baseUri,
     required this.username,
     required this.password,
     required this._encryptionKey,
+    this.useApple = false,
   });
 
   final Uri baseUri;
   final String username;
   final String password;
   final String? _encryptionKey;
+  final bool useApple;
 
   String get encryptionKey => requireEncryptionKey;
 
@@ -128,6 +182,14 @@ final class DataApiRemoteLoginRequest {
   }
 
   DataApiRemoteLoginRequest withEncryptionKey(String value) {
+    if (useApple) {
+      return DataApiRemoteLoginRequest.apple(
+        baseUri: baseUri,
+        username: username.isEmpty ? null : username,
+        password: username.isEmpty ? null : password,
+        encryptionKey: value,
+      );
+    }
     return DataApiRemoteLoginRequest(
       baseUri: baseUri,
       username: username,
@@ -326,19 +388,65 @@ final class DataApiClientRemoteConnectionValidator
   }
 }
 
+final class DataApiAppleLoginCanceled implements Exception {
+  const DataApiAppleLoginCanceled();
+}
+
+typedef DataApiAppleIdentityProvider = Future<String> Function(String nonce);
+
+Future<String> _nativeAppleIdentity(String nonce) async {
+  if (!await SignInWithApple.isAvailable()) {
+    throw StateError('Apple sign-in is unavailable on this device.');
+  }
+  try {
+    final credential = await SignInWithApple.getAppleIDCredential(
+      scopes: const [],
+      nonce: nonce,
+    );
+    final token = credential.identityToken;
+    if (token == null || token.isEmpty) {
+      throw StateError('Apple did not return an identity token.');
+    }
+    return token;
+  } on SignInWithAppleAuthorizationException catch (error) {
+    if (error.code == AuthorizationErrorCode.canceled) {
+      throw const DataApiAppleLoginCanceled();
+    }
+    rethrow;
+  }
+}
+
 final class DataApiClientRemoteAuthenticator
     implements DataApiRemoteAuthenticator {
-  const DataApiClientRemoteAuthenticator();
+  const DataApiClientRemoteAuthenticator({
+    this.appleIdentityProvider = _nativeAppleIdentity,
+  });
+
+  final DataApiAppleIdentityProvider appleIdentityProvider;
 
   @override
   Future<DataApiPreparedAuthOperation> begin(
     DataApiRemoteLoginRequest request,
-  ) {
-    return DataApiClient(
+  ) async {
+    final client = DataApiClient(
       baseUri: request.baseUri,
       accessToken: null,
       encryptionKey: null,
-    ).beginLogin(username: request.username, password: request.password);
+    );
+    if (!request.useApple) {
+      return client.beginLogin(
+        username: request.username,
+        password: request.password,
+      );
+    }
+    final nonce = await client.createAppleChallenge();
+    final token = await appleIdentityProvider(nonce);
+    return client.beginAppleLogin(
+      identityToken: token,
+      nonce: nonce,
+      username: request.username,
+      password: request.password,
+    );
   }
 
   @override
@@ -351,12 +459,18 @@ final class DataApiClientRemoteAuthenticator
       accessToken: null,
       encryptionKey: null,
     ).completeLogin(operation.operationId);
+    if (request.useApple &&
+        (login.username == null || login.username!.isEmpty)) {
+      throw const DataApiProtocolException(
+        'Apple login did not return the account username.',
+      );
+    }
     return DataApiRemoteSession(
       baseUri: request.baseUri,
       accessToken: login.accessToken,
       encryptionKey: request.requireEncryptionKey,
       expiresAt: login.expiresAt,
-      username: request.username,
+      username: login.username ?? request.username,
     );
   }
 }
@@ -371,6 +485,7 @@ final class DataApiClientRemoteAuthenticator
 final class AuthenticatedDataApiConfigurationRepository
     implements
         DataApiConfigurationRepository,
+        DataApiAccountManager,
         DataApiRemoteConfigurationConnector,
         DataApiLocalToRemoteConfigurationConnector,
         DataApiRemoteToLocalConfigurationConnector,
@@ -433,6 +548,28 @@ final class AuthenticatedDataApiConfigurationRepository
       return _delegate.load();
     });
   }
+
+  @override
+  Future<DataApiAccountInfo?> loadAccountInfo() => _withSagaLock(() async {
+    final configuration = await _delegate.load();
+    final origin = configuration.remoteBaseUri;
+    if (origin == null) return null;
+    final session = await _readActiveSessionLocked(configuration);
+    if (session == null) return null;
+    if (session.baseUri != origin) {
+      throw const FormatException(
+        'Stored account origin does not match configuration.',
+      );
+    }
+    return DataApiAccountInfo(
+      baseUri: origin,
+      username: session.username,
+      expiresAt: session.expiresAt,
+    );
+  });
+
+  @override
+  Future<void> signOut() => save(const DataApiConfiguration.disabled());
 
   Future<void> recoverForStartup() {
     return _withSagaLock(_recoverLocked);

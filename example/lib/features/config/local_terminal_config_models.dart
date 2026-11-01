@@ -4,6 +4,24 @@ import '../policies/local_terminal_policy_models.dart';
 import '../preferences/app_preferences_models.dart';
 import '../shell/shell_action_registry.dart';
 
+/// Version 1 documents written before SSH integration switches were added
+/// omit these two optional fields. Fill only absent fields, preserving explicit
+/// false/null/invalid values so strict validation still detects other damage.
+Map<String, Object?> withKnownTerminalConfigDefaults(
+  Map<String, Object?> json,
+) {
+  final integration = json['shellIntegration'];
+  if (integration is! Map) return json;
+  return {
+    ...json,
+    'shellIntegration': {
+      ...integration,
+      if (!integration.containsKey('sshWrapper')) 'sshWrapper': true,
+      if (!integration.containsKey('sshAutoInject')) 'sshAutoInject': true,
+    },
+  };
+}
+
 const int maxLocalTerminalKeyBindingKeyLength = 64;
 const int maxLocalTerminalReportVariableDecisions = 64;
 

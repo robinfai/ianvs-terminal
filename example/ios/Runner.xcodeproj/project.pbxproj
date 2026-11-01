@@ -510,6 +510,7 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_BITCODE = NO;
 				EXPORTED_SYMBOLS_FILE = "$(PROJECT_DIR)/../../native/core/ianvs_core_ios_exports.txt";
+				STRIP_STYLE = "non-global";
 				INFOPLIST_FILE = Runner/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -517,6 +518,7 @@
 				);
 				OTHER_LDFLAGS = (
 					"$(inherited)",
+					"-Wl,-export_dynamic",
 					"-force_load",
 					"$(DERIVED_FILE_DIR)/ianvs_core/libianvs_core.a",
 				);
@@ -703,6 +705,7 @@
 				ENABLE_BITCODE = NO;
 				ENABLE_DEBUG_DYLIB = NO;
 				EXPORTED_SYMBOLS_FILE = "$(PROJECT_DIR)/../../native/core/ianvs_core_ios_exports.txt";
+				STRIP_STYLE = "non-global";
 				INFOPLIST_FILE = Runner/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -710,6 +713,7 @@
 				);
 				OTHER_LDFLAGS = (
 					"$(inherited)",
+					"-Wl,-export_dynamic",
 					"-force_load",
 					"$(DERIVED_FILE_DIR)/ianvs_core/libianvs_core.a",
 				);
@@ -734,6 +738,7 @@
 				DEVELOPMENT_TEAM = "";
 				ENABLE_BITCODE = NO;
 				EXPORTED_SYMBOLS_FILE = "$(PROJECT_DIR)/../../native/core/ianvs_core_ios_exports.txt";
+				STRIP_STYLE = "non-global";
 				INFOPLIST_FILE = Runner/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -741,6 +746,7 @@
 				);
 				OTHER_LDFLAGS = (
 					"$(inherited)",
+					"-Wl,-export_dynamic",
 					"-force_load",
 					"$(DERIVED_FILE_DIR)/ianvs_core/libianvs_core.a",
 				);

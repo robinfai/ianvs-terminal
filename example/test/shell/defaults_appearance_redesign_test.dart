@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:app/data/configuration/data_api_configuration.dart';
+import 'package:app/data/configuration/data_api_configuration_repository.dart';
 import 'package:app/data/services/portable_master_key.dart';
 import 'package:app/features/ai/ai_models.dart';
 import 'package:app/features/ai/ai_settings.dart';
@@ -14,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../ai/terminal_ai_test.dart' show MemoryAiStore;
 
@@ -26,7 +28,139 @@ class _LoadingAiStore implements AiConfigurationStore {
 }
 
 void main() {
-  testWidgets('PRD data settings describe device-only Keychain storage', (
+  for (final platform in [TargetPlatform.iOS, TargetPlatform.macOS]) {
+    testWidgets(
+      'account stays visible until successful sign out on $platform',
+      (tester) async {
+        final manager = _AccountManager();
+        await _pumpDefaultsDialog(
+          tester,
+          surfaceSize: platform == TargetPlatform.iOS
+              ? const Size(390, 844)
+              : const Size(1280, 1000),
+          platform: platform,
+          openDataServiceInitially: true,
+          dataApiConfiguration: manager.configuration,
+          accountManager: manager,
+        );
+        final method = find.byKey(const Key('data-api-auth-method'));
+        await tester.ensureVisible(method);
+        await tester.tap(method);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Sign in with Apple').last);
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.byType(SignInWithAppleButton));
+        await tester.tap(find.byType(SignInWithAppleButton));
+        await tester.pumpAndSettle();
+        expect(manager.lastRequest?.useApple, isTrue);
+        expect(
+          find.byKey(const Key('data-api-account-status')),
+          findsOneWidget,
+        );
+        expect(find.text('historical'), findsOneWidget);
+        expect(method, findsNothing);
+        expect(find.byKey(const Key('data-api-remote-password')), findsNothing);
+        expect(find.byType(SignInWithAppleButton), findsNothing);
+        // Reopening settings reads the persisted account, never a fresh login form.
+        await tester.pumpWidget(const SizedBox.shrink());
+        await _pumpDefaultsDialog(
+          tester,
+          surfaceSize: const Size(1280, 1000),
+          platform: platform,
+          openDataServiceInitially: true,
+          dataApiConfiguration: manager.configuration,
+          accountManager: manager,
+        );
+        expect(find.text('historical'), findsOneWidget);
+        manager.failSignOut = true;
+        final logout = find.byKey(const Key('data-api-sign-out'));
+        await tester.ensureVisible(logout);
+        await tester.tap(logout);
+        await tester.pumpAndSettle();
+        expect(find.text('historical'), findsOneWidget);
+        expect(method, findsNothing);
+        manager.failSignOut = false;
+        await tester.tap(logout);
+        await tester.pumpAndSettle();
+        expect(manager.account, isNull);
+        expect(method, findsOneWidget);
+        expect(find.byKey(const Key('data-api-account-status')), findsNothing);
+        expect(
+          tester
+              .widget<TextField>(
+                find.byKey(const Key('data-api-remote-password')),
+              )
+              .controller!
+              .text,
+          isEmpty,
+        );
+        expect(tester.takeException(), isNull);
+      },
+      variant: TargetPlatformVariant.only(platform),
+    );
+  }
+
+  testWidgets(
+    'Apple mode hides password fields and linking requires historical credentials',
+    (tester) async {
+      await _pumpDefaultsDialog(
+        tester,
+        surfaceSize: const Size(1280, 1000),
+        platform: TargetPlatform.iOS,
+        openDataServiceInitially: true,
+        dataApiConfiguration: DataApiConfiguration.remote(
+          'https://example.test',
+        ),
+      );
+      final method = find.byKey(const Key('data-api-auth-method'));
+      await tester.ensureVisible(method);
+      await tester.tap(method);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Sign in with Apple').last);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('data-api-remote-password')), findsNothing);
+      expect(
+        tester
+            .widget<SignInWithAppleButton>(find.byType(SignInWithAppleButton))
+            .onPressed,
+        isNotNull,
+      );
+      await tester.ensureVisible(method);
+      await tester.tap(method);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Link Apple to an existing account').last);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('data-api-remote-password')), findsOneWidget);
+      expect(
+        tester
+            .widget<SignInWithAppleButton>(find.byType(SignInWithAppleButton))
+            .onPressed,
+        isNull,
+      );
+      await tester.enterText(
+        find.byKey(const Key('data-api-remote-username')),
+        'historical',
+      );
+      await tester.enterText(
+        find.byKey(const Key('data-api-remote-password')),
+        'historical-password',
+      );
+      await tester.pump();
+      expect(
+        tester
+            .widget<SignInWithAppleButton>(find.byType(SignInWithAppleButton))
+            .onPressed,
+        isNotNull,
+      );
+      expect(tester.takeException(), isNull);
+    },
+    variant: const TargetPlatformVariant({
+      TargetPlatform.iOS,
+      TargetPlatform.macOS,
+    }),
+  );
+
+  testWidgets('data settings keep key storage details out of the account panel', (
     tester,
   ) async {
     await _pumpDefaultsDialog(
@@ -47,7 +181,7 @@ void main() {
         of: dataPanel,
         matching: find.textContaining("this device's Keychain"),
       ),
-      findsOneWidget,
+      findsNothing,
     );
     expect(
       find.descendant(
@@ -810,6 +944,7 @@ Future<void> _pumpDefaultsDialog(
   bool openDataServiceInitially = false,
   DataApiConfiguration dataApiConfiguration =
       const DataApiConfiguration.disabled(),
+  DataApiAccountManager? accountManager,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = surfaceSize;
@@ -826,6 +961,7 @@ Future<void> _pumpDefaultsDialog(
       ),
       home: Scaffold(
         body: DefaultsAndAppearanceDialog(
+          accountManager: accountManager,
           masterKeyRepository: masterKeyRepository,
           openDataServiceInitially: openDataServiceInitially,
           dataApiConfiguration: dataApiConfiguration,
@@ -901,4 +1037,39 @@ Future<void> _pumpDefaultsDialogLauncher(
   );
   await tester.tap(find.byKey(const Key('open-defaults-profile-test')));
   await tester.pumpAndSettle();
+}
+
+class _AccountManager implements DataApiAccountManager {
+  DataApiConfiguration configuration = DataApiConfiguration.remote(
+    'https://example.test',
+  );
+  DataApiAccountInfo? account;
+  DataApiRemoteLoginRequest? lastRequest;
+  bool failSignOut = false;
+  @override
+  Future<DataApiConfiguration> load() async => configuration;
+  @override
+  Future<void> save(DataApiConfiguration value) async {
+    configuration = value;
+  }
+
+  @override
+  Future<DataApiAccountInfo?> loadAccountInfo() async => account;
+  @override
+  Future<void> connectAndSaveRemote(DataApiRemoteLoginRequest request) async {
+    lastRequest = request;
+    configuration = DataApiConfiguration.remote(request.baseUri.toString());
+    account = DataApiAccountInfo(
+      baseUri: request.baseUri,
+      username: 'historical',
+      expiresAt: DateTime.utc(2030),
+    );
+  }
+
+  @override
+  Future<void> signOut() async {
+    if (failSignOut) throw StateError('Sign out failed');
+    account = null;
+    configuration = const DataApiConfiguration.disabled();
+  }
 }

@@ -615,6 +615,28 @@ void main() {
       },
     );
 
+    test('terminal config accepts only absent optional SSH switches', () async {
+      final client = MemoryDataApiResourceClient();
+      final legacy = const LocalTerminalConfigDocument().toJson();
+      final shell = legacy['shellIntegration']! as Map;
+      shell.remove('sshAutoInject');
+      shell['sshWrapper'] = false;
+      client.resources['config/local-terminal'] = dataApiTestResource(
+        kind: 'config',
+        id: 'local-terminal',
+        data: legacy,
+      );
+      final repository = DataApiTerminalConfigRepository(client: client);
+      final loaded = await repository.loadVersioned();
+      expect(loaded.value!.shellIntegration.sshAutoInject, isTrue);
+      expect(loaded.value!.shellIntegration.sshWrapper, isFalse);
+      expect(client.putCount, 0);
+      // Invalid explicit values must not be mistaken for missing defaults.
+      shell['sshAutoInject'] = 'invalid';
+      await expectLater(repository.loadVersioned(), throwsFormatException);
+      expect(client.putCount, 0);
+    });
+
     test(
       'explicit terminal config repair preserves evidence and canonicalizes',
       () async {

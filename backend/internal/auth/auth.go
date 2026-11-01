@@ -254,6 +254,10 @@ func (s *Service) BeginLoginReplacingOldest(ctx context.Context, username, passw
 	if !passwordMatches {
 		return PreparedOperation{}, ErrInvalidCredentials
 	}
+	return s.beginLoginForUser(ctx, user, replaceOldest)
+}
+
+func (s *Service) beginLoginForUser(ctx context.Context, user model.User, replaceOldest bool) (PreparedOperation, error) {
 	operationID, err := identity.Secret(32)
 	if err != nil {
 		return PreparedOperation{}, err

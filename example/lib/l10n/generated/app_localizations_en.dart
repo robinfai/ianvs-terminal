@@ -4613,12 +4613,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'Both devices changed the same fields. Choose which conflicting values to keep.';
 
   @override
-  String get syncUnavailable =>
-      'Sync could not finish. Local data is available; check the API connection and encryption key, then retry.';
+  String get syncUnavailable => 'Sync failed. Local data is preserved.';
 
   @override
   String get syncAuthenticationRequired =>
-      'Please sign in to the API again. Local data is still available. Choose Reconnect / sign in, then retry sync.';
+      'Your session has expired. Sign out and sign in again.';
 
   @override
   String get syncLocalFirstDescription =>
@@ -5675,4 +5674,90 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sftpViewFullPath => 'View full path';
+
+  @override
+  String get signInMethod => 'Sign-in method';
+
+  @override
+  String get passwordSignIn => 'Username and password';
+
+  @override
+  String get appleSignIn => 'Sign in with Apple';
+
+  @override
+  String get appleLinkExisting => 'Link Apple to an existing account';
+
+  @override
+  String get appleLinkExistingHelp =>
+      'Verify your existing username and password, then authorize Apple. Your account and synced data stay together.';
+
+  @override
+  String get accountSignedIn => 'Signed in';
+
+  @override
+  String get accountUsernameUnavailable => 'Account connected';
+
+  @override
+  String get accountSignOut => 'Sign out';
+
+  @override
+  String get accountSignOutHelp =>
+      'Sign out before using another account or sign-in method.';
+
+  @override
+  String get accountSessionExpired =>
+      'Session expired. Sign out before signing in again.';
+
+  @override
+  String get syncNetworkFailure =>
+      'Cannot reach the sync service. Check your connection and retry.';
+
+  @override
+  String get syncTimeoutFailure => 'The sync request timed out. Please retry.';
+
+  @override
+  String get syncTlsFailure =>
+      'The secure connection could not be verified. Check the service address and certificate.';
+
+  @override
+  String get syncKeyMissingFailure =>
+      'The encryption key is unavailable. Check keychain access.';
+
+  @override
+  String get syncKeyMismatchFailure =>
+      'The current key cannot decrypt sync data. Verify that this device uses the same master key as the original device.';
+
+  @override
+  String get syncInvalidDataFailure =>
+      'Sync data is incompatible or damaged. Check the client and server versions.';
+
+  @override
+  String get syncRejectedFailure => 'The server rejected the sync request.';
+
+  @override
+  String get syncRevisionFailure =>
+      'Remote data is changing. Please retry shortly.';
+
+  @override
+  String get syncStorageFailure =>
+      'Cannot read or save local sync data. Check available storage and file permissions.';
+
+  @override
+  String get syncCompleted => 'Sync complete';
+
+  @override
+  String get syncProfiles => 'Connections';
+
+  @override
+  String get syncPreferences => 'Preferences';
+
+  @override
+  String get syncTerminalConfig => 'Terminal settings';
+
+  @override
+  String get syncTerminalRepairRequired =>
+      'Remote terminal settings contain missing or nonstandard fields. Back up and repair the original version, then retry sync.';
+
+  @override
+  String get syncRepairTerminal => 'Back up and repair terminal settings';
 }

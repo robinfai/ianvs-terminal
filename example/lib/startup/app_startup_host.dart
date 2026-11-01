@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../app_bootstrap.dart';
 import '../data/configuration/data_api_configuration.dart';
@@ -167,14 +168,16 @@ final class _AppStartupDataSetupViewState
   bool get _isMobile =>
       defaultTargetPlatform == TargetPlatform.iOS ||
       defaultTargetPlatform == TargetPlatform.android;
+  _StartupAuthMethod _authMethod = _StartupAuthMethod.password;
   bool _runningAction = false;
   bool _showMobileSyncSetup = false;
   String? _actionError;
 
   bool get _canConnect =>
       _urlController.text.trim().isNotEmpty &&
-      _usernameController.text.trim().isNotEmpty &&
-      _passwordController.text.isNotEmpty;
+      (_authMethod == _StartupAuthMethod.apple ||
+          (_usernameController.text.trim().isNotEmpty &&
+              _passwordController.text.isNotEmpty));
 
   @override
   void initState() {
@@ -221,7 +224,7 @@ final class _AppStartupDataSetupViewState
       }
       final configuration = DataApiConfiguration.remote(_urlController.text);
       await widget.settings.reconnect(
-        DataApiRemoteLoginRequest(
+        _authMethod.request(
           baseUri: configuration.remoteBaseUri!,
           username: _usernameController.text,
           password: _passwordController.text,
@@ -261,6 +264,8 @@ final class _AppStartupDataSetupViewState
     });
     try {
       await action();
+    } on DataApiAppleLoginCanceled {
+      // Native consent cancellation leaves setup available for another attempt.
     } on Object catch (error) {
       if (mounted) {
         setState(() {
@@ -349,16 +354,21 @@ final class _AppStartupDataSetupViewState
 
   Widget _buildSetupActions({required bool canSkip}) => LayoutBuilder(
     builder: (context, constraints) {
-      final connect = FilledButton.icon(
-        key: const Key('app-startup-connect-data-api'),
-        onPressed: !_runningAction && _canConnect ? _connect : null,
-        icon: const Icon(Icons.login_rounded),
-        label: Text(
-          canSkip
-              ? context.l10n.connectRemoteApi
-              : context.l10n.connectAndContinue,
-        ),
-      );
+      final connect = _authMethod != _StartupAuthMethod.password
+          ? _StartupAppleButton(
+              key: const Key('app-startup-connect-data-api'),
+              onPressed: !_runningAction && _canConnect ? _connect : null,
+            )
+          : FilledButton.icon(
+              key: const Key('app-startup-connect-data-api'),
+              onPressed: !_runningAction && _canConnect ? _connect : null,
+              icon: const Icon(Icons.login_rounded),
+              label: Text(
+                canSkip
+                    ? context.l10n.connectRemoteApi
+                    : context.l10n.connectAndContinue,
+              ),
+            );
       final skip = TextButton(
         key: const Key('app-startup-skip-data-api'),
         onPressed: _runningAction ? null : _skip,
@@ -634,21 +644,38 @@ final class _AppStartupDataSetupViewState
                               SizedBox(height: compactLandscape ? 14 : 28),
                               _buildUrlField(isMobile: isMobile),
                               SizedBox(height: compactLandscape ? 10 : 14),
-                              if (compactLandscape)
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(child: _buildUsernameField()),
-                                    const SizedBox(width: 12),
-                                    Expanded(child: _buildPasswordField()),
-                                  ],
-                                )
-                              else ...[
-                                _buildUsernameField(),
+                              if (_supportsStartupApple) ...[
+                                _StartupAuthSelector(
+                                  value: _authMethod,
+                                  onChanged: _runningAction
+                                      ? null
+                                      : (value) {
+                                          setState(() {
+                                            _authMethod = value;
+                                            _actionError = null;
+                                          });
+                                        },
+                                ),
                                 const SizedBox(height: 14),
-                                _buildPasswordField(),
                               ],
-                              const SizedBox(height: 14),
+                              if (_authMethod != _StartupAuthMethod.apple) ...[
+                                if (compactLandscape)
+                                  Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(child: _buildUsernameField()),
+                                      const SizedBox(width: 12),
+                                      Expanded(child: _buildPasswordField()),
+                                    ],
+                                  )
+                                else ...[
+                                  _buildUsernameField(),
+                                  const SizedBox(height: 14),
+                                  _buildPasswordField(),
+                                ],
+                                const SizedBox(height: 14),
+                              ],
                               if (usesAutomaticallySynchronizedAppleKeychain)
                                 const _AppleMasterKeyNotice()
                               else
@@ -886,6 +913,7 @@ final class _AppStartupDataSettingsDialogState
   String? _saveError;
   bool _loading = true;
   bool _saving = false;
+  _StartupAuthMethod _authMethod = _StartupAuthMethod.password;
 
   @override
   void initState() {
@@ -953,7 +981,7 @@ final class _AppStartupDataSettingsDialogState
             .importPortableMasterKey(portableMasterKey);
       }
       return widget.settings.reconnect(
-        DataApiRemoteLoginRequest(
+        _authMethod.request(
           baseUri: remoteUri,
           username: _usernameController.text,
           password: _passwordController.text,
@@ -975,6 +1003,8 @@ final class _AppStartupDataSettingsDialogState
       if (mounted) {
         Navigator.of(context).pop(true);
       }
+    } on DataApiAppleLoginCanceled {
+      // Keep the recovery dialog open without reporting cancellation as failure.
     } on Object catch (error) {
       if (mounted) {
         setState(() {
@@ -1024,25 +1054,41 @@ final class _AppStartupDataSettingsDialogState
                         key: const Key('app-startup-remote-origin'),
                       ),
                       const SizedBox(height: 16),
-                      TextField(
-                        key: const Key('app-startup-remote-username'),
-                        controller: _usernameController,
-                        decoration: InputDecoration(
-                          labelText: context.l10n.username,
+                      if (_supportsStartupApple) ...[
+                        _StartupAuthSelector(
+                          value: _authMethod,
+                          onChanged: _saving
+                              ? null
+                              : (value) {
+                                  setState(() {
+                                    _authMethod = value;
+                                    _saveError = null;
+                                  });
+                                },
                         ),
-                        enabled: !_saving,
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        key: const Key('app-startup-remote-password'),
-                        controller: _passwordController,
-                        decoration: InputDecoration(
-                          labelText: context.l10n.password,
+                        const SizedBox(height: 12),
+                      ],
+                      if (_authMethod != _StartupAuthMethod.apple) ...[
+                        TextField(
+                          key: const Key('app-startup-remote-username'),
+                          controller: _usernameController,
+                          decoration: InputDecoration(
+                            labelText: context.l10n.username,
+                          ),
+                          enabled: !_saving,
                         ),
-                        obscureText: true,
-                        enabled: !_saving,
-                      ),
-                      const SizedBox(height: 12),
+                        const SizedBox(height: 12),
+                        TextField(
+                          key: const Key('app-startup-remote-password'),
+                          controller: _passwordController,
+                          decoration: InputDecoration(
+                            labelText: context.l10n.password,
+                          ),
+                          obscureText: true,
+                          enabled: !_saving,
+                        ),
+                        const SizedBox(height: 12),
+                      ],
                       if (usesAutomaticallySynchronizedAppleKeychain)
                         const _AppleMasterKeyNotice()
                       else
@@ -1092,7 +1138,12 @@ final class _AppStartupDataSettingsDialogState
           onPressed: _saving ? null : _disable,
           child: Text(context.l10n.useLocalTerminal),
         ),
-        if (remoteUri != null)
+        if (remoteUri != null && _authMethod != _StartupAuthMethod.password)
+          _StartupAppleButton(
+            key: const Key('app-startup-reconnect'),
+            onPressed: _saving ? null : _reconnect,
+          )
+        else if (remoteUri != null)
           FilledButton(
             key: const Key('app-startup-reconnect'),
             onPressed: _saving ? null : _reconnect,
@@ -1131,4 +1182,96 @@ final class _AppleMasterKeyNotice extends StatelessWidget {
       ],
     );
   }
+}
+
+bool get _supportsStartupApple =>
+    !kIsWeb &&
+    (defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.macOS);
+
+enum _StartupAuthMethod {
+  password,
+  apple,
+  link;
+
+  DataApiRemoteLoginRequest request({
+    required Uri baseUri,
+    required String username,
+    required String password,
+  }) => this == _StartupAuthMethod.password
+      ? DataApiRemoteLoginRequest(
+          baseUri: baseUri,
+          username: username,
+          password: password,
+        )
+      : DataApiRemoteLoginRequest.apple(
+          baseUri: baseUri,
+          username: this == _StartupAuthMethod.link ? username : null,
+          password: this == _StartupAuthMethod.link ? password : null,
+        );
+}
+
+class _StartupAuthSelector extends StatelessWidget {
+  const _StartupAuthSelector({required this.value, required this.onChanged});
+
+  final _StartupAuthMethod value;
+  final ValueChanged<_StartupAuthMethod>? onChanged;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      AppDropdownFormField<_StartupAuthMethod>(
+        key: const Key('app-startup-auth-method'),
+        initialValue: value,
+        isExpanded: true,
+        decoration: InputDecoration(labelText: context.l10n.signInMethod),
+        items: [
+          DropdownMenuItem(
+            value: _StartupAuthMethod.password,
+            child: Text(context.l10n.passwordSignIn),
+          ),
+          DropdownMenuItem(
+            value: _StartupAuthMethod.apple,
+            child: Text(context.l10n.appleSignIn),
+          ),
+          DropdownMenuItem(
+            value: _StartupAuthMethod.link,
+            child: Text(context.l10n.appleLinkExisting),
+          ),
+        ],
+        onChanged: onChanged == null
+            ? null
+            : (value) {
+                if (value != null) onChanged!(value);
+              },
+      ),
+      if (value == _StartupAuthMethod.link) ...[
+        const SizedBox(height: 12),
+        Text(context.l10n.appleLinkExistingHelp),
+      ],
+    ],
+  );
+}
+
+class _StartupAppleButton extends StatelessWidget {
+  const _StartupAppleButton({required this.onPressed, super.key});
+
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(
+    ignoring: onPressed == null,
+    child: Opacity(
+      opacity: onPressed == null ? 0.5 : 1,
+      child: SignInWithAppleButton(
+        onPressed: onPressed ?? () {},
+        text: context.l10n.appleSignIn,
+        height: 48,
+        style: Theme.of(context).brightness == Brightness.dark
+            ? SignInWithAppleButtonStyle.white
+            : SignInWithAppleButtonStyle.black,
+      ),
+    ),
+  );
 }

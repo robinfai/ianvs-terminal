@@ -95,6 +95,119 @@ void main() {
       );
     }
   }
+  for (final brightness in Brightness.values) {
+    for (final recovery in [false, true]) {
+      for (final link in [false, true]) {
+        testWidgets(
+          'iOS Apple login recovery=$recovery link=$link $brightness',
+          (tester) async {
+            tester.platformDispatcher.platformBrightnessTestValue = brightness;
+            addTearDown(
+              tester.platformDispatcher.clearPlatformBrightnessTestValue,
+            );
+            tester.view.devicePixelRatio = 1;
+            tester.view.physicalSize = const Size(375, 812);
+            addTearDown(tester.view.reset);
+            final harness = _HostHarness.create(
+              initialSetupRequirement: recovery
+                  ? null
+                  : AppStartupDataSetupRequirement.required,
+              failingStage: recovery ? AppStartupStage.configuration : null,
+              recoveryConfiguration: DataApiConfiguration.remote(
+                'https://sync.example.com/',
+              ),
+              localDataApiAvailable: false,
+            );
+            addTearDown(() => _disposeHarness(tester, harness));
+            await tester.pumpWidget(harness.host());
+            await harness.coordinator.start();
+            await tester.pumpAndSettle();
+            if (recovery) {
+              await tester.tap(
+                find.byKey(const Key('app-startup-open-data-settings')),
+              );
+              await tester.pumpAndSettle();
+            }
+            final selector = find.byKey(const Key('app-startup-auth-method'));
+            await tester.ensureVisible(selector);
+            await tester.tap(selector);
+            await tester.pumpAndSettle();
+            final context = tester.element(selector);
+            await tester.tap(
+              find
+                  .text(
+                    link
+                        ? context.l10n.appleLinkExisting
+                        : context.l10n.appleSignIn,
+                  )
+                  .last,
+            );
+            await tester.pumpAndSettle();
+            final username = find.byKey(
+              Key(
+                recovery
+                    ? 'app-startup-remote-username'
+                    : 'app-startup-initial-data-api-username',
+              ),
+            );
+            final password = find.byKey(
+              Key(
+                recovery
+                    ? 'app-startup-remote-password'
+                    : 'app-startup-initial-data-api-password',
+              ),
+            );
+            if (link) {
+              await tester.enterText(username, 'Historical');
+              await tester.enterText(password, 'historical-password');
+              tester.testTextInput.hide();
+              await tester.pumpAndSettle();
+            } else {
+              expect(username, findsNothing);
+              expect(password, findsNothing);
+            }
+            final connect = find.byKey(
+              Key(
+                recovery
+                    ? 'app-startup-reconnect'
+                    : 'app-startup-connect-data-api',
+              ),
+            );
+            // Cancellation must not close the form or display an authentication error.
+            harness.settings.reconnectError = const DataApiAppleLoginCanceled();
+            await tester.ensureVisible(connect);
+            await tester.tap(connect);
+            await tester.pumpAndSettle();
+            expect(
+              find.byKey(const Key('app-startup-initial-data-api-error')),
+              findsNothing,
+            );
+            expect(
+              find.byKey(const Key('app-startup-settings-error')),
+              findsNothing,
+            );
+            expect(selector, findsOneWidget);
+            harness.settings.reconnectError = null;
+            await tester.tap(connect);
+            await tester.pumpAndSettle();
+            expect(harness.settings.lastReconnect?.useApple, isTrue);
+            expect(
+              harness.settings.lastReconnect?.username,
+              link ? 'historical' : '',
+            );
+            expect(
+              harness.settings.lastReconnect?.password,
+              link ? 'historical-password' : '',
+            );
+            expect(harness.settings.reconnectCount, 2);
+            expect(harness.coordinator.state, isA<AppStartupReady>());
+            expect(tester.takeException(), isNull);
+          },
+          variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+        );
+      }
+    }
+  }
   if (uiReviewEvidenceDirectory.isNotEmpty) {
     setUpAll(loadVisualCaptureFonts);
     for (final platform in [TargetPlatform.iOS, TargetPlatform.macOS]) {
@@ -458,6 +571,7 @@ void main() {
       );
       expect(tester.takeException(), isNull);
 
+      await tester.ensureVisible(password);
       await tester.tap(password);
       tester.view.viewInsets = FakeViewPadding(
         bottom: keyboardHeight * tester.view.devicePixelRatio,
@@ -1151,6 +1265,7 @@ final class _HostSettings
   int localCount = 0;
   int reconnectCount = 0;
   DataApiRemoteLoginRequest? lastReconnect;
+  Exception? reconnectError;
 
   @override
   Future<AppStartupDataSetupRequirement?> initialSetupRequirement(
@@ -1177,6 +1292,7 @@ final class _HostSettings
   Future<void> reconnect(DataApiRemoteLoginRequest request) async {
     reconnectCount += 1;
     lastReconnect = request;
+    if (reconnectError case final error?) throw error;
     _initialSetupRequirement = null;
     onSaved();
   }

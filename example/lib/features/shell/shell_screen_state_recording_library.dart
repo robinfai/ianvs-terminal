@@ -135,7 +135,6 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
       );
     }
     _mutateState(() => _recordingLibraryError = message);
-    _showShellSnackBar(message);
   }
 
   void _showSelectedRecording(

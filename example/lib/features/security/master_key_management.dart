@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -15,6 +17,7 @@ final class MasterKeyManagementController extends ChangeNotifier {
   final PortableMasterKeyRepository _repository;
   final MasterKeyClipboardWriter _clipboardWriter;
 
+  Timer? _statusTimer;
   bool _busy = false;
   String? _status;
   String? _error;
@@ -42,18 +45,29 @@ final class MasterKeyManagementController extends ChangeNotifier {
     if (_busy) {
       return;
     }
+    _statusTimer?.cancel();
     _busy = true;
     _status = null;
     _error = null;
     notifyListeners();
     try {
       await operation();
+      _statusTimer = Timer(const Duration(seconds: 2), () {
+        _status = null;
+        notifyListeners();
+      });
     } on Object catch (error) {
       _error = error.toString();
     } finally {
       _busy = false;
       notifyListeners();
     }
+  }
+
+  @override
+  void dispose() {
+    _statusTimer?.cancel();
+    super.dispose();
   }
 
   static Future<void> _writeClipboard(String value) {

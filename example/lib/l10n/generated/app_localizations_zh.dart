@@ -4314,11 +4314,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get syncConflicts => '两端修改了相同字段，请选择保留哪一端的冲突值。';
 
   @override
-  String get syncUnavailable => '同步未完成，本地数据仍可使用。请检查 API 连接和加密密钥后重试。';
+  String get syncUnavailable => '同步失败，本地数据已保留。';
 
   @override
-  String get syncAuthenticationRequired =>
-      '请重新登录 API，本地数据仍可使用。请选择“重新连接 / 登录”，然后重试同步。';
+  String get syncAuthenticationRequired => '登录已失效，请注销后重新登录。';
 
   @override
   String get syncLocalFirstDescription => '修改先保存到本机。独立修改自动合并；冲突值在选择前不会覆盖任一端。';
@@ -5295,4 +5294,82 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get sftpViewFullPath => '查看完整路径';
+
+  @override
+  String get signInMethod => '登录方式';
+
+  @override
+  String get passwordSignIn => '用户名和密码';
+
+  @override
+  String get appleSignIn => '通过 Apple 登录';
+
+  @override
+  String get appleLinkExisting => '绑定 Apple 与历史账号';
+
+  @override
+  String get appleLinkExistingHelp =>
+      '验证历史账号的用户名和密码后，再授权 Apple。绑定后继续使用原账号和同步数据。';
+
+  @override
+  String get accountSignedIn => '已登录';
+
+  @override
+  String get accountUsernameUnavailable => '账号已连接';
+
+  @override
+  String get accountSignOut => '注销登录';
+
+  @override
+  String get accountSignOutHelp => '如需更换账号或登录方式，请先注销登录。';
+
+  @override
+  String get accountSessionExpired => '登录已过期，请注销后重新登录。';
+
+  @override
+  String get syncNetworkFailure => '无法连接同步服务，请检查网络后重试。';
+
+  @override
+  String get syncTimeoutFailure => '同步请求超时，请稍后重试。';
+
+  @override
+  String get syncTlsFailure => '无法验证服务的安全连接，请检查服务地址和证书。';
+
+  @override
+  String get syncKeyMissingFailure => '无法读取加密密钥，请检查钥匙串访问权限。';
+
+  @override
+  String get syncKeyMismatchFailure =>
+      '现有密钥无法解密同步数据。请确认原设备和本机使用同一个 iCloud 钥匙串中的主密钥。';
+
+  @override
+  String get syncInvalidDataFailure => '同步数据格式不兼容或已损坏，请检查客户端与服务端版本。';
+
+  @override
+  String get syncRejectedFailure => '同步请求被服务端拒绝。';
+
+  @override
+  String get syncRevisionFailure => '远端数据持续变化，请稍后重试。';
+
+  @override
+  String get syncStorageFailure => '无法读写本地同步数据，请检查可用空间和文件权限。';
+
+  @override
+  String get syncCompleted => '同步完成';
+
+  @override
+  String get syncProfiles => '连接配置';
+
+  @override
+  String get syncPreferences => '应用偏好';
+
+  @override
+  String get syncTerminalConfig => '终端设置';
+
+  @override
+  String get syncTerminalRepairRequired =>
+      '远端终端设置缺少标准字段或包含非标准值。可备份原始版本后修复，再重新同步。';
+
+  @override
+  String get syncRepairTerminal => '备份并修复终端设置';
 }

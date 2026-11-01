@@ -549,15 +549,14 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         : context.l10n.terminalOperationFailed;
   }
 
-  void _showShellSnackBar(String message) {
+  void _showShellSnackBar(
+    String message, {
+    AppNoticeKind kind = AppNoticeKind.failure,
+  }) {
     if (!mounted) {
       return;
     }
-    AppNotifications.show(
-      context,
-      SnackBar(content: Text(message), duration: const Duration(seconds: 3)),
-      replaceCurrent: true,
-    );
+    AppNotifications.message(context, message, kind: kind);
   }
 
   void _showShellPathSnackBar({required String message, required String path}) {

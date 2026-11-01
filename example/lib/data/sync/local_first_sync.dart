@@ -7,10 +7,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
+import '../../features/config/local_terminal_config_repository.dart';
 import '../../features/profiles/profile_secret_cipher.dart';
 import '../../platform/local_json_file.dart';
 import '../repositories/data_api_repository_helpers.dart';
 import '../services/data_api_client.dart';
+import '../services/data_api_sensitive_cipher.dart';
 import 'json_three_way_merge.dart';
 
 // Values in checkpoints can contain SSH secrets. Only authenticated ciphertext
@@ -80,6 +82,7 @@ class SyncDocumentBinding {
     required this.decodeRemote,
     required this.encodeRemote,
     required this.validate,
+    this.repairRemote,
   });
   final String kind;
   final String id;
@@ -88,6 +91,7 @@ class SyncDocumentBinding {
   final SyncJson Function(DataApiResource) decodeRemote;
   final ({Object? data, Object? sensitive}) Function(SyncJson) encodeRemote;
   final void Function(SyncJson?) validate;
+  final Future<void> Function(DataApiResourceClient)? repairRemote;
   String get key => '$kind/$id';
   Future<void> _queue = Future<void>.value();
   Future<T> local<T>(Future<T> Function() action) {
@@ -106,7 +110,31 @@ enum LocalFirstSyncPhase {
   unavailable,
 }
 
-enum LocalFirstSyncFailureReason { authenticationRequired, unavailable }
+enum LocalFirstSyncFailureReason {
+  authenticationRequired,
+  network,
+  timeout,
+  tls,
+  encryptionKeyRequired,
+  encryptionMismatch,
+  invalidData,
+  terminalConfigRepairRequired,
+  requestRejected,
+  revisionConflict,
+  localStorage,
+  unavailable,
+}
+
+/// Safe diagnostics only: never retain exception messages or response bodies.
+class SyncFailure {
+  const SyncFailure(this.reason, {this.httpStatus});
+  final LocalFirstSyncFailureReason reason;
+  final int? httpStatus;
+  factory SyncFailure.fromError(Object? error) => SyncFailure(
+    _failureReasonFor(error),
+    httpStatus: error is DataApiRequestException ? error.statusCode : null,
+  );
+}
 
 class LocalFirstSyncCoordinator extends ChangeNotifier {
   LocalFirstSyncCoordinator({
@@ -135,6 +163,7 @@ class LocalFirstSyncCoordinator extends ChangeNotifier {
 
   LocalFirstSyncPhase _phase = LocalFirstSyncPhase.idle;
   final Map<String, List<String>> conflicts = {};
+  final Map<String, SyncFailure> failures = {};
   LocalFirstSyncFailureReason? get failureReason => _failureReason;
   LocalFirstSyncFailureReason? _failureReason;
   DateTime? lastSyncedAt;
@@ -206,20 +235,65 @@ class LocalFirstSyncCoordinator extends ChangeNotifier {
     ).whenComplete(() => _running = null);
   }
 
+  /// Repairs only the remote document with an explicit recovery action.
+  /// The binding must back up the original before replacing it.
+  Future<void> repairRemoteDocument(String key) {
+    if (_closed || _paused || client == null) return Future<void>.value();
+    if (_running != null) return _running!;
+    final binding = documents.where((item) => item.key == key).firstOrNull;
+    final repair = binding?.repairRemote;
+    if (repair == null) return Future<void>.value();
+    return _running = _repairRemoteDocument(
+      key,
+      repair,
+    ).whenComplete(() => _running = null);
+  }
+
+  Future<void> _repairRemoteDocument(
+    String key,
+    Future<void> Function(DataApiResourceClient) repair,
+  ) async {
+    _phase = LocalFirstSyncPhase.syncing;
+    notifyListeners();
+    try {
+      await repair(client!);
+      if (!_closed && !_paused) {
+        await _synchronize(JsonConflictResolution.unresolved);
+      }
+    } on Object catch (error) {
+      failures[key] = SyncFailure.fromError(error);
+      _failureReason = _failureReasonFor(error);
+      _phase = LocalFirstSyncPhase.unavailable;
+      if (!_closed) notifyListeners();
+    }
+  }
+
   Future<void> _synchronize(JsonConflictResolution resolution) async {
     _phase = LocalFirstSyncPhase.syncing;
     notifyListeners();
     conflicts.clear();
+    failures.clear();
     var failed = false;
     LocalFirstSyncFailureReason? syncFailureReason;
     for (final binding in documents) {
       if (_closed || _paused) break;
       try {
         await _synchronizeDocument(binding, resolution);
-      } on Object catch (error) {
+      } on Object catch (error, stackTrace) {
+        if (const bool.fromEnvironment('IANVS_SYNC_DIAGNOSTICS')) {
+          // Developer opt-in: code locations and types only, no response data.
+          try {
+            await File(
+              '${Directory.systemTemp.path}/trail-sync-diagnostic.txt',
+            ).writeAsString('${binding.key} ${error.runtimeType}\n$stackTrace');
+          } on Object {
+            // Diagnostics must never change synchronization behavior.
+          }
+        }
         // Local data and the last acknowledged checkpoint are intact. Never
         // expose exception payloads containing credentials in the status UI.
         failed = true;
+        failures[binding.key] = SyncFailure.fromError(error);
         final reason = _failureReasonFor(error);
         if (syncFailureReason !=
                 LocalFirstSyncFailureReason.authenticationRequired ||
@@ -367,6 +441,7 @@ class LocalFirstSyncCoordinator extends ChangeNotifier {
     closeTransport = nextClose;
     enabledButUnavailable = false;
     conflicts.clear();
+    failures.clear();
     _failureReason = null;
     lastSyncedAt = null;
     _paused = false;
@@ -380,6 +455,7 @@ class LocalFirstSyncCoordinator extends ChangeNotifier {
     enabledButUnavailable = true;
     _phase = LocalFirstSyncPhase.unavailable;
     _failureReason = _failureReasonFor(error);
+    failures['transport'] = SyncFailure.fromError(error);
     if (!_closed) notifyListeners();
   }
 
@@ -419,7 +495,26 @@ LocalFirstSyncFailureReason _failureReasonFor(Object? error) {
           error.statusCode == HttpStatus.unauthorized) {
     return LocalFirstSyncFailureReason.authenticationRequired;
   }
-  return LocalFirstSyncFailureReason.unavailable;
+  return switch (error) {
+    DataApiSensitiveAuthenticationException() ||
+    SecretBoxAuthenticationError() =>
+      LocalFirstSyncFailureReason.encryptionMismatch,
+    DataApiEncryptionKeyRequiredException() =>
+      LocalFirstSyncFailureReason.encryptionKeyRequired,
+    DataApiTimeoutException() ||
+    TimeoutException() => LocalFirstSyncFailureReason.timeout,
+    HandshakeException() => LocalFirstSyncFailureReason.tls,
+    SocketException() || HttpException() => LocalFirstSyncFailureReason.network,
+    DataApiRevisionConflictException() =>
+      LocalFirstSyncFailureReason.revisionConflict,
+    DataApiRequestException() => LocalFirstSyncFailureReason.requestRejected,
+    NonCanonicalCurrentTerminalConfigException() =>
+      LocalFirstSyncFailureReason.terminalConfigRepairRequired,
+    FormatException() ||
+    DataApiProtocolException() => LocalFirstSyncFailureReason.invalidData,
+    FileSystemException() => LocalFirstSyncFailureReason.localStorage,
+    _ => LocalFirstSyncFailureReason.unavailable,
+  };
 }
 
 final localFirstSyncProvider =

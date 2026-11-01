@@ -264,6 +264,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
                   result.profile.name,
                   _activeProfilePersistenceLabel(),
                 ),
+          kind: AppNoticeKind.success,
         );
       } on Object catch (error) {
         final connectOnce = await _showProfileSaveFailure(
@@ -377,9 +378,9 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
       if (!mounted) {
         return;
       }
-      AppNotifications.show(
+      AppNotifications.message(
         context,
-        SnackBar(content: Text(l10n.terminalSettingsRepairFailed('$error'))),
+        l10n.terminalSettingsRepairFailed('$error'),
       );
     }
   }
@@ -439,6 +440,15 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     Widget buildDefaults(BuildContext dialogContext) {
       return DefaultsAndAppearanceDialog(
         aiSettings: ref.read(aiSettingsProvider),
+        accountManager: dataApiConfigurationRepository is DataApiAccountManager
+            ? dataApiConfigurationRepository
+            : null,
+        onAccountChanged: () async {
+          if (dataApiConfigurationRepository != null) {
+            dataApiConfiguration = await dataApiConfigurationRepository.load();
+          }
+          await _applySavedApiSyncConfiguration();
+        },
         profiles: sessionState.profiles,
         configuredDefaultProfileId: sessionState.configuredDefaultProfileId,
         effectiveDefaultProfileId: sessionState.defaultProfileId,
@@ -648,9 +658,9 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
           dataApiConfigurationRecoveryRequired) {
         if (dataApiConfigurationRepository == null) {
           if (mounted) {
-            AppNotifications.show(
+            AppNotifications.message(
               context,
-              SnackBar(content: Text(l10n.dataServiceConfigurationUnavailable)),
+              l10n.dataServiceConfigurationUnavailable,
             );
           }
         } else {
@@ -674,20 +684,24 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
             }
             final applyResult = await _applySavedApiSyncConfiguration();
             if (mounted) {
-              AppNotifications.show(
+              AppNotifications.message(
                 context,
-                SnackBar(
-                  content: Text(switch (applyResult) {
-                    _ApiSyncConfigurationApplyResult.restartRequired =>
-                      l10n.dataServiceConfigurationSaved,
-                    _ApiSyncConfigurationApplyResult.applied =>
-                      l10n.dataServiceConfigurationApplied,
-                    _ApiSyncConfigurationApplyResult.unavailable =>
-                      l10n.dataServiceConfigurationSavedSyncUnavailable,
-                  }),
-                ),
+                switch (applyResult) {
+                  _ApiSyncConfigurationApplyResult.restartRequired =>
+                    l10n.dataServiceConfigurationSaved,
+                  _ApiSyncConfigurationApplyResult.applied =>
+                    l10n.dataServiceConfigurationApplied,
+                  _ApiSyncConfigurationApplyResult.unavailable =>
+                    l10n.dataServiceConfigurationSavedSyncUnavailable,
+                },
+                kind:
+                    applyResult == _ApiSyncConfigurationApplyResult.unavailable
+                    ? AppNoticeKind.failure
+                    : AppNoticeKind.success,
               );
             }
+          } on DataApiAppleLoginCanceled {
+            // The configuration saga has rolled back; cancellation is not an error.
           } on DataApiRemoteRevocationPendingWarning {
             await _applySavedApiSyncConfiguration();
             if (mounted) {
@@ -863,9 +877,10 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
           try {
             await sessionController.deleteProfile(profile.id);
             if (mounted) {
-              AppNotifications.show(
+              AppNotifications.message(
                 context,
-                SnackBar(content: Text(l10n.deletedProfile(profile.name))),
+                l10n.deletedProfile(profile.name),
+                kind: AppNoticeKind.success,
               );
             }
           } on Object catch (error) {
@@ -976,6 +991,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
         mobileNavigation
             ? l10n.mobileSavedConnection(profile.name)
             : l10n.savedProfileTo(profile.name, destination),
+        kind: AppNoticeKind.success,
       );
       return true;
     } on Object catch (error) {

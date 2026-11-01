@@ -34,6 +34,48 @@ void main() {
     }
   });
 
+  test(
+    'account info survives reload and sign out revokes the active session',
+    () async {
+      final session = DataApiRemoteSession(
+        baseUri: Uri.parse('https://sync.example.com/'),
+        accessToken: 'test-token',
+        encryptionKey: 'encryption-key-material',
+        expiresAt: DateTime.now().add(const Duration(days: 30)),
+        username: 'historical',
+      );
+      final store = _MemoryRemoteSessionStore();
+      final revoker = _RecordingRemoteRevoker();
+      final guarded = AuthenticatedDataApiConfigurationRepository(
+        delegate: repository,
+        remoteSessionStore: store,
+        remoteAuthenticator: _RecordingRemoteAuthenticator(session: session),
+        remoteConnectionValidator: _RecordingRemoteValidator(),
+        remoteSessionRevoker: revoker,
+      );
+      await guarded.connectAndSaveRemote(
+        DataApiRemoteLoginRequest.apple(
+          baseUri: session.baseUri,
+          encryptionKey: 'encryption-key-material',
+        ),
+      );
+      final reopened = AuthenticatedDataApiConfigurationRepository(
+        delegate: repository,
+        remoteSessionStore: store,
+        remoteSessionRevoker: revoker,
+      );
+      final info = await reopened.loadAccountInfo();
+      expect(info?.username, 'historical');
+      expect(info?.baseUri, session.baseUri);
+      expect(info?.expiresAt, session.expiresAt);
+      await reopened.signOut();
+      expect(await reopened.loadAccountInfo(), isNull);
+      expect(await repository.load(), const DataApiConfiguration.disabled());
+      expect(store.slots, isEmpty);
+      expect(revoker.revoked, contains(session));
+    },
+  );
+
   test('missing configuration defaults to disabled', () async {
     final configuration = await repository.load();
 

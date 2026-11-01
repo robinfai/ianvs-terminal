@@ -252,12 +252,14 @@ final class DataApiMigrationMergeReport {
 
 final class DataApiLoginResult {
   const DataApiLoginResult({
+    this.username,
     required this.accessToken,
     required this.expiresAt,
   });
 
   final String accessToken;
   final DateTime expiresAt;
+  final String? username;
 }
 
 final class DataApiPreparedAuthOperation {
@@ -426,6 +428,41 @@ final class DataApiClient
     );
   }
 
+  Future<String> createAppleChallenge() async {
+    final response = await _request(
+      'POST',
+      _resourceUri('v1/auth/apple/challenge'),
+      requireAuthentication: false,
+      jsonBody: const <String, String>{},
+    );
+    final root = _jsonObject(response.body, documentName: 'Apple challenge');
+    final nonce = _stringValue(root['nonce']);
+    if (nonce == null) {
+      throw const DataApiProtocolException('Apple challenge is missing nonce.');
+    }
+    return validateDataApiAuthOperationId(nonce);
+  }
+
+  Future<DataApiPreparedAuthOperation> beginAppleLogin({
+    required String identityToken,
+    required String nonce,
+    String username = '',
+    String password = '',
+  }) async {
+    final response = await _request(
+      'POST',
+      _resourceUri('v1/auth/apple/begin'),
+      requireAuthentication: false,
+      jsonBody: <String, String>{
+        'identity_token': identityToken,
+        'nonce': validateDataApiAuthOperationId(nonce),
+        if (username.isNotEmpty) 'username': normalizeDataApiUsername(username),
+        if (username.isNotEmpty) 'password': validateDataApiPassword(password),
+      },
+    );
+    return _preparedLogin(response.body);
+  }
+
   /// Verifies ephemeral credentials and creates a short-lived server-side
   /// operation without issuing an access token.
   Future<DataApiPreparedAuthOperation> beginLogin({
@@ -443,10 +480,11 @@ final class DataApiClient
         'password': validatedPassword,
       },
     );
-    final root = _jsonObject(
-      response.body,
-      documentName: 'login begin response',
-    );
+    return _preparedLogin(response.body);
+  }
+
+  DataApiPreparedAuthOperation _preparedLogin(Object? body) {
+    final root = _jsonObject(body, documentName: 'login begin response');
     final operationId = _stringValue(root['operation_id']);
     final rawExpiresAt = _stringValue(root['expires_at']);
     final expiresAt = rawExpiresAt == null
@@ -488,7 +526,11 @@ final class DataApiClient
         'login response is missing token or expires_at.',
       );
     }
-    return DataApiLoginResult(accessToken: token, expiresAt: expiresAt.toUtc());
+    return DataApiLoginResult(
+      accessToken: token,
+      expiresAt: expiresAt.toUtc(),
+      username: _stringValue(_objectMap(root['user'])?['username']),
+    );
   }
 
   Future<void> cancelAuthOperation(String operationId) async {

@@ -7,6 +7,8 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../ui/components/app_notifications.dart';
+
 /// Hold to dictate into a draft; recognition never submits the draft.
 class IosVoiceInput extends StatefulWidget {
   const IosVoiceInput({
@@ -334,29 +336,23 @@ class _IosVoiceInputState extends State<IosVoiceInput>
       }
     } on PlatformException catch (error) {
       if (mounted && _id == id) {
-        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          SnackBar(
-            content: Text(
-              _t(
-                error.code == 'permission_denied'
-                    ? 'Allow microphone and speech recognition in Settings.'
-                    : 'Voice input unavailable. Please try again.',
-                error.code == 'permission_denied'
-                    ? '请在系统设置中允许麦克风和语音识别权限。'
-                    : '语音输入暂不可用，请重试。',
-              ),
-            ),
+        AppNotifications.message(
+          context,
+          _t(
+            error.code == 'permission_denied'
+                ? 'Allow microphone and speech recognition in Settings.'
+                : 'Voice input unavailable. Please try again.',
+            error.code == 'permission_denied'
+                ? '请在系统设置中允许麦克风和语音识别权限。'
+                : '语音输入暂不可用，请重试。',
           ),
         );
       }
     } on MissingPluginException {
       if (mounted && _id == id) {
-        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          SnackBar(
-            content: Text(
-              _t('Voice input requires the iOS app.', '请在 iOS 应用中使用语音输入。'),
-            ),
-          ),
+        AppNotifications.message(
+          context,
+          _t('Voice input requires the iOS app.', '请在 iOS 应用中使用语音输入。'),
         );
       }
     } finally {

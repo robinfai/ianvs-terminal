@@ -12,8 +12,115 @@ import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/profiles/profile_repository.dart';
 import 'package:app/features/shell/paste_history_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
+import '../support/memory_data_api_resource_client.dart';
 
 void main() {
+  test(
+    'old SSH switch omissions sync with defaults without rewriting remote data',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'sync-ssh-defaults-',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final bindings = SyncRepositoryBindings(
+        profiles: ProfileRepository(directoryResolver: () async => directory),
+        preferences: AppPreferencesRepository(
+          directoryResolver: () async => directory,
+        ),
+        terminalConfig: _MemoryConfigRepository(
+          const LocalTerminalConfigDocument(),
+        ),
+        pasteHistory: PasteHistoryRepository(
+          directoryResolver: () async => directory,
+        ),
+      );
+      final client = MemoryDataApiResourceClient();
+      final old = const LocalTerminalConfigDocument().toJson();
+      final shell = old['shellIntegration']! as Map;
+      shell.remove('sshWrapper');
+      shell.remove('sshAutoInject');
+      client.resources['config/local-terminal'] = dataApiTestResource(
+        kind: 'config',
+        id: 'local-terminal',
+        data: old,
+      );
+      final sync = LocalFirstSyncCoordinator(
+        documents: [bindings.terminalConfigBinding],
+        client: client,
+        checkpoints: _RepairCheckpoints(),
+      );
+      addTearDown(sync.close);
+      await sync.synchronize();
+      expect(sync.phase, LocalFirstSyncPhase.idle);
+      expect(sync.failures, isEmpty);
+      expect(client.putCount, 0);
+      expect(
+        (client.resources['config/local-terminal']!.data!
+            as Map)['shellIntegration'],
+        shell,
+      );
+    },
+  );
+
+  for (final failBackup in [false, true]) {
+    test(
+      'sync repairs noncanonical remote config only after backup (failure=$failBackup)',
+      () async {
+        final directory = await Directory.systemTemp.createTemp('sync-repair-');
+        addTearDown(() => directory.delete(recursive: true));
+        final local = _MemoryConfigRepository(
+          const LocalTerminalConfigDocument(),
+        );
+        final bindings = SyncRepositoryBindings(
+          profiles: ProfileRepository(directoryResolver: () async => directory),
+          preferences: AppPreferencesRepository(
+            directoryResolver: () async => directory,
+          ),
+          terminalConfig: local,
+          pasteHistory: PasteHistoryRepository(
+            directoryResolver: () async => directory,
+          ),
+        );
+        final client = MemoryDataApiResourceClient();
+        const original = <String, Object?>{'schemaVersion': 1};
+        client.resources['config/local-terminal'] = dataApiTestResource(
+          kind: 'config',
+          id: 'local-terminal',
+          data: original,
+          revision: 3,
+        );
+        const backupKey = 'recovery/terminal-config-local-terminal-r3';
+        if (failBackup) client.failNextPutKeys.add(backupKey);
+        final sync = LocalFirstSyncCoordinator(
+          documents: [bindings.terminalConfigBinding],
+          client: client,
+          checkpoints: _RepairCheckpoints(),
+        );
+        addTearDown(sync.close);
+        await sync.synchronize();
+        expect(
+          sync.failureReason,
+          LocalFirstSyncFailureReason.terminalConfigRepairRequired,
+        );
+        expect(client.putCount, 0);
+        await sync.repairRemoteDocument('config/local-terminal');
+        if (failBackup) {
+          expect(sync.phase, LocalFirstSyncPhase.unavailable);
+          expect(client.resources['config/local-terminal']!.data, original);
+        } else {
+          expect(sync.phase, LocalFirstSyncPhase.idle);
+          expect((client.resources[backupKey]!.data! as Map)['data'], original);
+          expect(
+            client.resources['config/local-terminal']!.data,
+            const LocalTerminalConfigDocument().toJson(),
+          );
+          await sync.synchronize();
+          expect(sync.phase, LocalFirstSyncPhase.idle);
+        }
+      },
+    );
+  }
+
   test(
     'retired paste history remains local and has no sync document',
     () async {
@@ -219,5 +326,15 @@ final class _MemoryConfigRepository extends TerminalConfigRepository {
     final next = transform(document ?? fallback);
     await save(next);
     return next;
+  }
+}
+
+class _RepairCheckpoints implements SyncCheckpointStore {
+  Map<String, Object?>? value;
+  @override
+  Future<Map<String, Object?>?> read(String resource) async => value;
+  @override
+  Future<void> write(String resource, Map<String, Object?>? next) async {
+    value = next;
   }
 }

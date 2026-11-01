@@ -656,13 +656,13 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
             ref
                 .read(sessionControllerProvider.notifier)
                 .clearPromptMarks(currentSessionId);
-            _showShellSnackBar(l10n.bufferClearedCommandKept);
+            _showShellSnackBar(
+              l10n.bufferClearedCommandKept,
+              kind: AppNoticeKind.success,
+            );
           }
           if (!cleared && mounted) {
-            AppNotifications.show(
-              context,
-              SnackBar(content: Text(l10n.clearBufferRequiresNative)),
-            );
+            AppNotifications.message(context, l10n.clearBufferRequiresNative);
           }
           return ShellActionBindingResult.completed(
             cleared ? l10n.bufferCleared : l10n.clearBufferUnsupported,
@@ -722,7 +722,12 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
               );
             }
             await ClipboardBridge.copy(content);
-            if (mounted) _showShellSnackBar(l10n.mobileHistoryCopied);
+            if (mounted) {
+              _showShellSnackBar(
+                l10n.mobileHistoryCopied,
+                kind: AppNoticeKind.success,
+              );
+            }
             return ShellActionBindingResult.completed(l10n.mobileHistoryCopied);
           }
           final file = await _exportVisibleFrame(currentSessionId);
@@ -744,9 +749,9 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         exportDiagnostics: (_) async {
           if (currentSessionId == null) {
             if (mounted) {
-              AppNotifications.show(
+              AppNotifications.message(
                 context,
-                SnackBar(content: Text(l10n.exportDiagnosticsRequiresSession)),
+                l10n.exportDiagnosticsRequiresSession,
               );
             }
             return ShellActionBindingResult.skipped(
@@ -756,9 +761,9 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
           final directory = await _exportDiagnosticsBundle(currentState);
           if (directory == null) {
             if (mounted) {
-              AppNotifications.show(
+              AppNotifications.message(
                 context,
-                SnackBar(content: Text(l10n.diagnosticsExportUnavailable)),
+                l10n.diagnosticsExportUnavailable,
               );
             }
             return ShellActionBindingResult.skipped(
@@ -1328,10 +1333,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         if (_growActivePane(currentTab, currentSessionId)) {
           _focusSession(currentSessionId);
         } else if (blockedReason != null) {
-          AppNotifications.show(
-            context,
-            SnackBar(content: Text(blockedReason)),
-          );
+          AppNotifications.message(context, blockedReason);
         }
         return;
       case TerminalActionId.swapPane:
@@ -1340,10 +1342,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
             ? null
             : _zoomedPaneManagementUnavailableReason(currentTab);
         if (blockedReason != null) {
-          AppNotifications.show(
-            context,
-            SnackBar(content: Text(blockedReason)),
-          );
+          AppNotifications.message(context, blockedReason);
           return;
         }
         if ((currentTab?.effectivePanes.length ?? 0) < 2) {

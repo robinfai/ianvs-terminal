@@ -500,10 +500,9 @@ extension _WorkspaceComposer on _TerminalAiWorkspaceState {
               await Clipboard.setData(ClipboardData(text: _input.text));
             } on PlatformException {
               if (mounted) {
-                ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-                  SnackBar(
-                    content: Text(t('Could not copy the draft.', '无法复制草稿。')),
-                  ),
+                AppNotifications.message(
+                  context,
+                  t('Could not copy the draft.', '无法复制草稿。'),
                 );
               }
             }

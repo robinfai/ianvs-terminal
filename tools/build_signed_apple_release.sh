@@ -56,6 +56,8 @@ if [[ "$PLATFORM" == "macos" ]]; then
 
   plutil -create xml1 "$SIGNING_ENTITLEMENTS"
   /usr/libexec/PlistBuddy \
+    -c 'Add :com.apple.developer.applesignin array' \
+    -c 'Add :com.apple.developer.applesignin:0 string Default' \
     -c 'Add :keychain-access-groups array' \
     -c "Add :keychain-access-groups:0 string \$(AppIdentifierPrefix)$PRODUCTION_IDENTIFIER" \
     "$SIGNING_ENTITLEMENTS"

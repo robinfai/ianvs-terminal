@@ -639,6 +639,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       decision == LocalTerminalReportVariablePolicy.allow
           ? context.l10n.futureVariableReportsAllowed(name)
           : context.l10n.futureVariableReportsDenied(name),
+      kind: AppNoticeKind.success,
     );
   }
 
@@ -710,7 +711,10 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     if (path == null) {
       runtime.discardFileDownload(event);
       if (mounted) {
-        _showShellSnackBar(l10n.receivedFileDiscarded);
+        _showShellSnackBar(
+          l10n.receivedFileDiscarded,
+          kind: AppNoticeKind.success,
+        );
       }
       return;
     }
@@ -727,7 +731,10 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       return;
     }
     if (mounted) {
-      _showShellSnackBar(l10n.savedFile(event.filename!));
+      _showShellSnackBar(
+        l10n.savedFile(event.filename!),
+        kind: AppNoticeKind.success,
+      );
     }
   }
 
@@ -872,7 +879,12 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       if (message != null) {
         if (ref.read(sessionControllerProvider).activeSessionId ==
             event.sessionId) {
-          _showShellSnackBar(message);
+          _showShellSnackBar(
+            message,
+            kind: event.kind == terminal.TerminalZmodemEventKind.failed
+                ? AppNoticeKind.failure
+                : AppNoticeKind.success,
+          );
         } else {
           _pendingZmodemTerminalMessages[event.sessionId] = message;
           _signalInactiveZmodem(
@@ -1437,7 +1449,7 @@ extension _ShellScreenStateEvents on _ShellScreenState {
       if (currentState.activeSessionId != event.sessionId) {
         return;
       }
-      _showShellSnackBar(message);
+      _showShellSnackBar(message, kind: AppNoticeKind.information);
     });
   }
 
@@ -1649,7 +1661,12 @@ extension _ShellScreenStateEvents on _ShellScreenState {
     if (!mounted) {
       return;
     }
-    _showShellSnackBar(_osc52SnackBarMessageFor(event));
+    _showShellSnackBar(
+      _osc52SnackBarMessageFor(event),
+      kind: event.decision == terminal.TerminalClipboardDecision.allowed
+          ? AppNoticeKind.success
+          : AppNoticeKind.failure,
+    );
   }
 
   String _oscProtocolDisplayName(String protocol) =>

@@ -1723,14 +1723,26 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
       write: ref.read(shellFileDownloadWriterProvider),
       l10n: context.l10n,
     );
-    if (message != null) _showShellSnackBar(message);
+    if (mounted && message != null) {
+      _showShellSnackBar(
+        message,
+        kind: message == context.l10n.savedImage
+            ? AppNoticeKind.success
+            : AppNoticeKind.failure,
+      );
+    }
   }
 
   Future<void> _copyTerminalGraphicImage(
     terminal.TerminalGraphicImage image,
   ) async {
+    final message = await copyTerminalGraphicImage(image, l10n: context.l10n);
+    if (!mounted) return;
     _showShellSnackBar(
-      await copyTerminalGraphicImage(image, l10n: context.l10n),
+      message,
+      kind: message == context.l10n.copiedImage
+          ? AppNoticeKind.success
+          : AppNoticeKind.failure,
     );
   }
 
@@ -1782,16 +1794,19 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
         await _openTerminalLinkTarget(sessionId, target);
       case _TerminalLinkMenuAction.copy:
         await ClipboardBridge.copy(target.uri);
-        _showShellSnackBar(l10n.copiedLinkTarget);
+        _showShellSnackBar(l10n.copiedLinkTarget, kind: AppNoticeKind.success);
       case _TerminalLinkMenuAction.copyText:
         final text = target.visibleText?.trim();
         if (text == null || text.isEmpty) {
           return;
         }
         await ClipboardBridge.copy(text);
-        _showShellSnackBar(l10n.copiedLinkText);
+        _showShellSnackBar(l10n.copiedLinkText, kind: AppNoticeKind.success);
       case _TerminalLinkMenuAction.inspect:
-        _showShellSnackBar(_terminalLinkInspectionMessage(target));
+        _showShellSnackBar(
+          _terminalLinkInspectionMessage(target),
+          kind: AppNoticeKind.information,
+        );
     }
   }
 

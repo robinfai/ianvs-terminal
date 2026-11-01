@@ -20,6 +20,74 @@ tags:
   - name: resources
   - name: migrations
 paths:
+  /v1/auth/apple/challenge:
+    post:
+      tags: [auth]
+      operationId: createAppleChallenge
+      summary: Create a five-minute, single-use nonce for native Apple authorization.
+      responses:
+        '200':
+          description: Server-issued nonce; pass unchanged to the native Apple authorization request.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [nonce]
+                properties:
+                  nonce: {type: string, minLength: 43, maxLength: 43}
+        '400': {description: HTTPS is required.}
+        '404': {description: Apple authentication is not configured or server is local.}
+        '429':
+          description: Authentication capacity exceeded.
+          headers:
+            Retry-After:
+              schema: {type: integer, minimum: 1}
+        '500': {description: Internal failure.}
+  /v1/auth/apple/begin:
+    post:
+      tags: [auth]
+      operationId: beginAppleLogin
+      summary: Verify native Apple identity and prepare login, optionally linking an existing account.
+      description: Verify Apple RS256 signature, issuer, configured audience, expiration and server-issued nonce. Supplying username and password links that verified account without changing its ID or resources. Email is never used for matching. New Apple accounts respect allow_registration. Persist operation_id before using the existing login/complete endpoint; cancel-operation retains its existing semantics.
+      x-ianvs-json-request-limit-bytes: 20480
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [identity_token, nonce]
+              properties:
+                identity_token: {type: string, maxLength: 16384}
+                nonce: {type: string, minLength: 43, maxLength: 43}
+                username: {type: string, minLength: 3, maxLength: 64}
+                password: {type: string, description: Existing account password, 12–72 UTF-8 bytes.}
+      responses:
+        '200':
+          description: Prepared login; no bearer token issued yet.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [operation_id, expires_at, kind]
+                properties:
+                  operation_id: {type: string}
+                  expires_at: {type: string, format: date-time}
+                  kind: {type: string, const: login}
+        '400': {description: Invalid request or insecure transport.}
+        '401': {description: Invalid Apple identity, used nonce or existing-account credentials.}
+        '403': {description: New account registration is disabled.}
+        '404': {description: Apple authentication is unavailable.}
+        '409': {description: An identity is already linked to another account.}
+        '413': {description: Request exceeds 20 KiB.}
+        '415': {$ref: '#/components/responses/UnsupportedMediaType'}
+        '429':
+          description: Authentication or session capacity exceeded.
+          headers:
+            Retry-After:
+              schema: {type: integer, minimum: 1}
+        '500': {description: Internal failure.}
   /healthz:
     get:
       tags: [health]

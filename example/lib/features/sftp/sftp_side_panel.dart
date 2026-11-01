@@ -499,7 +499,7 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
         ),
         SftpFileActionEventKind.uploaded => context.l10n.sftpUploaded(name),
         SftpFileActionEventKind.failed => event.message,
-      });
+      }, failed: event.kind == SftpFileActionEventKind.failed);
       if (event.kind == SftpFileActionEventKind.uploaded &&
           _parentSftpPath(event.remotePath) == _path) {
         _refresh();
@@ -523,7 +523,7 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
     if (unresolved.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-          _showMessage(unresolved.last.message);
+          _showMessage(unresolved.last.message, failed: true);
         }
       });
     }
@@ -908,16 +908,19 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
       }
     } on Object {
       if (mounted && _locationIsCurrent(revision)) {
-        _showMessage(context.l10n.couldNotDeleteNamedItem(entry.name));
+        _showMessage(
+          context.l10n.couldNotDeleteNamedItem(entry.name),
+          failed: true,
+        );
       }
     }
   }
 
-  void _showMessage(String message) {
-    AppNotifications.show(
+  void _showMessage(String message, {bool failed = false}) {
+    AppNotifications.message(
       context,
-      SnackBar(content: Text(message), duration: const Duration(seconds: 3)),
-      replaceCurrent: true,
+      message,
+      kind: failed ? AppNoticeKind.failure : AppNoticeKind.success,
     );
   }
 
@@ -1134,8 +1137,10 @@ class _SftpPathToolbar extends StatelessWidget {
           onPressed: () async {
             await Clipboard.setData(ClipboardData(text: path));
             if (!context.mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(context.l10n.copiedPath(path))),
+            AppNotifications.message(
+              context,
+              context.l10n.copiedPath(path),
+              kind: AppNoticeKind.success,
             );
           },
           child: Text(context.l10n.copyFullPath),

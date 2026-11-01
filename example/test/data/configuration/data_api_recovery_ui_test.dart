@@ -185,7 +185,10 @@ void main() {
         500,
         scrollable: find.byType(Scrollable).first,
       );
-      await tester.tap(find.byKey(const Key('data-api-remote-reconnect')));
+
+      await tester.ensureVisible(find.byKey(const Key('data-api-sign-out')));
+      await tester.tap(find.byKey(const Key('data-api-sign-out')));
+      await tester.pumpAndSettle();
       await tester.enterText(
         find.byKey(const Key('data-api-remote-username')),
         'alice',
@@ -198,10 +201,7 @@ void main() {
       await tester.tap(find.byKey(const Key('defaults-save')));
       await tester.pumpAndSettle();
 
-      expect(
-        find.textContaining('Data service configuration saved'),
-        findsOneWidget,
-      );
+      expect(find.byKey(const Key('data-api-account-status')), findsOneWidget);
       final saved = await configurationRepository.load();
       expect(
         await sessionStore.readSlot(saved.remoteCredentialRef!),
@@ -279,9 +279,8 @@ void main() {
         500,
         scrollable: find.byType(Scrollable).first,
       );
-      await tester.tap(find.byKey(const Key('data-api-disabled')));
-      await tester.pump();
-      await tester.tap(find.byKey(const Key('defaults-save')));
+      await tester.ensureVisible(find.byKey(const Key('data-api-sign-out')));
+      await tester.tap(find.byKey(const Key('data-api-sign-out')));
       await tester.pumpAndSettle();
 
       expect(
@@ -463,9 +462,8 @@ void main() {
         500,
         scrollable: find.byType(Scrollable).first,
       );
-      await tester.tap(find.byKey(const Key('data-api-disabled')));
-      await tester.pump();
-      await tester.tap(find.byKey(const Key('defaults-save')));
+      await tester.ensureVisible(find.byKey(const Key('data-api-sign-out')));
+      await tester.tap(find.byKey(const Key('data-api-sign-out')));
       await tester.pumpAndSettle();
 
       expect(

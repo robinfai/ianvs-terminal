@@ -217,7 +217,10 @@ final class DataApiTerminalConfigRepository extends TerminalConfigRepository
     }
     final data = dataApiObject(validated.data, documentName: 'Terminal config');
     final decoded = LocalTerminalConfigDocument.fromJson(data);
-    if (!dataApiJsonEquivalent(decoded.toJson(), data)) {
+    if (!dataApiJsonEquivalent(
+      decoded.toJson(),
+      withKnownTerminalConfigDefaults(data),
+    )) {
       throw const NonCanonicalCurrentTerminalConfigException();
     }
     return decoded;

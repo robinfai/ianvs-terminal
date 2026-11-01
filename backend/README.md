@@ -280,3 +280,35 @@ Flutter 可通过网页登录恢复名额；原生会话管理入口尚未接入
 设备名通过登录/注册 complete 的 `device_name` 传入，旧客户端回退到 User-Agent。
 标签仅用于显示，最多 128 个字符，存于服务器私有 settings 的 `auth.session.device/`
 命名空间，绑定 operation hash；注销、替换、过期清理时删除，不参与认证或资源同步。
+
+## Native Apple sign-in and existing accounts
+
+The iOS/macOS client supports native Sign in with Apple. Set the optional
+`apple_client_ids` configuration field to `["work.ianvs.trail"]` on the remote
+server to enable it. The default is disabled. Enable the Sign in with Apple
+capability for that App ID in Apple Developer and regenerate the development
+and distribution provisioning profiles before signing the new client. macOS
+Developer ID builds also need a matching provisioning profile; the local ad-hoc
+release configuration does not enable this entitlement.
+
+Select **Link Apple to an existing account** and enter the original username and
+password before authorizing Apple. The server verifies both credentials and
+retains the same user ID, resources, and encryption ownership. It never matches
+accounts by Apple email or merges two existing accounts. Each Apple identity can
+link to one account, and each account can link to one Apple identity; conflicts
+fail without replacing either link. Password login remains available.
+
+Apple-only first sign-in creates an account only when `allow_registration` is
+true; existing account linking remains available when registration is closed.
+Bindings and short-lived nonce hashes live in the existing server metadata
+store, so existing databases need no destructive schema reset. Apple tokens,
+passwords, nonce plaintext and client encryption keys are not persisted.
+
+The server checks Apple's fixed HTTPS JWKS endpoint, RS256 signature, issuer,
+configured audience, expiry, issue time and a five-minute single-use nonce.
+The client continues to use the durable begin/complete/cancel authentication
+flow, so failed session persistence does not leave an active untracked token.
+This initial integration is for native iOS/macOS authorization only; web and
+Android continue using password login. Apple revocation/server-notification
+handling and user-initiated unlinking are not implemented in this version.
+Do not deploy this as a replacement for the existing password recovery path.

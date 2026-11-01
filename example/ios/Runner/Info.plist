@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>选择照片作为 AI 对话附件，仅在你确认发送后上传所选内容。</string>
+	<key>NSCameraUsageDescription</key>
+	<string>在附件选择器中拍摄照片，用作 AI 对话附件。</string>
+	<key>NSAppleMusicUsageDescription</key>
+	<string>选择媒体资料库中的音频作为 AI 对话附件。</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>长按输入框时使用麦克风，将语音转换为可编辑的草稿。</string>
 	<key>NSSpeechRecognitionUsageDescription</key>

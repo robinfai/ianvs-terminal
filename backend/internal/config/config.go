@@ -29,6 +29,7 @@ const (
 )
 
 type Config struct {
+	AppleClientIDs                  []string
 	Mode                            Mode
 	Address                         string
 	DatabaseDriver                  string
@@ -42,22 +43,24 @@ type Config struct {
 }
 
 type fileConfig struct {
-	SchemaVersion                   *int    `json:"schema_version"`
-	Mode                            *string `json:"mode"`
-	Address                         *string `json:"address"`
-	DatabaseDriver                  *string `json:"database_driver"`
-	DatabaseDSN                     *string `json:"database_dsn"`
-	LocalAccessToken                *string `json:"local_access_token"`
-	ExitOnStdinClose                *bool   `json:"exit_on_stdin_close"`
-	AuthTokenTTLSeconds             *int64  `json:"auth_token_ttl_seconds"`
-	AllowRegistration               *bool   `json:"allow_registration"`
-	AllowInsecureSensitiveTransport *bool   `json:"allow_insecure_sensitive_transport"`
-	TrustProxyHeaders               *bool   `json:"trust_proxy_headers"`
+	AppleClientIDs                  []string `json:"apple_client_ids"`
+	SchemaVersion                   *int     `json:"schema_version"`
+	Mode                            *string  `json:"mode"`
+	Address                         *string  `json:"address"`
+	DatabaseDriver                  *string  `json:"database_driver"`
+	DatabaseDSN                     *string  `json:"database_dsn"`
+	LocalAccessToken                *string  `json:"local_access_token"`
+	ExitOnStdinClose                *bool    `json:"exit_on_stdin_close"`
+	AuthTokenTTLSeconds             *int64   `json:"auth_token_ttl_seconds"`
+	AllowRegistration               *bool    `json:"allow_registration"`
+	AllowInsecureSensitiveTransport *bool    `json:"allow_insecure_sensitive_transport"`
+	TrustProxyHeaders               *bool    `json:"trust_proxy_headers"`
 }
 
 var runtimeGOOS = runtime.GOOS
 
 var currentConfigurationFields = map[string]struct{}{
+	"apple_client_ids":                   {},
 	"schema_version":                     {},
 	"mode":                               {},
 	"address":                            {},
@@ -256,7 +259,13 @@ func (raw fileConfig) validate() (Config, error) {
 		return Config{}, errors.New("local mode allow_insecure_sensitive_transport must be false")
 	}
 
+	for _, clientID := range raw.AppleClientIDs {
+		if len(clientID) < 3 || len(clientID) > 255 || strings.TrimSpace(clientID) != clientID {
+			return Config{}, errors.New("apple_client_ids must contain nonempty Apple bundle or service identifiers")
+		}
+	}
 	return Config{
+		AppleClientIDs:                  raw.AppleClientIDs,
 		Mode:                            mode,
 		Address:                         address,
 		DatabaseDriver:                  driver,

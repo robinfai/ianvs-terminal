@@ -30,6 +30,8 @@ func TestOpenAPIPathsMatchImplementedHTTPRoutes(t *testing.T) {
 
 	operations := readOpenAPIOperations(t)
 	wantOperationIDs := map[string]string{
+		"POST /v1/auth/apple/challenge":    "createAppleChallenge",
+		"POST /v1/auth/apple/begin":        "beginAppleLogin",
 		"GET /healthz":                     "health",
 		"POST /v1/auth/register/begin":     "beginRegistration",
 		"POST /v1/auth/register/complete":  "completeRegistration",

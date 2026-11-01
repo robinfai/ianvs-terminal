@@ -45,6 +45,7 @@ var requestIDFallback atomic.Uint64
 type requestIDContextKey struct{}
 
 type API struct {
+	appleVerifier        *auth.AppleTokenVerifier
 	cfg                  config.Config
 	auth                 *auth.Service
 	store                *store.Store
@@ -71,6 +72,7 @@ func newWithLogger(
 	logger *slog.Logger,
 ) *API {
 	api := &API{
+		appleVerifier:        auth.NewAppleTokenVerifier(),
 		cfg:                  cfg,
 		auth:                 authService,
 		store:                resourceStore,
@@ -96,6 +98,8 @@ func (a *API) Handler() http.Handler {
 
 func (a *API) routes() {
 	a.mux.HandleFunc("GET /healthz", a.health)
+	a.mux.HandleFunc("POST /v1/auth/apple/challenge", a.appleChallenge)
+	a.mux.HandleFunc("POST /v1/auth/apple/begin", a.beginAppleLogin)
 	a.mux.HandleFunc("POST /v1/auth/register/begin", a.beginRegister)
 	a.mux.HandleFunc("POST /v1/auth/register/complete", a.completeRegister)
 	a.mux.HandleFunc("POST /v1/auth/login/begin", a.beginLogin)
@@ -501,6 +505,12 @@ func (a *API) sensitiveTransportAllowed(r *http.Request) bool {
 
 func (a *API) writeServiceError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, auth.ErrAppleIdentity):
+		writeError(w, http.StatusUnauthorized, "invalid_apple_identity", "Apple sign-in expired or could not be verified; please try again")
+	case errors.Is(err, auth.ErrAppleLinkConflict):
+		writeError(w, http.StatusConflict, "apple_link_conflict", err.Error())
+	case errors.Is(err, auth.ErrAppleRegistrationDisabled):
+		writeError(w, http.StatusForbidden, "apple_registration_disabled", err.Error())
 	case errors.Is(err, auth.ErrInvalidCredentials):
 		writeError(w, http.StatusUnauthorized, "invalid_credentials", "username or password is invalid")
 	case errors.Is(err, auth.ErrUsernameTaken):

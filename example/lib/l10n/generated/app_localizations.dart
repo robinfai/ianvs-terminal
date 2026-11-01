@@ -7103,13 +7103,13 @@ abstract class AppLocalizations {
   /// No description provided for @syncUnavailable.
   ///
   /// In en, this message translates to:
-  /// **'Sync could not finish. Local data is available; check the API connection and encryption key, then retry.'**
+  /// **'Sync failed. Local data is preserved.'**
   String get syncUnavailable;
 
   /// No description provided for @syncAuthenticationRequired.
   ///
   /// In en, this message translates to:
-  /// **'Please sign in to the API again. Local data is still available. Choose Reconnect / sign in, then retry sync.'**
+  /// **'Your session has expired. Sign out and sign in again.'**
   String get syncAuthenticationRequired;
 
   /// No description provided for @syncLocalFirstDescription.
@@ -8947,6 +8947,156 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'View full path'**
   String get sftpViewFullPath;
+
+  /// No description provided for @signInMethod.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign-in method'**
+  String get signInMethod;
+
+  /// No description provided for @passwordSignIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Username and password'**
+  String get passwordSignIn;
+
+  /// No description provided for @appleSignIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in with Apple'**
+  String get appleSignIn;
+
+  /// No description provided for @appleLinkExisting.
+  ///
+  /// In en, this message translates to:
+  /// **'Link Apple to an existing account'**
+  String get appleLinkExisting;
+
+  /// No description provided for @appleLinkExistingHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Verify your existing username and password, then authorize Apple. Your account and synced data stay together.'**
+  String get appleLinkExistingHelp;
+
+  /// No description provided for @accountSignedIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Signed in'**
+  String get accountSignedIn;
+
+  /// No description provided for @accountUsernameUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Account connected'**
+  String get accountUsernameUnavailable;
+
+  /// No description provided for @accountSignOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign out'**
+  String get accountSignOut;
+
+  /// No description provided for @accountSignOutHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign out before using another account or sign-in method.'**
+  String get accountSignOutHelp;
+
+  /// No description provided for @accountSessionExpired.
+  ///
+  /// In en, this message translates to:
+  /// **'Session expired. Sign out before signing in again.'**
+  String get accountSessionExpired;
+
+  /// No description provided for @syncNetworkFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot reach the sync service. Check your connection and retry.'**
+  String get syncNetworkFailure;
+
+  /// No description provided for @syncTimeoutFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'The sync request timed out. Please retry.'**
+  String get syncTimeoutFailure;
+
+  /// No description provided for @syncTlsFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'The secure connection could not be verified. Check the service address and certificate.'**
+  String get syncTlsFailure;
+
+  /// No description provided for @syncKeyMissingFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'The encryption key is unavailable. Check keychain access.'**
+  String get syncKeyMissingFailure;
+
+  /// No description provided for @syncKeyMismatchFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'The current key cannot decrypt sync data. Verify that this device uses the same master key as the original device.'**
+  String get syncKeyMismatchFailure;
+
+  /// No description provided for @syncInvalidDataFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync data is incompatible or damaged. Check the client and server versions.'**
+  String get syncInvalidDataFailure;
+
+  /// No description provided for @syncRejectedFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'The server rejected the sync request.'**
+  String get syncRejectedFailure;
+
+  /// No description provided for @syncRevisionFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'Remote data is changing. Please retry shortly.'**
+  String get syncRevisionFailure;
+
+  /// No description provided for @syncStorageFailure.
+  ///
+  /// In en, this message translates to:
+  /// **'Cannot read or save local sync data. Check available storage and file permissions.'**
+  String get syncStorageFailure;
+
+  /// No description provided for @syncCompleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync complete'**
+  String get syncCompleted;
+
+  /// No description provided for @syncProfiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Connections'**
+  String get syncProfiles;
+
+  /// No description provided for @syncPreferences.
+  ///
+  /// In en, this message translates to:
+  /// **'Preferences'**
+  String get syncPreferences;
+
+  /// No description provided for @syncTerminalConfig.
+  ///
+  /// In en, this message translates to:
+  /// **'Terminal settings'**
+  String get syncTerminalConfig;
+
+  /// No description provided for @syncTerminalRepairRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Remote terminal settings contain missing or nonstandard fields. Back up and repair the original version, then retry sync.'**
+  String get syncTerminalRepairRequired;
+
+  /// No description provided for @syncRepairTerminal.
+  ///
+  /// In en, this message translates to:
+  /// **'Back up and repair terminal settings'**
+  String get syncRepairTerminal;
 }
 
 class _AppLocalizationsDelegate

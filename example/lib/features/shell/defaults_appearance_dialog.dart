@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../../data/configuration/data_api_configuration.dart';
 import '../../data/configuration/data_api_configuration_repository.dart';
@@ -158,6 +161,8 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
     this.masterKeyRepository,
     this.openDataServiceInitially = false,
     this.aiSettings,
+    this.accountManager,
+    this.onAccountChanged,
   });
 
   final List<TerminalProfile> profiles;
@@ -183,6 +188,8 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
   final PortableMasterKeyRepository? masterKeyRepository;
   final bool openDataServiceInitially;
   final AiSettingsController? aiSettings;
+  final DataApiAccountManager? accountManager;
+  final Future<void> Function()? onAccountChanged;
 
   @override
   State<DefaultsAndAppearanceDialog> createState() =>
@@ -211,7 +218,19 @@ class _DefaultsAndAppearanceDialogState
   _selectedReportVariableDecisions;
   late LocalTerminalKeybindingsConfig _selectedKeybindings;
   late DataApiDeployment _selectedDataApiDeployment;
+  late DataApiConfiguration _savedDataApiConfiguration;
+  DataApiAccountInfo? _account;
+  bool _accountBusy = false;
+  String? _accountError;
+  bool _accountLoadFailed = false;
+  Key _accountErrorKey = const Key('data-api-account-error');
   bool _remoteReconnectRequested = false;
+  String _remoteAuthMethod = 'password';
+  bool get _appleSupported =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.iOS ||
+          defaultTargetPlatform == TargetPlatform.macOS);
+
   bool _remoteDataApiUrlEdited = false;
   bool _remoteDataApiUsernameEdited = false;
   bool _remoteDataApiPasswordEdited = false;
@@ -251,10 +270,11 @@ class _DefaultsAndAppearanceDialogState
       widget.reportVariableDecisions,
     );
     _selectedKeybindings = widget.keybindings;
-    _selectedDataApiDeployment = widget.dataApiConfiguration.deployment;
+    _savedDataApiConfiguration = widget.dataApiConfiguration;
+    _selectedDataApiDeployment = _savedDataApiConfiguration.deployment;
     _remoteDataApiUrlController = TextEditingController(
       text:
-          widget.dataApiConfiguration.remoteBaseUri?.toString() ??
+          _savedDataApiConfiguration.remoteBaseUri?.toString() ??
           defaultRemoteDataApiBaseUrl,
     );
     _remoteDataApiUsernameController = TextEditingController();
@@ -266,12 +286,95 @@ class _DefaultsAndAppearanceDialogState
     ]) {
       controller.addListener(_handleRemoteDataApiFieldChanged);
     }
+    if (widget.accountManager != null) {
+      _accountBusy = true;
+      unawaited(_refreshAccount());
+    }
     _selectedTerminalPresetId = _matchingPresetIdFor(
       _effectiveProfileFor(
         configuredProfileId: _selectedProfileId,
         effectiveProfileId: widget.effectiveDefaultProfileId,
       ),
     );
+  }
+
+  Future<void> _refreshAccount() async {
+    final manager = widget.accountManager;
+    if (manager == null) return;
+    try {
+      final configuration = await manager.loadForSettings();
+      final account = await manager.loadAccountInfo();
+      if (!mounted) return;
+      setState(() {
+        _accountLoadFailed = false;
+        _account = account;
+        _savedDataApiConfiguration = configuration;
+        if (account != null) {
+          _selectedDataApiDeployment = DataApiDeployment.remote;
+        }
+      });
+    } on Object catch (error) {
+      if (mounted) {
+        setState(() {
+          _accountLoadFailed = true;
+          _accountError = error.toString();
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _accountBusy = false);
+    }
+  }
+
+  Future<void> _authenticate({bool signOut = false}) async {
+    final manager = widget.accountManager;
+    if (manager == null || _accountBusy) return;
+    final request = signOut ? null : _remoteLoginRequest;
+    if (!signOut && (_account != null || request == null)) return;
+    setState(() {
+      _accountBusy = true;
+      _accountError = null;
+      _accountErrorKey = const Key('data-api-account-error');
+    });
+    var committed = false;
+    try {
+      try {
+        if (signOut) {
+          await manager.signOut();
+        } else {
+          await manager.connectAndSaveRemote(request!);
+        }
+        committed = true;
+      } on DataApiRemoteRevocationPendingWarning {
+        committed = true;
+        if (mounted) {
+          _accountErrorKey = const Key('data-api-revocation-pending-warning');
+          _accountError = signOut
+              ? context.l10n.dataServiceSyncDisabledCleanupPending
+              : context.l10n.dataServiceConfigurationSavedCleanupPending;
+        }
+      } on DataApiSecureSessionMutationException catch (warning) {
+        committed = warning.configurationSaved;
+        if (!committed) rethrow;
+        if (mounted) {
+          _accountErrorKey = const Key('data-api-secure-session-warning');
+          _accountError = warning.toString();
+        }
+      }
+      await widget.onAccountChanged?.call();
+    } on DataApiAppleLoginCanceled {
+      // Consent cancellation leaves the form available for another attempt.
+    } on Object catch (error) {
+      if (mounted) setState(() => _accountError = error.toString());
+    } finally {
+      if (mounted && committed) {
+        _remoteDataApiPasswordController.clear();
+        _remoteDataApiUsernameController.clear();
+        _remoteReconnectRequested = false;
+        _remoteAuthMethod = 'password';
+        await _refreshAccount();
+      }
+      if (mounted) setState(() => _accountBusy = false);
+    }
   }
 
   @override
@@ -336,12 +439,16 @@ class _DefaultsAndAppearanceDialogState
 
   bool get _requiresRemoteLogin {
     final selected = _selectedDataApiConfiguration;
-    return selected?.deployment == DataApiDeployment.remote &&
-        (selected != widget.dataApiConfiguration || _remoteReconnectRequested);
+    return !_accountLoadFailed &&
+        _account == null &&
+        selected?.deployment == DataApiDeployment.remote &&
+        (selected != _savedDataApiConfiguration ||
+            _remoteReconnectRequested ||
+            widget.accountManager != null);
   }
 
   DataApiDeployment get _sourceDataApiDeployment =>
-      widget.activeDataApiDeployment ?? widget.dataApiConfiguration.deployment;
+      widget.activeDataApiDeployment ?? _savedDataApiConfiguration.deployment;
 
   DataApiRemoteLoginRequest? get _remoteLoginRequest {
     final configuration = _selectedDataApiConfiguration;
@@ -350,6 +457,17 @@ class _DefaultsAndAppearanceDialogState
       return null;
     }
     try {
+      if (_remoteAuthMethod != 'password') {
+        return DataApiRemoteLoginRequest.apple(
+          baseUri: baseUri,
+          username: _remoteAuthMethod == 'link'
+              ? _remoteDataApiUsernameController.text
+              : null,
+          password: _remoteAuthMethod == 'link'
+              ? _remoteDataApiPasswordController.text
+              : null,
+        );
+      }
       return DataApiRemoteLoginRequest(
         baseUri: baseUri,
         username: _remoteDataApiUsernameController.text,
@@ -500,7 +618,8 @@ class _DefaultsAndAppearanceDialogState
 
   bool _hasChanges(TerminalProfile? effectiveProfile) {
     final selectedDataApiConfiguration = _selectedDataApiConfiguration;
-    return widget.dataApiConfigurationRecoveryRequired ||
+    return _requiresRemoteLogin ||
+        widget.dataApiConfigurationRecoveryRequired ||
         _selectedProfileId != widget.configuredDefaultProfileId ||
         _selectedThemeMode != widget.themeMode ||
         _selectedTerminalMode != widget.preferredTerminalMode ||
@@ -518,7 +637,7 @@ class _DefaultsAndAppearanceDialogState
         ) ||
         _selectedKeybindings != widget.keybindings ||
         (selectedDataApiConfiguration != null &&
-            selectedDataApiConfiguration != widget.dataApiConfiguration) ||
+            selectedDataApiConfiguration != _savedDataApiConfiguration) ||
         _remoteReconnectRequested ||
         _updatedProfileForPreset(effectiveProfile) != null;
   }
@@ -657,7 +776,7 @@ class _DefaultsAndAppearanceDialogState
                               keybindings: _selectedKeybindings,
                               dataApiConfiguration:
                                   selectedDataApiConfiguration ??
-                                  widget.dataApiConfiguration,
+                                  _savedDataApiConfiguration,
                               dataApiRemoteLogin: null,
                               updatedProfile: null,
                               openProfiles: true,
@@ -1733,234 +1852,300 @@ class _DefaultsAndAppearanceDialogState
                         tone: AppPanelTone.panel,
                         padding: EdgeInsets.all(theme.spacing.lg),
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            RadioGroup<DataApiDeployment>(
-                              groupValue: _selectedDataApiDeployment,
-                              onChanged: (deployment) {
-                                if (deployment == null) {
-                                  return;
-                                }
-                                setState(() {
-                                  _selectedDataApiDeployment = deployment;
-                                });
-                              },
-                              child: Column(
-                                children: [
-                                  if (showDataComparison) ...[
-                                    const _DataServiceComparisonHeader(),
-                                    SizedBox(height: theme.spacing.xs),
-                                  ],
-                                  _DataServiceModeChoice(
-                                    tileKey: const Key('data-api-disabled'),
-                                    value: DataApiDeployment.disabled,
-                                    title: mobileNavigation
-                                        ? context.l10n.mobileThisDevice
-                                        : widget.localSessionsEnabled
-                                        ? context.l10n.localTerminal
-                                        : context.l10n.noDataService,
-                                    description: mobileNavigation
-                                        ? context.l10n.mobileLocalSyncHelp
-                                        : widget.localSessionsEnabled
-                                        ? context
-                                              .l10n
-                                              .localTerminalNoApiDescription
-                                        : context.l10n.noDataServiceDescription,
-                                    selected:
-                                        _selectedDataApiDeployment ==
-                                        DataApiDeployment.disabled,
-                                    active:
-                                        _sourceDataApiDeployment ==
-                                        DataApiDeployment.disabled,
-                                    showComparison: showDataComparison,
-                                  ),
-                                  if (widget.localDataApiAvailable)
+                            if (_account == null)
+                              RadioGroup<DataApiDeployment>(
+                                groupValue: _selectedDataApiDeployment,
+                                onChanged: (deployment) {
+                                  if (deployment == null ||
+                                      _accountBusy ||
+                                      _account != null) {
+                                    return;
+                                  }
+                                  setState(() {
+                                    _selectedDataApiDeployment = deployment;
+                                  });
+                                },
+                                child: Column(
+                                  children: [
+                                    if (showDataComparison) ...[
+                                      const _DataServiceComparisonHeader(),
+                                      SizedBox(height: theme.spacing.xs),
+                                    ],
                                     _DataServiceModeChoice(
-                                      tileKey: const Key('data-api-local'),
-                                      value: DataApiDeployment.local,
-                                      title: context.l10n.bundledLocalService,
-                                      description: context
-                                          .l10n
-                                          .bundledLocalServiceDescription,
+                                      tileKey: const Key('data-api-disabled'),
+                                      value: DataApiDeployment.disabled,
+                                      title: mobileNavigation
+                                          ? context.l10n.mobileThisDevice
+                                          : widget.localSessionsEnabled
+                                          ? context.l10n.localTerminal
+                                          : context.l10n.noDataService,
+                                      description: mobileNavigation
+                                          ? context.l10n.mobileLocalSyncHelp
+                                          : widget.localSessionsEnabled
+                                          ? context
+                                                .l10n
+                                                .localTerminalNoApiDescription
+                                          : context
+                                                .l10n
+                                                .noDataServiceDescription,
                                       selected:
                                           _selectedDataApiDeployment ==
-                                          DataApiDeployment.local,
+                                          DataApiDeployment.disabled,
                                       active:
                                           _sourceDataApiDeployment ==
-                                          DataApiDeployment.local,
+                                          DataApiDeployment.disabled,
                                       showComparison: showDataComparison,
                                     ),
-                                  _DataServiceModeChoice(
-                                    tileKey: const Key('data-api-remote'),
-                                    value: DataApiDeployment.remote,
-                                    title: mobileNavigation
-                                        ? context.l10n.mobileSyncService
-                                        : context.l10n.remoteService,
-                                    description: mobileNavigation
-                                        ? context.l10n.mobileRemoteSyncHelp
-                                        : context.l10n.remoteServiceDescription,
-                                    selected:
-                                        _selectedDataApiDeployment ==
-                                        DataApiDeployment.remote,
-                                    active:
-                                        _sourceDataApiDeployment ==
-                                        DataApiDeployment.remote,
-                                    showComparison: showDataComparison,
-                                  ),
-                                ],
+                                    if (widget.localDataApiAvailable)
+                                      _DataServiceModeChoice(
+                                        tileKey: const Key('data-api-local'),
+                                        value: DataApiDeployment.local,
+                                        title: context.l10n.bundledLocalService,
+                                        description: context
+                                            .l10n
+                                            .bundledLocalServiceDescription,
+                                        selected:
+                                            _selectedDataApiDeployment ==
+                                            DataApiDeployment.local,
+                                        active:
+                                            _sourceDataApiDeployment ==
+                                            DataApiDeployment.local,
+                                        showComparison: showDataComparison,
+                                      ),
+                                    _DataServiceModeChoice(
+                                      tileKey: const Key('data-api-remote'),
+                                      value: DataApiDeployment.remote,
+                                      title: mobileNavigation
+                                          ? context.l10n.mobileSyncService
+                                          : context.l10n.remoteService,
+                                      description: mobileNavigation
+                                          ? context.l10n.mobileRemoteSyncHelp
+                                          : context
+                                                .l10n
+                                                .remoteServiceDescription,
+                                      selected:
+                                          _selectedDataApiDeployment ==
+                                          DataApiDeployment.remote,
+                                      active:
+                                          _sourceDataApiDeployment ==
+                                          DataApiDeployment.remote,
+                                      showComparison: showDataComparison,
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
                             if (_selectedDataApiDeployment ==
                                 DataApiDeployment.remote) ...[
                               SizedBox(height: theme.spacing.sm),
-                              if (_selectedDataApiConfiguration ==
-                                  widget.dataApiConfiguration)
+                              if (_accountBusy) const LinearProgressIndicator(),
+                              if (_accountError case final error?)
+                                Text(
+                                  error,
+                                  key: _accountErrorKey,
+                                  style: TextStyle(
+                                    color: Theme.of(context).colorScheme.error,
+                                  ),
+                                ),
+                              if (_account case final account?) ...[
+                                Text(
+                                  account.expiresAt.isAfter(
+                                        DateTime.now().toUtc(),
+                                      )
+                                      ? context.l10n.accountSignedIn
+                                      : context.l10n.accountSessionExpired,
+                                  key: const Key('data-api-account-status'),
+                                ),
+                                const SizedBox(height: 12),
+                                SelectableText(
+                                  account.username ??
+                                      context.l10n.accountUsernameUnavailable,
+                                  key: const Key('data-api-account-username'),
+                                ),
+                                SelectableText(account.baseUri.toString()),
+                                const SizedBox(height: 12),
                                 AppActionButton(
-                                  buttonKey: const Key(
-                                    'data-api-remote-reconnect',
-                                  ),
+                                  buttonKey: const Key('data-api-sign-out'),
                                   tone: AppActionTone.secondary,
-                                  size: AppActionSize.compact,
-                                  icon: Icons.login_rounded,
-                                  label: _remoteReconnectRequested
-                                      ? context.l10n.reconnectRequested
-                                      : context.l10n.reconnectSignIn,
-                                  onPressed: _remoteReconnectRequested
+                                  label: context.l10n.accountSignOut,
+                                  onPressed: _accountBusy
                                       ? null
-                                      : () {
-                                          setState(() {
-                                            _remoteReconnectRequested = true;
-                                          });
-                                        },
+                                      : () => _authenticate(signOut: true),
                                 ),
-                              if (_selectedDataApiConfiguration ==
-                                  widget.dataApiConfiguration)
-                                SizedBox(height: theme.spacing.sm),
-                              AppConfigurationField(
-                                label: context.l10n.remoteApiBaseUrl,
-                                child: TextField(
-                                  key: const Key('data-api-remote-url'),
-                                  controller: _remoteDataApiUrlController,
-                                  style: dataServiceFieldTextStyle,
-                                  onChanged: (_) {
-                                    if (!_remoteDataApiUrlEdited) {
-                                      setState(
-                                        () => _remoteDataApiUrlEdited = true,
-                                      );
-                                    }
-                                  },
-                                  scrollPadding: EdgeInsets.only(
-                                    bottom: theme.spacing.xxl * 2,
-                                  ),
-                                  keyboardType: TextInputType.url,
-                                  textInputAction: TextInputAction.next,
-                                  autocorrect: false,
-                                  enableSuggestions: false,
-                                  decoration: _dataServiceInputDecoration(
-                                    context,
-                                    hintText: defaultRemoteDataApiBaseUrl,
-                                    errorText: _remoteDataApiUrlError,
-                                  ),
+                              ] else if (_accountLoadFailed) ...[
+                                AppActionButton(
+                                  buttonKey: const Key('data-api-sign-out'),
+                                  label: context.l10n.accountSignOut,
+                                  onPressed: _accountBusy
+                                      ? null
+                                      : () => _authenticate(signOut: true),
                                 ),
-                              ),
-                              SizedBox(height: theme.spacing.lg),
-                              AppConfigurationField(
-                                label: context.l10n.username,
-                                child: TextField(
-                                  key: const Key('data-api-remote-username'),
-                                  controller: _remoteDataApiUsernameController,
-                                  style: dataServiceFieldTextStyle,
-                                  onChanged: (_) {
-                                    if (!_remoteDataApiUsernameEdited) {
-                                      setState(
-                                        () =>
-                                            _remoteDataApiUsernameEdited = true,
-                                      );
-                                    }
-                                  },
-                                  scrollPadding: EdgeInsets.only(
-                                    bottom: theme.spacing.xxl * 2,
+                              ] else if (!_accountBusy) ...[
+                                if (widget.accountManager == null &&
+                                    _selectedDataApiConfiguration ==
+                                        _savedDataApiConfiguration)
+                                  AppActionButton(
+                                    buttonKey: const Key(
+                                      'data-api-remote-reconnect',
+                                    ),
+                                    tone: AppActionTone.secondary,
+                                    label: _remoteReconnectRequested
+                                        ? context.l10n.reconnectRequested
+                                        : context.l10n.reconnectSignIn,
+                                    onPressed: _remoteReconnectRequested
+                                        ? null
+                                        : () => setState(
+                                            () => _remoteReconnectRequested =
+                                                true,
+                                          ),
                                   ),
-                                  textInputAction: TextInputAction.next,
-                                  autocorrect: false,
-                                  enableSuggestions: false,
-                                  autofillHints: const <String>[
-                                    AutofillHints.username,
-                                  ],
-                                  decoration: _dataServiceInputDecoration(
-                                    context,
-                                    errorText: _remoteUsernameError,
+                                AppConfigurationField(
+                                  label: context.l10n.remoteApiBaseUrl,
+                                  child: TextField(
+                                    key: const Key('data-api-remote-url'),
+                                    controller: _remoteDataApiUrlController,
+                                    style: dataServiceFieldTextStyle,
+                                    onChanged: (_) {
+                                      if (!_remoteDataApiUrlEdited) {
+                                        setState(
+                                          () => _remoteDataApiUrlEdited = true,
+                                        );
+                                      }
+                                    },
+                                    scrollPadding: EdgeInsets.only(
+                                      bottom: theme.spacing.xxl * 2,
+                                    ),
+                                    keyboardType: TextInputType.url,
+                                    textInputAction: TextInputAction.next,
+                                    autocorrect: false,
+                                    enableSuggestions: false,
+                                    decoration: _dataServiceInputDecoration(
+                                      context,
+                                      hintText: defaultRemoteDataApiBaseUrl,
+                                      errorText: _remoteDataApiUrlError,
+                                    ),
                                   ),
                                 ),
-                              ),
-                              SizedBox(height: theme.spacing.lg),
-                              AppConfigurationField(
-                                label: context.l10n.password,
-                                helper: context.l10n.loginPasswordHelp,
-                                child: TextField(
-                                  key: const Key('data-api-remote-password'),
-                                  controller: _remoteDataApiPasswordController,
-                                  style: dataServiceFieldTextStyle,
-                                  onChanged: (_) {
-                                    if (!_remoteDataApiPasswordEdited) {
-                                      setState(
-                                        () =>
-                                            _remoteDataApiPasswordEdited = true,
-                                      );
-                                    }
-                                  },
-                                  scrollPadding: EdgeInsets.only(
-                                    bottom: theme.spacing.xxl * 2,
+                                SizedBox(height: theme.spacing.lg),
+                                if (_appleSupported) ...[
+                                  AppDropdownFormField<String>(
+                                    isExpanded: true,
+                                    key: const Key('data-api-auth-method'),
+                                    initialValue: _remoteAuthMethod,
+                                    decoration:
+                                        _dataServiceInputDecoration(
+                                          context,
+                                        ).copyWith(
+                                          labelText: context.l10n.signInMethod,
+                                        ),
+                                    items: [
+                                      DropdownMenuItem(
+                                        value: 'password',
+                                        child: Text(
+                                          context.l10n.passwordSignIn,
+                                        ),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'apple',
+                                        child: Text(context.l10n.appleSignIn),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'link',
+                                        child: Text(
+                                          context.l10n.appleLinkExisting,
+                                        ),
+                                      ),
+                                    ],
+                                    onChanged: (value) {
+                                      if (value != null) {
+                                        setState(() {
+                                          _remoteAuthMethod = value;
+                                          _remoteReconnectRequested = true;
+                                        });
+                                      }
+                                    },
                                   ),
-                                  textInputAction: TextInputAction.done,
-                                  obscureText: true,
-                                  autocorrect: false,
-                                  enableSuggestions: false,
-                                  autofillHints: const <String>[
-                                    AutofillHints.password,
-                                  ],
-                                  decoration: _dataServiceInputDecoration(
-                                    context,
-                                    errorText: _remotePasswordError,
+                                  SizedBox(height: theme.spacing.lg),
+                                  if (_remoteAuthMethod == 'link')
+                                    Text(context.l10n.appleLinkExistingHelp),
+                                ],
+                                if (_remoteAuthMethod != 'apple') ...[
+                                  AppConfigurationField(
+                                    label: context.l10n.username,
+                                    child: TextField(
+                                      key: const Key(
+                                        'data-api-remote-username',
+                                      ),
+                                      controller:
+                                          _remoteDataApiUsernameController,
+                                      style: dataServiceFieldTextStyle,
+                                      onChanged: (_) {
+                                        if (!_remoteDataApiUsernameEdited) {
+                                          setState(
+                                            () => _remoteDataApiUsernameEdited =
+                                                true,
+                                          );
+                                        }
+                                      },
+                                      scrollPadding: EdgeInsets.only(
+                                        bottom: theme.spacing.xxl * 2,
+                                      ),
+                                      textInputAction: TextInputAction.next,
+                                      autocorrect: false,
+                                      enableSuggestions: false,
+                                      autofillHints: const <String>[
+                                        AutofillHints.username,
+                                      ],
+                                      decoration: _dataServiceInputDecoration(
+                                        context,
+                                        errorText: _remoteUsernameError,
+                                      ),
+                                    ),
                                   ),
-                                  onSubmitted: (_) => FocusManager
-                                      .instance
-                                      .primaryFocus
-                                      ?.unfocus(),
-                                ),
-                              ),
-                              SizedBox(height: theme.spacing.sm),
-                              Text(switch (widget
-                                  .masterKeyRepository
-                                  ?.storagePolicy) {
-                                PortableMasterKeyStoragePolicy
-                                    .developmentFile =>
-                                  context
-                                      .l10n
-                                      .developmentMasterKeyStorageDescription,
-                                PortableMasterKeyStoragePolicy
-                                    .acceptanceDeviceOnly =>
-                                  context
-                                      .l10n
-                                      .acceptanceDeviceOnlyMasterKeyStorageDescription,
-                                _ =>
-                                  usesAutomaticallySynchronizedAppleKeychain
-                                      ? context
-                                            .l10n
-                                            .appleMasterKeyEncryptionDescription
-                                      : context
-                                            .l10n
-                                            .deviceMasterKeyEncryptionDescription,
-                              }),
+                                  SizedBox(height: theme.spacing.lg),
+                                  AppConfigurationField(
+                                    label: context.l10n.password,
+                                    helper: context.l10n.loginPasswordHelp,
+                                    child: TextField(
+                                      key: const Key(
+                                        'data-api-remote-password',
+                                      ),
+                                      controller:
+                                          _remoteDataApiPasswordController,
+                                      style: dataServiceFieldTextStyle,
+                                      onChanged: (_) {
+                                        if (!_remoteDataApiPasswordEdited) {
+                                          setState(
+                                            () => _remoteDataApiPasswordEdited =
+                                                true,
+                                          );
+                                        }
+                                      },
+                                      scrollPadding: EdgeInsets.only(
+                                        bottom: theme.spacing.xxl * 2,
+                                      ),
+                                      textInputAction: TextInputAction.done,
+                                      obscureText: true,
+                                      autocorrect: false,
+                                      enableSuggestions: false,
+                                      autofillHints: const <String>[
+                                        AutofillHints.password,
+                                      ],
+                                      decoration: _dataServiceInputDecoration(
+                                        context,
+                                        errorText: _remotePasswordError,
+                                      ),
+                                      onSubmitted: (_) => FocusManager
+                                          .instance
+                                          .primaryFocus
+                                          ?.unfocus(),
+                                    ),
+                                  ),
+                                  SizedBox(height: theme.spacing.sm),
+                                ],
+                              ],
                             ],
-                            SizedBox(height: theme.spacing.sm),
-                            Text(
-                              mobileNavigation
-                                  ? context.l10n.mobileSyncSaveNotice
-                                  : context.l10n.dataServiceRestartNotice,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: theme.textSubtle),
-                            ),
                           ],
                         ),
                       ),
@@ -2173,6 +2358,52 @@ class _DefaultsAndAppearanceDialogState
                       ),
                     ],
                   );
+                  final VoidCallback? saveSelection =
+                      _accountBusy ||
+                          LocalTerminalKeyBindingResolver.conflicts(
+                            LocalTerminalKeyBindingResolver.resolve(
+                              config: _selectedKeybindings,
+                            ),
+                          ).isNotEmpty ||
+                          selectedDataApiConfiguration == null ||
+                          (_requiresRemoteLogin &&
+                              remoteLoginRequest == null) ||
+                          !hasChanges
+                      ? null
+                      : () async {
+                          if (_requiresRemoteLogin &&
+                              widget.accountManager != null) {
+                            await _authenticate();
+                            return;
+                          }
+                          Navigator.of(context).pop(
+                            DefaultsAndAppearanceSelection(
+                              configuredDefaultProfileId: _selectedProfileId,
+                              themeMode: _selectedThemeMode,
+                              preferredTerminalMode: _selectedTerminalMode,
+                              languageMode: _selectedLanguageMode,
+                              terminalViewportPadding:
+                                  _selectedTerminalViewportPadding,
+                              restoreLayout: _selectedRestoreLayout,
+                              sshWrapper: _selectedSshWrapper,
+                              sshAutoInject: _selectedSshAutoInject,
+                              osc52Policy: _selectedOsc52Policy,
+                              openUrlPolicy: _selectedOpenUrlPolicy,
+                              requestAttentionPolicy:
+                                  _selectedRequestAttentionPolicy,
+                              reportVariableDecisions:
+                                  _selectedReportVariableDecisions,
+                              keybindings: _selectedKeybindings,
+                              dataApiConfiguration:
+                                  selectedDataApiConfiguration,
+                              dataApiRemoteLogin: remoteLoginRequest,
+                              updatedProfile: _updatedProfileForPreset(
+                                effectiveProfile,
+                              ),
+                              openProfiles: false,
+                            ),
+                          );
+                        };
                   final confirmationActions = Wrap(
                     key: const Key('defaults-footer-confirmation-actions'),
                     spacing: theme.spacing.sm,
@@ -2184,52 +2415,29 @@ class _DefaultsAndAppearanceDialogState
                         label: context.l10n.cancel,
                         onPressed: () => Navigator.of(context).pop(),
                       ),
-                      AppActionButton(
-                        buttonKey: const Key('defaults-save'),
-                        label: context.l10n.saveChanges,
-                        onPressed:
-                            LocalTerminalKeyBindingResolver.conflicts(
-                                  LocalTerminalKeyBindingResolver.resolve(
-                                    config: _selectedKeybindings,
-                                  ),
-                                ).isNotEmpty ||
-                                selectedDataApiConfiguration == null ||
-                                (_requiresRemoteLogin &&
-                                    remoteLoginRequest == null) ||
-                                !hasChanges
-                            ? null
-                            : () {
-                                Navigator.of(context).pop(
-                                  DefaultsAndAppearanceSelection(
-                                    configuredDefaultProfileId:
-                                        _selectedProfileId,
-                                    themeMode: _selectedThemeMode,
-                                    preferredTerminalMode:
-                                        _selectedTerminalMode,
-                                    languageMode: _selectedLanguageMode,
-                                    terminalViewportPadding:
-                                        _selectedTerminalViewportPadding,
-                                    restoreLayout: _selectedRestoreLayout,
-                                    sshWrapper: _selectedSshWrapper,
-                                    sshAutoInject: _selectedSshAutoInject,
-                                    osc52Policy: _selectedOsc52Policy,
-                                    openUrlPolicy: _selectedOpenUrlPolicy,
-                                    requestAttentionPolicy:
-                                        _selectedRequestAttentionPolicy,
-                                    reportVariableDecisions:
-                                        _selectedReportVariableDecisions,
-                                    keybindings: _selectedKeybindings,
-                                    dataApiConfiguration:
-                                        selectedDataApiConfiguration,
-                                    dataApiRemoteLogin: remoteLoginRequest,
-                                    updatedProfile: _updatedProfileForPreset(
-                                      effectiveProfile,
-                                    ),
-                                    openProfiles: false,
-                                  ),
-                                );
-                              },
-                      ),
+                      if (_requiresRemoteLogin &&
+                          _remoteAuthMethod != 'password')
+                        SizedBox(
+                          width: 250,
+                          child: SignInWithAppleButton(
+                            onPressed: saveSelection,
+                            text: context.l10n.appleSignIn,
+                            style:
+                                Theme.of(context).brightness == Brightness.dark
+                                ? SignInWithAppleButtonStyle.white
+                                : SignInWithAppleButtonStyle.black,
+                          ),
+                        )
+                      else
+                        AppActionButton(
+                          buttonKey: const Key('defaults-save'),
+                          label:
+                              _requiresRemoteLogin &&
+                                  widget.accountManager != null
+                              ? context.l10n.passwordSignIn
+                              : context.l10n.saveChanges,
+                          onPressed: saveSelection,
+                        ),
                     ],
                   );
                   final resets = resetActions.children

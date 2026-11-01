@@ -49,11 +49,7 @@ extension _ShellScreenStateShortcutsStatus on _ShellScreenState {
       if (message == null) {
         return;
       }
-      AppNotifications.show(
-        context,
-        SnackBar(content: Text(message)),
-        replaceCurrent: true,
-      );
+      AppNotifications.message(context, message);
     }
   }
 

@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:app/data/services/data_api_client.dart';
 import 'package:app/data/services/data_api_runtime.dart';
+import 'package:app/data/services/data_api_sensitive_cipher.dart';
 import 'package:app/data/sync/api_sync_panel.dart';
 import 'package:app/data/sync/local_first_sync.dart';
 import 'package:app/l10n/generated/app_localizations.dart';
@@ -30,7 +31,7 @@ void main() {
     expect(find.byKey(const Key('api-sync-now')), findsNothing);
     expect(
       find.text('Saved on this device. API sync is optional.'),
-      findsOneWidget,
+      findsNothing,
     );
   });
 
@@ -41,12 +42,104 @@ void main() {
 
     expect(
       find.text('Saved on this device. API sync is optional.'),
-      findsOneWidget,
+      findsNothing,
     );
     expect(find.byKey(const Key('api-sync-now')), findsNothing);
     expect(find.byKey(const Key('api-sync-keep-local')), findsNothing);
     expect(find.byKey(const Key('api-sync-use-remote')), findsNothing);
   });
+
+  testWidgets('healthy sync is quiet and manual success expires', (
+    tester,
+  ) async {
+    final coordinator = LocalFirstSyncCoordinator(
+      documents: [],
+      client: MemoryDataApiResourceClient(),
+      checkpoints: _MemoryCheckpointStore(),
+    );
+    addTearDown(coordinator.close);
+    await _pumpPanel(tester, coordinator);
+    expect(find.byKey(const Key('api-sync-status')), findsNothing);
+    expect(find.textContaining('Conflicting'), findsNothing);
+    await tester.tap(find.byKey(const Key('api-sync-now')));
+    await tester.pumpAndSettle();
+    expect(find.text('Sync complete'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+    expect(find.text('Sync complete'), findsNothing);
+  });
+
+  testWidgets('manual success is visible inside a fullscreen settings dialog', (
+    tester,
+  ) async {
+    final coordinator = LocalFirstSyncCoordinator(
+      documents: [],
+      client: MemoryDataApiResourceClient(),
+      checkpoints: _MemoryCheckpointStore(),
+    );
+    addTearDown(coordinator.close);
+    await _pumpPanel(
+      tester,
+      coordinator,
+      panel: Builder(
+        builder: (context) => TextButton(
+          onPressed: () => showDialog<void>(
+            context: context,
+            builder: (_) => const Dialog.fullscreen(child: ApiSyncPanel()),
+          ),
+          child: const Text('Open settings'),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('api-sync-now')));
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: find.byType(Dialog),
+        matching: find.text('Sync complete'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.byType(SnackBar), findsNothing);
+    await tester.pump(const Duration(seconds: 3));
+    expect(find.text('Sync complete'), findsNothing);
+    expect(find.text('Sync now'), findsOneWidget);
+  });
+
+  testWidgets(
+    'decryption failure identifies affected data without leaking payload',
+    (tester) async {
+      final coordinator = LocalFirstSyncCoordinator(
+        documents: [
+          _binding(
+            read: () => {'name': 'local'},
+            write: (_) => fail('must preserve local'),
+          ),
+        ],
+        client: const _FailingClient(
+          DataApiSensitiveAuthenticationException(
+            kind: 'profile',
+            id: 'default',
+          ),
+        ),
+        checkpoints: _MemoryCheckpointStore(),
+      );
+      addTearDown(coordinator.close);
+      await coordinator.synchronize();
+      await _pumpPanel(tester, coordinator);
+      expect(
+        find.textContaining('Connections: The current key cannot decrypt'),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('api-sync-keep-local')), findsNothing);
+      expect(
+        coordinator.failures['profile/default']!.reason,
+        LocalFirstSyncFailureReason.encryptionMismatch,
+      );
+    },
+  );
 
   for (final choice in <_ConflictChoice>[
     _ConflictChoice.keepLocal,
@@ -60,7 +153,7 @@ void main() {
       expect(harness.coordinator.phase, LocalFirstSyncPhase.conflict);
       await _pumpPanel(tester, harness.coordinator);
 
-      expect(find.textContaining('profile/default: /name'), findsOneWidget);
+      expect(find.textContaining('Connections: /name'), findsOneWidget);
       expect(find.byKey(const Key('api-sync-keep-local')), findsOneWidget);
       expect(find.byKey(const Key('api-sync-use-remote')), findsOneWidget);
 
@@ -106,13 +199,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(local, <String, Object?>{'name': 'durable local edit'});
-    expect(
-      find.text(
-        'Sync could not finish. Local data is available; check the API '
-        'connection and encryption key, then retry.',
-      ),
-      findsOneWidget,
-    );
+    expect(find.text('Sync failed. Local data is preserved.'), findsOneWidget);
     expect(coordinator.phase, LocalFirstSyncPhase.unavailable);
   });
 
@@ -143,18 +230,11 @@ void main() {
 
     expect(
       find.text(
-        'Please sign in to the API again. Local data is still available. '
-        'Choose Reconnect / sign in, then retry sync.',
+        'Connections: Your session has expired. Sign out and sign in again.',
       ),
       findsOneWidget,
     );
-    expect(
-      find.text(
-        'Sync could not finish. Local data is available; check the API '
-        'connection and encryption key, then retry.',
-      ),
-      findsNothing,
-    );
+    expect(find.text('Sync failed. Local data is preserved.'), findsOneWidget);
     expect(local, <String, Object?>{'name': 'durable local edit'});
   });
 
@@ -284,10 +364,7 @@ void main() {
       harness.coordinator.failureReason,
       LocalFirstSyncFailureReason.authenticationRequired,
     );
-    expect(
-      find.textContaining('Please sign in to the API again.'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('Your session has expired.'), findsOneWidget);
     expect(harness.local, {'name': 'local', 'tag': 'base'});
     expect(harness.checkpoints.value, {'name': 'base', 'tag': 'base'});
   });

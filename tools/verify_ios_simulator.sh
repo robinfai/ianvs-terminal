@@ -75,37 +75,7 @@ if [[ -n "${PUB_CACHE:-}" ]]; then
 fi
 
 verify_ios_native_exports() {
-  local ios_app="$1"
-  local architecture="$2"
-  local executable_name
-  local executable
-  local actual_symbols
-  local expected_symbols
-  local link_images
-
-  executable_name="$(
-    /usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$ios_app/Info.plist"
-  )"
-  executable="$ios_app/$executable_name"
-  link_images=("$executable")
-  if [[ -f "$ios_app/$executable_name.debug.dylib" ]]; then
-    # Flutter debug builds put app-native objects in this loaded image rather
-    # than the small process launcher executable.
-    link_images=("$ios_app/$executable_name.debug.dylib")
-  fi
-  actual_symbols="$(
-    for image in "${link_images[@]}"; do
-      nm -arch "$architecture" -gU "$image" 2>/dev/null || true
-    done | awk '$NF ~ /^_ianvs_/ { print $NF }' | LC_ALL=C sort -u
-  )"
-  expected_symbols="$(LC_ALL=C sort -u "$IOS_EXPORTS_FILE")"
-  if [[ "$actual_symbols" != "$expected_symbols" ]]; then
-    echo "The iOS application does not export the exact current Ianvs C ABI." >&2
-    diff -u \
-      <(printf '%s\n' "$expected_symbols") \
-      <(printf '%s\n' "$actual_symbols") >&2 || true
-    exit 1
-  fi
+  "$ROOT_DIR/tools/verify_ios_native_exports.sh" "$1" "$2"
 }
 
 if ! xcrun simctl list devices | grep -F "$IOS_SIMULATOR_UDID" | grep -F '(Booted)' >/dev/null; then
@@ -169,6 +139,16 @@ if [ "$VERIFY_APPLE_FULL" = "1" ]; then
     exit 1
   fi
   verify_ios_native_exports "$IOS_RELEASE_APP" arm64
+  # Archive runs installation stripping, which a plain build does not exercise.
+  IOS_ARCHIVE="$ROOT_DIR/build/ios-release-verification.xcarchive"
+  (
+    cd "$EXAMPLE_DIR"
+    "${apple_build_env[@]}" xcodebuild archive \
+      -workspace ios/Runner.xcworkspace -scheme Runner -configuration Release \
+      -sdk iphoneos -destination 'generic/platform=iOS' \
+      -archivePath "$IOS_ARCHIVE" CODE_SIGNING_ALLOWED=NO
+  )
+  verify_ios_native_exports "$IOS_ARCHIVE/Products/Applications/Runner.app" arm64
 else
   echo "PR Debug mode: device Release and arm64 export checks run on main/nightly."
 fi

@@ -76,6 +76,36 @@ AppNotificationController _show(
 );
 
 void main() {
+  for (final platform in [TargetPlatform.iOS, TargetPlatform.macOS]) {
+    testWidgets('success expires and cannot obscure a failure on $platform', (
+      tester,
+    ) async {
+      final context = await _pumpHost(tester, platform: platform);
+      AppNotifications.message(context, 'Saved', kind: AppNoticeKind.success);
+      await tester.pumpAndSettle();
+      expect(find.text('Saved'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pumpAndSettle();
+      expect(find.text('Saved'), findsNothing);
+      AppNotifications.message(context, 'Cannot save');
+      await tester.pumpAndSettle();
+      final skipped = AppNotifications.message(
+        context,
+        'Copied',
+        kind: AppNoticeKind.success,
+      );
+      await tester.pumpAndSettle();
+      expect(await skipped.closed, SnackBarClosedReason.remove);
+      expect(find.text('Copied'), findsNothing);
+      expect(find.text('Cannot save'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 4));
+      expect(find.text('Cannot save'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pumpAndSettle();
+      expect(find.text('Cannot save'), findsNothing);
+    });
+  }
+
   testWidgets(
     'notice controls remain accessible during their first fade frame',
     (tester) async {

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../ui/components/app_configuration_field.dart';
 import '../../ui/components/app_dropdown_form_field.dart';
+import '../../ui/components/app_notifications.dart';
 import '../../ui/foundation/app_motion.dart';
 import 'acp/acp_installation.dart';
 import 'acp/codex_acp_backend.dart';
@@ -29,14 +30,12 @@ Future<void> showAiSettings(
     return;
   }
   final zh = Localizations.localeOf(context).languageCode == 'zh';
-  ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-    SnackBar(
-      content: Text(
-        result
-            ? (zh ? 'AI 连接已保存，任务尚未发送。' : 'AI connection saved. Task not sent.')
-            : (zh ? 'AI 连接配置已移除。' : 'AI connection configuration removed.'),
-      ),
-    ),
+  AppNotifications.message(
+    context,
+    result
+        ? (zh ? 'AI 连接已保存' : 'AI connection saved')
+        : (zh ? 'AI 连接已移除' : 'AI connection removed'),
+    kind: AppNoticeKind.success,
   );
 }
 
