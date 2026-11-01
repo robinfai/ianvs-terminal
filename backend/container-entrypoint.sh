@@ -22,4 +22,10 @@ install -m 0400 -o ianvs -g ianvs "$source_config" "$temporary_config"
 mv -f "$temporary_config" "$private_config"
 trap - EXIT HUP INT TERM
 
+# The optional IAP credential remains a separate read-only secret mount.
+# Copy it to the service-owned private directory before dropping privileges.
+if [ -f /run/secrets/ianvs-apple-iap.p8 ]; then
+  install -m 0400 -o ianvs -g ianvs /run/secrets/ianvs-apple-iap.p8 "$private_directory/apple-iap.p8"
+fi
+
 exec su-exec ianvs:ianvs /usr/local/bin/ianvs-api serve --config "$private_config"

@@ -32,7 +32,9 @@ AI 请求仍按后端配置的模型原始 token 费率扣点，不在扣点时�
 3. 在现有 `ai_gateway` 中添加 `apple_purchases`。示例见
    [ai-purchases.example.json](../backend/ai-purchases.example.json)。保留现有 DeepSeek
    模型与用户额度配置，仅添加这个对象。
-4. 如后端使用 Docker，把私钥文件只读挂载到容器中，`private_key_file` 填容器内路径。
+4. 如后端使用 Docker，把服务器私钥只读挂载到 `/run/secrets/ianvs-apple-iap.p8`，
+   entrypoint 会以服务账号权限复制到 `/run/ianvs-api/apple-iap.p8`，
+   `private_key_file` 填后者。
    重启后端。未配置 `apple_purchases` 时，商品 API 返回 `enabled: false`，不接受充值。
 5. App Store Server Notifications V2 的生产 URL 设置为
    `https://api.terminal.ianvs.work/v1/ai/purchases/apple/notifications`。
