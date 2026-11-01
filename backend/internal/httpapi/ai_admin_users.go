@@ -84,8 +84,14 @@ func (a *API) adminUserGet(w http.ResponseWriter, r *http.Request, _ model.User,
 		return
 	}
 	requests := 0
-	if err = db.Where("`key` = ?", "ai.requests."+time.Now().UTC().Format("2006-01-02")+"."+u.ID).First(&row).Error; err == nil {
-		requests, _ = strconv.Atoi(row.Value)
+	// A populated GORM primary key would constrain the next query to the budget row.
+	var requestRow model.Setting
+	if err = db.Where("`key` = ?", "ai.requests."+time.Now().UTC().Format("2006-01-02")+"."+u.ID).First(&requestRow).Error; err == nil {
+		requests, err = strconv.Atoi(requestRow.Value)
+		if err != nil || requests < 0 {
+			writeError(w, 503, "quota_unavailable", "Invalid request counter")
+			return
+		}
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		writeAdminError(w, err)
 		return

@@ -69,6 +69,14 @@ func TestAIAdminManagementContracts(t *testing.T) {
 	if res.Code != 200 || !strings.Contains(res.Body.String(), `"daily_quota_points":200`) {
 		t.Fatalf("live/restart config missing: %s", res.Body.String())
 	}
+	counterKey := "ai.requests." + time.Now().UTC().Format("2006-01-02") + "." + user.ID
+	if err := db.Create(&model.Setting{Key: counterKey, Value: "7"}).Error; err != nil {
+		t.Fatal(err)
+	}
+	detail := request(t, handler, http.MethodGet, "/v1/admin/ai/users/"+user.ID, nil, ah)
+	if detail.Code != 200 || !strings.Contains(detail.Body.String(), `"requests_today":7`) {
+		t.Fatalf("existing budget row hid request count: %s", detail.Body.String())
+	}
 	creditPath := "/v1/admin/ai/users/" + user.ID + "/credits"
 	adjustment := map[string]any{"operation_id": "12345678-1234-1234-1234-123456789012", "points": 100, "reason": "grant test credits"}
 	var wg sync.WaitGroup
