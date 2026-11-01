@@ -1375,7 +1375,7 @@ class _SftpDirectoryList extends StatelessWidget {
         key: const Key('sftp-directory-list'),
         padding: const EdgeInsets.symmetric(vertical: 4),
         itemCount: entries.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 1),
+        separatorBuilder: (context, _) => const Divider(height: 1, indent: 52),
         itemBuilder: (context, index) {
           final entry = entries[index];
           final remotePath = _childSftpPath(parentPath, entry.name);
@@ -1457,7 +1457,7 @@ class _SftpDirectoryRow extends StatelessWidget {
           selected: highlighted,
           selectedTileColor: palette.selected,
           enabled: !busy,
-          minTileHeight: context.adaptiveControlHeight(42),
+          minTileHeight: mobile ? 52 : 32,
           contentPadding: EdgeInsets.symmetric(horizontal: palette.spacing.lg),
           leading: Icon(icon, size: 19, color: palette.accent),
           title: Text(
@@ -1465,9 +1465,10 @@ class _SftpDirectoryRow extends StatelessWidget {
             semanticsLabel: '',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: palette.textPrimary),
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: palette.textPrimary,
+              fontSize: mobile ? 17 : 13,
+            ),
           ),
           subtitle: metadata.isEmpty
               ? null

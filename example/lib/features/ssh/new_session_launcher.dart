@@ -827,6 +827,7 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
         _auth == terminal.TerminalSshAuthMethod.publicKey;
     final compactPrivateKeyAction = largeTextLayout || width < 520;
     Widget nameField() => AppConfigurationField(
+      subtleLabel: true,
       label: context.l10n.sessionName,
       child: Semantics(
         label: context.l10n.sessionName,
@@ -874,8 +875,10 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
     );
     Widget mobileSubmit() => SizedBox(
       width: double.infinity,
+      height: 48,
       child: FilledButton(
         key: const Key('ssh-connect'),
+        style: FilledButton.styleFrom(shape: const StadiumBorder()),
         onPressed:
             widget.allowSaveChoice || widget.saveWhenPristine || _hasChanges
             ? _submit
@@ -885,965 +888,999 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
         ),
       ),
     );
-    return Dialog(
-      insetPadding: mobile
-          ? EdgeInsets.zero
-          : EdgeInsets.all(width < 640 ? 12 : 32),
-      shape: mobile ? const RoundedRectangleBorder() : null,
-      backgroundColor: mobile ? palette.panel : null,
-      child: SafeArea(
-        top: mobile,
-        bottom: mobile,
-        left: mobile,
-        right: mobile,
-        child: SizedBox(
-          width: mobile ? width : dialogWidth,
-          height: mobile ? mediaSize.height : null,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxHeight: mobile ? double.infinity : 700,
-            ),
-            child: Padding(
-              padding: contentPadding,
-              child: Form(
-                key: _formKey,
-                onChanged: () => setState(() => _validationNotice = null),
-                autovalidateMode: _showValidationErrors
-                    ? AutovalidateMode.always
-                    : AutovalidateMode.disabled,
-                child: Column(
-                  mainAxisSize: mobile || compactKeyboardLayout
-                      ? MainAxisSize.max
-                      : MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (mobile)
-                      AppMobileHeader(
-                        title: context.l10n.sshConnection,
-                        leading: IconButton(
-                          key: const Key('ssh-mobile-back'),
-                          tooltip: context.l10n.cancel,
-                          onPressed: () => Navigator.of(context).pop(),
-                          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+    return Theme(
+      data: appConfigurationFormTheme(context),
+      child: Dialog(
+        insetPadding: mobile
+            ? EdgeInsets.zero
+            : EdgeInsets.all(width < 640 ? 12 : 32),
+        shape: mobile ? const RoundedRectangleBorder() : null,
+        backgroundColor: mobile ? context.groupedBackground : null,
+        child: SafeArea(
+          top: mobile,
+          bottom: mobile,
+          left: mobile,
+          right: mobile,
+          child: SizedBox(
+            width: mobile ? width : dialogWidth,
+            height: mobile ? mediaSize.height : null,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: mobile ? double.infinity : 700,
+              ),
+              child: Padding(
+                padding: contentPadding,
+                child: Form(
+                  key: _formKey,
+                  onChanged: () => setState(() => _validationNotice = null),
+                  autovalidateMode: _showValidationErrors
+                      ? AutovalidateMode.always
+                      : AutovalidateMode.disabled,
+                  child: Column(
+                    mainAxisSize: mobile || compactKeyboardLayout
+                        ? MainAxisSize.max
+                        : MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (mobile)
+                        AppMobileHeader(
+                          title: context.l10n.sshConnection,
+                          leading: IconButton(
+                            key: const Key('ssh-mobile-back'),
+                            tooltip: context.l10n.cancel,
+                            onPressed: () => Navigator.of(context).pop(),
+                            icon: const Icon(Icons.arrow_back_ios_new_rounded),
+                          ),
+                          actions: const [
+                            SizedBox(width: kMinInteractiveDimension),
+                          ],
                         ),
-                        actions: const [
-                          SizedBox(width: kMinInteractiveDimension),
-                        ],
+                      if (!mobile && !compactKeyboardLayout) ...[
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    context.l10n.sshConnection,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleMedium,
+                                  ),
+                                  SizedBox(height: palette.spacing.xs),
+                                  Text(
+                                    _name.text.trim().isEmpty
+                                        ? context.l10n.connectOnceOrSaveProfile
+                                        : _name.text.trim(),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(color: palette.textSubtle),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: context.l10n.cancel,
+                              onPressed: () => Navigator.of(context).pop(),
+                              icon: const Icon(Icons.close_rounded),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: palette.spacing.lg),
+                        const Divider(height: 1),
+                      ],
+                      SizedBox(
+                        height: mobile || compactKeyboardLayout
+                            ? 0
+                            : palette.spacing.xl,
                       ),
-                    if (!mobile && !compactKeyboardLayout) ...[
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
+                      if (_validationNotice != null)
+                        Semantics(
+                          container: true,
+                          liveRegion: true,
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Text(
+                              _validationNotice!,
+                              key: const Key('ssh-validation-notice'),
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.error,
+                              ),
+                            ),
+                          ),
+                        ),
+                      Flexible(
+                        fit: mobile || compactKeyboardLayout
+                            ? FlexFit.tight
+                            : FlexFit.loose,
+                        child: Scrollbar(
+                          controller: _scrollController,
+                          thumbVisibility: !mobile,
+                          trackVisibility: !mobile,
+                          thickness: 5,
+                          radius: const Radius.circular(3),
+                          child: SingleChildScrollView(
+                            key: const Key('ssh-profile-form-scroll'),
+                            controller: _scrollController,
+                            keyboardDismissBehavior:
+                                ScrollViewKeyboardDismissBehavior.onDrag,
+                            padding: mobile
+                                ? const EdgeInsets.fromLTRB(20, 20, 20, 20)
+                                : EdgeInsets.only(
+                                    right: palette.spacing.md,
+                                    bottom: palette.spacing.lg,
+                                  ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  context.l10n.sshConnection,
-                                  style: Theme.of(
-                                    context,
-                                  ).textTheme.titleMedium,
-                                ),
-                                SizedBox(height: palette.spacing.xs),
-                                Text(
-                                  _name.text.trim().isEmpty
-                                      ? context.l10n.connectOnceOrSaveProfile
-                                      : _name.text.trim(),
-                                  style: Theme.of(context).textTheme.bodyMedium
-                                      ?.copyWith(color: palette.textSubtle),
-                                ),
-                              ],
-                            ),
-                          ),
-                          IconButton(
-                            tooltip: context.l10n.cancel,
-                            onPressed: () => Navigator.of(context).pop(),
-                            icon: const Icon(Icons.close_rounded),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: palette.spacing.lg),
-                      const Divider(height: 1),
-                    ],
-                    SizedBox(
-                      height: mobile || compactKeyboardLayout
-                          ? 0
-                          : palette.spacing.xl,
-                    ),
-                    if (_validationNotice != null)
-                      Semantics(
-                        container: true,
-                        liveRegion: true,
-                        child: Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: Text(
-                            _validationNotice!,
-                            key: const Key('ssh-validation-notice'),
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.error,
-                            ),
-                          ),
-                        ),
-                      ),
-                    Flexible(
-                      fit: mobile || compactKeyboardLayout
-                          ? FlexFit.tight
-                          : FlexFit.loose,
-                      child: Scrollbar(
-                        controller: _scrollController,
-                        thumbVisibility: !mobile,
-                        trackVisibility: !mobile,
-                        thickness: 5,
-                        radius: const Radius.circular(3),
-                        child: SingleChildScrollView(
-                          key: const Key('ssh-profile-form-scroll'),
-                          controller: _scrollController,
-                          keyboardDismissBehavior:
-                              ScrollViewKeyboardDismissBehavior.onDrag,
-                          padding: mobile
-                              ? const EdgeInsets.fromLTRB(16, 20, 16, 20)
-                              : EdgeInsets.only(
-                                  right: palette.spacing.md,
-                                  bottom: palette.spacing.lg,
-                                ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (!mobile) ...[
-                                AppSectionHeader(
-                                  title: context.l10n.connection,
-                                ),
-                                SizedBox(height: palette.spacing.lg),
-                              ],
-                              if (!mobile) ...[
-                                nameField(),
-                                SizedBox(height: palette.spacing.lg),
-                              ],
-                              LayoutBuilder(
-                                builder: (context, constraints) {
-                                  final stacked =
-                                      mobile || constraints.maxWidth < 560;
-                                  Widget hostField() => AppConfigurationField(
-                                    label: context.l10n.host,
-                                    child: Semantics(
-                                      label: context.l10n.host,
-                                      container: true,
-                                      explicitChildNodes: true,
-                                      child: TextFormField(
-                                        key: const Key('ssh-host'),
-                                        controller: _host,
-                                        focusNode: _hostFocus,
-                                        keyboardType: TextInputType.url,
-                                        autocorrect: false,
-                                        enableSuggestions: false,
-                                        textInputAction: TextInputAction.next,
-                                        decoration: InputDecoration(
-                                          hintText: context.l10n.hostnameOrIp,
-                                          prefixIcon: mobile
-                                              ? null
-                                              : const Icon(AppIcons.server),
-                                        ),
-                                        validator: _required,
-                                      ),
-                                    ),
-                                  );
-                                  Widget userControl() => Semantics(
-                                    label: context.l10n.user,
-                                    container: true,
-                                    explicitChildNodes: true,
-                                    child: TextFormField(
-                                      key: const Key('ssh-user'),
-                                      controller: _user,
-                                      focusNode: _userFocus,
-                                      autocorrect: false,
-                                      enableSuggestions: false,
-                                      textInputAction: TextInputAction.next,
-                                      decoration: _iconlessSshInputDecoration(
-                                        context,
-                                        hintText: context.l10n.remoteUser,
-                                      ),
-                                      validator: _required,
-                                    ),
-                                  );
-                                  if (stacked) {
-                                    return Column(
-                                      children: [
-                                        hostField(),
-                                        SizedBox(height: palette.spacing.md),
-                                        AppConfigurationField(
-                                          label: context.l10n.user,
-                                          child: userControl(),
-                                        ),
-                                        if (!mobile) ...[
-                                          SizedBox(height: palette.spacing.md),
-                                          AppConfigurationField(
-                                            label: context.l10n.port,
-                                            child: portControl(),
-                                          ),
-                                        ],
-                                      ],
-                                    );
-                                  }
-                                  return Column(
-                                    children: [
-                                      hostField(),
-                                      SizedBox(height: palette.spacing.md),
-                                      AppConfigurationField(
-                                        label: context.l10n.user,
-                                        child: Row(
-                                          children: [
-                                            Expanded(child: userControl()),
-                                            const SizedBox(width: 20),
-                                            Text(
-                                              context.l10n.port,
-                                              style: Theme.of(
-                                                context,
-                                              ).textTheme.bodyMedium,
-                                            ),
-                                            const SizedBox(width: 20),
-                                            SizedBox(
-                                              width: 110,
-                                              child: portControl(),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  );
-                                },
-                              ),
-                              SizedBox(
-                                height: mobile ? 12 : palette.spacing.xl,
-                              ),
-                              if (!mobile) ...[
-                                AppSectionHeader(
-                                  title: context.l10n.authentication,
-                                ),
-                                SizedBox(height: palette.spacing.lg),
-                              ],
-                              AppConfigurationField(
-                                label: mobile
-                                    ? context.l10n.authentication
-                                    : context.l10n.method,
-                                child: Semantics(
-                                  label: context.l10n.authenticationMethod,
-                                  button: true,
-                                  child:
-                                      AppDropdownFormField<
-                                        terminal.TerminalSshAuthMethod
-                                      >(
-                                        key: const Key('ssh-auth-method'),
-                                        isExpanded: true,
-                                        initialValue: _auth,
-                                        decoration: _iconlessSshInputDecoration(
-                                          context,
-                                        ),
-                                        items: [
-                                          DropdownMenuItem(
-                                            value: terminal
-                                                .TerminalSshAuthMethod
-                                                .auto,
-                                            child: Text(
-                                              context
-                                                  .l10n
-                                                  .automaticKeysThenPassword,
-                                            ),
-                                          ),
-                                          DropdownMenuItem(
-                                            value: terminal
-                                                .TerminalSshAuthMethod
-                                                .publicKey,
-                                            child: Text(
-                                              context.l10n.privateKey,
-                                            ),
-                                          ),
-                                          DropdownMenuItem(
-                                            value: terminal
-                                                .TerminalSshAuthMethod
-                                                .password,
-                                            child: Text(context.l10n.password),
-                                          ),
-                                          DropdownMenuItem(
-                                            value: terminal
-                                                .TerminalSshAuthMethod
-                                                .keyboardInteractive,
-                                            child: Text(
-                                              context
-                                                  .l10n
-                                                  .keyboardInteractiveOtp,
-                                            ),
-                                          ),
-                                        ],
-                                        onChanged: (value) => setState(() {
-                                          _auth =
-                                              value ??
-                                              terminal
-                                                  .TerminalSshAuthMethod
-                                                  .auto;
-                                        }),
-                                      ),
-                                ),
-                              ),
-                              if (showsPassword) ...[
-                                SizedBox(
-                                  height: mobile ? 12 : palette.spacing.lg,
-                                ),
-                                AppConfigurationField(
-                                  label:
-                                      _auth ==
-                                          terminal
-                                              .TerminalSshAuthMethod
-                                              .password
-                                      ? context.l10n.password
-                                      : context.l10n.passwordFallback,
-                                  helper:
-                                      _auth ==
-                                          terminal.TerminalSshAuthMethod.auto
-                                      ? context.l10n.passwordFallbackHelp
-                                      : null,
-                                  child: Semantics(
-                                    label: context.l10n.password,
-                                    container: true,
-                                    explicitChildNodes: true,
-                                    obscured: _obscurePassword,
-                                    child: TextFormField(
-                                      key: const Key('ssh-password'),
-                                      controller: _password,
-                                      focusNode: _passwordFocus,
-                                      obscureText: _obscurePassword,
-                                      enableSuggestions: false,
-                                      autocorrect: false,
-                                      decoration: InputDecoration(
-                                        prefixIcon: mobile
-                                            ? null
-                                            : const Icon(
-                                                Icons.password_rounded,
-                                              ),
-                                        suffixIcon: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            _SecretVisibilityButton(
-                                              key: const Key(
-                                                'ssh-password-visibility',
-                                              ),
-                                              obscured: _obscurePassword,
-                                              label: context.l10n.password,
-                                              onPressed: () => setState(() {
-                                                _obscurePassword =
-                                                    !_obscurePassword;
-                                              }),
-                                            ),
-                                            if (!mobile ||
-                                                (widget
-                                                        .initialValue
-                                                        .connection
-                                                        .password
-                                                        ?.isNotEmpty ??
-                                                    false))
-                                              IconButton(
-                                                key: const Key(
-                                                  'ssh-clear-password',
-                                                ),
-                                                tooltip: context
-                                                    .l10n
-                                                    .forgetSavedPassword,
-                                                padding: EdgeInsets.zero,
-                                                constraints: BoxConstraints(
-                                                  minWidth:
-                                                      palette.controls.regular,
-                                                  minHeight:
-                                                      palette.controls.regular,
-                                                ),
-                                                iconSize: 18,
-                                                onPressed: () => setState(() {
-                                                  _password.clear();
-                                                  _clearPassword = true;
-                                                }),
-                                                icon: const Icon(
-                                                  Icons.delete_outline_rounded,
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                      ),
-                                      validator:
-                                          _auth ==
-                                              terminal
-                                                  .TerminalSshAuthMethod
-                                                  .password
-                                          ? _required
-                                          : null,
-                                    ),
+                                if (!mobile) ...[
+                                  AppSectionHeader(
+                                    title: context.l10n.connection,
                                   ),
+                                  SizedBox(height: palette.spacing.lg),
+                                ],
+                                if (!mobile) ...[
+                                  nameField(),
+                                  SizedBox(height: palette.spacing.lg),
+                                ],
+                                AppFormGroup(
+                                  title: mobile
+                                      ? context.l10n.connection
+                                      : null,
+                                  children: [
+                                    LayoutBuilder(
+                                      builder: (context, constraints) {
+                                        final stacked =
+                                            mobile ||
+                                            constraints.maxWidth < 560;
+                                        Widget hostField() =>
+                                            AppConfigurationField(
+                                              subtleLabel: true,
+                                              stackedOnPhone: true,
+                                              label: context.l10n.host,
+                                              child: Semantics(
+                                                label: context.l10n.host,
+                                                container: true,
+                                                explicitChildNodes: true,
+                                                child: TextFormField(
+                                                  key: const Key('ssh-host'),
+                                                  controller: _host,
+                                                  focusNode: _hostFocus,
+                                                  keyboardType:
+                                                      TextInputType.url,
+                                                  autocorrect: false,
+                                                  enableSuggestions: false,
+                                                  textInputAction:
+                                                      TextInputAction.next,
+                                                  decoration: InputDecoration(
+                                                    hintText: context
+                                                        .l10n
+                                                        .hostnameOrIp,
+                                                    prefixIcon: mobile
+                                                        ? null
+                                                        : const Icon(
+                                                            AppIcons.server,
+                                                          ),
+                                                  ),
+                                                  validator: _required,
+                                                ),
+                                              ),
+                                            );
+                                        Widget userControl() => Semantics(
+                                          label: context.l10n.user,
+                                          container: true,
+                                          explicitChildNodes: true,
+                                          child: TextFormField(
+                                            key: const Key('ssh-user'),
+                                            controller: _user,
+                                            focusNode: _userFocus,
+                                            autocorrect: false,
+                                            enableSuggestions: false,
+                                            textInputAction:
+                                                TextInputAction.next,
+                                            decoration:
+                                                _iconlessSshInputDecoration(
+                                                  context,
+                                                  hintText:
+                                                      context.l10n.remoteUser,
+                                                ),
+                                            validator: _required,
+                                          ),
+                                        );
+                                        if (stacked) {
+                                          return Column(
+                                            children: [
+                                              hostField(),
+                                              SizedBox(
+                                                height: palette.spacing.md,
+                                              ),
+                                              AppConfigurationField(
+                                                subtleLabel: true,
+                                                label: context.l10n.user,
+                                                child: userControl(),
+                                              ),
+                                              if (!mobile) ...[
+                                                SizedBox(
+                                                  height: palette.spacing.md,
+                                                ),
+                                                AppConfigurationField(
+                                                  subtleLabel: true,
+                                                  label: context.l10n.port,
+                                                  child: portControl(),
+                                                ),
+                                              ],
+                                            ],
+                                          );
+                                        }
+                                        return Column(
+                                          children: [
+                                            hostField(),
+                                            SizedBox(
+                                              height: palette.spacing.md,
+                                            ),
+                                            AppConfigurationField(
+                                              subtleLabel: true,
+                                              label: context.l10n.user,
+                                              child: Row(
+                                                children: [
+                                                  Expanded(
+                                                    child: userControl(),
+                                                  ),
+                                                  const SizedBox(width: 20),
+                                                  Text(
+                                                    context.l10n.port,
+                                                    style: Theme.of(
+                                                      context,
+                                                    ).textTheme.bodyMedium,
+                                                  ),
+                                                  const SizedBox(width: 20),
+                                                  SizedBox(
+                                                    width: 110,
+                                                    child: portControl(),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        );
+                                      },
+                                    ),
+                                  ],
                                 ),
-                              ],
-                              if (showsPrivateKeys) ...[
-                                SizedBox(height: palette.spacing.lg),
-                                AppConfigurationField(
-                                  label: context.l10n.privateKey,
-                                  helper: context.l10n.privateKeyDescription,
-                                  child: FormField<List<String>>(
-                                    key: _privateKeyFieldKey,
-                                    initialValue: _privateKeyValues,
-                                    validator: (value) =>
-                                        _auth ==
+                                SizedBox(
+                                  height: mobile ? 12 : palette.spacing.xl,
+                                ),
+                                if (!mobile) ...[
+                                  AppSectionHeader(
+                                    title: context.l10n.authentication,
+                                  ),
+                                  SizedBox(height: palette.spacing.lg),
+                                ],
+                                AppFormGroup(
+                                  title: mobile
+                                      ? context.l10n.authentication
+                                      : null,
+                                  children: [
+                                    AppConfigurationField(
+                                      subtleLabel: true,
+                                      label: mobile
+                                          ? context.l10n.authentication
+                                          : context.l10n.method,
+                                      child: Semantics(
+                                        label:
+                                            context.l10n.authenticationMethod,
+                                        button: true,
+                                        child:
+                                            AppDropdownFormField<
+                                              terminal.TerminalSshAuthMethod
+                                            >(
+                                              key: const Key('ssh-auth-method'),
+                                              isExpanded: true,
+                                              initialValue: _auth,
+                                              decoration:
+                                                  _iconlessSshInputDecoration(
+                                                    context,
+                                                  ),
+                                              items: [
+                                                DropdownMenuItem(
+                                                  value: terminal
+                                                      .TerminalSshAuthMethod
+                                                      .auto,
+                                                  child: Text(
+                                                    context
+                                                        .l10n
+                                                        .automaticKeysThenPassword,
+                                                  ),
+                                                ),
+                                                DropdownMenuItem(
+                                                  value: terminal
+                                                      .TerminalSshAuthMethod
+                                                      .publicKey,
+                                                  child: Text(
+                                                    context.l10n.privateKey,
+                                                  ),
+                                                ),
+                                                DropdownMenuItem(
+                                                  value: terminal
+                                                      .TerminalSshAuthMethod
+                                                      .password,
+                                                  child: Text(
+                                                    context.l10n.password,
+                                                  ),
+                                                ),
+                                                DropdownMenuItem(
+                                                  value: terminal
+                                                      .TerminalSshAuthMethod
+                                                      .keyboardInteractive,
+                                                  child: Text(
+                                                    context
+                                                        .l10n
+                                                        .keyboardInteractiveOtp,
+                                                  ),
+                                                ),
+                                              ],
+                                              onChanged: (value) => setState(
+                                                () {
+                                                  _auth =
+                                                      value ??
+                                                      terminal
+                                                          .TerminalSshAuthMethod
+                                                          .auto;
+                                                },
+                                              ),
+                                            ),
+                                      ),
+                                    ),
+                                    if (showsPassword) ...[
+                                      SizedBox(height: palette.spacing.lg),
+                                      AppConfigurationField(
+                                        subtleLabel: true,
+                                        label:
+                                            _auth ==
                                                 terminal
                                                     .TerminalSshAuthMethod
-                                                    .publicKey &&
-                                            (value == null || value.isEmpty)
-                                        ? context.l10n.noPrivateKeySelected
-                                        : null,
-                                    builder: (field) => Semantics(
-                                      label: context.l10n.privateKeyFile,
-                                      value: _privateKeyDisplayValue,
-                                      child: InputDecorator(
-                                        key: const Key('ssh-private-keys'),
-                                        decoration: InputDecoration(
-                                          // The row's actions already provide
-                                          // the adaptive control height.
-                                          contentPadding:
-                                              const EdgeInsets.symmetric(
-                                                horizontal: 12,
+                                                    .password
+                                            ? context.l10n.password
+                                            : context.l10n.passwordFallback,
+                                        helper:
+                                            _auth ==
+                                                terminal
+                                                    .TerminalSshAuthMethod
+                                                    .auto
+                                            ? context.l10n.passwordFallbackHelp
+                                            : null,
+                                        child: Semantics(
+                                          label: context.l10n.password,
+                                          container: true,
+                                          explicitChildNodes: true,
+                                          obscured: _obscurePassword,
+                                          child: TextFormField(
+                                            key: const Key('ssh-password'),
+                                            controller: _password,
+                                            focusNode: _passwordFocus,
+                                            obscureText: _obscurePassword,
+                                            enableSuggestions: false,
+                                            autocorrect: false,
+                                            decoration: InputDecoration(
+                                              prefixIcon: mobile
+                                                  ? null
+                                                  : const Icon(
+                                                      Icons.password_rounded,
+                                                    ),
+                                              suffixIcon: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  _SecretVisibilityButton(
+                                                    key: const Key(
+                                                      'ssh-password-visibility',
+                                                    ),
+                                                    obscured: _obscurePassword,
+                                                    label:
+                                                        context.l10n.password,
+                                                    onPressed: () =>
+                                                        setState(() {
+                                                          _obscurePassword =
+                                                              !_obscurePassword;
+                                                        }),
+                                                  ),
+                                                  if (!mobile ||
+                                                      _password
+                                                          .text
+                                                          .isNotEmpty ||
+                                                      (!_clearPassword &&
+                                                          (widget
+                                                                  .initialValue
+                                                                  .connection
+                                                                  .password
+                                                                  ?.isNotEmpty ??
+                                                              false)))
+                                                    IconButton(
+                                                      key: const Key(
+                                                        'ssh-clear-password',
+                                                      ),
+                                                      tooltip: context
+                                                          .l10n
+                                                          .forgetSavedPassword,
+                                                      padding: EdgeInsets.zero,
+                                                      constraints:
+                                                          BoxConstraints(
+                                                            minWidth: palette
+                                                                .controls
+                                                                .regular,
+                                                            minHeight: palette
+                                                                .controls
+                                                                .regular,
+                                                          ),
+                                                      iconSize: 18,
+                                                      onPressed: () => setState(
+                                                        () {
+                                                          _password.clear();
+                                                          _clearPassword = true;
+                                                        },
+                                                      ),
+                                                      icon: const Icon(
+                                                        Icons
+                                                            .delete_outline_rounded,
+                                                      ),
+                                                    ),
+                                                ],
                                               ),
-                                          prefixIcon: const Icon(
-                                            Icons.key_rounded,
+                                            ),
+                                            validator:
+                                                _auth ==
+                                                    terminal
+                                                        .TerminalSshAuthMethod
+                                                        .password
+                                                ? _required
+                                                : null,
                                           ),
-                                          errorText:
-                                              _privateKeySelectionError ??
-                                              field.errorText,
+                                        ),
+                                      ),
+                                    ],
+                                    if (showsPrivateKeys) ...[
+                                      SizedBox(height: palette.spacing.lg),
+                                      AppConfigurationField(
+                                        subtleLabel: true,
+                                        stackedOnPhone: true,
+                                        label: context.l10n.privateKey,
+                                        helper:
+                                            context.l10n.privateKeyDescription,
+                                        child: FormField<List<String>>(
+                                          key: _privateKeyFieldKey,
+                                          initialValue: _privateKeyValues,
+                                          validator: (value) =>
+                                              _auth ==
+                                                      terminal
+                                                          .TerminalSshAuthMethod
+                                                          .publicKey &&
+                                                  (value == null ||
+                                                      value.isEmpty)
+                                              ? context
+                                                    .l10n
+                                                    .noPrivateKeySelected
+                                              : null,
+                                          builder: (field) => Semantics(
+                                            label: context.l10n.privateKeyFile,
+                                            value: _privateKeyDisplayValue,
+                                            child: InputDecorator(
+                                              key: const Key(
+                                                'ssh-private-keys',
+                                              ),
+                                              decoration: InputDecoration(
+                                                // The row's actions already provide
+                                                // the adaptive control height.
+                                                contentPadding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 12,
+                                                    ),
+                                                prefixIcon: const Icon(
+                                                  Icons.key_rounded,
+                                                ),
+                                                errorText:
+                                                    _privateKeySelectionError ??
+                                                    field.errorText,
+                                              ),
+                                              child: Row(
+                                                children: [
+                                                  Expanded(
+                                                    child: Text(
+                                                      _privateKeyDisplayValue,
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      style:
+                                                          _privateKeyValues
+                                                              .isEmpty
+                                                          ? Theme.of(context)
+                                                                .textTheme
+                                                                .bodyMedium
+                                                                ?.copyWith(
+                                                                  color: palette
+                                                                      .textSubtle,
+                                                                )
+                                                          : null,
+                                                    ),
+                                                  ),
+                                                  SizedBox(
+                                                    width: palette.spacing.sm,
+                                                  ),
+                                                  if (compactPrivateKeyAction)
+                                                    IconButton(
+                                                      key: const Key(
+                                                        'ssh-select-private-key',
+                                                      ),
+                                                      focusNode:
+                                                          _privateKeysFocus,
+                                                      tooltip:
+                                                          _privateKeyValues
+                                                              .isEmpty
+                                                          ? context.l10n.select
+                                                          : context
+                                                                .l10n
+                                                                .replace,
+                                                      padding: EdgeInsets.zero,
+                                                      constraints:
+                                                          BoxConstraints(
+                                                            minWidth: palette
+                                                                .controls
+                                                                .regular,
+                                                            minHeight: palette
+                                                                .controls
+                                                                .regular,
+                                                          ),
+                                                      iconSize: 18,
+                                                      onPressed:
+                                                          _selectingPrivateKey
+                                                          ? null
+                                                          : _pickPrivateKey,
+                                                      icon: _selectingPrivateKey
+                                                          ? const SizedBox.square(
+                                                              dimension: 16,
+                                                              child:
+                                                                  CircularProgressIndicator(
+                                                                    strokeWidth:
+                                                                        2,
+                                                                  ),
+                                                            )
+                                                          : const Icon(
+                                                              Icons
+                                                                  .folder_open_rounded,
+                                                            ),
+                                                    )
+                                                  else
+                                                    TextButton.icon(
+                                                      key: const Key(
+                                                        'ssh-select-private-key',
+                                                      ),
+                                                      focusNode:
+                                                          _privateKeysFocus,
+                                                      style: TextButton.styleFrom(
+                                                        minimumSize: Size(
+                                                          0,
+                                                          palette
+                                                              .controls
+                                                              .regular,
+                                                        ),
+                                                        padding:
+                                                            const EdgeInsets.symmetric(
+                                                              horizontal: 8,
+                                                            ),
+                                                        iconSize: 18,
+                                                        tapTargetSize:
+                                                            MaterialTapTargetSize
+                                                                .shrinkWrap,
+                                                      ),
+                                                      onPressed:
+                                                          _selectingPrivateKey
+                                                          ? null
+                                                          : _pickPrivateKey,
+                                                      icon: _selectingPrivateKey
+                                                          ? const SizedBox.square(
+                                                              dimension: 16,
+                                                              child:
+                                                                  CircularProgressIndicator(
+                                                                    strokeWidth:
+                                                                        2,
+                                                                  ),
+                                                            )
+                                                          : const Icon(
+                                                              Icons
+                                                                  .folder_open_rounded,
+                                                            ),
+                                                      label: Text(
+                                                        _privateKeyValues
+                                                                .isEmpty
+                                                            ? context
+                                                                  .l10n
+                                                                  .select
+                                                            : context
+                                                                  .l10n
+                                                                  .replace,
+                                                      ),
+                                                    ),
+                                                  if (_privateKeyValues
+                                                      .isNotEmpty)
+                                                    IconButton(
+                                                      key: const Key(
+                                                        'ssh-clear-private-key',
+                                                      ),
+                                                      tooltip: context
+                                                          .l10n
+                                                          .forgetSavedPrivateKey,
+                                                      padding: EdgeInsets.zero,
+                                                      constraints:
+                                                          BoxConstraints(
+                                                            minWidth: palette
+                                                                .controls
+                                                                .regular,
+                                                            minHeight: palette
+                                                                .controls
+                                                                .regular,
+                                                          ),
+                                                      iconSize: 18,
+                                                      onPressed:
+                                                          _forgetPrivateKey,
+                                                      icon: const Icon(
+                                                        Icons
+                                                            .delete_outline_rounded,
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      SizedBox(height: palette.spacing.lg),
+                                      AppConfigurationField(
+                                        subtleLabel: true,
+                                        label:
+                                            context.l10n.privateKeyPassphrase,
+                                        helper: context
+                                            .l10n
+                                            .privateKeyPassphraseHelp,
+                                        child: Semantics(
+                                          label:
+                                              context.l10n.privateKeyPassphrase,
+                                          container: true,
+                                          explicitChildNodes: true,
+                                          obscured:
+                                              _obscurePrivateKeyPassphrase,
+                                          child: TextFormField(
+                                            key: const Key(
+                                              'ssh-key-passphrase',
+                                            ),
+                                            controller: _privateKeyPassphrase,
+                                            obscureText:
+                                                _obscurePrivateKeyPassphrase,
+                                            enableSuggestions: false,
+                                            autocorrect: false,
+                                            decoration: _iconlessSshInputDecoration(
+                                              context,
+                                              suffixIcon: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  _SecretVisibilityButton(
+                                                    key: const Key(
+                                                      'ssh-key-passphrase-visibility',
+                                                    ),
+                                                    obscured:
+                                                        _obscurePrivateKeyPassphrase,
+                                                    label: context
+                                                        .l10n
+                                                        .privateKeyPassphrase,
+                                                    onPressed: () => setState(() {
+                                                      _obscurePrivateKeyPassphrase =
+                                                          !_obscurePrivateKeyPassphrase;
+                                                    }),
+                                                  ),
+                                                  IconButton(
+                                                    key: const Key(
+                                                      'ssh-clear-key-passphrase',
+                                                    ),
+                                                    tooltip: context
+                                                        .l10n
+                                                        .forgetSavedKeyPassphrase,
+                                                    padding: EdgeInsets.zero,
+                                                    constraints: BoxConstraints(
+                                                      minWidth: palette
+                                                          .controls
+                                                          .regular,
+                                                      minHeight: palette
+                                                          .controls
+                                                          .regular,
+                                                    ),
+                                                    iconSize: 18,
+                                                    onPressed: () => setState(() {
+                                                      _privateKeyPassphrase
+                                                          .clear();
+                                                      _clearPrivateKeyPassphrase =
+                                                          true;
+                                                    }),
+                                                    icon: const Icon(
+                                                      Icons
+                                                          .delete_outline_rounded,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                    if (_auth ==
+                                        terminal
+                                            .TerminalSshAuthMethod
+                                            .keyboardInteractive) ...[
+                                      SizedBox(height: palette.spacing.lg),
+                                      AppPanel(
+                                        tone: AppPanelTone.selected,
+                                        padding: EdgeInsets.all(
+                                          palette.spacing.lg,
                                         ),
                                         child: Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
+                                            Icon(
+                                              Icons.chat_bubble_outline_rounded,
+                                              size: 18,
+                                              color: palette.accent,
+                                            ),
+                                            SizedBox(width: palette.spacing.md),
                                             Expanded(
-                                              child: Text(
-                                                _privateKeyDisplayValue,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: _privateKeyValues.isEmpty
-                                                    ? Theme.of(context)
-                                                          .textTheme
-                                                          .bodyMedium
-                                                          ?.copyWith(
-                                                            color: palette
-                                                                .textSubtle,
-                                                          )
-                                                    : null,
-                                              ),
-                                            ),
-                                            SizedBox(width: palette.spacing.sm),
-                                            if (compactPrivateKeyAction)
-                                              IconButton(
-                                                key: const Key(
-                                                  'ssh-select-private-key',
-                                                ),
-                                                focusNode: _privateKeysFocus,
-                                                tooltip:
-                                                    _privateKeyValues.isEmpty
-                                                    ? context.l10n.select
-                                                    : context.l10n.replace,
-                                                padding: EdgeInsets.zero,
-                                                constraints: BoxConstraints(
-                                                  minWidth:
-                                                      palette.controls.regular,
-                                                  minHeight:
-                                                      palette.controls.regular,
-                                                ),
-                                                iconSize: 18,
-                                                onPressed: _selectingPrivateKey
-                                                    ? null
-                                                    : _pickPrivateKey,
-                                                icon: _selectingPrivateKey
-                                                    ? const SizedBox.square(
-                                                        dimension: 16,
-                                                        child:
-                                                            CircularProgressIndicator(
-                                                              strokeWidth: 2,
-                                                            ),
-                                                      )
-                                                    : const Icon(
-                                                        Icons
-                                                            .folder_open_rounded,
-                                                      ),
-                                              )
-                                            else
-                                              TextButton.icon(
-                                                key: const Key(
-                                                  'ssh-select-private-key',
-                                                ),
-                                                focusNode: _privateKeysFocus,
-                                                style: TextButton.styleFrom(
-                                                  minimumSize: Size(
-                                                    0,
-                                                    palette.controls.regular,
-                                                  ),
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 8,
-                                                      ),
-                                                  iconSize: 18,
-                                                  tapTargetSize:
-                                                      MaterialTapTargetSize
-                                                          .shrinkWrap,
-                                                ),
-                                                onPressed: _selectingPrivateKey
-                                                    ? null
-                                                    : _pickPrivateKey,
-                                                icon: _selectingPrivateKey
-                                                    ? const SizedBox.square(
-                                                        dimension: 16,
-                                                        child:
-                                                            CircularProgressIndicator(
-                                                              strokeWidth: 2,
-                                                            ),
-                                                      )
-                                                    : const Icon(
-                                                        Icons
-                                                            .folder_open_rounded,
-                                                      ),
-                                                label: Text(
-                                                  _privateKeyValues.isEmpty
-                                                      ? context.l10n.select
-                                                      : context.l10n.replace,
-                                                ),
-                                              ),
-                                            if (_privateKeyValues.isNotEmpty)
-                                              IconButton(
-                                                key: const Key(
-                                                  'ssh-clear-private-key',
-                                                ),
-                                                tooltip: context
-                                                    .l10n
-                                                    .forgetSavedPrivateKey,
-                                                padding: EdgeInsets.zero,
-                                                constraints: BoxConstraints(
-                                                  minWidth:
-                                                      palette.controls.regular,
-                                                  minHeight:
-                                                      palette.controls.regular,
-                                                ),
-                                                iconSize: 18,
-                                                onPressed: _forgetPrivateKey,
-                                                icon: const Icon(
-                                                  Icons.delete_outline_rounded,
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                SizedBox(height: palette.spacing.lg),
-                                AppConfigurationField(
-                                  label: context.l10n.privateKeyPassphrase,
-                                  helper: context.l10n.privateKeyPassphraseHelp,
-                                  child: Semantics(
-                                    label: context.l10n.privateKeyPassphrase,
-                                    container: true,
-                                    explicitChildNodes: true,
-                                    obscured: _obscurePrivateKeyPassphrase,
-                                    child: TextFormField(
-                                      key: const Key('ssh-key-passphrase'),
-                                      controller: _privateKeyPassphrase,
-                                      obscureText: _obscurePrivateKeyPassphrase,
-                                      enableSuggestions: false,
-                                      autocorrect: false,
-                                      decoration: _iconlessSshInputDecoration(
-                                        context,
-                                        suffixIcon: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            _SecretVisibilityButton(
-                                              key: const Key(
-                                                'ssh-key-passphrase-visibility',
-                                              ),
-                                              obscured:
-                                                  _obscurePrivateKeyPassphrase,
-                                              label: context
-                                                  .l10n
-                                                  .privateKeyPassphrase,
-                                              onPressed: () => setState(() {
-                                                _obscurePrivateKeyPassphrase =
-                                                    !_obscurePrivateKeyPassphrase;
-                                              }),
-                                            ),
-                                            IconButton(
-                                              key: const Key(
-                                                'ssh-clear-key-passphrase',
-                                              ),
-                                              tooltip: context
-                                                  .l10n
-                                                  .forgetSavedKeyPassphrase,
-                                              padding: EdgeInsets.zero,
-                                              constraints: BoxConstraints(
-                                                minWidth:
-                                                    palette.controls.regular,
-                                                minHeight:
-                                                    palette.controls.regular,
-                                              ),
-                                              iconSize: 18,
-                                              onPressed: () => setState(() {
-                                                _privateKeyPassphrase.clear();
-                                                _clearPrivateKeyPassphrase =
-                                                    true;
-                                              }),
-                                              icon: const Icon(
-                                                Icons.delete_outline_rounded,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                              if (_auth ==
-                                  terminal
-                                      .TerminalSshAuthMethod
-                                      .keyboardInteractive) ...[
-                                SizedBox(height: palette.spacing.lg),
-                                AppPanel(
-                                  tone: AppPanelTone.selected,
-                                  padding: EdgeInsets.all(palette.spacing.lg),
-                                  child: Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Icon(
-                                        Icons.chat_bubble_outline_rounded,
-                                        size: 18,
-                                        color: palette.accent,
-                                      ),
-                                      SizedBox(width: palette.spacing.md),
-                                      Expanded(
-                                        child: Text(
-                                          context.l10n.keyboardInteractiveHelp,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                              SizedBox(height: palette.spacing.lg),
-                              ExpansionTile(
-                                key: const Key('ssh-more-settings'),
-                                shape: mobile
-                                    ? RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(
-                                          palette.radius.md,
-                                        ),
-                                        side: BorderSide(color: palette.border),
-                                      )
-                                    : null,
-                                collapsedShape: mobile
-                                    ? RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(
-                                          palette.radius.md,
-                                        ),
-                                        side: BorderSide(color: palette.border),
-                                      )
-                                    : null,
-                                controller: _advancedController,
-                                initiallyExpanded: _showAdvanced,
-                                onExpansionChanged: (value) =>
-                                    _showAdvanced = value,
-                                title: Wrap(
-                                  key: const Key('ssh-more-settings-toggle'),
-                                  alignment: WrapAlignment.spaceBetween,
-                                  crossAxisAlignment: WrapCrossAlignment.center,
-                                  spacing: 12,
-                                  children: [
-                                    Text(
-                                      mobile
-                                          ? context
-                                                .l10n
-                                                .mobileMoreConnectionSettings
-                                          : context
-                                                .l10n
-                                                .hostVerificationAdvanced,
-                                    ),
-                                    if (mobile)
-                                      Text(
-                                        '${context.l10n.port} ${_port.text.trim()}',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              color: palette.textSubtle,
-                                            ),
-                                      ),
-                                  ],
-                                ),
-                                subtitle: mobile
-                                    ? null
-                                    : Text(
-                                        context
-                                            .l10n
-                                            .hostVerificationAdvancedDescription,
-                                      ),
-                                tilePadding: mobile
-                                    ? const EdgeInsets.symmetric(horizontal: 12)
-                                    : EdgeInsets.zero,
-                                childrenPadding: mobile
-                                    ? const EdgeInsets.all(12)
-                                    : EdgeInsets.zero,
-                                children: [
-                                  if (mobile) ...[
-                                    nameField(),
-                                    const SizedBox(height: 12),
-                                    AppConfigurationField(
-                                      label: context.l10n.port,
-                                      child: portControl(),
-                                    ),
-                                    if (widget.allowSaveChoice) ...[
-                                      const SizedBox(height: 12),
-                                      saveChoice(),
-                                    ],
-                                    const SizedBox(height: 20),
-                                  ],
-                                  AppConfigurationField(
-                                    label: context.l10n.sshAutoInject,
-                                    child: AppDropdownFormField<String>(
-                                      key: const Key('ssh-auto-inject'),
-                                      initialValue: _sshAutoInject == null
-                                          ? 'inherit'
-                                          : (_sshAutoInject! ? 'on' : 'off'),
-                                      isExpanded: true,
-                                      items: [
-                                        DropdownMenuItem(
-                                          value: 'inherit',
-                                          child: Text(
-                                            context.l10n.sshInjectionInherit,
-                                          ),
-                                        ),
-                                        DropdownMenuItem(
-                                          value: 'on',
-                                          child: Text(
-                                            context.l10n.sshInjectionOn,
-                                          ),
-                                        ),
-                                        DropdownMenuItem(
-                                          value: 'off',
-                                          child: Text(
-                                            context.l10n.sshInjectionOff,
-                                          ),
-                                        ),
-                                      ],
-                                      onChanged: (value) => setState(
-                                        () => _sshAutoInject = switch (value) {
-                                          'on' => true,
-                                          'off' => false,
-                                          _ => null,
-                                        },
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 20),
-                                  AppConfigurationField(
-                                    label: context.l10n.hostKeyPolicy,
-                                    child:
-                                        AppDropdownFormField<
-                                          terminal.TerminalSshHostKeyPolicy
-                                        >(
-                                          key: const Key('ssh-host-key-policy'),
-                                          isExpanded: true,
-                                          initialValue: _hostKeyPolicy,
-                                          decoration:
-                                              _iconlessSshInputDecoration(
-                                                context,
-                                              ),
-                                          items: [
-                                            DropdownMenuItem(
-                                              value: terminal
-                                                  .TerminalSshHostKeyPolicy
-                                                  .acceptNew,
                                               child: Text(
                                                 context
                                                     .l10n
-                                                    .acceptNewHostsRecommended,
-                                              ),
-                                            ),
-                                            DropdownMenuItem(
-                                              value: terminal
-                                                  .TerminalSshHostKeyPolicy
-                                                  .strict,
-                                              child: Text(
-                                                context.l10n.askBeforeTrusting,
-                                              ),
-                                            ),
-                                            DropdownMenuItem(
-                                              value: terminal
-                                                  .TerminalSshHostKeyPolicy
-                                                  .insecure,
-                                              child: Text(
-                                                context.l10n.doNotVerifyUnsafe,
+                                                    .keyboardInteractiveHelp,
                                               ),
                                             ),
                                           ],
-                                          onChanged: (value) => setState(() {
-                                            _hostKeyPolicy =
-                                                value ??
-                                                terminal
-                                                    .TerminalSshHostKeyPolicy
-                                                    .acceptNew;
-                                          }),
                                         ),
-                                  ),
-                                  SizedBox(height: palette.spacing.md),
-                                  AppConfigurationField(
-                                    label: context.l10n.knownHostsFileOptional,
-                                    child: TextFormField(
-                                      key: const Key('ssh-known-hosts-file'),
-                                      controller: _knownHostsFile,
-                                      decoration: _iconlessSshInputDecoration(
-                                        context,
                                       ),
-                                    ),
-                                  ),
-                                  SizedBox(height: palette.spacing.md),
-                                  _SshConnectionTimingFields(
-                                    connectTimeout: _connectTimeout,
-                                    keepalive: _keepalive,
-                                    keepaliveCount: _keepaliveCount,
-                                    connectTimeoutFocus: _connectTimeoutFocus,
-                                    keepaliveFocus: _keepaliveFocus,
-                                    keepaliveCountFocus: _keepaliveCountFocus,
-                                    validator: _boundedInteger,
-                                  ),
-                                  SizedBox(height: palette.spacing.md),
-                                  AppConfigurationField(
-                                    label: context.l10n.proxyCommandOptional,
-                                    child: TextFormField(
-                                      key: const Key('ssh-proxy-command'),
-                                      controller: _proxyCommand,
-                                      decoration: _iconlessSshInputDecoration(
-                                        context,
-                                      ),
-                                    ),
-                                  ),
-                                  SizedBox(height: palette.spacing.md),
-                                  AppConfigurationField(
-                                    label: context.l10n.proxyJumpOptional,
-                                    helper: context.l10n.proxyJumpHelp,
-                                    child: TextFormField(
-                                      key: const Key('ssh-proxy-jump'),
-                                      controller: _proxyJump,
-                                      focusNode: _proxyJumpFocus,
-                                      decoration: _iconlessSshInputDecoration(
-                                        context,
-                                      ),
-                                      validator: (value) {
-                                        if ((value ?? '').trim().isEmpty) {
-                                          return null;
-                                        }
-                                        try {
-                                          parseSshProxyJumpProfiles(
-                                            value ?? '',
-                                          );
-                                          return null;
-                                        } on FormatException catch (error) {
-                                          return error.message;
-                                        }
-                                      },
-                                    ),
-                                  ),
-                                  SizedBox(height: palette.spacing.md),
-                                  AppConfigurationField(
-                                    label: context.l10n.portForwards,
-                                    helper: context.l10n.portForwardsHelp,
-                                    child: TextFormField(
-                                      key: const Key('ssh-port-forwards'),
-                                      controller: _portForwards,
-                                      focusNode: _portForwardsFocus,
-                                      minLines: 2,
-                                      maxLines: 5,
-                                      decoration: _iconlessSshInputDecoration(
-                                        context,
-                                      ),
-                                      validator: (value) {
-                                        try {
-                                          parseSshPortForwards(value ?? '');
-                                          return null;
-                                        } on FormatException catch (error) {
-                                          return error.message;
-                                        }
-                                      },
-                                    ),
-                                  ),
-                                  SwitchListTile(
-                                    key: const Key('ssh-agent-forwarding'),
-                                    contentPadding: EdgeInsets.zero,
-                                    value: _agentForwarding,
-                                    title: Text(context.l10n.forwardSshAgent),
-                                    subtitle:
-                                        context.usesMobileNavigation &&
-                                            !_agentForwarding
-                                        ? null
-                                        : Text(
-                                            context.l10n.agentSocketHelp,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodySmall
-                                                ?.copyWith(
-                                                  color: palette.textSubtle,
-                                                ),
+                                    ],
+                                    SizedBox(height: palette.spacing.lg),
+                                  ],
+                                ),
+                                const SizedBox(height: 24),
+                                ExpansionTile(
+                                  key: const Key('ssh-more-settings'),
+                                  shape: mobile
+                                      ? RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            palette.radius.md,
                                           ),
-                                    onChanged: (value) => setState(
-                                      () => _agentForwarding = value,
-                                    ),
+                                          side: BorderSide(
+                                            color: palette.border,
+                                          ),
+                                        )
+                                      : null,
+                                  collapsedShape: mobile
+                                      ? RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(
+                                            palette.radius.md,
+                                          ),
+                                          side: BorderSide(
+                                            color: palette.border,
+                                          ),
+                                        )
+                                      : null,
+                                  controller: _advancedController,
+                                  initiallyExpanded: _showAdvanced,
+                                  onExpansionChanged: (value) =>
+                                      _showAdvanced = value,
+                                  title: Wrap(
+                                    key: const Key('ssh-more-settings-toggle'),
+                                    alignment: WrapAlignment.spaceBetween,
+                                    crossAxisAlignment:
+                                        WrapCrossAlignment.center,
+                                    spacing: 12,
+                                    children: [
+                                      Text(
+                                        mobile
+                                            ? context
+                                                  .l10n
+                                                  .mobileMoreConnectionSettings
+                                            : context
+                                                  .l10n
+                                                  .hostVerificationAdvanced,
+                                      ),
+                                      if (mobile)
+                                        Text(
+                                          '${context.l10n.port} ${_port.text.trim()}',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: palette.textSubtle,
+                                              ),
+                                        ),
+                                    ],
                                   ),
-                                  if (_agentForwarding)
+                                  subtitle: mobile
+                                      ? null
+                                      : Text(
+                                          context
+                                              .l10n
+                                              .hostVerificationAdvancedDescription,
+                                        ),
+                                  tilePadding: mobile
+                                      ? const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                        )
+                                      : EdgeInsets.zero,
+                                  childrenPadding: mobile
+                                      ? const EdgeInsets.all(12)
+                                      : EdgeInsets.zero,
+                                  children: [
+                                    if (mobile) ...[
+                                      nameField(),
+                                      const SizedBox(height: 12),
+                                      AppConfigurationField(
+                                        subtleLabel: true,
+                                        label: context.l10n.port,
+                                        child: portControl(),
+                                      ),
+                                      if (widget.allowSaveChoice) ...[
+                                        const SizedBox(height: 12),
+                                        saveChoice(),
+                                      ],
+                                      const SizedBox(height: 20),
+                                    ],
                                     AppConfigurationField(
-                                      label: context.l10n.agentSocketOptional,
+                                      subtleLabel: true,
+                                      label: context.l10n.sshAutoInject,
+                                      child: AppDropdownFormField<String>(
+                                        key: const Key('ssh-auto-inject'),
+                                        initialValue: _sshAutoInject == null
+                                            ? 'inherit'
+                                            : (_sshAutoInject! ? 'on' : 'off'),
+                                        isExpanded: true,
+                                        items: [
+                                          DropdownMenuItem(
+                                            value: 'inherit',
+                                            child: Text(
+                                              context.l10n.sshInjectionInherit,
+                                            ),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: 'on',
+                                            child: Text(
+                                              context.l10n.sshInjectionOn,
+                                            ),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: 'off',
+                                            child: Text(
+                                              context.l10n.sshInjectionOff,
+                                            ),
+                                          ),
+                                        ],
+                                        onChanged: (value) => setState(
+                                          () =>
+                                              _sshAutoInject = switch (value) {
+                                                'on' => true,
+                                                'off' => false,
+                                                _ => null,
+                                              },
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 20),
+                                    AppConfigurationField(
+                                      subtleLabel: true,
+                                      label: context.l10n.hostKeyPolicy,
+                                      child:
+                                          AppDropdownFormField<
+                                            terminal.TerminalSshHostKeyPolicy
+                                          >(
+                                            key: const Key(
+                                              'ssh-host-key-policy',
+                                            ),
+                                            isExpanded: true,
+                                            initialValue: _hostKeyPolicy,
+                                            decoration:
+                                                _iconlessSshInputDecoration(
+                                                  context,
+                                                ),
+                                            items: [
+                                              DropdownMenuItem(
+                                                value: terminal
+                                                    .TerminalSshHostKeyPolicy
+                                                    .acceptNew,
+                                                child: Text(
+                                                  context
+                                                      .l10n
+                                                      .acceptNewHostsRecommended,
+                                                ),
+                                              ),
+                                              DropdownMenuItem(
+                                                value: terminal
+                                                    .TerminalSshHostKeyPolicy
+                                                    .strict,
+                                                child: Text(
+                                                  context
+                                                      .l10n
+                                                      .askBeforeTrusting,
+                                                ),
+                                              ),
+                                              DropdownMenuItem(
+                                                value: terminal
+                                                    .TerminalSshHostKeyPolicy
+                                                    .insecure,
+                                                child: Text(
+                                                  context
+                                                      .l10n
+                                                      .doNotVerifyUnsafe,
+                                                ),
+                                              ),
+                                            ],
+                                            onChanged: (value) => setState(() {
+                                              _hostKeyPolicy =
+                                                  value ??
+                                                  terminal
+                                                      .TerminalSshHostKeyPolicy
+                                                      .acceptNew;
+                                            }),
+                                          ),
+                                    ),
+                                    SizedBox(height: palette.spacing.md),
+                                    AppConfigurationField(
+                                      subtleLabel: true,
+                                      label:
+                                          context.l10n.knownHostsFileOptional,
                                       child: TextFormField(
-                                        key: const Key('ssh-agent-socket'),
-                                        controller: _agentSocket,
+                                        key: const Key('ssh-known-hosts-file'),
+                                        controller: _knownHostsFile,
                                         decoration: _iconlessSshInputDecoration(
                                           context,
                                         ),
                                       ),
                                     ),
-                                  SwitchListTile(
-                                    key: const Key('ssh-x11-forwarding'),
-                                    contentPadding: EdgeInsets.zero,
-                                    value: _x11Forwarding,
-                                    title: Text(context.l10n.forwardX11),
-                                    subtitle:
-                                        context.usesMobileNavigation &&
-                                            !_x11Forwarding
-                                        ? null
-                                        : Text(
-                                            context.l10n.x11ForwardingHelp,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodySmall
-                                                ?.copyWith(
-                                                  color: palette.textSubtle,
-                                                ),
-                                          ),
-                                    onChanged: (value) =>
-                                        setState(() => _x11Forwarding = value),
-                                  ),
-                                  if (_x11Forwarding) ...[
+                                    SizedBox(height: palette.spacing.md),
+                                    _SshConnectionTimingFields(
+                                      connectTimeout: _connectTimeout,
+                                      keepalive: _keepalive,
+                                      keepaliveCount: _keepaliveCount,
+                                      connectTimeoutFocus: _connectTimeoutFocus,
+                                      keepaliveFocus: _keepaliveFocus,
+                                      keepaliveCountFocus: _keepaliveCountFocus,
+                                      validator: _boundedInteger,
+                                    ),
+                                    SizedBox(height: palette.spacing.md),
                                     AppConfigurationField(
-                                      label: context.l10n.localX11Target,
+                                      subtleLabel: true,
+                                      label: context.l10n.proxyCommandOptional,
                                       child: TextFormField(
-                                        key: const Key('ssh-x11-target'),
-                                        controller: _x11Target,
-                                        focusNode: _x11TargetFocus,
+                                        key: const Key('ssh-proxy-command'),
+                                        controller: _proxyCommand,
+                                        decoration: _iconlessSshInputDecoration(
+                                          context,
+                                        ),
+                                      ),
+                                    ),
+                                    SizedBox(height: palette.spacing.md),
+                                    AppConfigurationField(
+                                      subtleLabel: true,
+                                      label: context.l10n.proxyJumpOptional,
+                                      helper: context.l10n.proxyJumpHelp,
+                                      child: TextFormField(
+                                        key: const Key('ssh-proxy-jump'),
+                                        controller: _proxyJump,
+                                        focusNode: _proxyJumpFocus,
                                         decoration: _iconlessSshInputDecoration(
                                           context,
                                         ),
                                         validator: (value) {
-                                          if (!_x11Forwarding) {
-                                            return null;
-                                          }
                                           if ((value ?? '').trim().isEmpty) {
                                             return null;
                                           }
                                           try {
-                                            parseSshForwardEndpoint(
+                                            parseSshProxyJumpProfiles(
                                               value ?? '',
                                             );
                                             return null;
@@ -1855,186 +1892,303 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                     ),
                                     SizedBox(height: palette.spacing.md),
                                     AppConfigurationField(
-                                      label:
-                                          context.l10n.x11AuthenticationCookie,
-                                      helper: context.l10n.x11CookieRequired,
+                                      subtleLabel: true,
+                                      label: context.l10n.portForwards,
+                                      helper: context.l10n.portForwardsHelp,
                                       child: TextFormField(
-                                        key: const Key('ssh-x11-cookie'),
-                                        controller: _x11Cookie,
-                                        focusNode: _x11CookieFocus,
-                                        obscureText: _obscureX11Cookie,
-                                        enableSuggestions: false,
-                                        autocorrect: false,
+                                        key: const Key('ssh-port-forwards'),
+                                        controller: _portForwards,
+                                        focusNode: _portForwardsFocus,
+                                        minLines: 2,
+                                        maxLines: 5,
                                         decoration: _iconlessSshInputDecoration(
                                           context,
-                                          suffixIcon: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              _SecretVisibilityButton(
-                                                key: const Key(
-                                                  'ssh-x11-cookie-visibility',
-                                                ),
-                                                obscured: _obscureX11Cookie,
-                                                label: context
-                                                    .l10n
-                                                    .x11AuthenticationCookie,
-                                                onPressed: () => setState(() {
-                                                  _obscureX11Cookie =
-                                                      !_obscureX11Cookie;
-                                                }),
-                                              ),
-                                              IconButton(
-                                                key: const Key(
-                                                  'ssh-clear-x11-cookie',
-                                                ),
-                                                tooltip: context
-                                                    .l10n
-                                                    .forgetSavedX11Cookie,
-                                                padding: EdgeInsets.zero,
-                                                constraints: BoxConstraints(
-                                                  minWidth:
-                                                      palette.controls.regular,
-                                                  minHeight:
-                                                      palette.controls.regular,
-                                                ),
-                                                iconSize: 18,
-                                                onPressed: () => setState(() {
-                                                  _x11Cookie.clear();
-                                                  _clearX11AuthCookie = true;
-                                                }),
-                                                icon: const Icon(
-                                                  Icons.delete_outline_rounded,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
                                         ),
                                         validator: (value) {
-                                          if (!_x11Forwarding) {
+                                          try {
+                                            parseSshPortForwards(value ?? '');
                                             return null;
+                                          } on FormatException catch (error) {
+                                            return error.message;
                                           }
-                                          final cookie = (value ?? '').trim();
-                                          if (!RegExp(
-                                            r'^[0-9A-Fa-f]{32}$',
-                                          ).hasMatch(cookie)) {
-                                            return 'Enter exactly 32 hexadecimal characters';
-                                          }
-                                          return null;
                                         },
                                       ),
                                     ),
+                                    SwitchListTile(
+                                      key: const Key('ssh-agent-forwarding'),
+                                      contentPadding: EdgeInsets.zero,
+                                      value: _agentForwarding,
+                                      title: Text(context.l10n.forwardSshAgent),
+                                      subtitle:
+                                          context.usesMobileNavigation &&
+                                              !_agentForwarding
+                                          ? null
+                                          : Text(
+                                              context.l10n.agentSocketHelp,
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodySmall
+                                                  ?.copyWith(
+                                                    color: palette.textSubtle,
+                                                  ),
+                                            ),
+                                      onChanged: (value) => setState(
+                                        () => _agentForwarding = value,
+                                      ),
+                                    ),
+                                    if (_agentForwarding)
+                                      AppConfigurationField(
+                                        subtleLabel: true,
+                                        label: context.l10n.agentSocketOptional,
+                                        child: TextFormField(
+                                          key: const Key('ssh-agent-socket'),
+                                          controller: _agentSocket,
+                                          decoration:
+                                              _iconlessSshInputDecoration(
+                                                context,
+                                              ),
+                                        ),
+                                      ),
+                                    SwitchListTile(
+                                      key: const Key('ssh-x11-forwarding'),
+                                      contentPadding: EdgeInsets.zero,
+                                      value: _x11Forwarding,
+                                      title: Text(context.l10n.forwardX11),
+                                      subtitle:
+                                          context.usesMobileNavigation &&
+                                              !_x11Forwarding
+                                          ? null
+                                          : Text(
+                                              context.l10n.x11ForwardingHelp,
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .bodySmall
+                                                  ?.copyWith(
+                                                    color: palette.textSubtle,
+                                                  ),
+                                            ),
+                                      onChanged: (value) => setState(
+                                        () => _x11Forwarding = value,
+                                      ),
+                                    ),
+                                    if (_x11Forwarding) ...[
+                                      AppConfigurationField(
+                                        subtleLabel: true,
+                                        label: context.l10n.localX11Target,
+                                        child: TextFormField(
+                                          key: const Key('ssh-x11-target'),
+                                          controller: _x11Target,
+                                          focusNode: _x11TargetFocus,
+                                          decoration:
+                                              _iconlessSshInputDecoration(
+                                                context,
+                                              ),
+                                          validator: (value) {
+                                            if (!_x11Forwarding) {
+                                              return null;
+                                            }
+                                            if ((value ?? '').trim().isEmpty) {
+                                              return null;
+                                            }
+                                            try {
+                                              parseSshForwardEndpoint(
+                                                value ?? '',
+                                              );
+                                              return null;
+                                            } on FormatException catch (error) {
+                                              return error.message;
+                                            }
+                                          },
+                                        ),
+                                      ),
+                                      SizedBox(height: palette.spacing.md),
+                                      AppConfigurationField(
+                                        subtleLabel: true,
+                                        label: context
+                                            .l10n
+                                            .x11AuthenticationCookie,
+                                        helper: context.l10n.x11CookieRequired,
+                                        child: TextFormField(
+                                          key: const Key('ssh-x11-cookie'),
+                                          controller: _x11Cookie,
+                                          focusNode: _x11CookieFocus,
+                                          obscureText: _obscureX11Cookie,
+                                          enableSuggestions: false,
+                                          autocorrect: false,
+                                          decoration: _iconlessSshInputDecoration(
+                                            context,
+                                            suffixIcon: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                _SecretVisibilityButton(
+                                                  key: const Key(
+                                                    'ssh-x11-cookie-visibility',
+                                                  ),
+                                                  obscured: _obscureX11Cookie,
+                                                  label: context
+                                                      .l10n
+                                                      .x11AuthenticationCookie,
+                                                  onPressed: () => setState(() {
+                                                    _obscureX11Cookie =
+                                                        !_obscureX11Cookie;
+                                                  }),
+                                                ),
+                                                IconButton(
+                                                  key: const Key(
+                                                    'ssh-clear-x11-cookie',
+                                                  ),
+                                                  tooltip: context
+                                                      .l10n
+                                                      .forgetSavedX11Cookie,
+                                                  padding: EdgeInsets.zero,
+                                                  constraints: BoxConstraints(
+                                                    minWidth: palette
+                                                        .controls
+                                                        .regular,
+                                                    minHeight: palette
+                                                        .controls
+                                                        .regular,
+                                                  ),
+                                                  iconSize: 18,
+                                                  onPressed: () => setState(() {
+                                                    _x11Cookie.clear();
+                                                    _clearX11AuthCookie = true;
+                                                  }),
+                                                  icon: const Icon(
+                                                    Icons
+                                                        .delete_outline_rounded,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          validator: (value) {
+                                            if (!_x11Forwarding) {
+                                              return null;
+                                            }
+                                            final cookie = (value ?? '').trim();
+                                            if (!RegExp(
+                                              r'^[0-9A-Fa-f]{32}$',
+                                            ).hasMatch(cookie)) {
+                                              return 'Enter exactly 32 hexadecimal characters';
+                                            }
+                                            return null;
+                                          },
+                                        ),
+                                      ),
+                                    ],
                                   ],
+                                ),
+                                if (!mobile &&
+                                    widget.allowSaveChoice &&
+                                    scrollsSaveChoice) ...[
+                                  SizedBox(height: palette.spacing.lg),
+                                  const Divider(),
+                                  saveChoice(),
                                 ],
-                              ),
-                              if (!mobile &&
-                                  widget.allowSaveChoice &&
-                                  scrollsSaveChoice) ...[
-                                SizedBox(height: palette.spacing.lg),
-                                const Divider(),
-                                saveChoice(),
-                              ],
-                              if (mobile) ...[
-                                if (_name.text.trim().isEmpty) ...[
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    context.l10n.mobileHostAsName,
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.bodySmall,
-                                  ),
+                                if (mobile) ...[
+                                  if (_name.text.trim().isEmpty) ...[
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      context.l10n.mobileHostAsName,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.bodySmall,
+                                    ),
+                                  ],
+                                  const SizedBox(height: 24),
+                                  mobileSubmit(),
                                 ],
-                                const SizedBox(height: 24),
-                                mobileSubmit(),
                               ],
-                            ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    if (!mobile) ...[
-                      SizedBox(
-                        height: compactKeyboardLayout
-                            ? palette.spacing.sm
-                            : palette.spacing.lg,
-                      ),
-                      const Divider(height: 1),
-                      SizedBox(height: palette.spacing.md),
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          final actions = Wrap(
-                            alignment: WrapAlignment.end,
-                            spacing: palette.spacing.sm,
-                            runSpacing: palette.spacing.sm,
-                            children: [
-                              TextButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                child: Text(context.l10n.cancel),
-                              ),
-                              FilledButton.icon(
-                                key: const Key('ssh-connect'),
-                                onPressed:
-                                    widget.allowSaveChoice ||
-                                        widget.saveWhenPristine ||
-                                        _hasChanges
-                                    ? _submit
-                                    : null,
-                                icon: const Icon(Icons.login_rounded),
-                                label: Text(
-                                  widget.allowSaveChoice
-                                      ? context.l10n.connect
-                                      : context.l10n.save,
-                                ),
-                              ),
-                            ],
-                          );
-                          final saveChoice = CheckboxListTile(
-                            key: const Key('ssh-save-profile'),
-                            contentPadding: EdgeInsets.zero,
-                            controlAffinity: ListTileControlAffinity.leading,
-                            value: _saveProfile,
-                            title: Text(context.l10n.saveThisSshSession),
-                            subtitle: Text(
-                              widget.saveProfileAvailable
-                                  ? context.l10n.secretsEncryptedDescription
-                                  : context
-                                        .l10n
-                                        .remoteServiceRequiredToSaveProfile,
-                            ),
-                            onChanged: widget.saveProfileAvailable
-                                ? (value) => setState(
-                                    () => _saveProfile = value ?? true,
-                                  )
-                                : null,
-                          );
-                          if (widget.allowSaveChoice &&
-                              !scrollsSaveChoice &&
-                              constraints.maxWidth >= 620) {
-                            return Row(
+                      if (!mobile) ...[
+                        SizedBox(
+                          height: compactKeyboardLayout
+                              ? palette.spacing.sm
+                              : palette.spacing.lg,
+                        ),
+                        const Divider(height: 1),
+                        SizedBox(height: palette.spacing.md),
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            final actions = Wrap(
+                              alignment: WrapAlignment.end,
+                              spacing: palette.spacing.sm,
+                              runSpacing: palette.spacing.sm,
                               children: [
-                                Expanded(child: saveChoice),
-                                SizedBox(width: palette.spacing.lg),
-                                SizedBox(width: 220, child: actions),
+                                TextButton(
+                                  onPressed: () => Navigator.of(context).pop(),
+                                  child: Text(context.l10n.cancel),
+                                ),
+                                FilledButton.icon(
+                                  key: const Key('ssh-connect'),
+                                  onPressed:
+                                      widget.allowSaveChoice ||
+                                          widget.saveWhenPristine ||
+                                          _hasChanges
+                                      ? _submit
+                                      : null,
+                                  icon: const Icon(Icons.login_rounded),
+                                  label: Text(
+                                    widget.allowSaveChoice
+                                        ? context.l10n.connect
+                                        : context.l10n.save,
+                                  ),
+                                ),
                               ],
                             );
-                          }
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              if (widget.allowSaveChoice &&
-                                  !scrollsSaveChoice) ...[
-                                saveChoice,
-                                SizedBox(height: palette.spacing.sm),
-                              ],
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: actions,
+                            final saveChoice = CheckboxListTile(
+                              key: const Key('ssh-save-profile'),
+                              contentPadding: EdgeInsets.zero,
+                              controlAffinity: ListTileControlAffinity.leading,
+                              value: _saveProfile,
+                              title: Text(context.l10n.saveThisSshSession),
+                              subtitle: Text(
+                                widget.saveProfileAvailable
+                                    ? context.l10n.secretsEncryptedDescription
+                                    : context
+                                          .l10n
+                                          .remoteServiceRequiredToSaveProfile,
                               ),
-                            ],
-                          );
-                        },
-                      ),
+                              onChanged: widget.saveProfileAvailable
+                                  ? (value) => setState(
+                                      () => _saveProfile = value ?? true,
+                                    )
+                                  : null,
+                            );
+                            if (widget.allowSaveChoice &&
+                                !scrollsSaveChoice &&
+                                constraints.maxWidth >= 620) {
+                              return Row(
+                                children: [
+                                  Expanded(child: saveChoice),
+                                  SizedBox(width: palette.spacing.lg),
+                                  SizedBox(width: 220, child: actions),
+                                ],
+                              );
+                            }
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                if (widget.allowSaveChoice &&
+                                    !scrollsSaveChoice) ...[
+                                  saveChoice,
+                                  SizedBox(height: palette.spacing.sm),
+                                ],
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: actions,
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -2394,6 +2548,7 @@ class _SshConnectionTimingFields extends StatelessWidget {
     final gap = context.appTheme.spacing.md;
     final fields = <Widget>[
       AppConfigurationField(
+        subtleLabel: true,
         label: context.l10n.connectTimeoutSeconds,
         child: TextFormField(
           key: const Key('ssh-connect-timeout'),
@@ -2405,6 +2560,7 @@ class _SshConnectionTimingFields extends StatelessWidget {
         ),
       ),
       AppConfigurationField(
+        subtleLabel: true,
         label: context.l10n.keepaliveSeconds,
         child: TextFormField(
           key: const Key('ssh-keepalive-seconds'),
@@ -2416,6 +2572,7 @@ class _SshConnectionTimingFields extends StatelessWidget {
         ),
       ),
       AppConfigurationField(
+        subtleLabel: true,
         label: context.l10n.keepaliveRetries,
         child: TextFormField(
           key: const Key('ssh-keepalive-count'),

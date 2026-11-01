@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../foundation/app_theme_tokens.dart';
+import 'app_grouped_section.dart';
 
 /// Shared phone page chrome, matching the active terminal header.
 class AppMobileHeader extends StatelessWidget {
@@ -21,8 +22,12 @@ class AppMobileHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-    color: context.appTheme.chrome,
-    shape: Border(bottom: BorderSide(color: context.appTheme.border)),
+    color: context.usesAppleGroups
+        ? context.groupedBackground
+        : context.appTheme.chrome,
+    shape: context.usesAppleGroups
+        ? null
+        : Border(bottom: BorderSide(color: context.appTheme.border)),
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: SizedBox(
@@ -61,7 +66,10 @@ class AppMobileHeader extends StatelessWidget {
                     title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   if (subtitle != null)
                     Text(

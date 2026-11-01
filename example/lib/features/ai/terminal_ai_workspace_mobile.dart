@@ -453,6 +453,150 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
     });
   }
 
+  Future<void> _showMobileHistory() async {
+    if (!_mobileActionAllowed) return;
+    final owner = c;
+    final taskId = c.taskId;
+    final paneRevision = _paneRevision;
+    _focus.unfocus();
+    _refreshMobile(() => _mobileDetailsOpen = true);
+    String? choice;
+    try {
+      choice = await showModalBottomSheet<String>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        showDragHandle: true,
+        clipBehavior: Clip.antiAlias,
+        builder: (context) => Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(context).bottom,
+          ),
+          child: FractionallySizedBox(
+            heightFactor: 0.92,
+            child: AiMobileHistorySheet(controller: owner),
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) _refreshMobile(() => _mobileDetailsOpen = false);
+    }
+    if (!mounted ||
+        !_mobileActionAllowed ||
+        !identical(c, owner) ||
+        c.taskId != taskId ||
+        _paneRevision != paneRevision ||
+        choice == null) {
+      return;
+    }
+    switch (choice) {
+      case 'mobile:new':
+        await _runMobileAction('new');
+      case 'mobile:details':
+        await _showMobileDetails();
+      case 'mobile:observe':
+        _observeTerminal();
+      default:
+        if (c.tasks.any((task) => task.id == choice)) {
+          _savePosition();
+          c.selectTask(choice);
+        }
+    }
+  }
+
+  Widget _mobileTaskPicker({required Widget child}) {
+    if (Theme.of(context).platform == TargetPlatform.iOS) {
+      return Semantics(
+        button: true,
+        label: t('Conversation history', '历史会话'),
+        child: InkWell(
+          key: const Key('ai-mobile-task-menu'),
+          onTap: _mobileActionAllowed ? _showMobileHistory : null,
+          child: child,
+        ),
+      );
+    }
+    final taskId = c.taskId;
+    final paneRevision = _paneRevision;
+    return PopupMenuButton<String>(
+      key: const Key('ai-mobile-task-menu'),
+      enabled: _mobileActionAllowed,
+      tooltip: t('Session tasks and controls', '会话任务与操作'),
+      popUpAnimationStyle: appDialogAnimation(context),
+      onSelected: (id) {
+        if (!_mobileActionAllowed ||
+            c.taskId != taskId ||
+            _paneRevision != paneRevision) {
+          return;
+        }
+        if (id == 'mobile:new') {
+          unawaited(_runMobileAction('new'));
+        } else if (id == 'mobile:details') {
+          unawaited(_showMobileDetails());
+        } else if (id == 'mobile:observe') {
+          _observeTerminal();
+        } else if (c.tasks.any((task) => task.id == id)) {
+          _savePosition();
+          c.selectTask(id);
+        }
+      },
+      itemBuilder: (_) => [
+        PopupMenuItem(
+          value: 'mobile:new',
+          key: const Key('ai-new-task'),
+          enabled: !c.hasUnresolvedSubmission || c.followUpEnded,
+          child: Text(t('New task', '新任务')),
+        ),
+        PopupMenuItem(
+          value: 'mobile:details',
+          child: Text(t('Details and controls', '详情与控制')),
+        ),
+        PopupMenuItem(
+          value: 'mobile:observe',
+          key: const Key('ai-observe-terminal'),
+          child: Text(t('View terminal (read-only)', '只读查看终端')),
+        ),
+        const PopupMenuDivider(),
+        for (final task in _mobileMenuTasks)
+          CheckedPopupMenuItem(
+            key: ValueKey('ai-mobile-task-${task.id}'),
+            value: task.id,
+            checked: task.id == c.taskId,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    task.title.isEmpty
+                        ? t('Untitled task', '未命名任务')
+                        : task.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    '${t('Task', '任务')} ${c.tasks.indexWhere((item) => item.id == task.id) + 1}${task.id == c.taskId ? t(' · Current', ' · 当前') : ''}',
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
+                  if (task.preview.isNotEmpty)
+                    Text(
+                      task.preview,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: context.appTheme.textMuted,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+      ],
+      child: child,
+    );
+  }
+
   Widget _mobileHeader({bool short = false}) {
     final primary = _mobilePrimaryAction;
     final taskId = c.taskId;
@@ -465,80 +609,7 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
           AiRequestIndicator(controller: c),
           const SizedBox(width: 8),
           Expanded(
-            child: PopupMenuButton<String>(
-              key: const Key('ai-mobile-task-menu'),
-              enabled: _mobileActionAllowed,
-              tooltip: t('Session tasks and controls', '会话任务与操作'),
-              popUpAnimationStyle: appDialogAnimation(context),
-              onSelected: (id) {
-                if (!_mobileActionAllowed ||
-                    c.taskId != taskId ||
-                    _paneRevision != paneRevision) {
-                  return;
-                }
-                if (id == 'mobile:new') {
-                  unawaited(_runMobileAction('new'));
-                } else if (id == 'mobile:details') {
-                  unawaited(_showMobileDetails());
-                } else if (id == 'mobile:observe') {
-                  _observeTerminal();
-                } else if (c.tasks.any((task) => task.id == id)) {
-                  _savePosition();
-                  c.selectTask(id);
-                }
-              },
-              itemBuilder: (_) => [
-                PopupMenuItem(
-                  value: 'mobile:new',
-                  key: const Key('ai-new-task'),
-                  enabled: !c.hasUnresolvedSubmission || c.followUpEnded,
-                  child: Text(t('New task', '新任务')),
-                ),
-                PopupMenuItem(
-                  value: 'mobile:details',
-                  child: Text(t('Details and controls', '详情与控制')),
-                ),
-                PopupMenuItem(
-                  value: 'mobile:observe',
-                  key: const Key('ai-observe-terminal'),
-                  child: Text(t('View terminal (read-only)', '只读查看终端')),
-                ),
-                const PopupMenuDivider(),
-                for (final task in _mobileMenuTasks)
-                  CheckedPopupMenuItem(
-                    key: ValueKey('ai-mobile-task-${task.id}'),
-                    value: task.id,
-                    checked: task.id == c.taskId,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            task.title.isEmpty
-                                ? t('Untitled task', '未命名任务')
-                                : task.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          Text(
-                            '${t('Task', '任务')} ${c.tasks.indexWhere((item) => item.id == task.id) + 1}${task.id == c.taskId ? t(' · Current', ' · 当前') : ''}',
-                            style: Theme.of(context).textTheme.labelSmall,
-                          ),
-                          if (task.preview.isNotEmpty)
-                            Text(
-                              task.preview,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(color: context.appTheme.textMuted),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-              ],
+            child: _mobileTaskPicker(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(minHeight: 44),
                 child: Row(

@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import '../../l10n/l10n.dart';
 import '../foundation/app_theme_tokens.dart';
 import 'app_action_button.dart';
+import 'app_grouped_section.dart';
 import 'app_mobile_header.dart';
 import 'app_panel.dart';
 
@@ -176,12 +177,22 @@ class AppDialogScaffold extends StatelessWidget {
     Widget contents = Column(
       mainAxisSize: height == null ? MainAxisSize.min : MainAxisSize.max,
       children: [
-        ColoredBox(color: theme.chrome, child: header),
+        Material(
+          color: context.usesAppleGroups
+              ? context.groupedBackground
+              : theme.chrome,
+          child: header,
+        ),
         if (!mobileHeader) const Divider(height: 1),
         if (expandBody) Expanded(child: paddedBody) else paddedBody,
         if (paddedFooter != null) ...[
-          Divider(height: 1, color: theme.border),
-          ColoredBox(color: theme.chrome, child: paddedFooter),
+          if (!context.usesAppleGroups) Divider(height: 1, color: theme.border),
+          Material(
+            color: context.usesAppleGroups
+                ? context.groupedBackground
+                : theme.chrome,
+            child: paddedFooter,
+          ),
         ],
       ],
     );
@@ -200,7 +211,9 @@ class AppDialogScaffold extends StatelessWidget {
           clipBehavior: Clip.antiAlias,
           border: fullscreen ? const Border() : null,
           borderRadius: borderRadius ?? BorderRadius.circular(theme.radius.xl),
-          child: contents,
+          child: context.usesAppleGroups
+              ? Material(color: context.groupedBackground, child: contents)
+              : contents,
         ),
       ),
     );
@@ -236,7 +249,7 @@ class AppDialogScaffold extends StatelessWidget {
         child: FocusTraversalGroup(
           policy: OrderedTraversalPolicy(),
           child: fullscreen
-              ? ColoredBox(
+              ? Material(
                   color: theme.panel,
                   child: SafeArea(child: positionedPanel),
                 )

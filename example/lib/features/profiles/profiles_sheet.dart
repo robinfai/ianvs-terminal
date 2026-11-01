@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../ui/app_ui.dart';
 import 'profile_models.dart';
@@ -54,6 +55,7 @@ class ProfilesSheet extends StatefulWidget {
 class _ProfilesSheetState extends State<ProfilesSheet> {
   final _searchController = TextEditingController();
   String _query = '';
+  String? _selectedProfileId;
 
   @override
   void dispose() {
@@ -127,6 +129,9 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
 
   @override
   Widget build(BuildContext context) {
+    if (Theme.of(context).platform == TargetPlatform.macOS) {
+      return _buildDesktop(context);
+    }
     final palette = context.appTheme;
     final filteredProfiles = _filteredProfiles;
     final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
@@ -389,6 +394,236 @@ class _ProfilesSheetState extends State<ProfilesSheet> {
                 ),
               );
             },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDesktop(BuildContext context) {
+    final profiles = _filteredProfiles;
+    final selected =
+        profiles.where((p) => p.id == _selectedProfileId).firstOrNull ??
+        profiles.firstOrNull;
+    final colors = Theme.of(context).colorScheme;
+    final zh = Localizations.localeOf(context).languageCode == 'zh';
+    void open() {
+      if (selected != null) {
+        Navigator.of(context).pop(OpenProfileResult(selected));
+      }
+    }
+
+    final list = Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: TextField(
+            key: const Key('profiles-search-field'),
+            controller: _searchController,
+            autofocus: true,
+            decoration: InputDecoration(
+              hintText: context.l10n.searchProfilesOrTags,
+              prefixIcon: const Icon(Icons.search, size: 18),
+            ),
+            onChanged: (value) => setState(() => _query = value),
+          ),
+        ),
+        Expanded(
+          child: profiles.isEmpty
+              ? Center(child: Text(_emptyTitle))
+              : ListView.builder(
+                  itemCount: profiles.length,
+                  itemBuilder: (context, index) {
+                    final profile = profiles[index];
+                    return GestureDetector(
+                      onDoubleTap: () =>
+                          Navigator.of(context).pop(OpenProfileResult(profile)),
+                      child: ListTile(
+                        key: Key('profile-entry-${profile.id}'),
+                        selected: selected?.id == profile.id,
+                        selectedTileColor: colors.primaryContainer,
+                        title: Text(
+                          profile.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitle: Text(
+                          _profileSummary(
+                            profile,
+                            isDefault:
+                                profile.id == widget.effectiveDefaultProfileId,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        onTap: () =>
+                            setState(() => _selectedProfileId = profile.id),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+    final detail = selected == null
+        ? Center(child: Text(_emptyMessage))
+        : SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  selected.name,
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 8),
+                SelectableText(
+                  _profileSummary(
+                    selected,
+                    isDefault: selected.id == widget.effectiveDefaultProfileId,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    FilledButton(
+                      key: const Key('profiles-open-selected'),
+                      onPressed: open,
+                      child: Text(zh ? '打开会话' : 'Open session'),
+                    ),
+                    Tooltip(
+                      message: context.l10n.editNamedItem(selected.name),
+                      child: TextButton(
+                        onPressed: () => Navigator.of(
+                          context,
+                        ).pop(EditProfileResult(selected)),
+                        child: Text(context.l10n.editProfile),
+                      ),
+                    ),
+                    PopupMenuButton<String>(
+                      tooltip: context.l10n.mobileMore,
+                      onSelected: (_) => Navigator.of(
+                        context,
+                      ).pop(DeleteProfileResult(selected)),
+                      itemBuilder: (_) => [
+                        PopupMenuItem(
+                          value: 'delete',
+                          enabled: widget.profiles.length > 1,
+                          child: Text(
+                            context.l10n.deleteNamedItem(selected.name),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                if (selected.isSsh)
+                  AppGroupedSection(
+                    padding: const EdgeInsets.all(16),
+                    separated: true,
+                    children: [
+                      for (final field in [
+                        (context.l10n.host, selected.connection.host),
+                        (context.l10n.user, selected.connection.user),
+                        (context.l10n.port, '${selected.connection.port}'),
+                      ])
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          child: Row(
+                            children: [
+                              SizedBox(
+                                width: 96,
+                                child: Text(
+                                  field.$1,
+                                  style: TextStyle(
+                                    color: colors.onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
+                              Expanded(child: SelectableText(field.$2)),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                if (selected.tags.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      for (final tag in selected.tags)
+                        Chip(key: Key('profile-tag-$tag'), label: Text(tag)),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          );
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): () =>
+            Navigator.of(context).pop(),
+        const SingleActivator(LogicalKeyboardKey.enter, meta: true): open,
+      },
+      child: Material(
+        key: const Key('profiles-sheet'),
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
+        child: SizedBox(
+          height: (MediaQuery.sizeOf(context).height * .8).clamp(280, 640),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 12, 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        context.l10n.profiles,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                    FilledButton.icon(
+                      key: const Key('profiles-create'),
+                      onPressed: _canCreateProfile ? _createProfile : null,
+                      icon: const Icon(Icons.add, size: 18),
+                      label: Text(context.l10n.newAction),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      tooltip: context.l10n.closeProfiles,
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) => constraints.maxWidth >= 640
+                      ? Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            SizedBox(width: 280, child: list),
+                            const VerticalDivider(width: 1),
+                            Expanded(child: detail),
+                          ],
+                        )
+                      : Column(
+                          children: [
+                            Expanded(child: list),
+                            Expanded(child: detail),
+                          ],
+                        ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

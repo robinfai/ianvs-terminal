@@ -6,6 +6,7 @@ export 'components/app_dialog_scaffold.dart';
 export 'components/app_dropdown_form_field.dart';
 export 'components/app_empty_state.dart';
 export 'components/app_field_row.dart';
+export 'components/app_grouped_section.dart';
 export 'components/app_mobile_header.dart';
 export 'components/app_notifications.dart';
 export 'components/app_panel.dart';

@@ -777,22 +777,28 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     final animationsEnabled = _useAnimations(
       ref.read(shellAnimationsEnabledProvider),
     );
-    final result = await showModalBottomSheet<ProfilesSheetResult>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      sheetAnimationStyle: animationsEnabled
-          ? null
-          : AnimationStyle.noAnimation,
-      builder: (sheetContext) {
-        return ProfilesSheet(
-          profiles: sessionState.profiles,
-          effectiveDefaultProfileId: sessionState.defaultProfileId,
-          localShellProfilesEnabled: _localSessionsEnabled,
-          customSshProfilesEnabled: _customSshProfilesEnabled,
-        );
-      },
+    Widget profilesContent(BuildContext sheetContext) => ProfilesSheet(
+      profiles: sessionState.profiles,
+      effectiveDefaultProfileId: sessionState.defaultProfileId,
+      localShellProfilesEnabled: _localSessionsEnabled,
+      customSshProfilesEnabled: _customSshProfilesEnabled,
     );
+    final result = Theme.of(context).platform == TargetPlatform.macOS
+        ? await showDialog<ProfilesSheetResult>(
+            context: context,
+            builder: (context) => Dialog(
+              child: SizedBox(width: 960, child: profilesContent(context)),
+            ),
+          )
+        : await showModalBottomSheet<ProfilesSheetResult>(
+            context: context,
+            backgroundColor: Colors.transparent,
+            isScrollControlled: true,
+            sheetAnimationStyle: animationsEnabled
+                ? null
+                : AnimationStyle.noAnimation,
+            builder: profilesContent,
+          );
 
     if (!mounted) {
       return;

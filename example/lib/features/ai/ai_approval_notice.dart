@@ -54,7 +54,9 @@ class AiApprovalNotice extends StatelessWidget {
         : (zh ? '审核记录' : 'Review record');
     return Text(
       '$label · $reason',
-      style: Theme.of(context).textTheme.bodySmall,
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
     );
   }
 }

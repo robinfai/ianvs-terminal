@@ -40,51 +40,73 @@ class _SshOnlyShellEmptyState extends StatelessWidget {
     if (context.usesMobileNavigation) {
       return Material(
         key: const Key('ios-ssh-profile-empty-state'),
-        color: palette.canvas,
-        child: ListView(
-          key: const Key('ios-ssh-profile-list'),
-          padding: const EdgeInsets.all(16),
+        color: context.groupedBackground,
+        child: Column(
           children: [
-            if (sessions.isNotEmpty) ...[
-              MobileSessionList(
-                tabs: sessions,
-                activeSessionId: activeSessionId,
-                liveReconnections: liveReconnections,
-                protectedSessionIds: protectedSessionIds,
-                onSelect: (pane) => onResumeSession?.call(pane.sessionId),
-                onReconnect: (pane) => onReconnectSession?.call(pane.sessionId),
-                onDisconnect: (pane) => onCloseSession?.call(pane.sessionId),
-                onRemove: (pane) => onCloseSession?.call(pane.sessionId),
-                onClearDisconnected: () => onClearDisconnected?.call(),
+            Expanded(
+              child: ListView(
+                key: const Key('ios-ssh-profile-list'),
+                padding: const EdgeInsets.all(20),
+                children: [
+                  if (sessions.isNotEmpty) ...[
+                    MobileSessionList(
+                      tabs: sessions,
+                      activeSessionId: activeSessionId,
+                      liveReconnections: liveReconnections,
+                      protectedSessionIds: protectedSessionIds,
+                      onSelect: (pane) => onResumeSession?.call(pane.sessionId),
+                      onReconnect: (pane) =>
+                          onReconnectSession?.call(pane.sessionId),
+                      onDisconnect: (pane) =>
+                          onCloseSession?.call(pane.sessionId),
+                      onRemove: (pane) => onCloseSession?.call(pane.sessionId),
+                      onClearDisconnected: () => onClearDisconnected?.call(),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                  if (sessions.isNotEmpty)
+                    Text(
+                      context.l10n.mobileConnections,
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                  if (sshProfiles.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 32),
+                      child: Text(
+                        context.l10n.mobileConnectionHelp,
+                        style: Theme.of(context).textTheme.bodyLarge,
+                      ),
+                    ),
+                  if (sshProfiles.isNotEmpty)
+                    AppGroupedSection(
+                      separated: true,
+                      children: [
+                        for (final profile in sshProfiles)
+                          _profileTile(context, profile),
+                      ],
+                    ),
+                ],
               ),
-              const SizedBox(height: 24),
-            ],
-            if (sessions.isNotEmpty)
-              Text(
-                context.l10n.mobileConnections,
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-            if (sshProfiles.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 32),
-                child: Text(
-                  context.l10n.mobileConnectionHelp,
-                  style: Theme.of(context).textTheme.bodyLarge,
+            ),
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildCreateButton(context),
+                    if (onManageProfiles != null)
+                      TextButton.icon(
+                        key: const Key('mobile-manage-connections'),
+                        onPressed: onManageProfiles,
+                        icon: const Icon(Icons.edit_outlined),
+                        label: Text(context.l10n.mobileManageConnections),
+                      ),
+                  ],
                 ),
               ),
-            for (final profile in sshProfiles) ...[
-              _profileTile(profile),
-              const SizedBox(height: 8),
-            ],
-            const SizedBox(height: 16),
-            _buildCreateButton(context),
-            if (onManageProfiles != null)
-              TextButton.icon(
-                key: const Key('mobile-manage-connections'),
-                onPressed: onManageProfiles,
-                icon: const Icon(Icons.edit_outlined),
-                label: Text(context.l10n.mobileManageConnections),
-              ),
+            ),
           ],
         ),
       );
@@ -203,7 +225,8 @@ class _SshOnlyShellEmptyState extends StatelessWidget {
       key: const Key('ios-ssh-profile-list'),
       itemCount: sshProfiles.length,
       separatorBuilder: (_, _) => const SizedBox(height: 8),
-      itemBuilder: (context, index) => _profileTile(sshProfiles[index]),
+      itemBuilder: (context, index) =>
+          _profileTile(context, sshProfiles[index]),
     );
   }
 
@@ -219,7 +242,7 @@ class _SshOnlyShellEmptyState extends StatelessWidget {
       children: [
         for (var index = 0; index < sshProfiles.length; index++) ...[
           if (index > 0) const SizedBox(height: 8),
-          _profileTile(sshProfiles[index]),
+          _profileTile(context, sshProfiles[index]),
         ],
       ],
     );
@@ -236,36 +259,48 @@ class _SshOnlyShellEmptyState extends StatelessWidget {
     );
   }
 
-  Widget _profileTile(TerminalProfile profile) {
+  Widget _profileTile(BuildContext context, TerminalProfile profile) {
     final connection = profile.connection;
     return Material(
-      color: palette.panel,
+      color: context.usesAppleGroups ? context.groupedSurface : palette.panel,
       borderRadius: BorderRadius.circular(palette.radius.lg),
       clipBehavior: Clip.antiAlias,
       child: ListTile(
         key: Key('ios-ssh-empty-profile-${profile.id}'),
-        minTileHeight: 56,
+        minTileHeight: 72,
         leading: Icon(Icons.dns_outlined, color: palette.accent),
-        title: Text(profile.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+        title: Text(
+          profile.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+        ),
         subtitle: Text(
           '${connection.user}@${connection.host}:${connection.port}',
+          style: TextStyle(fontSize: 15, color: palette.textSubtle),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        trailing: const Icon(Icons.arrow_forward_rounded),
+        trailing: const Icon(Icons.chevron_right_rounded),
         onTap: () => onOpenProfile(profile),
       ),
     );
   }
 
   Widget _buildCreateButton(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: AppActionButton(
-        buttonKey: const Key('ios-ssh-create-profile'),
-        icon: Icons.add_rounded,
-        label: context.l10n.newSshConnection,
-        onPressed: onCreateProfile,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Center(
+        child: FilledButton.icon(
+          key: const Key('ios-ssh-create-profile'),
+          style: FilledButton.styleFrom(
+            minimumSize: const Size(200, 48),
+            shape: const StadiumBorder(),
+          ),
+          onPressed: onCreateProfile,
+          icon: const Icon(Icons.add_rounded),
+          label: Text(context.l10n.newSshConnection),
+        ),
       ),
     );
   }

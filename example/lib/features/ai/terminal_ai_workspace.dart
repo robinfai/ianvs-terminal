@@ -15,6 +15,7 @@ import '../terminal_composer/command_shortcuts_dialog.dart';
 import '../terminal_composer/composer_pane.dart';
 import '../terminal_composer/terminal_mode.dart';
 import 'ai_approval_notice.dart';
+import 'ai_mobile_history_sheet.dart';
 import 'ai_models.dart';
 import 'ai_request_indicator.dart';
 import 'ai_settings_dialog.dart';
@@ -1171,135 +1172,179 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
       _ => t('Revoked', '已撤销'),
     };
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: ChatDecisionCard(
+      padding: EdgeInsets.symmetric(
+        horizontal: context.usesAppleGroups ? 6 : 16,
+        vertical: 12,
+      ),
+      child: Container(
         key: ValueKey('ai-proposal-${entry.id}'),
-        body: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(label, style: Theme.of(context).textTheme.labelMedium),
-            const SizedBox(height: 8),
-            Text.rich(
-              TextSpan(
-                children: [
-                  TextSpan(
-                    text: entry.userEdited
-                        ? t(
-                            'Original purpose (verify after editing): ',
-                            '原始目的（修改后请核对）：',
-                          )
-                        : t('Purpose: ', '目的：'),
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  TextSpan(text: action.reason),
-                ],
-              ),
-            ),
-            if (entry.userEdited) ...[
-              const SizedBox(height: 8),
+        decoration: BoxDecoration(
+          color: context.groupedSurface,
+          borderRadius: BorderRadius.circular(
+            context.usesAppleGroups ? 16 : 10,
+          ),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant,
+            width: context.usesAppleGroups ? .5 : 1,
+          ),
+        ),
+        padding: const EdgeInsets.all(12),
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
               Text(
-                t(
-                  'You edited this command. Review it again before running.',
-                  '命令已由你修改，请重新核对后再执行。',
+                label,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
-                key: const Key('ai-user-edited-notice'),
               ),
-            ],
-            if (entry.approvalReview case final review?) ...[
               const SizedBox(height: 8),
-              AiApprovalNotice(
-                key: ValueKey('ai-approval-review-${entry.id}'),
-                review: review,
-                pending: entry.state == AiEntryState.proposed,
-                confirmed:
-                    entry.state == AiEntryState.accepted ||
-                    entry.state == AiEntryState.interrupted ||
-                    entry.state == AiEntryState.submitted ||
-                    entry.state == AiEntryState.unknown,
-              ),
-            ],
-            const SizedBox(height: 8),
-            Text(
-              '${t('Target: ', '执行目标：')}${entry.target?.targetLabel.isNotEmpty == true ? entry.target!.targetLabel : entry.target?.sessionId ?? ''}\n${t('Directory: ', '目录：')}${entry.target?.cwd ?? ''}',
-              key: const Key('ai-action-target'),
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 10),
-            Text(
-              action.kind == AiActionKind.runCommand
-                  ? t('Command', '命令')
-                  : t('Terminal input', '终端按键'),
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 4),
-            SelectableText(
-              action.preview,
-              key: active ? const Key('ai-action-preview') : null,
-              minLines: 1,
-              maxLines: narrow && !reviewPage ? 3 : null,
-              style: context.ianvsTypography.code.copyWith(fontSize: 14),
-            ),
-            if (entry.inputProgress case final progress?)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  t(
-                    '${progress.sent} of ${progress.total} input steps were sent. '
-                        '${progress.writeUncertain ? 'The next step has an unknown outcome. ' : ''}'
-                        'Continuing reads the current screen; sent input and remaining steps are not replayed automatically.',
-                    '已发送 ${progress.sent}/${progress.total} 步输入。'
-                        '${progress.writeUncertain ? '下一步的发送结果未知。' : ''}'
-                        '继续任务会重新读取屏幕，不会自动重发已发送或剩余输入。',
-                  ),
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ),
-            if (!active &&
-                entry.inputProgress == null &&
-                (entry.state == AiEntryState.unknown ||
-                    entry.statusReason != null))
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  entry.state == AiEntryState.unknown
-                      ? t(
-                          'This command may already have run. Check its original receipt before continuing; it will not be sent again.',
-                          '此命令可能已经执行。继续前请核对原提交回执，不会再次发送此命令。',
-                        )
-                      : t(
-                          'This proposal cannot be executed. Continue to read current state.',
-                          '此提案已失效，继续任务时会重新读取当前状态。',
-                        ),
-                  key: ValueKey('ai-proposal-status-${entry.id}'),
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ),
-            if (active && !reviewPage) ...[
-              const SizedBox(height: 12),
-              if (narrow && !reviewPage)
-                Wrap(
-                  alignment: WrapAlignment.end,
-                  spacing: 8,
-                  runSpacing: 6,
+              Text.rich(
+                TextSpan(
                   children: [
-                    TextButton(
-                      key: const Key('ai-reject'),
-                      onPressed: () {
-                        if (_canActOn(entry, taskId)) c.reject();
-                      },
-                      child: Text(t('Decline', '拒绝')),
+                    TextSpan(
+                      text: entry.userEdited
+                          ? t(
+                              'Original purpose (verify after editing): ',
+                              '原始目的（修改后请核对）：',
+                            )
+                          : t('Purpose: ', '目的：'),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
-                    FilledButton(
-                      key: const Key('ai-review-action'),
-                      onPressed: () => _review(entry),
-                      child: Text(t('Review full command', '审阅完整命令')),
+                    TextSpan(
+                      text: action.reason,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ],
-                )
-              else
-                _proposalActions(entry),
+                ),
+              ),
+              if (entry.userEdited) ...[
+                const SizedBox(height: 8),
+                Text(
+                  t(
+                    'You edited this command. Review it again before running.',
+                    '命令已由你修改，请重新核对后再执行。',
+                  ),
+                  key: const Key('ai-user-edited-notice'),
+                ),
+              ],
+              const SizedBox(height: 8),
+              Text(
+                '${t('Target: ', '执行目标：')}${entry.target?.targetLabel.isNotEmpty == true ? entry.target!.targetLabel : entry.target?.sessionId ?? ''}\n${t('Directory: ', '目录：')}${entry.target?.cwd ?? ''}',
+                key: const Key('ai-action-target'),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                action.kind == AiActionKind.runCommand
+                    ? t('Command', '命令')
+                    : t('Terminal input', '终端按键'),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: SelectableText(
+                  action.preview,
+                  key: active ? const Key('ai-action-preview') : null,
+                  minLines: 1,
+                  maxLines: narrow && !reviewPage ? 3 : null,
+                  style: context.ianvsTypography.code.copyWith(fontSize: 14),
+                ),
+              ),
+              if (entry.approvalReview case final review?) ...[
+                const SizedBox(height: 8),
+                AiApprovalNotice(
+                  key: ValueKey('ai-approval-review-${entry.id}'),
+                  review: review,
+                  pending: entry.state == AiEntryState.proposed,
+                  confirmed:
+                      entry.state == AiEntryState.accepted ||
+                      entry.state == AiEntryState.interrupted ||
+                      entry.state == AiEntryState.submitted ||
+                      entry.state == AiEntryState.unknown,
+                ),
+              ],
+              if (entry.inputProgress case final progress?)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    t(
+                      '${progress.sent} of ${progress.total} input steps were sent. '
+                          '${progress.writeUncertain ? 'The next step has an unknown outcome. ' : ''}'
+                          'Continuing reads the current screen; sent input and remaining steps are not replayed automatically.',
+                      '已发送 ${progress.sent}/${progress.total} 步输入。'
+                          '${progress.writeUncertain ? '下一步的发送结果未知。' : ''}'
+                          '继续任务会重新读取屏幕，不会自动重发已发送或剩余输入。',
+                    ),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              if (!active &&
+                  entry.inputProgress == null &&
+                  (entry.state == AiEntryState.unknown ||
+                      entry.statusReason != null))
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    entry.state == AiEntryState.unknown
+                        ? t(
+                            'This command may already have run. Check its original receipt before continuing; it will not be sent again.',
+                            '此命令可能已经执行。继续前请核对原提交回执，不会再次发送此命令。',
+                          )
+                        : t(
+                            'This proposal cannot be executed. Continue to read current state.',
+                            '此提案已失效，继续任务时会重新读取当前状态。',
+                          ),
+                    key: ValueKey('ai-proposal-status-${entry.id}'),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              if (active && !reviewPage) ...[
+                const SizedBox(height: 16),
+                if (narrow && !reviewPage)
+                  Wrap(
+                    alignment: WrapAlignment.end,
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [
+                      TextButton(
+                        key: const Key('ai-reject'),
+                        onPressed: () {
+                          if (_canActOn(entry, taskId)) c.reject();
+                        },
+                        child: Text(t('Decline', '拒绝')),
+                      ),
+                      FilledButton(
+                        key: const Key('ai-review-action'),
+                        onPressed: () => _review(entry),
+                        child: Text(t('Review full command', '审阅完整命令')),
+                      ),
+                    ],
+                  )
+                else
+                  _proposalActions(entry),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

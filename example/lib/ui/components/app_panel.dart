@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../foundation/app_theme_tokens.dart';
+import 'app_grouped_section.dart';
 
 enum AppPanelTone {
   canvas,
@@ -39,9 +40,17 @@ class AppPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = context.appTheme;
     final decoration = BoxDecoration(
-      color: _backgroundFor(theme),
-      borderRadius: borderRadius ?? BorderRadius.circular(theme.radius.md),
-      border: border ?? Border.all(color: _borderFor(theme)),
+      color: context.usesAppleGroups && tone == AppPanelTone.panel
+          ? context.groupedSurface
+          : _backgroundFor(theme),
+      borderRadius:
+          borderRadius ??
+          BorderRadius.circular(context.usesAppleGroups ? 16 : theme.radius.md),
+      border:
+          border ??
+          (context.usesAppleGroups && tone == AppPanelTone.panel
+              ? null
+              : Border.all(color: _borderFor(theme))),
       boxShadow: shadow ? theme.elevation.floating : const [],
     );
 
@@ -49,7 +58,11 @@ class AppPanel extends StatelessWidget {
       decoration: decoration,
       child: Material(
         type: MaterialType.transparency,
-        borderRadius: borderRadius ?? BorderRadius.circular(theme.radius.md),
+        borderRadius:
+            borderRadius ??
+            BorderRadius.circular(
+              context.usesAppleGroups ? 16 : theme.radius.md,
+            ),
         clipBehavior: clipBehavior,
         child: padding == null
             ? child

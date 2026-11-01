@@ -25,7 +25,7 @@ void main() {
         onClosed: (value) => result = value,
       );
 
-      expect(find.textContaining('Default profile'), findsOneWidget);
+      expect(find.textContaining('Default profile'), findsNWidgets(2));
       expect(
         find.byKey(Key('profile-entry-${defaultProfile.id}')),
         findsOneWidget,
@@ -59,6 +59,9 @@ void main() {
       await tester.tap(find.byKey(Key('profile-entry-${vt220Profile.id}')));
       await tester.pumpAndSettle();
 
+      expect(result, isNull); // Selecting shows details; opening is explicit.
+      await tester.tap(find.byKey(const Key('profiles-open-selected')));
+      await tester.pumpAndSettle();
       expect(result, isA<OpenProfileResult>());
       expect((result! as OpenProfileResult).profile.id, vt220Profile.id);
     },
@@ -275,7 +278,11 @@ void main() {
         onClosed: (value) => result = value,
       );
 
-      await tester.tap(find.byTooltip('Delete Docker SSH'));
+      await tester.tap(find.byKey(const Key('profile-entry-docker-ssh')));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.tap(find.byType(PopupMenuButton<String>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete Docker SSH'));
       await tester.pumpAndSettle();
 
       expect(result, isA<DeleteProfileResult>());
@@ -296,7 +303,9 @@ void main() {
       onClosed: (_) {},
     );
 
-    final tileContext = tester.element(find.text('Workspace Shell'));
+    final tileContext = tester.element(
+      find.byKey(Key('profile-entry-${profile.id}')),
+    );
     final themedTile = ListTileTheme.of(tileContext);
     final shape = themedTile.shape! as RoundedRectangleBorder;
     final contentPadding = themedTile.contentPadding! as EdgeInsets;

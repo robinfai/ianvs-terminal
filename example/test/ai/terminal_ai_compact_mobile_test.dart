@@ -174,12 +174,24 @@ void main() {
       await mount(tester, size: const Size(320, 568));
       await tester.tap(find.byKey(const Key('ai-mobile-task-menu')));
       await tester.pumpAndSettle();
-      final entries = tester
-          .widgetList<CheckedPopupMenuItem<String>>(
-            find.byType(CheckedPopupMenuItem<String>),
+      List<String> visibleOrder() => tester
+          .widgetList<InkWell>(
+            find.byWidgetPredicate(
+              (widget) =>
+                  widget is InkWell &&
+                  widget.key is ValueKey<String> &&
+                  (widget.key! as ValueKey<String>).value.startsWith(
+                    'ai-mobile-task-task-',
+                  ),
+            ),
+          )
+          .map(
+            (item) => (item.key! as ValueKey<String>).value.substring(
+              'ai-mobile-task-'.length,
+            ),
           )
           .toList();
-      expect(entries.map((entry) => entry.value), [third, second, first]);
+      expect(visibleOrder(), [third, second, first]);
       expect(find.text('UNIQUE-REPLY-2'), findsOneWidget);
       await tester.ensureVisible(
         find.byKey(ValueKey('ai-mobile-task-$second')),
@@ -191,12 +203,7 @@ void main() {
       expect(requests, 3);
       await tester.tap(find.byKey(const Key('ai-mobile-task-menu')));
       await tester.pumpAndSettle();
-      final reordered = tester
-          .widgetList<CheckedPopupMenuItem<String>>(
-            find.byType(CheckedPopupMenuItem<String>),
-          )
-          .toList();
-      expect(reordered.map((entry) => entry.value), [second, third, first]);
+      expect(visibleOrder(), [second, third, first]);
       await tester.tap(find.byKey(ValueKey('ai-mobile-task-$third')));
       await tester.pumpAndSettle();
       expect(controller.transcript.last.text, 'UNIQUE-REPLY-3');
@@ -204,6 +211,68 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets(
+    'history search filters previews and has a recoverable empty state',
+    (tester) async {
+      api.respond = (_) async => const AiReply(text: '检查网络连接与 DNS');
+      await tester.runAsync(() => controller.ask('诊断部署失败'));
+      controller.newTask();
+      await mount(tester);
+      await tester.tap(find.byKey(const Key('ai-mobile-task-menu')));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('ai-history-search')), 'DNS');
+      await tester.pumpAndSettle();
+      expect(find.text('诊断部署失败'), findsOneWidget);
+      await tester.enterText(
+        find.byKey(const Key('ai-history-search')),
+        'no-such-conversation',
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('没有匹配的会话'), findsOneWidget);
+      await tester.tap(find.byTooltip('清除搜索'));
+      await tester.pumpAndSettle();
+      expect(find.text('诊断部署失败'), findsOneWidget);
+      await tester.tap(find.byTooltip('关闭'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('ai-history-search')), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('stale history selection cannot switch a replacement task', (
+    tester,
+  ) async {
+    final original = controller.taskId;
+    controller.newTask();
+    await mount(tester);
+    await tester.tap(find.byKey(const Key('ai-mobile-task-menu')));
+    await tester.pumpAndSettle();
+    controller.newTask();
+    final replacement = controller.taskId;
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(ValueKey('ai-mobile-task-$original')));
+    await tester.pumpAndSettle();
+    expect(controller.taskId, replacement);
+    expect(terminal.writes, isEmpty);
+  });
+
+  for (final size in [const Size(320, 568), const Size(844, 390)]) {
+    testWidgets('history remains usable above keyboard at $size', (
+      tester,
+    ) async {
+      await mount(tester, size: size);
+      await tester.tap(find.byKey(const Key('ai-mobile-task-menu')));
+      await tester.pumpAndSettle();
+      tester.view.viewInsets = const FakeViewPadding(bottom: 200);
+      await tester.tap(find.byKey(const Key('ai-history-search')));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.byTooltip('关闭').hitTestable(), findsOneWidget);
+      await tester.tap(find.byTooltip('关闭'));
+      await tester.pumpAndSettle();
+    });
+  }
 
   testWidgets(
     'response limit explains recovery without a blind resume action',

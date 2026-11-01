@@ -6,6 +6,7 @@ import 'package:flutter/widget_previews.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
 
 import '../../features/ai/ai_api_client.dart';
+import '../../features/ai/ai_mobile_history_sheet.dart';
 import '../../features/ai/ai_models.dart';
 import '../../features/ai/ai_settings.dart';
 import '../../features/ai/terminal_ai_controller.dart';
@@ -13,6 +14,26 @@ import '../../features/ai/terminal_ai_retained_timeline.dart';
 import '../../features/ai/terminal_ai_workspace.dart';
 import '../app_ui.dart';
 import 'ai_observation_preview.dart';
+
+@Preview(
+  name: 'History · iPhone · Light',
+  group: 'AI history',
+  size: Size(390, 760),
+)
+Widget aiHistoryLightPreview() =>
+    const AiWorkspacePreview(phone: true, historyList: true);
+
+@Preview(
+  name: 'History · iPhone · Dark',
+  group: 'AI history',
+  size: Size(390, 760),
+)
+Widget aiHistoryDarkPreview() =>
+    const AiWorkspacePreview(phone: true, dark: true, historyList: true);
+
+@Preview(name: 'History · Narrow', group: 'AI history', size: Size(320, 568))
+Widget aiHistoryNarrowPreview() =>
+    const AiWorkspacePreview(phone: true, historyList: true);
 
 @Preview(
   name: 'AI workspace · Review',
@@ -53,11 +74,15 @@ class AiWorkspacePreview extends StatefulWidget {
     this.dark = false,
     this.completed = false,
     this.draftOnly = false,
+    this.historyList = false,
+    this.themeTransform,
   });
   final bool phone;
   final bool dark;
   final bool completed;
   final bool draftOnly;
+  final bool historyList;
+  final ThemeData Function(ThemeData)? themeTransform;
   @override
   State<AiWorkspacePreview> createState() => _AiWorkspacePreviewState();
 }
@@ -132,6 +157,32 @@ class _AiWorkspacePreviewState extends State<AiWorkspacePreview> {
   Future<void> _prepare() async {
     await settings.loaded;
     if (!mounted) return;
+    if (widget.historyList) {
+      await task.refreshContext();
+      if (!mounted) return;
+      task.restoreHistory([
+        for (final (index, item) in [
+          ('整理部署前的检查清单', '确认工作区、依赖版本和回滚方案，先从只读检查开始。'),
+          ('解释 SSH 连接失败', '连接在认证阶段中断。先检查用户名与密钥是否匹配。'),
+          ('定位服务端口占用', '已找到监听进程，可以查看服务配置并确认是否需要调整。'),
+          ('检查当前工作区改动', '涉及配置与同步逻辑，建议先运行相关回归测试。'),
+        ].indexed)
+          {
+            'id': 'saved-preview-$index',
+            'title': item.$1,
+            'transcript': [
+              {
+                'id': 'entry-$index',
+                'role': 'assistant',
+                'state': 'message',
+                'text': item.$2,
+              },
+            ],
+          },
+      ]);
+      if (mounted) setState(() {});
+      return;
+    }
     if (widget.draftOnly) {
       await task.refreshContext();
       if (!mounted) return;
@@ -175,13 +226,17 @@ class _AiWorkspacePreviewState extends State<AiWorkspacePreview> {
     locale: const Locale('zh'),
     localizationsDelegates: AppLocalizations.localizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,
-    theme: buildIanvsTerminalTheme(
-      widget.dark ? Brightness.dark : Brightness.light,
-      platform: widget.phone ? TargetPlatform.iOS : TargetPlatform.macOS,
+    theme: (widget.themeTransform ?? (theme) => theme)(
+      buildIanvsTerminalTheme(
+        widget.dark ? Brightness.dark : Brightness.light,
+        platform: widget.phone ? TargetPlatform.iOS : TargetPlatform.macOS,
+      ),
     ),
     home: Scaffold(
       body: Builder(
-        builder: (context) => observing
+        builder: (context) => widget.historyList
+            ? AiMobileHistorySheet(controller: task)
+            : observing
             ? AiObservationPreview(
                 blocks: blocks,
                 onReturn: () => setState(() => observing = false),
@@ -192,6 +247,8 @@ class _AiWorkspacePreviewState extends State<AiWorkspacePreview> {
               )
             : TerminalAiWorkspace(
                 controller: task,
+                compactMobile: widget.phone,
+                unifiedWorkspace: true,
                 targetLabel: 'Local Shell',
                 onClose: () => setState(() => observing = true),
                 onObserveTerminal: () => setState(() => observing = true),

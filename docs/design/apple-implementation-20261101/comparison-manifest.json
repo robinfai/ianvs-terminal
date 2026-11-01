@@ -1,0 +1,286 @@
+[
+  {
+    "id": "history-light",
+    "title": "iOS 历史会话",
+    "theme": "light",
+    "file": "ios-history-light.png",
+    "notes": [
+      "紧凑居中标题、圆角搜索框，取消计数底栏",
+      "当前会话与最近会话分组；勾选标识当前，单行摘要",
+      "新建会话独立为底部胶囊按钮"
+    ]
+  },
+  {
+    "id": "history-dark",
+    "title": "iOS 历史会话",
+    "theme": "dark",
+    "file": "ios-history-dark.png",
+    "notes": [
+      "紧凑居中标题、圆角搜索框，取消计数底栏",
+      "当前会话与最近会话分组；勾选标识当前，单行摘要",
+      "新建会话独立为底部胶囊按钮"
+    ]
+  },
+  {
+    "id": "ios-ai-light",
+    "title": "iOS AI 审批",
+    "theme": "light",
+    "file": "ios-ai-light.png",
+    "notes": [
+      "目的、目标与目录、命令、安全说明、动作依次排列；命令独立底色"
+    ]
+  },
+  {
+    "id": "ios-ai-dark",
+    "title": "iOS AI 审批",
+    "theme": "dark",
+    "file": "ios-ai-dark.png",
+    "notes": [
+      "目的、目标与目录、命令、安全说明、动作依次排列；命令独立底色"
+    ]
+  },
+  {
+    "id": "macos-ai-light",
+    "title": "Mac AI 审批",
+    "theme": "light",
+    "file": "macos-ai-light.png",
+    "notes": [
+      "审批内容收拢为独立边框卡，命令区分层；保留编辑与一次执行"
+    ]
+  },
+  {
+    "id": "macos-ai-dark",
+    "title": "Mac AI 审批",
+    "theme": "dark",
+    "file": "macos-ai-dark.png",
+    "notes": [
+      "审批内容收拢为独立边框卡，命令区分层；保留编辑与一次执行"
+    ]
+  },
+  {
+    "id": "ios-ssh-light",
+    "title": "iOS SSH",
+    "theme": "light",
+    "file": "iOS-light-portrait-ssh.png",
+    "notes": [
+      "连接与身份验证分组，长主机与私钥上下排列；输入行增加细分隔线"
+    ]
+  },
+  {
+    "id": "ios-ssh-dark",
+    "title": "iOS SSH",
+    "theme": "dark",
+    "file": "iOS-dark-portrait-ssh.png",
+    "notes": [
+      "连接与身份验证分组，长主机与私钥上下排列；输入行增加细分隔线"
+    ]
+  },
+  {
+    "id": "macos-ssh-light",
+    "title": "Mac SSH",
+    "theme": "light",
+    "file": "macOS-light-portrait-ssh.png",
+    "notes": [
+      "沿用紧凑桌面表单，保留左标签、键盘导航与密钥操作"
+    ]
+  },
+  {
+    "id": "macos-ssh-dark",
+    "title": "Mac SSH",
+    "theme": "dark",
+    "file": "macOS-dark-portrait-ssh.png",
+    "notes": [
+      "沿用紧凑桌面表单，保留左标签、键盘导航与密钥操作"
+    ]
+  },
+  {
+    "id": "ios-sync-light",
+    "title": "iOS 同步",
+    "theme": "light",
+    "file": "iOS-light-portrait-settings-remote.png",
+    "notes": [
+      "模式单独分组，当前生效与未保存选择分别标明",
+      "账号表单独立组，长 API 地址上下布局"
+    ]
+  },
+  {
+    "id": "ios-sync-dark",
+    "title": "iOS 同步",
+    "theme": "dark",
+    "file": "iOS-dark-portrait-settings-remote.png",
+    "notes": [
+      "模式单独分组，当前生效与未保存选择分别标明",
+      "账号表单独立组，长 API 地址上下布局"
+    ]
+  },
+  {
+    "id": "macos-sync-light",
+    "title": "Mac 同步",
+    "theme": "light",
+    "file": "macOS-light-portrait-settings-remote.png",
+    "notes": [
+      "模式和账号视觉分组，保留紧凑字段；登录状态与保存语义不变"
+    ]
+  },
+  {
+    "id": "macos-sync-dark",
+    "title": "Mac 同步",
+    "theme": "dark",
+    "file": "macOS-dark-portrait-settings-remote.png",
+    "notes": [
+      "模式和账号视觉分组，保留紧凑字段；登录状态与保存语义不变"
+    ]
+  },
+  {
+    "id": "ios-home-light",
+    "title": "iOS 连接入口",
+    "theme": "light",
+    "file": "iOS-light-portrait-shell-home.png",
+    "notes": [
+      "保存的连接统一分组，名称与地址分级",
+      "新建和管理操作固定于列表外，列表独立滚动"
+    ]
+  },
+  {
+    "id": "ios-home-dark",
+    "title": "iOS 连接入口",
+    "theme": "dark",
+    "file": "iOS-dark-portrait-shell-home.png",
+    "notes": [
+      "保存的连接统一分组，名称与地址分级",
+      "新建和管理操作固定于列表外，列表独立滚动"
+    ]
+  },
+  {
+    "id": "macos-profiles-light",
+    "title": "Mac 连接管理",
+    "theme": "light",
+    "file": "macOS-light-portrait-shell-profiles.png",
+    "notes": [
+      "居中双栏窗口：左侧搜索和选择，右侧详情与打开、编辑、删除；双击可打开"
+    ]
+  },
+  {
+    "id": "macos-profiles-dark",
+    "title": "Mac 连接管理",
+    "theme": "dark",
+    "file": "macOS-dark-portrait-shell-profiles.png",
+    "notes": [
+      "居中双栏窗口：左侧搜索和选择，右侧详情与打开、编辑、删除；双击可打开"
+    ]
+  },
+  {
+    "id": "ios-general-light",
+    "title": "iOS 常规设置",
+    "theme": "light",
+    "file": "iOS-light-portrait-settings-general.png",
+    "notes": [
+      "按语义分组，长标签换为上下布局；较长帮助可展开阅读"
+    ]
+  },
+  {
+    "id": "ios-general-dark",
+    "title": "iOS 常规设置",
+    "theme": "dark",
+    "file": "iOS-dark-portrait-settings-general.png",
+    "notes": [
+      "按语义分组，长标签换为上下布局；较长帮助可展开阅读"
+    ]
+  },
+  {
+    "id": "ios-appearance-light",
+    "title": "iOS 外观设置",
+    "theme": "light",
+    "file": "iOS-light-portrait-settings-appearance.png",
+    "notes": [
+      "统一分组底色、圆角和留白，保留真实预览与选项"
+    ]
+  },
+  {
+    "id": "ios-appearance-dark",
+    "title": "iOS 外观设置",
+    "theme": "dark",
+    "file": "iOS-dark-portrait-settings-appearance.png",
+    "notes": [
+      "统一分组底色、圆角和留白，保留真实预览与选项"
+    ]
+  },
+  {
+    "id": "ios-sftp-light",
+    "title": "iOS 文件列表",
+    "theme": "light",
+    "file": "iOS-light-portrait-sftp.png",
+    "notes": [
+      "文件行使用内缩分隔线；名称 17 pt，触控行最小 52 pt"
+    ]
+  },
+  {
+    "id": "ios-sftp-dark",
+    "title": "iOS 文件列表",
+    "theme": "dark",
+    "file": "iOS-dark-portrait-sftp.png",
+    "notes": [
+      "文件行使用内缩分隔线；名称 17 pt，触控行最小 52 pt"
+    ]
+  },
+  {
+    "id": "macos-sftp-light",
+    "title": "Mac 文件列表",
+    "theme": "light",
+    "file": "macOS-light-portrait-sftp.png",
+    "notes": [
+      "紧凑文件行、内缩分隔线；维持真实文件信息和原有菜单"
+    ]
+  },
+  {
+    "id": "macos-sftp-dark",
+    "title": "Mac 文件列表",
+    "theme": "dark",
+    "file": "macOS-dark-portrait-sftp.png",
+    "notes": [
+      "紧凑文件行、内缩分隔线；维持真实文件信息和原有菜单"
+    ]
+  },
+  {
+    "id": "ios-blocks-light",
+    "title": "iOS 命令块（核对保留）",
+    "theme": "light",
+    "file": "iOS-light-portrait-blocks.png",
+    "notes": []
+  },
+  {
+    "id": "ios-blocks-dark",
+    "title": "iOS 命令块（核对保留）",
+    "theme": "dark",
+    "file": "iOS-dark-portrait-blocks.png",
+    "notes": []
+  },
+  {
+    "id": "macos-general-light",
+    "title": "Mac 常规设置（核对保留）",
+    "theme": "light",
+    "file": "macOS-light-portrait-settings-general.png",
+    "notes": []
+  },
+  {
+    "id": "macos-general-dark",
+    "title": "Mac 常规设置（核对保留）",
+    "theme": "dark",
+    "file": "macOS-dark-portrait-settings-general.png",
+    "notes": []
+  },
+  {
+    "id": "ios-notifications-light",
+    "title": "iOS 提示状态（核对保留）",
+    "theme": "light",
+    "file": "iOS-light-portrait-notifications.png",
+    "notes": []
+  },
+  {
+    "id": "ios-notifications-dark",
+    "title": "iOS 提示状态（核对保留）",
+    "theme": "dark",
+    "file": "iOS-dark-portrait-notifications.png",
+    "notes": []
+  }
+]
