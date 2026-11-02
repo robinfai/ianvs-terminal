@@ -29,6 +29,43 @@ class _LoadingAiStore implements AiConfigurationStore {
 
 void main() {
   for (final platform in [TargetPlatform.iOS, TargetPlatform.macOS]) {
+    testWidgets('AI opens directly from top-level settings on $platform', (
+      tester,
+    ) async {
+      final settings = AiSettingsController(MemoryAiStore(null));
+      await settings.loaded;
+      addTearDown(settings.dispose);
+      await _pumpDefaultsDialogLauncher(
+        tester,
+        profiles: [],
+        configuredDefaultProfileId: null,
+        effectiveDefaultProfileId: null,
+        aiSettings: settings,
+        platform: platform,
+        onSelection: (_) {},
+      );
+      final entry = find.byKey(const Key('defaults-ai-settings'));
+      expect(entry.hitTestable(), findsOneWidget);
+      if (platform == TargetPlatform.iOS) {
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('defaults-mobile-sections')),
+            matching: entry,
+          ),
+          findsOneWidget,
+        );
+      } else {
+        await tester.tap(find.byKey(const Key('defaults-section-data')));
+        await tester.pumpAndSettle();
+        expect(entry.hitTestable(), findsOneWidget);
+      }
+      await tester.tap(entry);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('ai-settings-dialog')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+  for (final platform in [TargetPlatform.iOS, TargetPlatform.macOS]) {
     testWidgets(
       'account stays visible until successful sign out on $platform',
       (tester) async {
@@ -261,8 +298,8 @@ void main() {
         onSelection: (_) {},
       );
       final entry = find.byKey(const Key('defaults-ai-settings'));
-      const missing = 'Not configured. Terminal features work independently.';
-      const saved = 'Configuration saved. Open to edit or test the connection.';
+      const missing = 'Official service';
+      const saved = 'Configured';
       expect(find.text(missing), findsOneWidget);
       await tester.tap(entry);
       await tester.pumpAndSettle();

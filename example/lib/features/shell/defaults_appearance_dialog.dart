@@ -878,6 +878,40 @@ class _DefaultsAndAppearanceDialogState
     );
   }
 
+  Widget _buildAiEntry(BuildContext context) => ListenableBuilder(
+    listenable: widget.aiSettings!,
+    builder: (context, _) => Material(
+      type: MaterialType.transparency,
+      child: ListTile(
+        key: const Key('defaults-ai-settings'),
+        contentPadding: EdgeInsets.symmetric(
+          horizontal: context.usesMobileNavigation
+              ? 16
+              : context.appTheme.spacing.sm,
+        ),
+        title: const Text('AI'),
+        subtitle: Text(
+          widget.aiSettings!.loading
+              ? context.l10n.aiConfigurationLoading
+              : widget.aiSettings!.error != null
+              ? context.l10n.aiConfigurationUnreadable
+              : widget.aiSettings!.configuration == null
+              ? (Localizations.localeOf(context).languageCode == 'zh'
+                    ? '官方服务'
+                    : 'Official service')
+              : (Localizations.localeOf(context).languageCode == 'zh'
+                    ? '已配置'
+                    : 'Configured'),
+          key: const Key('defaults-ai-connection-status'),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => showAiSettings(context, widget.aiSettings!),
+      ),
+    ),
+  );
+
   Widget _buildThemedDialog(BuildContext context) {
     final theme = context.appTheme;
     final dataServiceFieldTextStyle = Theme.of(
@@ -1086,6 +1120,9 @@ class _DefaultsAndAppearanceDialogState
         ),
         body: showMobileSections
             ? _DefaultsMobileSections(
+                aiEntry: widget.aiSettings == null
+                    ? null
+                    : _buildAiEntry(context),
                 onSelected: (section) {
                   setState(() => _mobileSectionOpen = true);
                   _selectSection(section);
@@ -1107,6 +1144,9 @@ class _DefaultsAndAppearanceDialogState
                   _selectedSection == _DefaultsSection.shortcuts
             ? _DefaultsBodyLayout(
                 showNavigation: showSectionNavigation,
+                aiEntry: widget.aiSettings == null
+                    ? null
+                    : _buildAiEntry(context),
                 selectedSection: _selectedSection,
                 onSectionSelected: _selectSection,
                 child: Padding(
@@ -1127,6 +1167,9 @@ class _DefaultsAndAppearanceDialogState
               )
             : _DefaultsBodyLayout(
                 showNavigation: showSectionNavigation,
+                aiEntry: widget.aiSettings == null
+                    ? null
+                    : _buildAiEntry(context),
                 selectedSection: _selectedSection,
                 onSectionSelected: _selectSection,
                 child: SingleChildScrollView(
@@ -1144,30 +1187,10 @@ class _DefaultsAndAppearanceDialogState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const _DefaultsSectionMarker(_DefaultsSection.general),
-                      if (widget.aiSettings != null)
-                        ListenableBuilder(
-                          listenable: widget.aiSettings!,
-                          builder: (context, _) => Material(
-                            type: MaterialType.transparency,
-                            child: ListTile(
-                              key: const Key('defaults-ai-settings'),
-                              title: const Text('AI'),
-                              subtitle: Text(
-                                widget.aiSettings!.loading
-                                    ? context.l10n.aiConfigurationLoading
-                                    : widget.aiSettings!.error != null
-                                    ? context.l10n.aiConfigurationUnreadable
-                                    : widget.aiSettings!.configuration == null
-                                    ? context.l10n.aiConfigurationMissing
-                                    : context.l10n.aiConfigurationSaved,
-                                key: const Key('defaults-ai-connection-status'),
-                              ),
-                              trailing: const Icon(Icons.chevron_right),
-                              onTap: () =>
-                                  showAiSettings(context, widget.aiSettings!),
-                            ),
-                          ),
-                        ),
+                      if (!showSectionNavigation &&
+                          !mobileNavigation &&
+                          widget.aiSettings != null)
+                        _buildAiEntry(context),
                       _buildGeneralSettings(
                         context,
                         desktopPresentation: showSectionNavigation,
@@ -1837,14 +1860,7 @@ class _DefaultsAndAppearanceDialogState
                             children: [
                               if (_account == null)
                                 AppGroupedSection(
-                                  title: mobileNavigation
-                                      ? (Localizations.localeOf(
-                                                  context,
-                                                ).languageCode ==
-                                                'zh'
-                                            ? '同步方式'
-                                            : 'Sync mode')
-                                      : null,
+                                  title: context.l10n.mobileSync,
                                   padding: const EdgeInsets.all(8),
                                   children: [
                                     RadioGroup<DataApiDeployment>(
@@ -1940,14 +1956,15 @@ class _DefaultsAndAppearanceDialogState
                                   DataApiDeployment.remote) ...[
                                 const SizedBox(height: 24),
                                 AppSettingsSection(
-                                  title: mobileNavigation
-                                      ? (Localizations.localeOf(
-                                                  context,
-                                                ).languageCode ==
-                                                'zh'
-                                            ? '账户'
-                                            : 'Account')
-                                      : null,
+                                  title:
+                                      Localizations.localeOf(
+                                            context,
+                                          ).languageCode ==
+                                          'zh'
+                                      ? (_account == null ? '连接服务' : '账户')
+                                      : (_account == null
+                                            ? 'Service'
+                                            : 'Account'),
                                   children: [
                                     if (_accountBusy)
                                       const LinearProgressIndicator(),
@@ -1974,7 +1991,7 @@ class _DefaultsAndAppearanceDialogState
                                           'data-api-account-status',
                                         ),
                                       ),
-                                      const SizedBox(height: 12),
+                                      const SizedBox(height: 8),
                                       SelectableText(
                                         account.username ??
                                             context
@@ -1983,10 +2000,18 @@ class _DefaultsAndAppearanceDialogState
                                         key: const Key(
                                           'data-api-account-username',
                                         ),
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.titleLarge,
                                       ),
                                       SelectableText(
                                         account.baseUri.toString(),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(color: theme.textSubtle),
                                       ),
+                                      const Divider(height: 24),
                                       const SizedBox(height: 12),
                                       AppActionButton(
                                         buttonKey: const Key(
@@ -2065,6 +2090,23 @@ class _DefaultsAndAppearanceDialogState
                                         ),
                                       ),
                                       SizedBox(height: theme.spacing.lg),
+                                    ],
+                                  ],
+                                ),
+                                if (_account == null &&
+                                    !_accountLoadFailed &&
+                                    !_accountBusy) ...[
+                                  const SizedBox(height: 24),
+                                  AppSettingsSection(
+                                    key: const Key('data-api-login-section'),
+                                    title:
+                                        Localizations.localeOf(
+                                              context,
+                                            ).languageCode ==
+                                            'zh'
+                                        ? '登录账户'
+                                        : 'Sign in',
+                                    children: [
                                       if (_appleSupported) ...[
                                         AppConfigurationField(
                                           subtleLabel: true,
@@ -2232,8 +2274,8 @@ class _DefaultsAndAppearanceDialogState
                                         SizedBox(height: theme.spacing.sm),
                                       ],
                                     ],
-                                  ],
-                                ),
+                                  ),
+                                ],
                               ],
                             ],
                           ),
@@ -2388,7 +2430,8 @@ class _DefaultsAndAppearanceDialogState
                 ),
               ),
         footer:
-            compactKeyboardLayout ||
+            (showMobileSections && !hasChanges) ||
+                compactKeyboardLayout ||
                 (showStandaloneShortcutEditor && compactLayout)
             ? null
             : showStandaloneShortcutEditor
@@ -2613,44 +2656,52 @@ String _defaultsSectionTitle(BuildContext context, _DefaultsSection section) =>
     };
 
 class _DefaultsMobileSections extends StatelessWidget {
-  const _DefaultsMobileSections({required this.onSelected});
+  const _DefaultsMobileSections({required this.onSelected, this.aiEntry});
+
+  final Widget? aiEntry;
 
   final ValueChanged<_DefaultsSection> onSelected;
 
   @override
-  Widget build(BuildContext context) => ListView.separated(
+  Widget build(BuildContext context) => ListView(
     key: const Key('defaults-mobile-sections'),
-    itemCount: _DefaultsSection.values.length,
-    separatorBuilder: (_, _) => const Divider(height: 1),
-    itemBuilder: (context, index) {
-      final section = const [
-        _DefaultsSection.general,
-        _DefaultsSection.appearance,
-        _DefaultsSection.security,
-        _DefaultsSection.data,
-        _DefaultsSection.shortcuts,
-      ][index];
-      return ListTile(
-        key: Key('defaults-section-${section.name}'),
-        contentPadding: EdgeInsets.symmetric(
-          horizontal: context.appTheme.spacing.sm,
-        ),
-        title: Text(_defaultsSectionTitle(context, section)),
-        trailing: const Icon(Icons.chevron_right_rounded),
-        onTap: () => onSelected(section),
-      );
-    },
+    children: [
+      AppGroupedSection(
+        separated: true,
+        children: [
+          for (final section in const [
+            _DefaultsSection.general,
+            _DefaultsSection.appearance,
+            _DefaultsSection.security,
+            _DefaultsSection.data,
+            _DefaultsSection.shortcuts,
+          ]) ...[
+            ListTile(
+              key: Key('defaults-section-${section.name}'),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+              title: Text(_defaultsSectionTitle(context, section)),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => onSelected(section),
+            ),
+            if (section == _DefaultsSection.general && aiEntry != null)
+              aiEntry!,
+          ],
+        ],
+      ),
+    ],
   );
 }
 
 class _DefaultsBodyLayout extends StatelessWidget {
   const _DefaultsBodyLayout({
     required this.showNavigation,
+    this.aiEntry,
     required this.selectedSection,
     required this.onSectionSelected,
     required this.child,
   });
 
+  final Widget? aiEntry;
   final bool showNavigation;
   final _DefaultsSection selectedSection;
   final ValueChanged<_DefaultsSection> onSectionSelected;
@@ -2667,6 +2718,7 @@ class _DefaultsBodyLayout extends StatelessWidget {
         SizedBox(
           width: 210,
           child: _DefaultsSectionNavigation(
+            aiEntry: aiEntry,
             selectedSection: selectedSection,
             onSectionSelected: onSectionSelected,
           ),
@@ -2691,10 +2743,12 @@ class _DefaultsBodyLayout extends StatelessWidget {
 
 class _DefaultsSectionNavigation extends StatefulWidget {
   const _DefaultsSectionNavigation({
+    this.aiEntry,
     required this.selectedSection,
     required this.onSectionSelected,
   });
 
+  final Widget? aiEntry;
   final _DefaultsSection selectedSection;
   final ValueChanged<_DefaultsSection> onSectionSelected;
 
@@ -2797,6 +2851,9 @@ class _DefaultsSectionNavigationState
                       onPressed: () => _select(item.section),
                     ),
                     SizedBox(height: theme.spacing.xs),
+                    if (item.section == _DefaultsSection.general &&
+                        widget.aiEntry != null)
+                      widget.aiEntry!,
                   ],
                 ],
               ),
