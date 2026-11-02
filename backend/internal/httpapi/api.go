@@ -125,6 +125,7 @@ func (a *API) routes() {
 	a.mux.HandleFunc("GET /healthz", a.health)
 	a.mux.HandleFunc("POST /v1/auth/apple/challenge", a.appleChallenge)
 	a.mux.HandleFunc("POST /v1/auth/apple/desktop/{action}", a.desktopApple)
+	a.mux.HandleFunc("POST /", a.desktopAppleCallback)
 	a.mux.HandleFunc("POST /v1/auth/oauth/challenge", a.oauthChallenge)
 	a.mux.HandleFunc("POST /v1/auth/oauth/begin", a.beginOAuthLogin)
 	a.mux.Handle("GET /v1/auth/identities", a.protected(a.oauthIdentities))

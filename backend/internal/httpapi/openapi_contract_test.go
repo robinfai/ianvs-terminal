@@ -51,6 +51,7 @@ func TestOpenAPIPathsMatchImplementedHTTPRoutes(t *testing.T) {
 		"GET /v1/ai/models":                         "listAIModels",
 		"POST /v1/ai/chat/completions":              "createAICompletion",
 		"POST /v1/auth/apple/challenge":             "createAppleChallenge",
+		"POST /":                                    "desktopAppleCallback",
 		"POST /v1/auth/apple/desktop/{action}":      "desktopApple",
 		"POST /v1/auth/apple/begin":                 "beginAppleLogin",
 		"POST /v1/auth/oauth/challenge":             "oauthChallenge",

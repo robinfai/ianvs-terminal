@@ -3,7 +3,6 @@ import { createRoot } from 'react-dom/client'
 import { SessionProvider } from './state/SessionContext'
 import { initializeTheme, ThemeProvider } from './state/ThemeContext'
 import { App } from './App'
-import { DesktopApplePage } from './pages/DesktopApplePage'
 import './styles.css'
 
 const container = document.getElementById('root')
@@ -17,7 +16,7 @@ createRoot(container).render(
   <StrictMode>
     <ThemeProvider>
       <SessionProvider>
-        {location.pathname === '/desktop/apple' ? <DesktopApplePage /> : <App />}
+        <App />
       </SessionProvider>
     </ThemeProvider>
   </StrictMode>,

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"ianvs-terminal/backend/internal/config"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -47,14 +49,23 @@ func TestDesktopAppleStartAndRejectForgedCompletion(t *testing.T) {
 	if start.Code != 200 || json.Unmarshal(start.Body.Bytes(), &flow) != nil || len(flow["id"]) != 43 || len(flow["secret"]) != 43 || len(flow["nonce"]) != 43 || flow["id"] == flow["secret"] {
 		t.Fatal(start.Code, start.Body.String())
 	}
-	forged := request(t, handler, http.MethodPost, "/v1/auth/apple/desktop/complete", map[string]any{"id": flow["id"], "identity_token": "forged"}, nil)
-	assertTypedError(t, forged, http.StatusUnauthorized, "invalid_apple_identity")
+	authorization, err := url.Parse(flow["authorization_url"])
+	if err != nil || authorization.Host != "appleid.apple.com" || authorization.Query().Get("state") != flow["id"] || authorization.Query().Get("nonce") != flow["nonce"] || authorization.Query().Get("response_mode") != "form_post" {
+		t.Fatal("invalid authorization URL")
+	}
+	callback := httptest.NewRequest("POST", "https://example.com/", strings.NewReader(url.Values{"state": {flow["id"]}, "id_token": {"forged"}}.Encode()))
+	callback.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	forged := httptest.NewRecorder()
+	handler.ServeHTTP(forged, callback)
+	if forged.Code != 303 || !strings.Contains(forged.Header().Get("Location"), "error=invalid_identity") || strings.Contains(forged.Header().Get("Location"), "forged") {
+		t.Fatal(forged.Code, forged.Body.String())
+	}
 	pending := request(t, handler, http.MethodPost, "/v1/auth/apple/desktop/poll", map[string]any{"id": flow["id"], "secret": flow["secret"]}, nil)
 	if pending.Code != 200 || !strings.Contains(pending.Body.String(), `"pending":true`) {
 		t.Fatal(pending.Body.String())
 	}
 	request(t, handler, http.MethodPost, "/v1/auth/apple/desktop/cancel", map[string]any{"id": flow["id"], "secret": flow["secret"]}, nil)
-	expired := request(t, handler, http.MethodPost, "/v1/auth/apple/desktop/info", map[string]any{"id": flow["id"]}, nil)
+	expired := request(t, handler, http.MethodPost, "/v1/auth/apple/desktop/poll", map[string]any{"id": flow["id"], "secret": flow["secret"]}, nil)
 	assertTypedError(t, expired, 410, "oauth_expired")
 }
 

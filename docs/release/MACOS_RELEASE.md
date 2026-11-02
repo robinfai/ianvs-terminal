@@ -163,4 +163,4 @@ gh workflow run macos-release.yml --repo robinfai/ianvs-terminal --ref main -f v
 [Apple 公证](https://developer.apple.com/documentation/security/customizing-the-notarization-workflow)、
 [GitHub CI 证书](https://docs.github.com/en/actions/how-tos/deploy/deploy-to-third-party-platforms/sign-xcode-applications)。
 
-Developer ID 不支持原生 Apple 登录 entitlement；macOS 使用服务端 Apple Web OAuth，iOS 保留原生登录。分发流水线校验 profile 的类型、有效期、团队、Bundle ID 及 Keychain 授权，嵌入 profile 后签名、公证。不要通过重新生成 profile 或强加 entitlement 来绕过平台限制。
+Developer ID 不支持原生 Apple 登录 entitlement；macOS 由客户端调用 ASWebAuthenticationSession 直达 Apple 授权，服务端校验后自动回到 App，iOS 保留原生登录。认证会话可能由 macOS 默认浏览器承载，但不经过管理控制台中转页。分发流水线校验 profile 的类型、有效期、团队、Bundle ID 及 Keychain 授权，嵌入 profile 后签名、公证。不要通过重新生成 profile 或强加 entitlement 来绕过平台限制。

@@ -1,4 +1,5 @@
 import Cocoa
+import AuthenticationServices
 import FlutterMacOS
 import UserNotifications
 
@@ -33,7 +34,61 @@ enum DartShutdownSafety: Equatable {
   }
 }
 
-class MainFlutterWindow: NSWindow, NSWindowDelegate {
+class MainFlutterWindow: NSWindow, NSWindowDelegate, ASWebAuthenticationPresentationContextProviding {
+  private var appleAuthenticationSession: ASWebAuthenticationSession?
+  private var appleAuthenticationResult: FlutterResult?
+
+  func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+    return self
+  }
+
+  private func finishAppleAuthentication(_ value: Any?) {
+    let reply = appleAuthenticationResult
+    appleAuthenticationResult = nil
+    appleAuthenticationSession = nil
+    reply?(value)
+  }
+
+  private func beginAppleAuthentication(_ arguments: Any?, result: @escaping FlutterResult) {
+    guard appleAuthenticationSession == nil else {
+      result(FlutterError(code: "oauth_busy", message: "Authentication is already running", details: nil))
+      return
+    }
+    guard let args = arguments as? [String: Any], let raw = args["url"] as? String,
+      let url = URL(string: raw), url.scheme == "https", url.host == "appleid.apple.com",
+      url.path == "/auth/authorize", url.user == nil, url.password == nil,
+      let state = args["state"] as? String, state.count == 43
+    else {
+      result(FlutterError(code: "oauth_invalid_url", message: "Invalid Apple authorization request", details: nil))
+      return
+    }
+    appleAuthenticationResult = result
+    let session = ASWebAuthenticationSession(url: url, callbackURLScheme: "work.ianvs.trail.auth") { [weak self] callback, error in
+      DispatchQueue.main.async {
+        guard let self = self, self.appleAuthenticationResult != nil else { return }
+        if let error = error as? ASWebAuthenticationSessionError, error.code == .canceledLogin {
+          self.finishAppleAuthentication(FlutterError(code: "oauth_cancelled", message: "Authentication cancelled", details: nil))
+          return
+        }
+        guard error == nil, let callback = callback,
+          callback.scheme == "work.ianvs.trail.auth", callback.host == "apple",
+          let components = URLComponents(url: callback, resolvingAgainstBaseURL: false),
+          components.queryItems?.filter({ $0.name == "state" }).map({ $0.value }) == [state]
+        else {
+          self.finishAppleAuthentication(FlutterError(code: "oauth_failed", message: "Apple authentication failed", details: nil))
+          return
+        }
+        self.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        self.finishAppleAuthentication(callback.absoluteString)
+      }
+    }
+    session.presentationContextProvider = self
+    appleAuthenticationSession = session
+    if !session.start() {
+      finishAppleAuthentication(FlutterError(code: "oauth_unavailable", message: "Cannot start system authentication", details: nil))
+    }
+  }
   private struct Osc72DropTarget {
     let sessionId: String
     let mimeTypes: [String]
@@ -293,6 +348,12 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate {
       }
 
       switch call.method {
+      case "appleWebAuthentication":
+        self.beginAppleAuthentication(call.arguments, result: result)
+      case "cancelAppleWebAuthentication":
+        self.appleAuthenticationSession?.cancel()
+        self.finishAppleAuthentication(FlutterError(code: "oauth_cancelled", message: "Authentication cancelled", details: nil))
+        result(nil)
       case "setTitleBarLayout":
         guard let arguments = call.arguments as? [String: Any] else {
           result(FlutterMethodNotImplemented)

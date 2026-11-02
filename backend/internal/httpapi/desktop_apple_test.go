@@ -27,10 +27,6 @@ func TestDesktopAppleRetrievalIsSecretBoundSingleUseAndExpiring(t *testing.T) {
 		a.desktopApple(w, r)
 		return w
 	}
-	info := call("info", "flow", "")
-	if info.Code != 200 || strings.Contains(info.Body.String(), "verified-token") || strings.Contains(info.Body.String(), secret) {
-		t.Fatal("public info leaked retrieval credentials", info.Body.String())
-	}
 	if w := call("poll", "flow", strings.Repeat("x", 43)); w.Code != 401 {
 		t.Fatal(w.Code, w.Body.String())
 	}

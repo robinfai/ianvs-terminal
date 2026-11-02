@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_appauth/flutter_appauth.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
@@ -194,6 +195,13 @@ class _OAuthSignInPanelState extends State<OAuthSignInPanel> {
       }
     } on FlutterAppAuthUserCancelledException {
       /* Keep the current step. */
+    } on PlatformException catch (e) {
+      if (e.code != 'oauth_cancelled') {
+        _error = _text(
+          'Apple 登录未完成，请重试。',
+          'Apple sign-in failed. Please retry.',
+        );
+      }
     } on DataApiRequestException catch (e) {
       if (e.code == 'oauth_account_choice_required') {
         _needsChoice = true;

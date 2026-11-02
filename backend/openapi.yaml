@@ -334,18 +334,41 @@ paths:
         '200': {description: Identity linked to the authenticated account.}
         '401': {description: Invalid session or provider proof.}
         '409': {description: Identity or account already bound to another identity.}
+  /:
+    post:
+      tags: [auth]
+      operationId: desktopAppleCallback
+      summary: Accept Apple form_post at the registered HTTPS return URL and return to the system authentication session.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [state]
+              properties:
+                state: {type: string}
+                id_token: {type: string, writeOnly: true}
+                code: {type: string, writeOnly: true}
+                error: {type: string}
+      responses:
+        '303': {description: Return to the initiating app with only flow state and optional error. Verified identity is retrieved separately using its secret.}
+        '400': {description: Malformed callback.}
+        '404': {description: Return URL or Apple web configuration unavailable.}
+        '410': {description: Expired or consumed flow.}
   /v1/auth/apple/desktop/{action}:
     post:
       tags: [auth]
       operationId: desktopApple
       summary: Bridge Apple web sign-in to a Developer ID desktop app.
-      description: Five-minute in-memory flows. Start returns an independent retrieval secret that must never be placed in a URL. Info exposes only nonce and public web configuration. Complete verifies the Apple web audience and nonce. Poll requires the secret and consumes a completed result once. Cancel requires the same secret. Restarting the service expires pending flows.
+      description: Five-minute in-memory flows. Start returns an independent retrieval secret that must never be placed in a URL. Start also returns the Apple authorization URL. The registered HTTPS callback verifies the Apple web audience and nonce. Poll requires the secret and consumes a completed result once. Cancel requires the same secret. Restarting the service expires pending flows.
       security: []
       parameters:
         - in: path
           name: action
           required: true
-          schema: {type: string, enum: [start, info, complete, poll, cancel]}
+          schema: {type: string, enum: [start, poll, cancel]}
       requestBody:
         required: true
         content:
@@ -356,12 +379,10 @@ paths:
               properties:
                 id: {type: string}
                 secret: {type: string, writeOnly: true}
-                identity_token: {type: string, writeOnly: true}
       responses:
         '200': {description: Flow created, public information, pending status, single-use identity proof, or cancellation confirmation.}
         '401': {description: Invalid retrieval secret or Apple identity.}
         '404': {description: Apple web sign-in unavailable.}
-        '409': {description: Flow already completed.}
         '410': {description: Flow expired, cancelled or consumed.}
         '429': {description: Too many requests or pending flows.}
   /v1/auth/oauth/challenge:
