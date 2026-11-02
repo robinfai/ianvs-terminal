@@ -196,7 +196,7 @@ func ValidateAIProxy(address, username, password string) error {
 // RateLimits returns requests/second, requests/minute, requests/hour,
 // tokens/minute and tokens/hour. Nil overrides inherit defaults.
 func (p AIUserPolicy) RateLimits() [5]int64 {
-	limits := [5]int64{1, 10, 100, 100000, 1000000}
+	limits := [5]int64{5, 50, 500, 500000, 5000000}
 	for i, v := range []*int{p.RequestsPerSecond, p.RequestsPerMinute, p.RequestsPerHour, p.TokensPerMinute, p.TokensPerHour} {
 		if v != nil {
 			limits[i] = int64(*v)

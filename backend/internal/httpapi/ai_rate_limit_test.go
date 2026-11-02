@@ -44,7 +44,7 @@ func TestAIRateAtomicReservationSettlementAndPolicyChange(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	if accepted.Load() != 1 {
+	if int64(accepted.Load()) != limits[0] {
 		t.Fatalf("accepted %d", accepted.Load())
 	}
 	// Raising a policy does not reset history; token reservations block concurrency.
@@ -52,11 +52,13 @@ func TestAIRateAtomicReservationSettlementAndPolicyChange(t *testing.T) {
 	if e, _ := l.reserve("u", limits, 3000, now); e != nil {
 		t.Fatal("token reservation bypass")
 	}
-	l.settle(l.users["u"][0], 1000)
+	for _, event := range l.users["u"] {
+		l.settle(event, 1000)
+	}
 	if e, _ := l.reserve("u", limits, 3000, now); e == nil {
 		t.Fatal("actual usage did not release tokens")
 	}
-	limits[4] = 3999
+	limits[4] = int64(accepted.Load())*1000 + 3000 - 1
 	if e, _ := l.reserve("u", limits, 1, now); e != nil {
 		t.Fatal("lowered policy reset history")
 	}
@@ -73,7 +75,7 @@ func TestAIRateStaleUsersCleanedAndRejectedRequestsDoNotCount(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		l.reserve("old", limits, 1, now)
 	}
-	if len(l.users["old"]) != 1 {
+	if int64(len(l.users["old"])) != limits[0] {
 		t.Fatal("rejected request extended window")
 	}
 	l.reserve("new", limits, 1, now.Add(time.Hour))

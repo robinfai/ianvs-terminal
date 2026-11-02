@@ -28,6 +28,13 @@ func TestAIRequestAndTokenRateLimitsBeforeUpstream(t *testing.T) {
 	}
 	handler := httpapi.New(cfg, auth.New(db, cfg.TokenTTL), resources).Handler()
 	user := register(t, handler, "rate-user", "long-password-for-tests", "")
+	identity, err := auth.New(db, cfg.TokenTTL).AuthenticateToken(context.Background(), user.Token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Explicit user override keeps the admission test independent of defaults.
+	one := 1
+	cfg.AIGateway.Users = map[string]config.AIUserPolicy{identity.ID: {RequestsPerSecond: &one}}
 	headers := map[string]string{"Authorization": "Bearer " + user.Token}
 	body := map[string]any{"messages": []map[string]string{{"role": "user", "content": "hello"}}}
 	if r := request(t, handler, "POST", "/v1/ai/chat/completions", body, headers); r.Code != 200 {
@@ -39,10 +46,6 @@ func TestAIRequestAndTokenRateLimitsBeforeUpstream(t *testing.T) {
 	}
 	if calls.Load() != 1 {
 		t.Fatal("limited request reached upstream")
-	}
-	identity, err := auth.New(db, cfg.TokenTTL).AuthenticateToken(context.Background(), user.Token)
-	if err != nil {
-		t.Fatal(err)
 	}
 	high, low := 100, 1
 	cfg.AIGateway.Users = map[string]config.AIUserPolicy{identity.ID: {RequestsPerSecond: &high, TokensPerMinute: &low}}
