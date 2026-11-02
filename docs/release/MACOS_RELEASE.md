@@ -18,7 +18,7 @@ owner can merge their own PRs. Ruleset ID: `23715048`.
 
 `macos-release.yml` supports two modes on main:
 
-- Manual **Run workflow** publishes the requested version (default `0.1.0`) as a
+- Manual **Run workflow** publishes the requested version (default `0.1.1`) as a
   GitHub Pre-release, never Latest. Add `docs/release/<version>.md` first.
 - Pushes to main publish the existing stable `1.1.<commit count>` series only
   when `MACOS_RELEASE_ENABLED=true`. Leave this variable unset during testing.
@@ -38,7 +38,9 @@ Reruns can resume only a draft targeting the same commit. The stable feed URL is
 `https://github.com/robinfai/ianvs-terminal/releases/latest/download/appcast.xml`
 
 Do not mark unrelated releases or releases without a signed appcast as latest.
-Do not replace published assets or rewrite tags. To roll back code, merge a revert
+Do not replace published application archives or rewrite tags. The 0.1.x test
+channel intentionally advances only v0.1.0/appcast.xml and its SHA256SUMS after a
+new signed release is public; CI requires increasing version and build numbers. To roll back code, merge a revert
 PR to produce a higher version number. Existing clients without Sparkle need one
 manual installation of the first updater-enabled release.
 
@@ -151,8 +153,9 @@ gh workflow run macos-release.yml --repo robinfai/ianvs-terminal --ref main -f v
 ```
 
 该操作签名、公证并发布 `v0.1.0`，产物为 universal ZIP、签名 appcast 和 SHA256SUMS。
-不会替换已有 `v1.0.0` 的 Latest 状态。测试版从自己的版本固定 appcast 检查更新；
-后续正式版需手动安装一次以切换到 stable feed。发布后仍需在真实 macOS 上下载、
+不设置 Latest。0.1.x 测试版共用 `v0.1.0/appcast.xml`，使已发布的 0.1.0
+无需重新安装即可发现 0.1.1。每次发布先完成签名、公证及新版本发布，再更新
+该签名清单和对应校验文件；旧 ZIP 和标签保持不变。后续正式版需另行规划 stable feed 迁移。发布后仍需在真实 macOS 上下载、
 解压、启动并验证终端功能。CI 成功不代表支持窗口内所有系统版本均已实测。
 
 参考：[Apple Developer ID](https://developer.apple.com/developer-id/)、

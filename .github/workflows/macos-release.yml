@@ -9,7 +9,7 @@ on:
         description: 'Test release version (major.minor.patch)'
         type: string
         required: true
-        default: '0.1.0'
+        default: '0.1.1'
 
 permissions:
   contents: read
@@ -76,6 +76,7 @@ jobs:
           build=$(git rev-list --count HEAD)
           if [[ "$RELEASE_PRERELEASE" == true ]]; then
             version="$REQUESTED_VERSION"
+            [[ "$version" =~ ^0\.1\.(0|[1-9][0-9]*)$ ]] || { echo "Test channel requires 0.1.x"; exit 1; }
             [[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || {
               echo '::error::Version must be major.minor.patch'; exit 1;
             }
@@ -203,6 +204,23 @@ jobs:
           else
             gh release edit "$tag" --draft=false --prerelease=false --latest
           fi
+
+      # v0.1.0 shipped with this URL. Only the signed channel manifest is mutable;
+      # published application archives and tags are never replaced.
+      - name: Advance the 0.1.x test update channel
+        if: steps.version.outputs.publish == 'true' && env.RELEASE_PRERELEASE == 'true' && env.RELEASE_VERSION != '0.1.0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          channel="$RUNNER_TEMP/test-channel"
+          mkdir -p "$channel/old" "$channel/new"
+          gh release download v0.1.0 --pattern appcast.xml --pattern SHA256SUMS --dir "$channel/old"
+          "$SPARKLE_TOOLS/sign_update" --ed-key-file "$SPARKLE_KEY_FILE" --verify "$channel/old/appcast.xml"
+          cp "$RELEASE_OUTPUT/appcast.xml" "$channel/new/appcast.xml"
+          python3 tools/release/advance_test_feed.py "$channel/old/appcast.xml" "$channel/new/appcast.xml" \
+            "$channel/old/SHA256SUMS" "$channel/new/SHA256SUMS"
+          gh release upload v0.1.0 "$channel/new/appcast.xml" "$channel/new/SHA256SUMS" --clobber
 
       - name: Save notarization diagnostics
         if: always()

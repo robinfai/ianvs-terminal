@@ -35,7 +35,7 @@ app="$root/example/build/macos/Build/Products/Release/Trail.app"
 }
 feed="https://github.com/$RELEASE_REPOSITORY/releases/latest/download/appcast.xml"
 if [[ "${RELEASE_PRERELEASE:-false}" == true ]]; then
-  feed="https://github.com/$RELEASE_REPOSITORY/releases/download/v$RELEASE_VERSION/appcast.xml"
+  feed="https://github.com/$RELEASE_REPOSITORY/releases/download/v0.1.0/appcast.xml"
 fi
 python3 "$root/tools/release/macos_release.py" configure "$app" --public-key "$SPARKLE_PUBLIC_KEY" \
   --feed "$feed"
