@@ -30,12 +30,16 @@ var adminID = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$`)
 var errAdminConflict = errors.New("configuration changed; reload before saving")
 
 type adminProvider struct {
-	Name     string `json:"name"`
-	Type     string `json:"type"`
-	Endpoint string `json:"endpoint"`
-	APIKey   string `json:"api_key,omitempty"`
-	HasKey   bool   `json:"has_key"`
-	Disabled bool   `json:"disabled"`
+	ProxyURL         string `json:"proxy_url,omitempty"`
+	ProxyUsername    string `json:"proxy_username,omitempty"`
+	ProxyPassword    string `json:"proxy_password,omitempty"`
+	HasProxyPassword bool   `json:"has_proxy_password"`
+	Name             string `json:"name"`
+	Type             string `json:"type"`
+	Endpoint         string `json:"endpoint"`
+	APIKey           string `json:"api_key,omitempty"`
+	HasKey           bool   `json:"has_key"`
+	Disabled         bool   `json:"disabled"`
 }
 type adminModel struct {
 	ProviderID      string         `json:"provider_id"`
@@ -112,10 +116,10 @@ func (a *API) seedGateway() adminGateway {
 		m := g.Models[alias]
 		// Preserve distinct credentials/endpoints even for the same vendor.
 		id := m.Provider
-		if p, ok := s.Providers[id]; ok && (p.Endpoint != m.Endpoint || p.APIKey != m.APIKey) {
+		if p, ok := s.Providers[id]; ok && (p.Endpoint != m.Endpoint || p.APIKey != m.APIKey || p.ProxyURL != m.ProxyURL || p.ProxyUsername != m.ProxyUsername || p.ProxyPassword != m.ProxyPassword) {
 			id = alias
 		}
-		s.Providers[id] = adminProvider{Name: id, Type: m.Provider, Endpoint: m.Endpoint, APIKey: m.APIKey, HasKey: m.APIKey != ""}
+		s.Providers[id] = adminProvider{ProxyURL: m.ProxyURL, ProxyUsername: m.ProxyUsername, ProxyPassword: m.ProxyPassword, Name: id, Type: m.Provider, Endpoint: m.Endpoint, APIKey: m.APIKey, HasKey: m.APIKey != ""}
 		s.Models[alias] = adminModel{ProviderID: id, Model: m.Model, MaxOutputTokens: m.MaxOutputTokens, Pricing: g.ModelPrice(alias), Disabled: m.Disabled}
 	}
 	for id, p := range g.Users {
@@ -184,6 +188,9 @@ func (a *API) materializeGateway(s adminGateway) (*config.AIGateway, error) {
 		return nil, errors.New("gateway limits exceeded")
 	}
 	for id, p := range s.Providers {
+		if err := config.ValidateAIProxy(p.ProxyURL, p.ProxyUsername, p.ProxyPassword); err != nil {
+			return nil, err
+		}
 		u, err := url.Parse(p.Endpoint)
 		if !adminID.MatchString(id) || len(p.Name) > 128 || (p.Type != "openai" && p.Type != "deepseek") || err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || len(p.Endpoint) > 2048 || strings.TrimSpace(p.APIKey) == "" || len(p.APIKey) > 8192 || strings.ContainsAny(p.APIKey, "\r\n") {
 			return nil, errors.New("invalid provider configuration")
@@ -200,7 +207,7 @@ func (a *API) materializeGateway(s adminGateway) (*config.AIGateway, error) {
 		if !ok || !adminID.MatchString(alias) || len(m.Model) > 256 {
 			return nil, errors.New("invalid model or missing provider")
 		}
-		g.Models[alias] = config.AIModel{ProviderID: m.ProviderID, Provider: p.Type, Endpoint: p.Endpoint, APIKey: p.APIKey, Model: m.Model, MaxOutputTokens: m.MaxOutputTokens, Pricing: m.Pricing, Disabled: m.Disabled || p.Disabled}
+		g.Models[alias] = config.AIModel{ProxyURL: p.ProxyURL, ProxyUsername: p.ProxyUsername, ProxyPassword: p.ProxyPassword, ProviderID: m.ProviderID, Provider: p.Type, Endpoint: p.Endpoint, APIKey: p.APIKey, Model: m.Model, MaxOutputTokens: m.MaxOutputTokens, Pricing: m.Pricing, Disabled: m.Disabled || p.Disabled}
 	}
 	if err := g.Validate(); err != nil {
 		return nil, err
@@ -302,6 +309,8 @@ func (a *API) changeGateway(ctx context.Context, u model.User, revision int64, r
 			for id, p := range s.Providers {
 				p.HasKey = p.APIKey != ""
 				p.APIKey = ""
+				p.HasProxyPassword = p.ProxyPassword != ""
+				p.ProxyPassword = ""
 				providers[id] = p
 			}
 			details["providers"] = providers
@@ -330,6 +339,8 @@ func (a *API) adminGatewayGet(w http.ResponseWriter, r *http.Request, u model.Us
 	for id, p := range s.Providers {
 		p.HasKey = p.APIKey != ""
 		p.APIKey = ""
+		p.HasProxyPassword = p.ProxyPassword != ""
+		p.ProxyPassword = ""
 		s.Providers[id] = p
 	}
 	writeJSON(w, 200, s)
@@ -349,6 +360,16 @@ func (a *API) adminGatewayPut(w http.ResponseWriter, r *http.Request, u model.Us
 		n.Users = s.Users
 		for id, p := range n.Providers {
 			old, exists := s.Providers[id]
+			if p.ProxyURL == "" || p.ProxyUsername == "" {
+				p.ProxyUsername = ""
+				p.ProxyPassword = ""
+			} else if p.ProxyPassword == "" && exists && old.ProxyPassword != "" {
+				if p.ProxyURL != old.ProxyURL || p.ProxyUsername != old.ProxyUsername {
+					return errors.New("proxy changes require a new password")
+				}
+				p.ProxyPassword = old.ProxyPassword
+			}
+			p.HasProxyPassword = p.ProxyPassword != ""
 			if p.APIKey == "" && exists {
 				if p.Endpoint != old.Endpoint || p.Type != old.Type {
 					return errors.New("endpoint changes require a new credential")
@@ -404,7 +425,13 @@ func (a *API) adminProviderTest(w http.ResponseWriter, r *http.Request, actor mo
 	}
 	req.Header.Set("Authorization", "Bearer "+p.APIKey)
 	start := time.Now()
-	res, err := aiHTTPClient.Do(req)
+	client, closeIdle, err := providerHTTPClient(p.ProxyURL, p.ProxyUsername, p.ProxyPassword)
+	if err != nil {
+		writeAdminError(w, err)
+		return
+	}
+	defer closeIdle()
+	res, err := client.Do(req)
 	status := 0
 	if res != nil {
 		status = res.StatusCode

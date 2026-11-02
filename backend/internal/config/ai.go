@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -20,6 +21,9 @@ type AIGateway struct {
 	Models               map[string]AIModel      `json:"models"`
 }
 type AIModel struct {
+	ProxyURL        string  `json:"proxy_url,omitempty"`
+	ProxyUsername   string  `json:"proxy_username,omitempty"`
+	ProxyPassword   string  `json:"proxy_password,omitempty"`
 	ProviderID      string  `json:"provider_id,omitempty"`
 	Disabled        bool    `json:"disabled,omitempty"`
 	PriceID         string  `json:"price_id,omitempty"`
@@ -81,6 +85,9 @@ func (g *AIGateway) Validate() error {
 		}
 	}
 	for alias, m := range g.Models {
+		if err := ValidateAIProxy(m.ProxyURL, m.ProxyUsername, m.ProxyPassword); err != nil {
+			return err
+		}
 		if m.PriceID != "" {
 			if _, ok := g.PricingCatalog[m.PriceID]; !ok {
 				return errors.New("unknown AI price_id")
@@ -162,4 +169,26 @@ func (g *AIGateway) ModelPrice(alias string) AIPrice {
 		return g.PricingCatalog[model.PriceID]
 	}
 	return model.Pricing
+}
+
+// Proxy credentials are separate from the address so read APIs can redact them.
+func ValidateAIProxy(address, username, password string) error {
+	invalid := errors.New("invalid AI proxy: use an HTTP/HTTPS origin and separate credentials")
+	if address == "" {
+		if username != "" || password != "" {
+			return invalid
+		}
+		return nil
+	}
+	u, err := url.Parse(address)
+	if err != nil || len(address) > 2048 || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.User != nil || (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || len(username) > 1024 || len(password) > 8192 || strings.ContainsAny(username+password, "\r\n") || strings.Contains(username, ":") || (password != "" && username == "") {
+		return invalid
+	}
+	if port := u.Port(); port != "" {
+		n, err := strconv.Atoi(port)
+		if err != nil || n < 1 || n > 65535 {
+			return invalid
+		}
+	}
+	return nil
 }

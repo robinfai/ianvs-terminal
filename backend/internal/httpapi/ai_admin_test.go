@@ -22,6 +22,7 @@ func TestAIAdminManagementContracts(t *testing.T) {
 	db.Where("username = ?", "gateway-admin").First(&admin)
 	db.Where("username = ?", "gateway-user").First(&user)
 	key := filepath.Join(t.TempDir(), "admin.key")
+
 	if err := os.WriteFile(key, []byte(strings.Repeat("k", 32)), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -50,6 +51,10 @@ func TestAIAdminManagementContracts(t *testing.T) {
 	var gateway map[string]any
 	json.Unmarshal(get.Body.Bytes(), &gateway)
 	gateway["daily_quota_points"] = float64(200)
+	provider := gateway["providers"].(map[string]any)["deepseek"].(map[string]any)
+	provider["proxy_url"] = "http://127.0.0.1:3128"
+	provider["proxy_username"] = "proxy-user"
+	provider["proxy_password"] = "proxy-secret-never-return"
 	save := func() int {
 		return request(t, handler, http.MethodPut, "/v1/admin/ai/gateway", map[string]any{"gateway": gateway, "reason": "test budget update"}, ah).Code
 	}
@@ -58,6 +63,14 @@ func TestAIAdminManagementContracts(t *testing.T) {
 	}
 	if save() != 409 {
 		t.Fatal("stale revision did not conflict")
+	}
+	proxyGet := request(t, handler, http.MethodGet, "/v1/admin/ai/gateway", nil, ah)
+	if strings.Contains(proxyGet.Body.String(), "proxy-secret-never-return") || !strings.Contains(proxyGet.Body.String(), `"has_proxy_password":true`) {
+		t.Fatal("proxy credential exposed or missing")
+	}
+	auditGet := request(t, handler, http.MethodGet, "/v1/admin/ai/audit", nil, ah)
+	if strings.Contains(auditGet.Body.String(), "proxy-secret-never-return") {
+		t.Fatal("proxy secret exposed in audit")
 	}
 	var encrypted model.Setting
 	db.Where("`key` = ?", "ai.admin.config.v1").First(&encrypted)
@@ -145,6 +158,30 @@ func TestAIAdminManagementContracts(t *testing.T) {
 	res = request(t, handler, http.MethodGet, "/v1/admin/ai/audit", nil, ah)
 	if strings.Contains(res.Body.String(), "secret-never-return") {
 		t.Fatal("audit leaked key")
+	}
+	// An unrelated save preserves the hidden password; a new proxy cannot inherit it.
+	proxyGet = request(t, handler, http.MethodGet, "/v1/admin/ai/gateway", nil, ah)
+	json.Unmarshal(proxyGet.Body.Bytes(), &gateway)
+	if save() != 200 {
+		t.Fatal("redacted password was not retained")
+	}
+	proxyGet = request(t, handler, http.MethodGet, "/v1/admin/ai/gateway", nil, ah)
+	if !strings.Contains(proxyGet.Body.String(), `"has_proxy_password":true`) {
+		t.Fatal("password lost")
+	}
+	json.Unmarshal(proxyGet.Body.Bytes(), &gateway)
+	provider = gateway["providers"].(map[string]any)["deepseek"].(map[string]any)
+	provider["proxy_url"] = "http://other-proxy:3128"
+	if save() != 400 {
+		t.Fatal("existing proxy secret forwarded to new host")
+	}
+	provider["proxy_url"] = ""
+	if save() != 200 {
+		t.Fatal("cannot disable proxy")
+	}
+	proxyGet = request(t, handler, http.MethodGet, "/v1/admin/ai/gateway", nil, ah)
+	if strings.Contains(proxyGet.Body.String(), `"has_proxy_password":true`) || strings.Contains(proxyGet.Body.String(), "proxy-user") {
+		t.Fatal("proxy credentials survived disabling")
 	}
 	if err := os.WriteFile(key, []byte(strings.Repeat("x", 32)), 0600); err != nil {
 		t.Fatal(err)

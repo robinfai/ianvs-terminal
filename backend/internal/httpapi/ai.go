@@ -224,7 +224,13 @@ func (a *API) aiCompletions(w http.ResponseWriter, r *http.Request, user model.U
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+m.APIKey)
-	response, err := aiHTTPClient.Do(req)
+	client, closeIdle, err := providerHTTPClient(m.ProxyURL, m.ProxyUsername, m.ProxyPassword)
+	if err != nil {
+		writeError(w, 503, "gateway_configuration_unavailable", "Invalid provider proxy configuration")
+		return
+	}
+	defer closeIdle()
+	response, err := client.Do(req)
 	if err != nil {
 		writeError(w, 502, "ai_upstream_unavailable", "AI provider is unavailable")
 		return
