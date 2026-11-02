@@ -59,9 +59,12 @@ void main() {
         await tester.pumpAndSettle();
         expect(entry.hitTestable(), findsOneWidget);
       }
+      final dialogCount = find.byType(Dialog).evaluate().length;
       await tester.tap(entry);
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('ai-settings-dialog')), findsOneWidget);
+      expect(find.byType(Dialog), findsNWidgets(dialogCount));
+      expect(find.byType(AlertDialog), findsNothing);
       expect(tester.takeException(), isNull);
     });
   }
@@ -859,7 +862,7 @@ void main() {
       isNull,
     );
     expect(
-      find.text(
+      find.byTooltip(
         'New tabs use ${profile.name} automatically until you choose a fixed default.',
       ),
       findsOneWidget,

@@ -39,10 +39,10 @@ class _AiUsageSummaryState extends State<AiUsageSummary> {
       builder: (context, _) {
         final state = widget.controller;
         final usage = state.snapshot;
-        return Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
+        return AppGroupedSection(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -61,24 +61,25 @@ class _AiUsageSummaryState extends State<AiUsageSummary> {
                     style: theme.textTheme.headlineSmall,
                   ),
                   const SizedBox(height: 8),
-                  LinearProgressIndicator(
-                    value: usage.budget == 0
-                        ? 0
-                        : (usage.dailyRemaining / usage.budget).clamp(0.0, 1.0),
-                    semanticsLabel: t('Remaining quota', '剩余额度'),
-                  ),
+                  if (widget.onDetails == null)
+                    LinearProgressIndicator(
+                      value: usage.budget == 0
+                          ? 0
+                          : (usage.dailyRemaining / usage.budget).clamp(
+                              0.0,
+                              1.0,
+                            ),
+                      semanticsLabel: t('Remaining quota', '剩余额度'),
+                    ),
                   const SizedBox(height: 12),
-                  Text(
-                    t(
-                      'Daily allowance ${aiQuotaPoints(usage.budget)} · Remaining ${aiQuotaPoints(usage.dailyRemaining)}',
-                      '每日额度 ${aiQuotaPoints(usage.budget)} 点 · 剩余 ${aiQuotaPoints(usage.dailyRemaining)} 点',
-                    ),
+                  _UsageMetric(
+                    label: t('Daily remaining', '今日剩余'),
+                    value:
+                        '${aiQuotaPoints(usage.dailyRemaining)} / ${aiQuotaPoints(usage.budget)}',
                   ),
-                  Text(
-                    t(
-                      'Purchased credits available ${aiQuotaPoints(usage.purchasedRemaining)} · No expiry',
-                      '购买额度可用 ${aiQuotaPoints(usage.purchasedRemaining)} 点 · 长期有效',
-                    ),
+                  _UsageMetric(
+                    label: t('Purchased balance', '购买余额'),
+                    value: aiQuotaPoints(usage.purchasedRemaining),
                   ),
                   if (usage.reserved > 0 || usage.pending > 0)
                     Text(
@@ -101,20 +102,14 @@ class _AiUsageSummaryState extends State<AiUsageSummary> {
                       ),
                     ),
                   const SizedBox(height: 8),
-                  Text(
-                    t(
-                      'Daily allowance resets ${_localTime(context, usage.resetAt)} (local time)',
-                      '每日额度于 ${_localTime(context, usage.resetAt)} 重置（本地时间）',
+                  if (widget.onDetails == null)
+                    Text(
+                      t(
+                        'Resets ${_localTime(context, usage.resetAt)}',
+                        '重置时间 ${_localTime(context, usage.resetAt)}',
+                      ),
+                      style: theme.textTheme.bodySmall,
                     ),
-                    style: theme.textTheme.bodySmall,
-                  ),
-                  Text(
-                    t(
-                      'Reserved points are unavailable until settlement; they are not confirmed spend.',
-                      '预占额度暂不可用，不代表已确认消费。',
-                    ),
-                    style: theme.textTheme.bodySmall,
-                  ),
                 ] else if (state.loading)
                   const Padding(
                     padding: EdgeInsets.all(12),
@@ -134,13 +129,14 @@ class _AiUsageSummaryState extends State<AiUsageSummary> {
                   spacing: 8,
                   children: [
                     const AiPurchaseButton(),
-                    TextButton.icon(
-                      onPressed: state.loading
-                          ? null
-                          : () => unawaited(state.refresh()),
-                      icon: const Icon(Icons.refresh),
-                      label: Text(t('Refresh quota', '刷新额度')),
-                    ),
+                    if (widget.onDetails != null)
+                      TextButton.icon(
+                        onPressed: state.loading
+                            ? null
+                            : () => unawaited(state.refresh()),
+                        icon: const Icon(Icons.refresh),
+                        label: Text(t('Refresh quota', '刷新额度')),
+                      ),
                     if (widget.onDetails != null)
                       TextButton(
                         onPressed: widget.onDetails,
@@ -150,7 +146,7 @@ class _AiUsageSummaryState extends State<AiUsageSummary> {
                 ),
               ],
             ),
-          ),
+          ],
         );
       },
     );
@@ -202,7 +198,7 @@ class _AiUsagePageState extends State<AiUsagePage> with WidgetsBindingObserver {
     String t(String en, String cn) => zh ? cn : en;
     final theme = Theme.of(context);
     return Scaffold(
-      backgroundColor: context.appTheme.canvas,
+      backgroundColor: context.groupedBackground,
       body: SafeArea(
         child: Column(
           children: [
@@ -233,17 +229,10 @@ class _AiUsagePageState extends State<AiUsagePage> with WidgetsBindingObserver {
                           physics: const AlwaysScrollableScrollPhysics(),
                           children: [
                             AiUsageSummary(controller: state),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 32),
                             Text(
                               t('Request history', '请求明细'),
                               style: theme.textTheme.titleMedium,
-                            ),
-                            Text(
-                              t(
-                                'Shared across SSH profiles for this account. One AI task can make multiple requests.',
-                                '同一账号在所有 SSH Profile 间共享额度。一次 AI 任务可能产生多次请求。',
-                              ),
-                              style: theme.textTheme.bodySmall,
                             ),
                             const SizedBox(height: 8),
                             if (state.snapshot case final usage?)
@@ -274,8 +263,15 @@ class _AiUsagePageState extends State<AiUsagePage> with WidgetsBindingObserver {
                                   t('No request records yet.', '暂无请求记录。'),
                                 ),
                               ),
-                            for (final record in state.records)
-                              _record(context, record, zh),
+                            if (state.records.isNotEmpty)
+                              AppGroupedSection(
+                                flat: true,
+                                separated: true,
+                                children: [
+                                  for (final record in state.records)
+                                    _record(context, record, zh),
+                                ],
+                              ),
                             if (state.loadingRecords)
                               const Padding(
                                 padding: EdgeInsets.all(16),
@@ -311,62 +307,77 @@ class _AiUsagePageState extends State<AiUsagePage> with WidgetsBindingObserver {
       'pending' => t('Pending settlement', '待结算'),
       _ => t('Unknown status', '状态未知'),
     };
-    return Card(
+    return ExpansionTile(
       key: ValueKey(record.id),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Wrap(
-              spacing: 12,
-              runSpacing: 4,
-              children: [
-                Text(
-                  record.model,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                Text(status),
-              ],
-            ),
-            Text(
-              '${record.provider} · ${_localTime(context, record.createdAt)}',
-            ),
-            const SizedBox(height: 8),
-            Text(
-              pending
-                  ? t(
-                      'Reserved ${aiQuotaPoints(record.reserved)} points',
-                      '预占 ${aiQuotaPoints(record.reserved)} 点',
-                    )
-                  : t(
-                      'Charged ${aiQuotaPoints(record.spent)} points',
-                      '扣除 ${aiQuotaPoints(record.spent)} 点',
-                    ),
-            ),
-            if (pending)
-              Text(t('Final usage is not confirmed.', '最终用量尚未确认。'))
-            else if (record.status == 'settled')
-              Text(
-                t(
-                  'Input ${record.input} (cached ${record.cached}) · Output ${record.output}',
-                  '输入 ${record.input}（缓存 ${record.cached}）· 输出 ${record.output} token',
-                ),
-              ),
-            ExpansionTile(
-              tilePadding: EdgeInsets.zero,
-              title: Text(t('Request details', '请求信息')),
-              children: [
-                SelectableText('${t('Request ID', '请求编号')}\n${record.id}'),
-                if (record.priceVersion.isNotEmpty)
-                  Text(
-                    '${t('Price version', '费率版本')} · ${record.priceVersion}',
-                  ),
-              ],
-            ),
-          ],
-        ),
+      tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      title: Text(record.model, style: Theme.of(context).textTheme.titleSmall),
+      subtitle: Text(
+        '${_localTime(context, record.createdAt)} · $status',
+        style: Theme.of(context).textTheme.bodySmall,
       ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '${aiQuotaPoints(pending ? record.reserved : record.spent)} ${t('pts', '点')}',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(width: 8),
+          const Icon(Icons.expand_more, size: 18),
+        ],
+      ),
+      children: [
+        _UsageMetric(label: t('Provider', '服务商'), value: record.provider),
+        _UsageMetric(
+          label: t('Input / output', '输入 / 输出'),
+          value: '${record.input} / ${record.output} token',
+        ),
+        _UsageMetric(label: t('Cached', '缓存'), value: '${record.cached} token'),
+        if (pending) Text(t('Final usage is not confirmed.', '最终用量尚未确认。')),
+        if (record.priceVersion.isNotEmpty)
+          _UsageMetric(
+            label: t('Price version', '费率版本'),
+            value: record.priceVersion,
+          ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: SelectableText(
+            '${t('Request ID', '请求编号')}\n${record.id}',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
+      ],
     );
   }
+}
+
+class _UsageMetric extends StatelessWidget {
+  const _UsageMetric({required this.label, required this.value});
+  final String label;
+  final String value;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 6),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        const SizedBox(width: 16),
+        Flexible(
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: Text(value, textAlign: TextAlign.end),
+          ),
+        ),
+      ],
+    ),
+  );
 }

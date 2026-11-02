@@ -65,7 +65,7 @@ class DefaultsAndAppearanceSelection {
   final bool openProfiles;
 }
 
-enum _DefaultsSection { general, appearance, shortcuts, security, data }
+enum _DefaultsSection { general, appearance, shortcuts, security, data, ai }
 
 enum _TerminalModePreference {
   platform(null),
@@ -161,10 +161,12 @@ class DefaultsAndAppearanceDialog extends StatefulWidget {
     this.masterKeyRepository,
     this.openDataServiceInitially = false,
     this.aiSettings,
+    this.fullPage = false,
     this.accountManager,
     this.onAccountChanged,
   });
 
+  final bool fullPage;
   final List<TerminalProfile> profiles;
   final String? configuredDefaultProfileId;
   final String? effectiveDefaultProfileId;
@@ -607,6 +609,7 @@ class _DefaultsAndAppearanceDialogState
 
   void _selectSection(_DefaultsSection section) {
     if (_selectedSection == section) {
+      if (!_mobileSectionOpen) setState(() => _mobileSectionOpen = true);
       return;
     }
     FocusManager.instance.primaryFocus?.unfocus();
@@ -907,7 +910,8 @@ class _DefaultsAndAppearanceDialogState
           overflow: TextOverflow.ellipsis,
         ),
         trailing: const Icon(Icons.chevron_right),
-        onTap: () => showAiSettings(context, widget.aiSettings!),
+        selected: _selectedSection == _DefaultsSection.ai,
+        onTap: () => _selectSection(_DefaultsSection.ai),
       ),
     ),
   );
@@ -934,11 +938,12 @@ class _DefaultsAndAppearanceDialogState
       TargetPlatform.iOS ||
       TargetPlatform.fuchsia => false,
     };
-    final dialogInset = compactLayout ? 0.0 : theme.spacing.xxl;
-    final dialogWidth = compactLayout
+    final edgeToEdge = compactLayout || widget.fullPage;
+    final dialogInset = edgeToEdge ? 0.0 : theme.spacing.xxl;
+    final dialogWidth = edgeToEdge
         ? mediaSize.width
         : (mediaSize.width - dialogInset * 2).clamp(0.0, 880.0);
-    final dialogHeight = compactLayout
+    final dialogHeight = edgeToEdge
         ? mediaSize.height - keyboardInset
         : (mediaSize.height - keyboardInset - dialogInset * 2).clamp(
             0.0,
@@ -1082,14 +1087,14 @@ class _DefaultsAndAppearanceDialogState
             : () => Navigator.of(context).pop(),
         closeTooltip: context.l10n.closeDefaults,
         insetPadding: EdgeInsets.all(dialogInset),
-        constraints: compactLayout
+        constraints: edgeToEdge
             ? const BoxConstraints()
             : const BoxConstraints(maxWidth: 880),
         width: dialogWidth,
         height: dialogHeight,
         expandBody: true,
-        centerInViewport: !compactLayout,
-        borderRadius: compactLayout ? BorderRadius.zero : null,
+        centerInViewport: !edgeToEdge,
+        borderRadius: edgeToEdge ? BorderRadius.zero : null,
         titleTextStyle: Theme.of(
           context,
         ).textTheme.titleMedium?.copyWith(color: theme.textPrimary),
@@ -1127,6 +1132,35 @@ class _DefaultsAndAppearanceDialogState
                   setState(() => _mobileSectionOpen = true);
                   _selectSection(section);
                 },
+              )
+            : _selectedSection == _DefaultsSection.ai &&
+                  widget.aiSettings != null
+            ? _DefaultsBodyLayout(
+                showNavigation: showSectionNavigation,
+                aiEntry: _buildAiEntry(context),
+                selectedSection: _selectedSection,
+                onSectionSelected: _selectSection,
+                child: ListenableBuilder(
+                  listenable: widget.aiSettings!,
+                  builder: (context, _) => AiSettingsDialog(
+                    settings: widget.aiSettings!,
+                    onDone: (saved) {
+                      if (saved != null) {
+                        AppNotifications.message(
+                          context,
+                          Localizations.localeOf(context).languageCode == 'zh'
+                              ? 'AI 配置已保存'
+                              : 'AI settings saved',
+                          kind: AppNoticeKind.success,
+                        );
+                      }
+                      setState(() {
+                        _selectedSection = _DefaultsSection.general;
+                        _mobileSectionOpen = false;
+                      });
+                    },
+                  ),
+                ),
               )
             : showStandaloneShortcutEditor
             ? ShortcutEditorPanel(
@@ -1289,6 +1323,7 @@ class _DefaultsAndAppearanceDialogState
                             )
                           else
                             AppSectionHeader(
+                              compactDescription: true,
                               title: context.l10n.terminalPreset,
                               description: effectiveProfile == null
                                   ? context.l10n.createProfileBeforeColors
@@ -1425,6 +1460,7 @@ class _DefaultsAndAppearanceDialogState
                       ),
                       SizedBox(height: theme.spacing.sm),
                       AppSectionHeader(
+                        compactDescription: true,
                         title: context.l10n.startup,
                         description: mobileNavigation
                             ? null
@@ -1489,6 +1525,7 @@ class _DefaultsAndAppearanceDialogState
                         ),
                         SizedBox(height: theme.spacing.xl),
                         AppSectionHeader(
+                          compactDescription: true,
                           title: context.l10n.sessionInteractionsPermissions,
                           description: context
                               .l10n
@@ -1650,6 +1687,7 @@ class _DefaultsAndAppearanceDialogState
                         ),
                         const SizedBox(height: 16),
                         AppSectionHeader(
+                          compactDescription: true,
                           title: context.l10n.terminalVariableReports,
                           description:
                               context.l10n.terminalVariableReportsDescription,
@@ -1833,6 +1871,7 @@ class _DefaultsAndAppearanceDialogState
                         SizedBox(height: theme.spacing.xl),
                       ] else if (!mobileNavigation)
                         AppSectionHeader(
+                          compactDescription: true,
                           title: mobileNavigation
                               ? context.l10n.mobileSync
                               : context.l10n.dataService,
@@ -1846,10 +1885,11 @@ class _DefaultsAndAppearanceDialogState
                         ),
                       const ApiSyncPanel(),
                       SizedBox(height: theme.spacing.sm),
-                      _DataServiceStatusBanner(
-                        deployment: _sourceDataApiDeployment,
-                        localSessionsEnabled: widget.localSessionsEnabled,
-                      ),
+                      if (_account == null)
+                        _DataServiceStatusBanner(
+                          deployment: _sourceDataApiDeployment,
+                          localSessionsEnabled: widget.localSessionsEnabled,
+                        ),
                       SizedBox(height: theme.spacing.sm),
                       Theme(
                         data: appConfigurationFormTheme(context),
@@ -1860,6 +1900,7 @@ class _DefaultsAndAppearanceDialogState
                             children: [
                               if (_account == null)
                                 AppGroupedSection(
+                                  flat: true,
                                   title: context.l10n.mobileSync,
                                   padding: const EdgeInsets.all(8),
                                   children: [
@@ -2012,12 +2053,11 @@ class _DefaultsAndAppearanceDialogState
                                             ?.copyWith(color: theme.textSubtle),
                                       ),
                                       const Divider(height: 24),
-                                      const SizedBox(height: 12),
                                       AppActionButton(
                                         buttonKey: const Key(
                                           'data-api-sign-out',
                                         ),
-                                        tone: AppActionTone.secondary,
+                                        tone: AppActionTone.ghost,
                                         label: context.l10n.accountSignOut,
                                         onPressed: _accountBusy
                                             ? null
@@ -2297,6 +2337,7 @@ class _DefaultsAndAppearanceDialogState
                         title: context.l10n.mobileAdvanced,
                         children: [
                           AppSectionHeader(
+                            compactDescription: true,
                             title: context.l10n.terminalCanvasInset,
                             description:
                                 context.l10n.terminalCanvasInsetDescription,
@@ -2430,7 +2471,12 @@ class _DefaultsAndAppearanceDialogState
                 ),
               ),
         footer:
-            (showMobileSections && !hasChanges) ||
+            _selectedSection == _DefaultsSection.ai ||
+                (showMobileSections && !hasChanges) ||
+                (_selectedSection == _DefaultsSection.data &&
+                    _account != null &&
+                    !hasChanges &&
+                    !_accountBusy) ||
                 compactKeyboardLayout ||
                 (showStandaloneShortcutEditor && compactLayout)
             ? null
@@ -2642,6 +2688,7 @@ class _DefaultsAndAppearanceDialogState
 
 String _defaultsSectionTitle(BuildContext context, _DefaultsSection section) =>
     switch (section) {
+      _DefaultsSection.ai => 'AI',
       _DefaultsSection.general => context.l10n.general,
       _DefaultsSection.appearance => context.l10n.appearance,
       _DefaultsSection.shortcuts =>
@@ -2667,6 +2714,7 @@ class _DefaultsMobileSections extends StatelessWidget {
     key: const Key('defaults-mobile-sections'),
     children: [
       AppGroupedSection(
+        flat: true,
         separated: true,
         children: [
           for (final section in const [
@@ -2764,8 +2812,8 @@ class _DefaultsSectionNavigationState
   ];
 
   void _select(_DefaultsSection section) {
-    _focusNodes[section.index].requestFocus();
     widget.onSectionSelected(section);
+    _focusNodes[section.index].requestFocus();
   }
 
   @override
@@ -2829,11 +2877,17 @@ class _DefaultsSectionNavigationState
               _ => 0,
             };
             if (direction == 0) return KeyEventResult.ignored;
-            final index = (widget.selectedSection.index + direction).clamp(
-              0,
-              _DefaultsSection.values.length - 1,
-            );
-            _select(_DefaultsSection.values[index]);
+            final order = [
+              _DefaultsSection.general,
+              if (widget.aiEntry != null) _DefaultsSection.ai,
+              _DefaultsSection.appearance,
+              _DefaultsSection.shortcuts,
+              _DefaultsSection.security,
+              _DefaultsSection.data,
+            ];
+            final index = (order.indexOf(widget.selectedSection) + direction)
+                .clamp(0, order.length - 1);
+            _select(order[index]);
             return KeyEventResult.handled;
           },
           child: SingleChildScrollView(
@@ -2853,7 +2907,10 @@ class _DefaultsSectionNavigationState
                     SizedBox(height: theme.spacing.xs),
                     if (item.section == _DefaultsSection.general &&
                         widget.aiEntry != null)
-                      widget.aiEntry!,
+                      Focus(
+                        focusNode: _focusNodes[_DefaultsSection.ai.index],
+                        child: widget.aiEntry!,
+                      ),
                   ],
                 ],
               ),
@@ -2959,27 +3016,11 @@ class _DefaultsSectionIntro extends StatelessWidget {
   final String description;
 
   @override
-  Widget build(BuildContext context) {
-    final theme = context.appTheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: Theme.of(
-            context,
-          ).textTheme.titleLarge?.copyWith(color: theme.textPrimary),
-        ),
-        SizedBox(height: theme.spacing.xs),
-        Text(
-          description,
-          style: Theme.of(
-            context,
-          ).textTheme.bodyMedium?.copyWith(color: theme.textSubtle),
-        ),
-      ],
-    );
-  }
+  Widget build(BuildContext context) => AppSectionHeader(
+    title: title,
+    description: description,
+    compactDescription: true,
+  );
 }
 
 class _TerminalPermissionsPanel extends StatelessWidget {
@@ -4267,17 +4308,18 @@ class _MobileSettingsDisclosure extends StatelessWidget {
   final String title;
   final List<Widget> children;
   @override
-  Widget build(BuildContext context) => context.usesMobileNavigation
-      ? ExpansionTile(
-          tilePadding: EdgeInsets.zero,
-          title: Text(title),
-          childrenPadding: const EdgeInsets.symmetric(vertical: 16),
-          children: children,
-        )
-      : Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: children,
-        );
+  Widget build(BuildContext context) => AppGroupedSection(
+    flat: true,
+    children: [
+      ExpansionTile(
+        initiallyExpanded: !context.usesMobileNavigation,
+        tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+        title: Text(title, style: Theme.of(context).textTheme.bodyLarge),
+        childrenPadding: const EdgeInsets.all(16),
+        children: children,
+      ),
+    ],
+  );
 }
 
 /// Choosing a policy stages it in the parent; dismissing never changes it.
@@ -4301,6 +4343,7 @@ class _PermissionSummary<T> extends StatelessWidget {
   final Key panelKey;
   @override
   Widget build(BuildContext context) => AppGroupedSection(
+    flat: true,
     children: [
       ListTile(
         minTileHeight: 72,

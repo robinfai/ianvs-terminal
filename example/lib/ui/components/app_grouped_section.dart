@@ -25,11 +25,15 @@ class AppGroupedSection extends StatelessWidget {
     this.title,
     this.padding = EdgeInsets.zero,
     this.separated = false,
+    this.flat = false,
   });
   final List<Widget> children;
   final String? title;
   final EdgeInsetsGeometry padding;
   final bool separated;
+
+  /// Form/list rows sit directly on the page instead of inside a card.
+  final bool flat;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -37,26 +41,29 @@ class AppGroupedSection extends StatelessWidget {
     children: [
       if (title != null)
         Padding(
-          padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+          padding: EdgeInsets.fromLTRB(flat ? 0 : 8, 0, flat ? 0 : 8, 16),
           child: Text(
             title!,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              fontWeight: FontWeight.w400,
+              fontWeight: FontWeight.w600,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
         ),
       Material(
-        color: context.groupedSurface,
-        borderRadius: BorderRadius.circular(context.usesAppleGroups ? 16 : 10),
+        color: flat ? Colors.transparent : context.groupedSurface,
+        borderRadius: flat
+            ? BorderRadius.zero
+            : BorderRadius.circular(context.usesAppleGroups ? 16 : 10),
         clipBehavior: Clip.antiAlias,
         child: Padding(
-          padding: padding,
+          padding: flat ? const EdgeInsets.symmetric(vertical: 8) : padding,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               for (var i = 0; i < children.length; i++) ...[
-                if (separated && i > 0) const Divider(height: 1, indent: 16),
+                if (separated && i > 0)
+                  Divider(height: 1, indent: flat ? 0 : 16),
                 children[i],
               ],
             ],
@@ -104,6 +111,7 @@ class AppFormGroup extends StatelessWidget {
           ),
         ),
         child: AppGroupedSection(
+          flat: true,
           title: title,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           // Desktop callers supply inter-field gaps. In an Apple inset group,
@@ -130,6 +138,7 @@ class AppSettingsSection extends StatelessWidget {
       return AppFormGroup(title: title, children: children);
     }
     return AppGroupedSection(
+      flat: true,
       title: title,
       padding: const EdgeInsets.all(16),
       children: children,

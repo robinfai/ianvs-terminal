@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../l10n/l10n.dart';
 import '../../ui/components/app_action_button.dart';
+import '../../ui/components/app_grouped_section.dart';
 import '../../ui/foundation/app_theme_tokens.dart';
 import '../configuration/data_api_configuration.dart';
 import '../services/data_api_runtime.dart';
@@ -79,100 +80,103 @@ class _ConnectedApiSyncPanelState
     final needsAttention =
         phase == LocalFirstSyncPhase.unavailable ||
         phase == LocalFirstSyncPhase.conflict;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (needsAttention)
-            Text(
-              status,
-              key: const Key('api-sync-status'),
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-          if (phase != LocalFirstSyncPhase.disabled) ...[
-            if (sync!.failures.isNotEmpty) ...[
-              const SizedBox(height: 8),
+    return AppGroupedSection(
+      flat: true,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (needsAttention)
+              Text(
+                status,
+                key: const Key('api-sync-status'),
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            if (phase != LocalFirstSyncPhase.disabled) ...[
+              if (sync!.failures.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                for (final entry in sync.failures.entries)
+                  Text(
+                    '${_resourceLabel(context, entry.key)}${_failureMessage(context, entry.value)}',
+                    key: ValueKey('sync-failure-${entry.key}'),
+                  ),
+              ],
               for (final entry in sync.failures.entries)
-                Text(
-                  '${_resourceLabel(context, entry.key)}${_failureMessage(context, entry.value)}',
-                  key: ValueKey('sync-failure-${entry.key}'),
-                ),
-            ],
-            for (final entry in sync.failures.entries)
-              if (entry.value.reason ==
-                  LocalFirstSyncFailureReason.terminalConfigRepairRequired)
-                AppActionButton(
-                  buttonKey: const Key('api-sync-repair-terminal'),
-                  label: l10n.syncRepairTerminal,
-                  onPressed: phase == LocalFirstSyncPhase.syncing
-                      ? null
-                      : () async {
-                          await sync.repairRemoteDocument(entry.key);
-                          if (context.mounted &&
-                              sync.phase == LocalFirstSyncPhase.idle) {
-                            _showSuccess();
-                          }
-                        },
-                ),
-            if (sync.conflicts.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              for (final entry in sync.conflicts.entries)
-                Text(
-                  '${_resourceLabel(context, entry.key)}${entry.value.take(6).map((path) => path == '/defaultProfileId' ? l10n.defaultProfile : path).join(', ')}',
-                ),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  OutlinedButton(
-                    key: const Key('api-sync-keep-local'),
+                if (entry.value.reason ==
+                    LocalFirstSyncFailureReason.terminalConfigRepairRequired)
+                  AppActionButton(
+                    buttonKey: const Key('api-sync-repair-terminal'),
+                    label: l10n.syncRepairTerminal,
                     onPressed: phase == LocalFirstSyncPhase.syncing
                         ? null
-                        : () => sync.synchronize(
-                            resolution: JsonConflictResolution.preferLocal,
-                          ),
-                    child: Text(l10n.syncKeepLocal),
+                        : () async {
+                            await sync.repairRemoteDocument(entry.key);
+                            if (context.mounted &&
+                                sync.phase == LocalFirstSyncPhase.idle) {
+                              _showSuccess();
+                            }
+                          },
                   ),
-                  OutlinedButton(
-                    key: const Key('api-sync-use-remote'),
-                    onPressed: phase == LocalFirstSyncPhase.syncing
-                        ? null
-                        : () => sync.synchronize(
-                            resolution: JsonConflictResolution.preferRemote,
-                          ),
-                    child: Text(l10n.syncUseRemote),
+              if (sync.conflicts.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                for (final entry in sync.conflicts.entries)
+                  Text(
+                    '${_resourceLabel(context, entry.key)}${entry.value.take(6).map((path) => path == '/defaultProfileId' ? l10n.defaultProfile : path).join(', ')}',
                   ),
-                ],
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton(
+                      key: const Key('api-sync-keep-local'),
+                      onPressed: phase == LocalFirstSyncPhase.syncing
+                          ? null
+                          : () => sync.synchronize(
+                              resolution: JsonConflictResolution.preferLocal,
+                            ),
+                      child: Text(l10n.syncKeepLocal),
+                    ),
+                    OutlinedButton(
+                      key: const Key('api-sync-use-remote'),
+                      onPressed: phase == LocalFirstSyncPhase.syncing
+                          ? null
+                          : () => sync.synchronize(
+                              resolution: JsonConflictResolution.preferRemote,
+                            ),
+                      child: Text(l10n.syncUseRemote),
+                    ),
+                  ],
+                ),
+              ],
+              SizedBox(height: spacing.md),
+              AppActionButton(
+                buttonKey: const Key('api-sync-now'),
+                tone: AppActionTone.ghost,
+                icon: _recentSuccess && phase == LocalFirstSyncPhase.idle
+                    ? Icons.check_circle_outline
+                    : Icons.sync_rounded,
+                label: phase == LocalFirstSyncPhase.syncing
+                    ? l10n.syncInProgress
+                    : _recentSuccess && phase == LocalFirstSyncPhase.idle
+                    ? l10n.syncCompleted
+                    : l10n.syncNow,
+                onPressed:
+                    phase == LocalFirstSyncPhase.syncing ||
+                        (sync.enabledButUnavailable && restoreTransport == null)
+                    ? null
+                    : () async {
+                        await sync.retry(restoreTransport: restoreTransport);
+                        if (context.mounted &&
+                            sync.phase == LocalFirstSyncPhase.idle) {
+                          _showSuccess();
+                        }
+                      },
               ),
             ],
-            SizedBox(height: spacing.md),
-            AppActionButton(
-              buttonKey: const Key('api-sync-now'),
-              tone: AppActionTone.secondary,
-              icon: _recentSuccess && phase == LocalFirstSyncPhase.idle
-                  ? Icons.check_circle_outline
-                  : Icons.sync_rounded,
-              label: phase == LocalFirstSyncPhase.syncing
-                  ? l10n.syncInProgress
-                  : _recentSuccess && phase == LocalFirstSyncPhase.idle
-                  ? l10n.syncCompleted
-                  : l10n.syncNow,
-              onPressed:
-                  phase == LocalFirstSyncPhase.syncing ||
-                      (sync.enabledButUnavailable && restoreTransport == null)
-                  ? null
-                  : () async {
-                      await sync.retry(restoreTransport: restoreTransport);
-                      if (context.mounted &&
-                          sync.phase == LocalFirstSyncPhase.idle) {
-                        _showSuccess();
-                      }
-                    },
-            ),
           ],
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

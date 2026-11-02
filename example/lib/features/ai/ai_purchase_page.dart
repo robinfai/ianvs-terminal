@@ -54,7 +54,7 @@ class _AiPurchasePageState extends State<AiPurchasePage> {
     String t(String en, String cn) => zh ? cn : en;
     final theme = Theme.of(context);
     return Scaffold(
-      backgroundColor: context.appTheme.canvas,
+      backgroundColor: context.groupedBackground,
       body: SafeArea(
         child: Column(
           children: [
@@ -75,25 +75,13 @@ class _AiPurchasePageState extends State<AiPurchasePage> {
                         padding: const EdgeInsets.all(16),
                         children: [
                           Text(
-                            t('Keep your conversations going', '继续你的 AI 对话'),
-                            style: theme.textTheme.headlineSmall,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
                             t(
-                              'Credits are added to your signed-in Trail account and shared across SSH profiles. Daily allowance is used first; purchased credits do not expire.',
-                              '额度到账至当前登录的 Trail 账号，在 SSH Profile 间共享。优先消耗每日额度，购买额度长期有效。',
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            t(
-                              'One-time purchase, no subscription. Daily request limits still apply. Purchases are for the backend AI service.',
-                              '一次性购买，无自动续费。每日请求次数限制仍然适用。购买额度用于后端 AI 服务。',
+                              'One-time purchase · no subscription · credits do not expire',
+                              '一次性购买 · 无自动续费 · 额度长期有效',
                             ),
                             style: theme.textTheme.bodySmall,
                           ),
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 16),
                           if (c.loading) const LinearProgressIndicator(),
                           if (!c.loading && !c.enabled)
                             Padding(

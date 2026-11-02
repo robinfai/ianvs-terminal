@@ -1,5 +1,6 @@
 import 'package:ianvs_design/ianvs_design.dart';
 import 'app_grouped_section.dart';
+import 'app_setting_help.dart';
 import 'app_text_form_field.dart';
 
 /// Trail's configuration label width; reflow and semantics are shared by Ianvs.
@@ -35,6 +36,16 @@ class AppConfigurationField extends StatelessWidget {
         )
       : child;
 
+  Widget _control(BuildContext context) => helper == null
+      ? _labeledChild
+      : Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(child: _labeledChild),
+            AppSettingHelp(message: helper!, label: label),
+          ],
+        );
+
   @override
   Widget build(BuildContext context) {
     if (showLabel && AppGroupedFormScope.of(context)) {
@@ -50,7 +61,7 @@ class AppConfigurationField extends StatelessWidget {
               label.length > 12 ||
               RegExp(r'[\u4e00-\u9fff]').allMatches(label).length > 5;
           return Container(
-            constraints: const BoxConstraints(minHeight: 48),
+            constraints: const BoxConstraints(minHeight: 56),
             decoration: BoxDecoration(
               border: Border(
                 bottom: BorderSide(
@@ -67,46 +78,14 @@ class AppConfigurationField extends StatelessWidget {
               children: [
                 if (stacked) ...[
                   Text(label, style: style),
-                  _labeledChild,
+                  _control(context),
                 ] else
                   Row(
                     children: [
                       SizedBox(width: 92, child: Text(label, style: style)),
                       const SizedBox(width: 8),
-                      Expanded(child: _labeledChild),
+                      Expanded(child: _control(context)),
                     ],
-                  ),
-                if (helper != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: helper!.length > 90
-                        ? ExpansionTile(
-                            tilePadding: EdgeInsets.zero,
-                            childrenPadding: const EdgeInsets.only(bottom: 8),
-                            title: Text(
-                              Localizations.localeOf(context).languageCode ==
-                                      'zh'
-                                  ? '了解此设置'
-                                  : 'About this setting',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                            children: [
-                              Text(
-                                helper!,
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                            ],
-                          )
-                        : Text(
-                            helper!,
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  fontSize: 13,
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurfaceVariant,
-                                ),
-                          ),
                   ),
               ],
             ),
@@ -117,18 +96,7 @@ class AppConfigurationField extends StatelessWidget {
     return !showLabel
         ? Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _labeledChild,
-              if (helper != null) ...[
-                const SizedBox(height: 6),
-                Text(
-                  helper!,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ],
+            children: [_control(context)],
           )
         : DefaultTextStyle.merge(
             style: subtleLabel
@@ -139,12 +107,12 @@ class AppConfigurationField extends StatelessWidget {
                 : const TextStyle(),
             child: IanvsFieldRow(
               label: label,
-              helper: helper,
+              helper: null,
               labelWidth: labelWidth,
               breakpoint: breakpoint,
               child: DefaultTextStyle(
                 style: DefaultTextStyle.of(context).style,
-                child: _labeledChild,
+                child: _control(context),
               ),
             ),
           );

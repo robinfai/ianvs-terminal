@@ -439,6 +439,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     final activeSessionIdBeforeOpen = sessionState.activeSessionId;
     Widget buildDefaults(BuildContext dialogContext) {
       return DefaultsAndAppearanceDialog(
+        fullPage: true,
         aiSettings: ref.read(aiSettingsProvider),
         accountManager: dataApiConfigurationRepository is DataApiAccountManager
             ? dataApiConfigurationRepository
@@ -488,29 +489,13 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
       );
     }
 
-    final compactDefaultsLayout =
-        MediaQuery.sizeOf(context).width < 600 ||
-        (context.usesTouchControlDensity &&
-            MediaQuery.sizeOf(context).shortestSide < 600);
-    final ModalRoute<DefaultsAndAppearanceSelection> defaultsRoute =
-        compactDefaultsLayout
-        ? MaterialPageRoute<DefaultsAndAppearanceSelection>(
-            fullscreenDialog: true,
-            builder: (context) => Scaffold(
-              resizeToAvoidBottomInset: false,
-              backgroundColor: context.appTheme.panel,
-              body: buildDefaults(context),
-            ),
-          )
-        : DialogRoute<DefaultsAndAppearanceSelection>(
-            context: context,
-            animationStyle: appDialogAnimation(context),
-            barrierColor: Colors.black.withValues(alpha: 0.34),
-            barrierDismissible: true,
-            barrierLabel: context.l10n.closeDefaults,
-            requestFocus: true,
-            builder: buildDefaults,
-          );
+    final defaultsRoute = MaterialPageRoute<DefaultsAndAppearanceSelection>(
+      builder: (context) => Scaffold(
+        resizeToAvoidBottomInset: false,
+        backgroundColor: context.appTheme.panel,
+        body: buildDefaults(context),
+      ),
+    );
     final selection = await Navigator.of(
       context,
       rootNavigator: true,

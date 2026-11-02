@@ -7,9 +7,7 @@ import 'package:flutter/material.dart';
 import '../../ui/components/app_configuration_field.dart';
 import '../../ui/components/app_dropdown_form_field.dart';
 import '../../ui/components/app_grouped_section.dart';
-import '../../ui/components/app_mobile_header.dart';
 import '../../ui/components/app_notifications.dart';
-import '../../ui/foundation/app_motion.dart';
 import 'acp/acp_installation.dart';
 import 'acp/codex_acp_backend.dart';
 import 'ai_api_client.dart';
@@ -24,12 +22,12 @@ Future<void> showAiSettings(
   AiSettingsController settings, {
   ValueChanged<bool>? onSaved,
 }) async {
-  final result = await showDialog<bool>(
-    context: context,
-    animationStyle: appDialogAnimation(context),
-    builder: (_) => ListenableBuilder(
-      listenable: settings,
-      builder: (_, _) => AiSettingsDialog(settings: settings),
+  final result = await Navigator.of(context).push<bool>(
+    MaterialPageRoute(
+      builder: (_) => ListenableBuilder(
+        listenable: settings,
+        builder: (_, _) => AiSettingsDialog(settings: settings),
+      ),
     ),
   );
   if (!context.mounted || result == null) return;
@@ -50,8 +48,16 @@ Future<void> showAiSettings(
 }
 
 class AiSettingsDialog extends StatefulWidget {
-  const AiSettingsDialog({required this.settings, this.discoverAcp, super.key});
+  const AiSettingsDialog({
+    required this.settings,
+    this.discoverAcp,
+    this.onDone,
+    super.key,
+  });
   final AiSettingsController settings;
+
+  /// When provided, render inside the existing settings navigation.
+  final ValueChanged<bool?>? onDone;
   final Future<AcpInstallation> Function()? discoverAcp;
   @override
   State<AiSettingsDialog> createState() => _AiSettingsDialogState();
@@ -300,7 +306,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
     });
     try {
       await widget.settings.save(remove ? null : _value);
-      if (mounted) Navigator.of(context).pop(!remove);
+      if (mounted) _finish(!remove);
     } on Object catch (failure) {
       if (mounted) {
         final code = failure is AiFailure ? failure.code : 'storage';
@@ -384,26 +390,13 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
     if (_loaded && widget.settings.customConfiguration == null && !_customize) {
       return _surface(
         title: t('Official AI service', '官方 AI 服务'),
-        content: SizedBox(
-          width: 420,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+        content: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AppSettingsSection(
+              title: t('Model', '模型'),
               children: [
-                Text(
-                  t(
-                    'Official AI service is the default. Sign in to use your account credits.',
-                    '默认使用官方提供的 AI 服务，登录后使用账号额度。',
-                  ),
-                ),
-                const SizedBox(height: 16),
-                if (widget.settings.gatewayConfiguration
-                    case final gateway?) ...[
-                  Text(
-                    _officialModel == 'default'
-                        ? t('Model: service default', '模型：服务默认')
-                        : '${t('Model', '模型')}：$_officialModel',
-                  ),
+                if (widget.settings.gatewayConfiguration case final gateway?)
                   AiModelPicker(
                     configuration: gateway,
                     selected: _officialModel,
@@ -411,10 +404,12 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
                     enabled: !_busy,
                     onSelected: (value) =>
                         setState(() => _officialModel = value),
-                  ),
-                ] else
-                  Text(
-                    t('Sign in to load available models.', '请先登录账号，再获取可用模型。'),
+                  )
+                else
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.person_outline),
+                    title: Text(t('Sign in to choose a model', '登录后选择模型')),
                   ),
                 if (_error != null)
                   Text(
@@ -423,14 +418,16 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
                       color: Theme.of(context).colorScheme.error,
                     ),
                   ),
-                if (widget.settings.usage case final usage?)
-                  AiUsageSummary(
-                    controller: usage,
-                    onDetails: () => showAiUsage(context, usage),
-                  ),
               ],
             ),
-          ),
+            if (widget.settings.usage case final usage?) ...[
+              const SizedBox(height: 24),
+              AiUsageSummary(
+                controller: usage,
+                onDetails: () => showAiUsage(context, usage),
+              ),
+            ],
+          ],
         ),
         actions: [
           TextButton(
@@ -448,7 +445,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
                       await widget.settings.save(
                         AiConfiguration.official(model: _officialModel),
                       );
-                      if (context.mounted) Navigator.pop(context, true);
+                      if (context.mounted) _finish(true);
                     } on Object {
                       if (mounted) {
                         setState(() => _error = 'configuration_save');
@@ -505,19 +502,6 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
                 ),
                 const SizedBox(height: 16),
               ],
-              Text(
-                _backend == AiBackendKind.acp
-                    ? t(
-                        'Run Codex ACP on this Mac using your Codex login. Commands are reviewed here and sent to the current terminal.',
-                        '在本机运行 Codex ACP，使用已有 Codex 登录。命令在此批准后发送到当前终端。',
-                      )
-                    : t(
-                        'Connect directly to an OpenAI-compatible endpoint. Configuration stays on this device.',
-                        '直接连接 OpenAI 兼容端点。配置仅保存在本机。',
-                      ),
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              const SizedBox(height: 20),
               if (_backend == AiBackendKind.acp) ...[
                 Align(
                   alignment: AlignmentDirectional.centerStart,
@@ -662,7 +646,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
             title: t('Command approval', '命令审批'),
             children: [
               AppConfigurationField(
-                label: t('Command approval', '命令审批'),
+                label: t('Mode', '模式'),
                 child: AppDropdownFormField<AiApprovalMode>(
                   key: const Key('ai-approval-mode'),
                   initialValue: _approvalMode,
@@ -738,17 +722,21 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
                 }, style: Theme.of(context).textTheme.bodySmall),
               ],
               const SizedBox(height: 8),
-              Text(
-                _approvalMode == AiApprovalMode.smart
-                    ? t(
-                        'Each command is independently reviewed using this connection. Unclear risk, unavailable review, and your explicit confirmation requirements still need confirmation. Reviews add time and usage.',
-                        '每条命令使用此连接独立审核。风险不明、审核不可用或你明确要求确认时，仍需确认。审核会增加等待时间和用量。',
-                      )
-                    : t(
-                        'Review and confirm every command before it runs.',
-                        '执行前逐条审阅并确认命令。',
-                      ),
-                style: Theme.of(context).textTheme.bodySmall,
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                title: Text(
+                  t('Review rules', '审核规则'),
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                children: [
+                  Text(
+                    t(
+                      'Unclear risk or unavailable review always requires confirmation. Reviews use this connection and consume credits.',
+                      '风险不明或审核不可用时始终需要确认。审核使用当前连接并消耗额度。',
+                    ),
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
               ),
             ],
           ),
@@ -796,14 +784,6 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
                   style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
               const SizedBox(height: 8),
-              if (_backend == AiBackendKind.llm && !kReleaseMode)
-                Text(
-                  t(
-                    'For an iPhone, use the Mac’s LAN address instead of 127.0.0.1.',
-                    '在 iPhone 上使用时，请将 127.0.0.1 替换为 Mac 的局域网地址。',
-                  ),
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
             ],
           ),
         ],
@@ -817,7 +797,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
           child: Text(t('Use official service', '使用官方服务')),
         ),
       TextButton(
-        onPressed: _busy ? null : () => Navigator.of(context).pop(),
+        onPressed: _busy ? null : () => _finish(null),
         child: Text(t('Cancel', '取消')),
       ),
       FilledButton(
@@ -833,49 +813,64 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
     );
   }
 
+  void _finish(bool? result) {
+    if (widget.onDone case final onDone?) {
+      onDone(result);
+    } else {
+      Navigator.of(context).pop(result);
+    }
+  }
+
   Widget _surface({
     required String title,
     required Widget content,
     required List<Widget> actions,
   }) {
-    if (context.usesAppleGroups) {
-      return Dialog.fullscreen(
-        key: const Key('ai-settings-dialog'),
-        backgroundColor: context.groupedBackground,
-        child: SafeArea(
-          child: Column(
-            children: [
-              AppMobileHeader(title: title),
-              Expanded(
-                child: SingleChildScrollView(
-                  keyboardDismissBehavior:
-                      ScrollViewKeyboardDismissBehavior.onDrag,
-                  padding: const EdgeInsets.all(20),
-                  child: content,
+    final body = Column(
+      key: const Key('ai-settings-dialog'),
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.all(20),
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 640),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (!_customize &&
+                        widget.settings.customConfiguration == null) ...[
+                      Text(
+                        title,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    content,
+                  ],
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
-                child: OverflowBar(
-                  alignment: MainAxisAlignment.end,
-                  overflowAlignment: OverflowBarAlignment.end,
-                  spacing: 8,
-                  children: actions,
-                ),
-              ),
-            ],
+            ),
           ),
         ),
-      );
-    }
-    return AlertDialog(
-      key: const Key('ai-settings-dialog'),
-      constraints: const BoxConstraints.tightFor(width: 680),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+          child: OverflowBar(
+            alignment: MainAxisAlignment.end,
+            overflowAlignment: OverflowBarAlignment.end,
+            spacing: 8,
+            children: actions,
+          ),
+        ),
+      ],
+    );
+    if (widget.onDone != null) return body;
+    return Scaffold(
       backgroundColor: context.groupedBackground,
-      title: Text(title),
-      scrollable: true,
-      content: content,
-      actions: actions,
+      appBar: AppBar(title: const Text('AI')),
+      body: SafeArea(child: body),
     );
   }
 }

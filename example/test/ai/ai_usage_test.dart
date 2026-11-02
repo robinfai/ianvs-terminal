@@ -162,7 +162,21 @@ void main() {
         expect(find.text('0 points remaining'), findsOneWidget);
         expect(find.textContaining('No credits available.'), findsOneWidget);
         expect(find.textContaining('Reserved 1 points'), findsWidgets);
-        await tester.scrollUntilVisible(find.text('Load more'), 250);
+        expect(find.textContaining('Request ID'), findsNothing);
+        await tester.ensureVisible(find.byKey(const ValueKey('one')));
+        await tester.tap(find.byKey(const ValueKey('one')));
+        await tester.pumpAndSettle();
+        expect(find.textContaining('Request ID'), findsOneWidget);
+        await tester.scrollUntilVisible(
+          find.text('Load more'),
+          250,
+          scrollable: find
+              .descendant(
+                of: find.byType(ListView),
+                matching: find.byType(Scrollable),
+              )
+              .first,
+        );
         await tester.tap(find.text('Load more'));
         await tester.pumpAndSettle();
         expect(controller.records.length, 2);

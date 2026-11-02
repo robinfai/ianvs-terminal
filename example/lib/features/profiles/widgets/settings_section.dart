@@ -23,7 +23,11 @@ class SettingsSection extends StatelessWidget {
     final theme = context.appTheme;
     final header = KeyedSubtree(
       key: anchorKey,
-      child: AppSectionHeader(title: title, description: description),
+      child: AppSectionHeader(
+        title: title,
+        description: description,
+        compactDescription: true,
+      ),
     );
 
     final content = Column(
