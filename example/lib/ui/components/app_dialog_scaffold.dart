@@ -63,6 +63,26 @@ class AppDialogScaffold extends StatelessWidget {
     final theme = context.appTheme;
     final fullscreen = !centerInViewport && borderRadius == BorderRadius.zero;
     final mobileHeader = fullscreen && context.usesMobileNavigation;
+    // Full-window macOS routes share the native title bar with the window
+    // controls. Match the shell's 90-point reserved leading region, including
+    // when controls reappear on hover in full screen.
+    final resolvedHeaderPadding =
+        (headerPadding ??
+                EdgeInsets.only(
+                  left: theme.spacing.lg,
+                  top: theme.spacing.md,
+                  right: theme.spacing.lg,
+                  bottom: theme.spacing.sm,
+                ))
+            .resolve(Directionality.of(context));
+    final safeHeaderPadding =
+        fullscreen && Theme.of(context).platform == TargetPlatform.macOS
+        ? resolvedHeaderPadding.copyWith(
+            left: resolvedHeaderPadding.left < 90
+                ? 90
+                : resolvedHeaderPadding.left,
+          )
+        : resolvedHeaderPadding;
     final header = mobileHeader
         ? AppMobileHeader(
             title: title,
@@ -79,14 +99,7 @@ class AppDialogScaffold extends StatelessWidget {
             ],
           )
         : Padding(
-            padding:
-                headerPadding ??
-                EdgeInsets.only(
-                  left: theme.spacing.lg,
-                  top: theme.spacing.md,
-                  right: theme.spacing.lg,
-                  bottom: theme.spacing.sm,
-                ),
+            padding: safeHeaderPadding,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
