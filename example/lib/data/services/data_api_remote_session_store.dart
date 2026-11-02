@@ -87,7 +87,7 @@ final class DataApiRemoteSession {
       throw const FormatException('Invalid remote Data API session.');
     }
     return DataApiRemoteSession(
-      baseUri: Uri.parse(baseUri),
+      baseUri: Uri.parse(migratePersistedDataApiUrl(baseUri)),
       accessToken: accessToken,
       encryptionKey: encryptionKey,
       expiresAt: parsedExpiry,

@@ -75,52 +75,23 @@ void main() {
     },
   );
 
-  test(
-    'retries a TLS handshake failure against the configured fallback origin',
-    () async {
-      final fallbackServer = await HttpServer.bind(
-        InternetAddress.loopbackIPv4,
-        0,
-      );
-      addTearDown(() => fallbackServer.close(force: true));
-      late Uri requestUri;
-      late String? authorization;
-      fallbackServer.listen((request) async {
-        requestUri = request.uri;
-        authorization = request.headers.value(HttpHeaders.authorizationHeader);
-        request.response
-          ..statusCode = HttpStatus.ok
-          ..headers.contentType = ContentType.json
-          ..write(
-            jsonEncode(<String, Object?>{
-              'user': <String, Object?>{'id': 'owner-a', 'username': 'alice'},
-            }),
-          );
-        await request.response.close();
-      });
-      var clientFactoryCalls = 0;
-      final client = DataApiClient(
-        baseUri: Uri.parse('https://primary.example/api/'),
-        handshakeFallbackBaseUri: Uri.parse(
-          'http://127.0.0.1:${fallbackServer.port}/api/',
-        ),
-        accessToken: 'access-token',
-        encryptionKey: null,
-        httpClientFactory: () {
-          clientFactoryCalls += 1;
-          return clientFactoryCalls == 1
-              ? _HandshakeFailingHttpClient()
-              : HttpClient();
-        },
-      );
-
-      await client.validateSession();
-
-      expect(clientFactoryCalls, 2);
-      expect(requestUri.path, '/api/v1/me');
-      expect(authorization, 'Bearer access-token');
-    },
-  );
+  test('TLS failure never retries against another origin', () async {
+    var calls = 0;
+    final client = DataApiClient(
+      baseUri: Uri.parse('https://api.terminal.ianvs.work/'),
+      accessToken: 'access-token',
+      encryptionKey: null,
+      httpClientFactory: () {
+        calls++;
+        return _HandshakeFailingHttpClient();
+      },
+    );
+    await expectLater(
+      client.validateSession(),
+      throwsA(isA<HandshakeException>()),
+    );
+    expect(calls, 1);
+  });
 
   test('maps 404 to a missing resource', () async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);

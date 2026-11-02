@@ -31,3 +31,13 @@ func TestAIPricingCatalogAndUserPolicy(t *testing.T) {
 		t.Fatal("ambiguous inline and catalog pricing accepted")
 	}
 }
+
+func TestAIRateDefaultsAndOverrides(t *testing.T) {
+	if got := (AIUserPolicy{}).RateLimits(); got != [5]int64{1, 10, 100, 100000, 1000000} {
+		t.Fatal(got)
+	}
+	override := 7
+	if got := (AIUserPolicy{RequestsPerSecond: &override, TokensPerMinute: &override}).RateLimits(); got != [5]int64{7, 10, 100, 7, 1000000} {
+		t.Fatal(got)
+	}
+}

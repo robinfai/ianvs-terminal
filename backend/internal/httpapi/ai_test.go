@@ -67,7 +67,36 @@ func TestAIGatewayQuotaIsolationPersistenceAndProviderRouting(t *testing.T) {
 	if got := request(t, handler, "POST", "/v1/ai/chat/completions", payload("unknown", false), headers(one.Token)).Code; got != 400 {
 		t.Fatalf("unknown model %d", got)
 	}
-	for _, alias := range []string{"default", "openai"} {
+
+	// Exercise durable daily quotas independently of burst limits.
+	highRate := 100
+	cfg.AIGateway.Users = map[string]config.AIUserPolicy{}
+	for _, token := range []string{one.Token, two.Token} {
+		identity, err := auth.New(db, cfg.TokenTTL).AuthenticateToken(context.Background(), token)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg.AIGateway.Users[identity.ID] = config.AIUserPolicy{RequestsPerSecond: &highRate, RequestsPerMinute: &highRate}
+	}
+	catalog := request(t, handler, "GET", "/v1/ai/models", nil, headers(one.Token))
+	var modelList struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+		Default string `json:"default_model"`
+	}
+	if err := json.Unmarshal(catalog.Body.Bytes(), &modelList); err != nil {
+		t.Fatal(err)
+	}
+	if modelList.Default != "deepseek-test" || len(modelList.Data) != 2 {
+		t.Fatal("concrete models missing", catalog.Body.String())
+	}
+	for _, item := range modelList.Data {
+		if item.ID != "deepseek-test" && item.ID != "openai-test" {
+			t.Fatal("provider alias exposed", item.ID)
+		}
+	}
+	for _, alias := range []string{"default", "openai-test"} {
 		r := request(t, handler, "POST", "/v1/ai/chat/completions", payload(alias, true), headers(one.Token))
 		if r.Code != 200 || !strings.Contains(r.Body.String(), "[DONE]") {
 			t.Fatalf("completion: %d %s", r.Code, r.Body.String())
@@ -139,6 +168,12 @@ func TestAIBudgetReservationsRefundsAndMissingUsage(t *testing.T) {
 	}
 	handler := httpapi.New(cfg, auth.New(db, cfg.TokenTTL), resources).Handler()
 	user := register(t, handler, "budget-user", "long-password-for-tests", "")
+	highRate := 100
+	budgetIdentity, err := auth.New(db, cfg.TokenTTL).AuthenticateToken(context.Background(), user.Token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.AIGateway.Users = map[string]config.AIUserPolicy{budgetIdentity.ID: {RequestsPerSecond: &highRate}}
 	headers := map[string]string{"Authorization": "Bearer " + user.Token}
 	payload := map[string]any{"messages": []map[string]string{{"role": "user", "content": "hello"}}}
 	post := func() int { return request(t, handler, "POST", "/v1/ai/chat/completions", payload, headers).Code }
@@ -232,7 +267,7 @@ func TestAIBudgetReservationsRefundsAndMissingUsage(t *testing.T) {
 	if len(models.Data) != 0 {
 		t.Fatal("catalog exposes forbidden models")
 	}
-	cfg.AIGateway.Users[identity.ID] = config.AIUserPolicy{PricingOverrides: map[string]config.AIPrice{"ds": {Version: "customer-v1", Input: 150, CachedInput: 3, Output: 600}}}
+	cfg.AIGateway.Users[identity.ID] = config.AIUserPolicy{RequestsPerSecond: &highRate, PricingOverrides: map[string]config.AIPrice{"ds": {Version: "customer-v1", Input: 150, CachedInput: 3, Output: 600}}}
 	if post() != 200 {
 		t.Fatal("scoped price request failed")
 	}

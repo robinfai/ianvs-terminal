@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"gorm.io/gorm/clause"
+	"ianvs-terminal/backend/internal/config"
 	"ianvs-terminal/backend/internal/model"
 )
 
@@ -30,10 +31,10 @@ func (a *API) aiModels(w http.ResponseWriter, r *http.Request, user model.User, 
 			continue
 		}
 		m.Pricing = g.PriceFor(user.ID, alias)
-		models = append(models, map[string]any{"id": alias, "provider": m.Provider, "pricing": m.Pricing})
+		models = append(models, map[string]any{"id": publicAIModelID(g, alias), "provider": m.Provider, "pricing": m.Pricing})
 	}
 	quota := g.RequestLimit(user.ID)
-	writeJSON(w, 200, map[string]any{"data": models, "default_model": g.DefaultModel, "daily_requests": quota, "daily_quota_points": a.aiBudget(user.ID) / 2000, "daily_budget_nano_usd": a.aiBudget(user.ID), "quota_unit": "nano_usd", "quota_points_per_usd": 500000, "reset_timezone": "UTC"})
+	writeJSON(w, 200, map[string]any{"data": models, "default_model": publicAIModelID(g, g.DefaultModel), "daily_requests": quota, "daily_quota_points": a.aiBudget(user.ID) / 2000, "daily_budget_nano_usd": a.aiBudget(user.ID), "quota_unit": "nano_usd", "quota_points_per_usd": 500000, "reset_timezone": "UTC"})
 }
 
 // Durable compare-and-swap works across SQLite/MySQL and multiple replicas.
@@ -99,6 +100,15 @@ func (a *API) aiCompletions(w http.ResponseWriter, r *http.Request, user model.U
 	}
 	if alias == "" || alias == "default" {
 		alias = g.DefaultModel
+	}
+	// Keep accepting saved legacy aliases; new catalog IDs identify concrete models.
+	if _, legacy := g.Models[alias]; !legacy {
+		for candidate := range g.Models {
+			if publicAIModelID(g, candidate) == alias {
+				alias = candidate
+				break
+			}
+		}
 	}
 	m, ok := g.Models[alias]
 	if !ok {
@@ -182,6 +192,18 @@ func (a *API) aiCompletions(w http.ResponseWriter, r *http.Request, user model.U
 		writeError(w, 400, "context_too_large", "Gateway text context limit exceeded")
 		return
 	}
+	event, retry := a.aiLimiter.reserve(user.ID, g.Users[user.ID].RateLimits(), inputBound+int64(m.MaxOutputTokens), time.Now())
+	if event == nil {
+		w.Header().Set("Retry-After", strconv.Itoa(int(retry.Seconds())+1))
+		writeError(w, 429, "ai_rate_limited", "AI request or token rate exceeded; retry later")
+		return
+	}
+	tokenUsage := int64(0)
+	defer func() {
+		if tokenUsage >= 0 {
+			a.aiLimiter.settle(event, tokenUsage)
+		}
+	}()
 	reserved := inputBound*m.Pricing.Input + int64(m.MaxOutputTokens)*m.Pricing.Output
 	entry, err := a.reserveAISpend(r.Context(), user.ID, alias, m, reserved)
 	if err != nil {
@@ -202,6 +224,7 @@ func (a *API) aiCompletions(w http.ResponseWriter, r *http.Request, user model.U
 		if !settled {
 			return
 		}
+		tokenUsage = actual.Input + actual.Output
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := a.settleAISpend(ctx, user.ID, entry.ID, actual, outcome); err != nil {
@@ -230,6 +253,7 @@ func (a *API) aiCompletions(w http.ResponseWriter, r *http.Request, user model.U
 		return
 	}
 	defer closeIdle()
+	tokenUsage = -1 // Unknown upstream usage retains the conservative reservation.
 	response, err := client.Do(req)
 	if err != nil {
 		writeError(w, 502, "ai_upstream_unavailable", "AI provider is unavailable")
@@ -299,4 +323,19 @@ func (a *API) aiCompletions(w http.ResponseWriter, r *http.Request, user model.U
 			return
 		}
 	}
+}
+
+// Concrete model IDs are stable for unique routes. Qualify duplicate models or
+// collisions with legacy aliases so selection never silently changes provider.
+func publicAIModelID(g *config.AIGateway, alias string) string {
+	m, ok := g.Models[alias]
+	if !ok {
+		return alias
+	}
+	for other, candidate := range g.Models {
+		if other != alias && (candidate.Model == m.Model || other == m.Model) {
+			return m.Model + "@" + alias
+		}
+	}
+	return m.Model
 }

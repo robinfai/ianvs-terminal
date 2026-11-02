@@ -228,6 +228,25 @@ class AppDialogScaffold extends StatelessWidget {
       MediaQuery.viewInsetsOf(context),
     );
     final positionedPanel = AnimatedPadding(
+      onEnd: () async {
+        if (!context.mounted || MediaQuery.viewInsetsOf(context).bottom <= 0) {
+          return;
+        }
+        final focused = FocusManager.instance.primaryFocus?.context;
+        if (focused == null) return;
+        BuildContext target = focused;
+        focused.visitAncestorElements((element) {
+          if (element.widget is TextField) {
+            target = element;
+            return false;
+          }
+          return true;
+        });
+        await Scrollable.ensureVisible(
+          target,
+          alignmentPolicy: ScrollPositionAlignmentPolicy.keepVisibleAtEnd,
+        );
+      },
       duration: MediaQuery.disableAnimationsOf(context)
           ? Duration.zero
           : const Duration(milliseconds: 100),

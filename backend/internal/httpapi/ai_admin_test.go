@@ -123,10 +123,23 @@ func TestAIAdminManagementContracts(t *testing.T) {
 	if count != 2 {
 		t.Fatalf("audit count %d", count)
 	}
-	policy := map[string]any{"revision": 1, "reason": "disable test account", "policy": map[string]any{"disabled": true, "allowed_models": nil}}
+	policy := map[string]any{"revision": 1, "reason": "disable test account", "policy": map[string]any{"disabled": true, "allowed_models": nil, "requests_per_second": 2, "requests_per_minute": 20, "requests_per_hour": 200, "tokens_per_minute": 200000, "tokens_per_hour": 2000000}}
+	policy["policy"].(map[string]any)["requests_per_second"] = 0
+	if invalid := request(t, handler, http.MethodPut, "/v1/admin/ai/users/"+user.ID+"/policy", policy, ah); invalid.Code != 400 {
+		t.Fatal("zero rate accepted", invalid.Code)
+	}
+	policy["policy"].(map[string]any)["requests_per_second"] = 2
 	res = request(t, handler, http.MethodPut, "/v1/admin/ai/users/"+user.ID+"/policy", policy, ah)
 	if res.Code != 200 {
 		t.Fatal(res.Body.String())
+	}
+	restarted := testAPIHandler(t, cfg)
+	persisted := request(t, restarted, http.MethodGet, "/v1/admin/ai/users/"+user.ID, nil, ah)
+	var rateDetail struct {
+		Policy config.AIUserPolicy `json:"policy"`
+	}
+	if err := json.Unmarshal(persisted.Body.Bytes(), &rateDetail); err != nil || rateDetail.Policy.RateLimits() != [5]int64{2, 20, 200, 200000, 2000000} {
+		t.Fatal("rate policy not persisted", persisted.Body.String())
 	}
 	res = request(t, handler, http.MethodGet, "/v1/ai/models", nil, uh)
 	if !strings.Contains(res.Body.String(), `"data":[]`) {

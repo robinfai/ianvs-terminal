@@ -323,7 +323,7 @@ remain in the permission-restricted server configuration. Add `ai_gateway`:
   "default_model": "deepseek",
   "daily_requests": 100,
   "daily_quota_points": 500000,
-  "user_daily_quota_points": {"USER_UUID": 1000000},
+  "users": {"USER_UUID": {"daily_budget_nano_usd": 2000000000}},
   "models": {
     "deepseek": {
       "provider": "deepseek",
@@ -453,3 +453,32 @@ rather than adopting Bifrost's documented charge-after-response overshoot behavi
 
 References: [Bifrost scoped pricing](https://docs.getbifrost.ai/providers/custom-pricing),
 [Bifrost budgets](https://docs.getbifrost.ai/features/governance/budget-and-limits).
+
+
+### Configuration compatibility boundaries (2026-11-02)
+
+`user_daily_quota_points` and `user_daily_requests` are accepted only by the
+configuration JSON decoder and normalized into `users` policies. Explicit
+current fields, including zero, take precedence. Writes use current fields.
+The request path and admin seeding no longer interpret predecessor maps.
+Unknown fields and invalid predecessor quotas remain rejected.
+
+The client no longer retries TLS failures through the historical sslip.io
+origin. Explicit URLs remain unchanged; historical production origins migrate
+only when restoring saved configuration, sessions and recovery records.
+
+| Area | Decision / removal condition |
+| --- | --- |
+| Old per-user AI quota maps | Removed from runtime; decode-only migration retained until deployed files are rewritten. |
+| Historical TLS fallback | Removed, including constructor option and retry branch. |
+| Historical production URL | Storage-boundary migration retained; runtime constructors no longer rewrite origins. |
+| AI route aliases | Retained for existing TestFlight configurations; remove after client selections and server policy references migrate. Concrete model catalog fix is not yet deployed. |
+| Keychain/master-key/profile-secret/session-vault migration | Retained to decrypt existing data; verified rewrite and retirement markers govern removal. |
+| Token-based sync identity without username | Retained as an isolated namespace; changing it requires sync-baseline migration. |
+| Profile switchRules read alias | Retained only at deserialization; writes use automaticProfileSwitching. |
+| Points and nano-USD | Current display and settlement units, not obsolete compatibility. |
+| Account linking and export/merge APIs | Current product functions, retained. |
+| Apple availability, SSH/terminal protocols, OpenAI-compatible providers | Current platform/protocol requirements, retained; terminal renderer unchanged. |
+| Generated protobuf deprecation comments | Generated API metadata, not manually removed. |
+
+No production data, keychain entries or databases were deleted during this audit.

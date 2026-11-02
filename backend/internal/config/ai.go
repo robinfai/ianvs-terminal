@@ -9,16 +9,14 @@ import (
 
 // AIGateway keeps provider credentials and per-user UTC daily budgets server-side.
 type AIGateway struct {
-	ApplePurchases       *ApplePurchases         `json:"apple_purchases,omitempty"`
-	PricingCatalog       map[string]AIPrice      `json:"pricing_catalog,omitempty"`
-	BudgetNanoUSD        *int64                  `json:"daily_budget_nano_usd,omitempty"`
-	Users                map[string]AIUserPolicy `json:"users,omitempty"`
-	DailyQuotaPoints     int64                   `json:"daily_quota_points"`
-	UserDailyQuotaPoints map[string]int64        `json:"user_daily_quota_points"`
-	DefaultModel         string                  `json:"default_model"`
-	DailyRequests        int                     `json:"daily_requests"`
-	UserDailyRequests    map[string]int          `json:"user_daily_requests"`
-	Models               map[string]AIModel      `json:"models"`
+	ApplePurchases   *ApplePurchases         `json:"apple_purchases,omitempty"`
+	PricingCatalog   map[string]AIPrice      `json:"pricing_catalog,omitempty"`
+	BudgetNanoUSD    *int64                  `json:"daily_budget_nano_usd,omitempty"`
+	Users            map[string]AIUserPolicy `json:"users,omitempty"`
+	DailyQuotaPoints int64                   `json:"daily_quota_points"`
+	DefaultModel     string                  `json:"default_model"`
+	DailyRequests    int                     `json:"daily_requests"`
+	Models           map[string]AIModel      `json:"models"`
 }
 type AIModel struct {
 	ProxyURL        string  `json:"proxy_url,omitempty"`
@@ -46,6 +44,16 @@ func (g *AIGateway) Validate() error {
 		return errors.New("invalid default AI money budget")
 	}
 	for user, policy := range g.Users {
+		for _, limit := range []*int{policy.RequestsPerSecond, policy.RequestsPerMinute, policy.RequestsPerHour} {
+			if limit != nil && (*limit < 1 || *limit > 10000) {
+				return errors.New("AI request rate must be between 1 and 10000")
+			}
+		}
+		for _, limit := range []*int{policy.TokensPerMinute, policy.TokensPerHour} {
+			if limit != nil && (*limit < 1 || *limit > 1000000000) {
+				return errors.New("AI token rate must be between 1 and 1000000000")
+			}
+		}
 		if user == "" || (policy.DailyBudgetNanoUSD != nil && (*policy.DailyBudgetNanoUSD < 0 || *policy.DailyBudgetNanoUSD > 2000000000000)) || (policy.DailyRequests != nil && (*policy.DailyRequests < 0 || *policy.DailyRequests > 1000000)) {
 			return errors.New("invalid AI user policy")
 		}
@@ -63,21 +71,11 @@ func (g *AIGateway) Validate() error {
 	if g.DailyQuotaPoints < 0 || g.DailyQuotaPoints > 1000000000 {
 		return errors.New("invalid AI daily quota points")
 	}
-	for user, quota := range g.UserDailyQuotaPoints {
-		if user == "" || quota < 0 || quota > 1000000000 {
-			return errors.New("invalid AI user quota points")
-		}
-	}
 	if g.DailyRequests < 0 || len(g.Models) == 0 {
 		return errors.New("ai_gateway requires models and a nonnegative daily quota")
 	}
 	if _, ok := g.Models[g.DefaultModel]; !ok {
 		return errors.New("ai_gateway default_model must reference a configured alias")
-	}
-	for user, quota := range g.UserDailyRequests {
-		if user == "" || quota < 0 {
-			return errors.New("invalid AI user quota")
-		}
 	}
 	for id, price := range g.PricingCatalog {
 		if id == "" || !price.Valid() || price.Version == "" {
@@ -119,6 +117,11 @@ type AIPrice struct {
 // User policy is the app's authenticated-user equivalent of a scoped virtual key.
 // nil allowed_models inherits all models; [] denies all. Explicit zero daily budget provides no free allowance; purchased credit remains available.
 type AIUserPolicy struct {
+	RequestsPerSecond  *int               `json:"requests_per_second,omitempty"`
+	RequestsPerMinute  *int               `json:"requests_per_minute,omitempty"`
+	RequestsPerHour    *int               `json:"requests_per_hour,omitempty"`
+	TokensPerMinute    *int               `json:"tokens_per_minute,omitempty"`
+	TokensPerHour      *int               `json:"tokens_per_hour,omitempty"`
 	Disabled           bool               `json:"disabled,omitempty"`
 	DailyBudgetNanoUSD *int64             `json:"daily_budget_nano_usd,omitempty"`
 	DailyRequests      *int               `json:"daily_requests,omitempty"`
@@ -157,9 +160,6 @@ func (g *AIGateway) RequestLimit(user string) int {
 	if q := g.Users[user].DailyRequests; q != nil {
 		return *q
 	}
-	if q, ok := g.UserDailyRequests[user]; ok {
-		return q
-	}
 	return g.DailyRequests
 }
 
@@ -191,4 +191,16 @@ func ValidateAIProxy(address, username, password string) error {
 		}
 	}
 	return nil
+}
+
+// RateLimits returns requests/second, requests/minute, requests/hour,
+// tokens/minute and tokens/hour. Nil overrides inherit defaults.
+func (p AIUserPolicy) RateLimits() [5]int64 {
+	limits := [5]int64{1, 10, 100, 100000, 1000000}
+	for i, v := range []*int{p.RequestsPerSecond, p.RequestsPerMinute, p.RequestsPerHour, p.TokensPerMinute, p.TokensPerHour} {
+		if v != nil {
+			limits[i] = int64(*v)
+		}
+	}
+	return limits
 }

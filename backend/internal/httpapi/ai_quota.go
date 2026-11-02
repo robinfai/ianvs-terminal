@@ -35,9 +35,6 @@ func (a *API) aiBudget(user string) int64 {
 	if budget := g.Users[user].DailyBudgetNanoUSD; budget != nil {
 		return *budget
 	}
-	if q, ok := g.UserDailyQuotaPoints[user]; ok {
-		return q * 2000
-	}
 	if g.BudgetNanoUSD != nil {
 		return *g.BudgetNanoUSD
 	}

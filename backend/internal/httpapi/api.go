@@ -45,6 +45,7 @@ var requestIDFallback atomic.Uint64
 type requestIDContextKey struct{}
 
 type API struct {
+	aiLimiter            *aiRateLimiter
 	purchaseLimiter      *peerRateLimiter
 	appleVerifier        *auth.AppleTokenVerifier
 	cfg                  config.Config
@@ -73,6 +74,7 @@ func newWithLogger(
 	logger *slog.Logger,
 ) *API {
 	api := &API{
+		aiLimiter:            &aiRateLimiter{users: make(map[string][]*aiRateEvent)},
 		purchaseLimiter:      newAnonymousAuthRateLimiter(),
 		appleVerifier:        auth.NewAppleTokenVerifier(),
 		cfg:                  cfg,

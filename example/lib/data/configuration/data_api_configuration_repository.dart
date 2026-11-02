@@ -1988,7 +1988,9 @@ final class _DataApiAuthCancellation {
       );
     }
     return _DataApiAuthCancellation(
-      baseUri: DataApiConfiguration.remote(rawBaseUri).remoteBaseUri!,
+      baseUri: DataApiConfiguration.remote(
+        migratePersistedDataApiUrl(rawBaseUri),
+      ).remoteBaseUri!,
       operationId: operationId,
     );
   }
@@ -2263,7 +2265,9 @@ void _tryAddRecognizableCancellation({
   }
   try {
     add(
-      DataApiConfiguration.remote(rawOrigin).remoteBaseUri!,
+      DataApiConfiguration.remote(
+        migratePersistedDataApiUrl(rawOrigin),
+      ).remoteBaseUri!,
       rawOperationId! as String,
     );
   } on FormatException {

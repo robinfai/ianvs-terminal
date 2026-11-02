@@ -3,8 +3,10 @@ import 'dart:io';
 const defaultRemoteDataApiBaseUrl = 'https://api.terminal.ianvs.work/';
 const legacyRemoteDataApiBaseUrl =
     'https://ianvs-api.43.132.135.30.nip.io:57321/';
-const fallbackRemoteDataApiTransportBaseUrl =
-    'https://ianvs-api.43.132.135.30.sslip.io:57321/';
+
+/// Upgrade stored origins only; runtime/user-entered URLs stay explicit.
+String migratePersistedDataApiUrl(String value) =>
+    value == legacyRemoteDataApiBaseUrl ? defaultRemoteDataApiBaseUrl : value;
 
 enum DataApiDeployment { disabled, local, remote }
 
@@ -64,9 +66,7 @@ final class DataApiConfiguration {
     final normalizedUri = uri.replace(path: path);
     return DataApiConfiguration._(
       deployment: DataApiDeployment.remote,
-      remoteBaseUri: normalizedUri.toString() == legacyRemoteDataApiBaseUrl
-          ? Uri.parse(defaultRemoteDataApiBaseUrl)
-          : normalizedUri,
+      remoteBaseUri: normalizedUri,
       generation: 0,
       remoteCredentialRef: null,
       lastTransactionId: null,
@@ -116,7 +116,9 @@ final class DataApiConfiguration {
       'disabled' => const DataApiConfiguration.disabled(),
       'local' => const DataApiConfiguration.local(),
       'remote' => switch (json['remote_base_url']) {
-        final String value => DataApiConfiguration.remote(value),
+        final String value => DataApiConfiguration.remote(
+          migratePersistedDataApiUrl(value),
+        ),
         _ => throw const FormatException(
           'Remote data API configuration requires remote_base_url.',
         ),

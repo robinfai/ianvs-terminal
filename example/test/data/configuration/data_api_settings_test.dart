@@ -57,12 +57,23 @@ Future<void> _selectDataSectionWhenTabbed(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+Future<void> _selectPasswordLogin(WidgetTester tester) async {
+  final method = find.byKey(const Key('data-api-auth-method'));
+  if (method.evaluate().isEmpty) return;
+  await tester.ensureVisible(method);
+  await tester.tap(method);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Username and password').last);
+  await tester.pumpAndSettle();
+}
+
 Future<Finder> _openRemoteUsername(WidgetTester tester) async {
   await _selectDataSectionWhenTabbed(tester);
   final remote = find.byKey(const Key('data-api-remote'));
   await tester.ensureVisible(remote);
   await tester.tap(remote);
   await tester.pumpAndSettle();
+  await _selectPasswordLogin(tester);
   return find.byKey(const Key('data-api-remote-username'));
 }
 
@@ -154,6 +165,7 @@ void main() {
       await tester.tap(remote);
       await tester.pumpAndSettle();
 
+      await _selectPasswordLogin(tester);
       final url = find.byKey(const Key('data-api-remote-url'));
       final username = find.byKey(const Key('data-api-remote-username'));
       final password = find.byKey(const Key('data-api-remote-password'));
@@ -355,7 +367,7 @@ void main() {
         'Local data remains available. Sync connection changes are applied '
         'when you save.',
       ),
-      findsOneWidget,
+      findsNothing,
     );
   });
 
@@ -406,7 +418,7 @@ void main() {
           'configured API.',
         ),
       ),
-      findsOneWidget,
+      findsNothing,
     );
     expect(
       find.descendant(
@@ -459,7 +471,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('data-api-remote-reconnect')));
     await tester.pump();
-    expect(find.textContaining('one Ianvs master key'), findsOneWidget);
+    expect(find.textContaining('one Ianvs master key'), findsNothing);
     expect(
       find.byKey(const Key('data-api-remote-encryption-key')),
       findsNothing,

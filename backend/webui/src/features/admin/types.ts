@@ -1,7 +1,7 @@
 export interface Price { version?: string; input_nano_usd_per_token: number; cached_input_nano_usd_per_token: number; output_nano_usd_per_token: number }
 export interface Provider { proxy_url?: string; proxy_username?: string; proxy_password?: string; has_proxy_password?: boolean; name: string; type: string; endpoint: string; api_key?: string; has_key: boolean; disabled: boolean }
 export interface Model { provider_id: string; model: string; disabled: boolean; max_output_tokens: number; pricing: Price }
-export interface Policy { disabled?: boolean; daily_budget_nano_usd?: number | null; daily_requests?: number | null; allowed_models: string[] | null; pricing_overrides?: Record<string, Price> }
+export interface Policy { requests_per_second?: number | null; requests_per_minute?: number | null; requests_per_hour?: number | null; tokens_per_minute?: number | null; tokens_per_hour?: number | null; disabled?: boolean; daily_budget_nano_usd?: number | null; daily_requests?: number | null; allowed_models: string[] | null; pricing_overrides?: Record<string, Price> }
 export interface Gateway { revision: number; providers: Record<string, Provider>; models: Record<string, Model>; default_model: string; daily_quota_points: number; daily_requests: number; users: Record<string, Policy> }
 export interface User { id: string; username: string; created_at: string; ai_disabled: boolean; is_admin: boolean }
 export interface Usage { spent_nano_usd: number; reserved_nano_usd: number; input_tokens: number; cached_input_tokens: number; output_tokens: number; settled_requests: number; pending_requests: number }

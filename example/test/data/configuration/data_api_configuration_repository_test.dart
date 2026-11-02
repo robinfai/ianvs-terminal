@@ -2436,16 +2436,20 @@ void main() {
     );
   });
 
-  test('remote session follows the production base URL migration', () {
-    final session = DataApiRemoteSession(
+  test('stored remote session follows the production base URL migration', () {
+    final original = DataApiRemoteSession(
       baseUri: Uri.parse(legacyRemoteDataApiBaseUrl),
       accessToken: 'remote-access-token',
       encryptionKey: 'encryption-key-material',
       expiresAt: DateTime.now().add(const Duration(hours: 1)),
     );
-
-    expect(session.baseUri, Uri.parse(defaultRemoteDataApiBaseUrl));
-    expect(session.isUsableFor(Uri.parse(defaultRemoteDataApiBaseUrl)), isTrue);
+    expect(original.baseUri, Uri.parse(legacyRemoteDataApiBaseUrl));
+    final restored = DataApiRemoteSession.fromJson(original.toJson());
+    expect(restored.baseUri, Uri.parse(defaultRemoteDataApiBaseUrl));
+    expect(
+      restored.isUsableFor(Uri.parse(defaultRemoteDataApiBaseUrl)),
+      isTrue,
+    );
   });
 
   test('remote login requires HTTPS except for loopback development', () {

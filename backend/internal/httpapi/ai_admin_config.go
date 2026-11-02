@@ -125,22 +125,6 @@ func (a *API) seedGateway() adminGateway {
 	for id, p := range g.Users {
 		s.Users[id] = p
 	}
-	for id, q := range g.UserDailyQuotaPoints {
-		p := s.Users[id]
-		if p.DailyBudgetNanoUSD == nil {
-			v := q * 2000
-			p.DailyBudgetNanoUSD = &v
-		}
-		s.Users[id] = p
-	}
-	for id, q := range g.UserDailyRequests {
-		p := s.Users[id]
-		if p.DailyRequests == nil {
-			v := q
-			p.DailyRequests = &v
-		}
-		s.Users[id] = p
-	}
 	return s
 }
 func (a *API) loadAdminGateway(db *gorm.DB) (adminGateway, error) {
@@ -182,8 +166,6 @@ func (a *API) materializeGateway(s adminGateway) (*config.AIGateway, error) {
 	g.DailyQuotaPoints = s.DailyQuotaPoints
 	g.DailyRequests = s.DailyRequests
 	g.BudgetNanoUSD = nil
-	g.UserDailyQuotaPoints = nil
-	g.UserDailyRequests = nil
 	if len(s.Providers) > 64 || len(s.Models) > 128 || s.DailyRequests > 1000000 {
 		return nil, errors.New("gateway limits exceeded")
 	}

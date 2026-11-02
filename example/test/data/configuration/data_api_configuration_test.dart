@@ -25,14 +25,24 @@ void main() {
   });
 
   test('former production URL migrates to the current service URL', () {
-    final configuration = DataApiConfiguration.remote(
-      legacyRemoteDataApiBaseUrl,
-    );
+    final configuration = DataApiConfiguration.fromJson({
+      'version': DataApiConfiguration.currentVersion,
+      'generation': 0,
+      'deployment': 'remote',
+      'remote_base_url': legacyRemoteDataApiBaseUrl,
+    });
 
     expect(configuration.remoteBaseUri, Uri.parse(defaultRemoteDataApiBaseUrl));
     expect(
       configuration.toJson()['remote_base_url'],
       defaultRemoteDataApiBaseUrl,
+    );
+  });
+
+  test('explicit URLs are not rewritten by runtime configuration', () {
+    expect(
+      DataApiConfiguration.remote(legacyRemoteDataApiBaseUrl).remoteBaseUri,
+      Uri.parse(legacyRemoteDataApiBaseUrl),
     );
   });
 
