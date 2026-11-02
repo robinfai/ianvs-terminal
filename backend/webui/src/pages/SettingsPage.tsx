@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { LinkedSignInMethods } from '../components/AppleSignIn'
 import { ApiError } from '../api/client'
 import { useSession } from '../state/SessionContext'
 import { Badge, Button, Card, Dialog, EmptyState, Notice, Spinner } from '../components/ui'
@@ -63,7 +64,7 @@ export function SettingsPage() {
       <div><Button variant="danger" disabled={busy || loading || expired || !sessions.some(item => !item.current)} onClick={() => setConfirm(sessions.filter(item => !item.current))}>退出其他会话</Button></div>
     </div></Card>}
     <Card title="数据密钥"><div className="stack"><p>登录不校验数据密钥。查看或改写敏感内容时，浏览器会按需请求密钥，并仅将其保留在页面内存中。</p><div className="row"><Badge tone="neutral">{session.key ? '已提供密钥 · 有效性由实际操作校验' : '本页未保存密钥'}</Badge><Badge>密钥不上传服务器</Badge></div><p className="secondary">刷新页面、退出或忘记密钥会清除此页密钥。忘记密钥不会删除服务器数据，也不会更换原密钥。</p>{session.key && <div><Button onClick={session.clearKey}>忘记此页密钥</Button></div>}</div></Card>
-    <Card title="密码与恢复"><div className="stack"><p className="secondary">当前服务尚未接入修改密码和自助找回接口。请通过已有可信渠道联系部署者；恢复账号不能恢复已丢失的数据密钥。</p><div><Button disabled>修改密码 · 尚未接入</Button></div></div></Card>
+    {session.mode === 'remote' && <Card title="登录方式"><LinkedSignInMethods /></Card>}
     <Card title={session.mode === 'remote' ? '退出当前账户' : '断开本地控制台'}><div className="stack"><p className="secondary">{session.mode === 'remote' ? '退出将撤销当前服务器会话，并清除此控制台身份与页面内存中的密钥。不会删除本地数据。' : '仅清除此控制台身份与密钥，不停止正在运行的本地服务。'}</p><div><Button variant="danger" disabled={busy} onClick={() => setConfirm('logout')}>{session.mode === 'remote' ? '退出当前账户' : '断开连接'}</Button></div></div></Card>
     {confirm && <Dialog open title={confirm === 'logout' ? '确认退出当前会话？' : `确认撤销 ${confirm.length} 个会话？`} onClose={() => { if (!busy) setConfirm(null) }} footer={<><Button data-dialog-initial-focus disabled={busy} onClick={() => setConfirm(null)}>取消</Button><Button variant="danger" busy={busy} onClick={() => void perform()}>{confirm === 'logout' ? '确认退出' : '确认撤销'}</Button></>}><div className="stack">{confirm !== 'logout' && <ul>{confirm.map(item => <li className="break-word" key={item.id}>{item.device_name || '设备未知'} · {item.id.slice(0, 8)}</li>)}</ul>}<p>操作成功后，需要重新登录才能恢复访问。此操作不会远程删除已下载的数据。</p><p className="secondary">若网络中断，将明确提示结果未确认；请刷新核对，不会显示虚假的撤销成功。</p></div></Dialog>}
   </div>

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../../data/configuration/data_api_configuration.dart';
 import '../foundation/app_theme_tokens.dart';
 import 'app_panel.dart';
 
@@ -19,7 +20,7 @@ abstract final class AppNotifications {
     context,
     SnackBar(
       content: Text(
-        message,
+        displayDataServiceMessage(message),
         style: kind == AppNoticeKind.failure && !usesDesktopHost(context)
             ? TextStyle(color: Theme.of(context).colorScheme.onErrorContainer)
             : null,

@@ -62,3 +62,48 @@ func TestAppleWebPublicConfigurationAndScopedSDKPolicy(t *testing.T) {
 		t.Fatal("disabled Apple web still allows third party scripts")
 	}
 }
+
+func TestOAuthRequestShapeReachesIdentityVerification(t *testing.T) {
+	cfg, _, _ := testAPI(t, config.ModeRemote)
+	cfg.AllowInsecureSensitiveTransport = true
+	cfg.GoogleClientIDs = []string{"trail.apps.googleusercontent.com"}
+	handler := testAPIHandler(t, cfg)
+	body := map[string]any{"provider": "google", "identity_token": "forged-token", "nonce": strings.Repeat("a", 43), "action": "link", "device_id": strings.Repeat("b", 64), "replace_oldest": false, "username": "", "password": "", "link": map[string]any{"provider": "apple", "identity_token": "other-token", "nonce": strings.Repeat("c", 43)}}
+	response := request(t, handler, http.MethodPost, "/v1/auth/oauth/begin", body, nil)
+	assertTypedError(t, response, http.StatusUnauthorized, "invalid_apple_identity")
+	body["unknown_field"] = true
+	response = request(t, handler, http.MethodPost, "/v1/auth/oauth/begin", body, nil)
+	assertTypedError(t, response, http.StatusBadRequest, "invalid_json")
+}
+
+func TestPasswordAuthenticationDisabledStillAllowsOAuthChallenge(t *testing.T) {
+	cfg, _, _ := testAPI(t, config.ModeRemote)
+	cfg.PasswordAuthEnabled = false
+	handler := testAPIHandler(t, cfg)
+	for _, path := range []string{"/v1/auth/login/begin", "/v1/auth/register/begin", "/v1/auth/register/complete"} {
+		response := request(t, handler, http.MethodPost, path, map[string]any{}, nil)
+		assertTypedError(t, response, http.StatusForbidden, "password_auth_disabled")
+	}
+	response := request(t, handler, http.MethodPost, "/v1/auth/oauth/challenge", map[string]any{}, nil)
+	if response.Code != http.StatusOK {
+		t.Fatal(response.Body.String())
+	}
+	response = request(t, handler, http.MethodPost, "/v1/auth/identities", map[string]any{}, nil)
+	assertTypedError(t, response, http.StatusUnauthorized, "unauthorized")
+}
+
+func TestAuthenticatedIdentityEndpointsUseSessionAndRejectForgedProof(t *testing.T) {
+	_, _, handler := testAPI(t, config.ModeRemote)
+	session := register(t, handler, "link-test", "link-test-password", "")
+	headers := map[string]string{"Authorization": "Bearer " + session.Token}
+	response := request(t, handler, http.MethodGet, "/v1/auth/identities", nil, headers)
+	if response.Code != http.StatusOK || strings.TrimSpace(response.Body.String()) != "{\"providers\":[]}" {
+		t.Fatal(response.Body.String())
+	}
+	proof := map[string]any{"provider": "google", "identity_token": "forged-token", "nonce": strings.Repeat("a", 43)}
+	response = request(t, handler, http.MethodPost, "/v1/auth/identities", proof, headers)
+	assertTypedError(t, response, http.StatusUnauthorized, "invalid_apple_identity")
+	proof["user_id"] = "another-account"
+	response = request(t, handler, http.MethodPost, "/v1/auth/identities", proof, headers)
+	assertTypedError(t, response, http.StatusBadRequest, "invalid_json")
+}

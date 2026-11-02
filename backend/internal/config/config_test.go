@@ -10,8 +10,13 @@ import (
 )
 
 const validLocalConfiguration = `{
+  "password_auth_enabled": false,
   "schema_version": 1,
   "apple_client_ids": [],
+  "google_client_ids": [],
+  "google_web_client_id": "",
+  "google_ios_client_id": "",
+  "google_macos_client_id": "",
   "apple_web": null,
   "ai_admin": null,
   "ai_gateway": null,
@@ -162,4 +167,21 @@ func writeConfiguration(t *testing.T, encoded string, permissions os.FileMode) s
 		t.Fatalf("write configuration: %v", err)
 	}
 	return path
+}
+
+func TestLoadGoogleClientConfiguration(t *testing.T) {
+	encoded := strings.Replace(validLocalConfiguration, `"google_web_client_id": ""`, `"google_web_client_id": "web.apps.googleusercontent.com"`, 1)
+	encoded = strings.Replace(encoded, `"google_ios_client_id": ""`, `"google_ios_client_id": "apple.apps.googleusercontent.com"`, 1)
+	encoded = strings.Replace(encoded, `"google_macos_client_id": ""`, `"google_macos_client_id": "apple.apps.googleusercontent.com"`, 1)
+	cfg, err := Load(writeConfiguration(t, encoded, 0o600))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.GoogleClientIDs) != 2 || cfg.GoogleWebClientID != "web.apps.googleusercontent.com" || cfg.GoogleIOSClientID != cfg.GoogleMacOSClientID {
+		t.Fatal("Google clients not loaded and deduplicated")
+	}
+	encoded = strings.Replace(encoded, "web.apps.googleusercontent.com", "untrusted.example", 1)
+	if _, err = Load(writeConfiguration(t, encoded, 0o600)); err == nil {
+		t.Fatal("accepted invalid Google client ID")
+	}
 }

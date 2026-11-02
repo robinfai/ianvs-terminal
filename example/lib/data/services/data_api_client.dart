@@ -421,6 +421,50 @@ final class DataApiClient
     );
   }
 
+  Future<List<String>> linkedOAuthProviders() async {
+    final result = await _request('GET', _resourceUri('v1/auth/identities'));
+    return List<String>.from(
+      _jsonObject(result.body, documentName: 'Linked identities')['providers']!
+          as List,
+    );
+  }
+
+  Future<void> linkOAuthIdentity(Map<String, Object?> proof) async {
+    await _request('POST', _resourceUri('v1/auth/identities'), jsonBody: proof);
+  }
+
+  Future<Map<String, dynamic>> oauthConfiguration() async {
+    final response = await _request(
+      'GET',
+      _resourceUri('healthz'),
+      requireAuthentication: false,
+    );
+    return _jsonObject(response.body, documentName: 'OAuth configuration');
+  }
+
+  Future<String> createOAuthChallenge() async {
+    final response = await _request(
+      'POST',
+      _resourceUri('v1/auth/oauth/challenge'),
+      requireAuthentication: false,
+      jsonBody: const <String, String>{},
+    );
+    final root = _jsonObject(response.body, documentName: 'OAuth challenge');
+    return validateDataApiAuthOperationId(root['nonce']! as String);
+  }
+
+  Future<DataApiPreparedAuthOperation> beginOAuthLogin(
+    Map<String, Object?> proof,
+  ) async {
+    final response = await _request(
+      'POST',
+      _resourceUri('v1/auth/oauth/begin'),
+      requireAuthentication: false,
+      jsonBody: proof,
+    );
+    return _preparedLogin(response.body);
+  }
+
   Future<String> createAppleChallenge() async {
     final response = await _request(
       'POST',

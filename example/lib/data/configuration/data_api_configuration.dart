@@ -8,6 +8,26 @@ const legacyRemoteDataApiBaseUrl =
 String migratePersistedDataApiUrl(String value) =>
     value == legacyRemoteDataApiBaseUrl ? defaultRemoteDataApiBaseUrl : value;
 
+/// Keep the managed service's infrastructure address out of user-facing text.
+String displayDataServiceMessage(Object message) => message
+    .toString()
+    .replaceAll(
+      RegExp(
+        r'https?://api\.terminal\.ianvs\.work(?::[0-9]+)?/?',
+        caseSensitive: false,
+      ),
+      'Trail ',
+    )
+    .replaceAll(
+      RegExp(r'api\.terminal\.ianvs\.work', caseSensitive: false),
+      'Trail',
+    );
+
+bool isDefaultDataService(Uri uri) =>
+    uri.scheme == 'https' &&
+    uri.host.toLowerCase() == Uri.parse(defaultRemoteDataApiBaseUrl).host &&
+    uri.port == 443;
+
 enum DataApiDeployment { disabled, local, remote }
 
 bool isSecureDataApiRemoteOrigin(Uri uri) {

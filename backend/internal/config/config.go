@@ -29,6 +29,11 @@ const (
 )
 
 type Config struct {
+	PasswordAuthEnabled             bool
+	GoogleClientIDs                 []string
+	GoogleWebClientID               string
+	GoogleIOSClientID               string
+	GoogleMacOSClientID             string
 	AIGateway                       *AIGateway
 	AppleClientIDs                  []string
 	AppleWeb                        *AppleWeb
@@ -46,6 +51,11 @@ type Config struct {
 }
 
 type fileConfig struct {
+	PasswordAuthEnabled             bool       `json:"password_auth_enabled"`
+	GoogleClientIDs                 []string   `json:"google_client_ids"`
+	GoogleWebClientID               string     `json:"google_web_client_id"`
+	GoogleIOSClientID               string     `json:"google_ios_client_id"`
+	GoogleMacOSClientID             string     `json:"google_macos_client_id"`
 	AIGateway                       *AIGateway `json:"ai_gateway"`
 	AppleClientIDs                  []string   `json:"apple_client_ids"`
 	AppleWeb                        *AppleWeb  `json:"apple_web"`
@@ -66,6 +76,11 @@ type fileConfig struct {
 var runtimeGOOS = runtime.GOOS
 
 var currentConfigurationFields = map[string]struct{}{
+	"password_auth_enabled":              {},
+	"google_client_ids":                  {},
+	"google_web_client_id":               {},
+	"google_ios_client_id":               {},
+	"google_macos_client_id":             {},
 	"ai_gateway":                         {},
 	"apple_client_ids":                   {},
 	"ai_admin":                           {},
@@ -268,6 +283,29 @@ func (raw fileConfig) validate() (Config, error) {
 		return Config{}, errors.New("local mode allow_insecure_sensitive_transport must be false")
 	}
 
+	for _, id := range []string{raw.GoogleWebClientID, raw.GoogleIOSClientID, raw.GoogleMacOSClientID} {
+		if id == "" {
+			continue
+		}
+		if len(id) > 255 || strings.TrimSpace(id) != id || !strings.HasSuffix(id, ".apps.googleusercontent.com") {
+			return Config{}, errors.New("invalid Google OAuth client ID")
+		}
+		found := false
+		for _, trusted := range raw.GoogleClientIDs {
+			if trusted == id {
+				found = true
+			}
+		}
+		if !found {
+			raw.GoogleClientIDs = append(raw.GoogleClientIDs, id)
+		}
+	}
+	for _, id := range raw.GoogleClientIDs {
+		if len(id) > 255 || strings.TrimSpace(id) != id || !strings.HasSuffix(id, ".apps.googleusercontent.com") {
+			return Config{}, errors.New("invalid google_client_ids")
+		}
+	}
+
 	for _, clientID := range raw.AppleClientIDs {
 		if len(clientID) < 3 || len(clientID) > 255 || strings.TrimSpace(clientID) != clientID {
 			return Config{}, errors.New("apple_client_ids must contain nonempty Apple bundle or service identifiers")
@@ -283,6 +321,11 @@ func (raw fileConfig) validate() (Config, error) {
 		return Config{}, err
 	}
 	return Config{
+		PasswordAuthEnabled:             raw.PasswordAuthEnabled,
+		GoogleClientIDs:                 raw.GoogleClientIDs,
+		GoogleWebClientID:               raw.GoogleWebClientID,
+		GoogleIOSClientID:               raw.GoogleIOSClientID,
+		GoogleMacOSClientID:             raw.GoogleMacOSClientID,
 		AIGateway:                       raw.AIGateway,
 		AppleClientIDs:                  raw.AppleClientIDs,
 		AppleWeb:                        raw.AppleWeb,

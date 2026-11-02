@@ -34,6 +34,7 @@ func (a *API) beginAppleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	var request struct {
 		IdentityToken string `json:"identity_token"`
+		Action        string `json:"action"`
 		DeviceID      string `json:"device_id"`
 		ReplaceOldest bool   `json:"replace_oldest"`
 		Nonce         string `json:"nonce"`
@@ -49,7 +50,11 @@ func (a *API) beginAppleLogin(w http.ResponseWriter, r *http.Request) {
 		a.writeServiceError(w, err)
 		return
 	}
-	operation, err := a.auth.BeginAppleLogin(auth.WithDeviceID(r.Context(), request.DeviceID), subject, request.Nonce, request.Username, request.Password, a.cfg.AllowRegistration, request.ReplaceOldest)
+	action := request.Action
+	if request.Username != "" {
+		action = "link"
+	}
+	operation, err := a.auth.BeginOAuthLogin(auth.WithDeviceID(r.Context(), request.DeviceID), auth.OAuthLogin{Provider: "apple", Subject: subject, Nonce: request.Nonce, Username: request.Username, Password: request.Password, Action: action, AllowRegistration: a.cfg.AllowRegistration, ReplaceOldest: request.ReplaceOldest})
 	if err != nil {
 		a.writeServiceError(w, err)
 		return

@@ -3,14 +3,13 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../app_bootstrap.dart';
 import '../data/configuration/data_api_configuration.dart';
 import '../data/configuration/data_api_configuration_repository.dart';
+import '../data/configuration/oauth_sign_in_panel.dart';
 import '../data/services/portable_master_key.dart';
 import '../features/ai/ai_settings.dart';
-import '../features/ai/ai_settings_dialog.dart';
 import '../ui/app_ui.dart';
 import '../ui/foundation/phone_text_scale_policy.dart';
 import 'app_startup_coordinator.dart';
@@ -161,36 +160,17 @@ final class _AppStartupDataSetupViewState
   final _urlController = TextEditingController(
     text: defaultRemoteDataApiBaseUrl,
   );
-  final _usernameController = TextEditingController();
-  final _passwordController = TextEditingController();
   final _portableMasterKeyController = TextEditingController();
-  AiSettingsController? _aiSettings;
   bool get _isMobile =>
       defaultTargetPlatform == TargetPlatform.iOS ||
       defaultTargetPlatform == TargetPlatform.android;
-  _StartupAuthMethod _authMethod =
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS
-      ? _StartupAuthMethod.apple
-      : _StartupAuthMethod.password;
   bool _runningAction = false;
   bool _showMobileSyncSetup = false;
   String? _actionError;
 
-  bool get _canConnect =>
-      _urlController.text.trim().isNotEmpty &&
-      (_authMethod == _StartupAuthMethod.apple ||
-          (_usernameController.text.trim().isNotEmpty &&
-              _passwordController.text.isNotEmpty));
-
   @override
   void initState() {
     super.initState();
-    if (_isMobile) {
-      _aiSettings =
-          widget.aiSettings ??
-          AiSettingsController(createAiConfigurationStore());
-      _aiSettings!.addListener(_handleInputChanged);
-    }
     for (final controller in _controllers) {
       controller.addListener(_handleInputChanged);
     }
@@ -198,8 +178,6 @@ final class _AppStartupDataSetupViewState
 
   List<TextEditingController> get _controllers => <TextEditingController>[
     _urlController,
-    _usernameController,
-    _passwordController,
     _portableMasterKeyController,
   ];
 
@@ -211,30 +189,21 @@ final class _AppStartupDataSetupViewState
     }
   }
 
-  Future<void> _connect() async {
-    if (!_canConnect || _runningAction) {
-      return;
+  Future<void> _connectOAuth(DataApiRemoteLoginRequest request) async {
+    final portableMasterKey = _portableMasterKeyController.text.trim();
+    if (portableMasterKey.isNotEmpty &&
+        widget.settings is AppStartupMasterKeyCapability) {
+      await (widget.settings as AppStartupMasterKeyCapability)
+          .importPortableMasterKey(portableMasterKey);
     }
-    await _run(() async {
-      final portableMasterKey = _portableMasterKeyController.text.trim();
-      if (portableMasterKey.isNotEmpty) {
-        final settings = widget.settings;
-        if (settings is! AppStartupMasterKeyCapability) {
-          throw StateError(context.l10n.masterKeyImportUnavailable);
-        }
-        await (settings as AppStartupMasterKeyCapability)
-            .importPortableMasterKey(portableMasterKey);
-      }
-      final configuration = DataApiConfiguration.remote(_urlController.text);
-      await widget.settings.reconnect(
-        _authMethod.request(
-          baseUri: configuration.remoteBaseUri!,
-          username: _usernameController.text,
-          password: _passwordController.text,
-        ),
-      );
-      await widget.coordinator.retry();
-    });
+    try {
+      await widget.settings.reconnect(request);
+    } on DataApiRemoteRevocationPendingWarning {
+      /* Session committed. */
+    } on DataApiSecureSessionMutationException catch (warning) {
+      if (!warning.configurationSaved) rethrow;
+    }
+    await widget.coordinator.retry();
   }
 
   Future<void> _skip() async {
@@ -272,7 +241,7 @@ final class _AppStartupDataSetupViewState
     } on Object catch (error) {
       if (mounted) {
         setState(() {
-          _actionError = error.toString();
+          _actionError = displayDataServiceMessage(error);
         });
       }
     } finally {
@@ -296,57 +265,14 @@ final class _AppStartupDataSetupViewState
       onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
       decoration: InputDecoration(
         labelText: context.l10n.httpApiUrl,
-        hintText: defaultRemoteDataApiBaseUrl,
+        hintText: 'https://sync.example.com',
       ),
-      enabled: !_runningAction,
-    );
-  }
-
-  Widget _buildUsernameField() {
-    return TextField(
-      key: const Key('app-startup-initial-data-api-username'),
-      controller: _usernameController,
-      textInputAction: TextInputAction.next,
-      autocorrect: false,
-      enableSuggestions: false,
-      autofillHints: const <String>[AutofillHints.username],
-      onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
-      decoration: InputDecoration(labelText: context.l10n.username),
-      enabled: !_runningAction,
-    );
-  }
-
-  Widget _buildPasswordField() {
-    final isLastEditableField = usesAutomaticallySynchronizedAppleKeychain;
-    return TextField(
-      key: const Key('app-startup-initial-data-api-password'),
-      controller: _passwordController,
-      textInputAction: isLastEditableField
-          ? TextInputAction.done
-          : TextInputAction.next,
-      obscureText: true,
-      autocorrect: false,
-      enableSuggestions: false,
-      autofillHints: const <String>[AutofillHints.password],
-      onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
-      onSubmitted: isLastEditableField
-          ? (_) async {
-              if (_canConnect) {
-                await _connect();
-              } else {
-                FocusManager.instance.primaryFocus?.unfocus();
-              }
-            }
-          : null,
-      decoration: InputDecoration(labelText: context.l10n.password),
       enabled: !_runningAction,
     );
   }
 
   @override
   void dispose() {
-    _aiSettings?.removeListener(_handleInputChanged);
-    if (widget.aiSettings == null) _aiSettings?.dispose();
     for (final controller in _controllers) {
       controller
         ..removeListener(_handleInputChanged)
@@ -357,20 +283,17 @@ final class _AppStartupDataSetupViewState
 
   Widget _buildSetupActions({required bool canSkip}) => LayoutBuilder(
     builder: (context, constraints) {
-      final connect = _authMethod != _StartupAuthMethod.password
-          ? _StartupAppleButton(
-              key: const Key('app-startup-connect-data-api'),
-              onPressed: !_runningAction && _canConnect ? _connect : null,
-            )
-          : FilledButton.icon(
-              key: const Key('app-startup-connect-data-api'),
-              onPressed: !_runningAction && _canConnect ? _connect : null,
-              icon: const Icon(Icons.login_rounded),
-              label: Text(
-                canSkip
-                    ? context.l10n.connectRemoteApi
-                    : context.l10n.connectAndContinue,
-              ),
+      final connect = _showMobileSyncSetup && _urlController.text.trim().isEmpty
+          ? const SizedBox.shrink()
+          : OAuthSignInPanel(
+              key: ValueKey(_urlController.text.trim()),
+              baseUri:
+                  Uri.tryParse(_urlController.text.trim()) ??
+                  Uri.parse(defaultRemoteDataApiBaseUrl),
+              onBusyChanged: (busy) {
+                if (mounted) setState(() => _runningAction = busy);
+              },
+              onAuthenticated: _connectOAuth,
             );
       final skip = TextButton(
         key: const Key('app-startup-skip-data-api'),
@@ -419,115 +342,67 @@ final class _AppStartupDataSetupViewState
   Widget _buildMobileWelcome(ThemeData theme) => Scaffold(
     key: const Key('app-startup-mobile-welcome'),
     body: SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final sideBySide =
-                constraints.maxWidth >= 600 && constraints.maxHeight < 500;
-            final introduction = SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(height: sideBySide ? 0 : 40),
-                  Icon(
-                    Icons.terminal_rounded,
-                    size: 48,
-                    color: theme.colorScheme.primary,
-                  ),
-                  SizedBox(height: sideBySide ? 16 : 24),
-                  Text(
-                    context.l10n.mobileLocalWelcome,
-                    style: theme.textTheme.headlineLarge,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    context.l10n.mobileLlmWelcomeDetail,
-                    style: theme.textTheme.bodyLarge,
-                  ),
-                  if (_actionError != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 16),
-                      child: Text(
-                        _actionError!,
-                        style: TextStyle(color: theme.colorScheme.error),
-                      ),
-                    ),
-                ],
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 480),
+          child: ListView(
+            shrinkWrap: true,
+            padding: const EdgeInsets.all(24),
+            children: [
+              Text('Trail', style: theme.textTheme.headlineLarge),
+              const SizedBox(height: 32),
+              if (_supportsStartupApple)
+                OAuthSignInPanel(
+                  baseUri: Uri.parse(defaultRemoteDataApiBaseUrl),
+                  onBusyChanged: (busy) {
+                    if (mounted) setState(() => _runningAction = busy);
+                  },
+                  onAuthenticated: (request) async {
+                    try {
+                      await widget.settings.reconnect(request);
+                    } on DataApiRemoteRevocationPendingWarning {
+                      /* New session is committed. */
+                    } on DataApiSecureSessionMutationException catch (warning) {
+                      if (!warning.configurationSaved) rethrow;
+                    }
+                    await widget.coordinator.retry();
+                  },
+                ),
+              const SizedBox(height: 24),
+              TextButton(
+                key: const Key('mobile-setup-sync'),
+                onPressed: _runningAction
+                    ? null
+                    : () => setState(() {
+                        _showMobileSyncSetup = true;
+                        _urlController.clear();
+                      }),
+                child: Text(
+                  Localizations.localeOf(context).languageCode == 'zh'
+                      ? '使用第三方同步服务'
+                      : 'Use another sync service',
+                ),
               ),
-            );
-            final configured = _aiSettings!.hasLlmConfiguration;
-            void configure() => unawaited(
-              showAiSettings(context, _aiSettings!, onSaved: (_) {}),
-            );
-            final actions = Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                FilledButton(
-                  key: Key(
-                    configured
-                        ? 'app-startup-skip-data-api'
-                        : 'app-startup-configure-llm',
-                  ),
-                  onPressed:
-                      _runningAction || (!configured && _aiSettings!.loading)
-                      ? null
-                      : configured
-                      ? _skip
-                      : configure,
-                  child: Text(
-                    configured
-                        ? context.l10n.mobileStartLocally
-                        : context.l10n.mobileConfigureLlm,
-                  ),
-                ),
-                const SizedBox(height: 8),
+              const SizedBox(height: 8),
+              if (widget.settings.localDataApiAvailable)
                 TextButton(
-                  key: Key(
-                    configured
-                        ? 'app-startup-configure-llm'
-                        : 'app-startup-skip-data-api',
-                  ),
-                  onPressed: _runningAction
-                      ? null
-                      : configured
-                      ? configure
-                      : _skip,
-                  child: Text(
-                    configured
-                        ? context.l10n.mobileLlmConfigured
-                        : context.l10n.mobileSkipLlm,
-                  ),
+                  key: const Key('app-startup-use-local-api'),
+                  onPressed: _runningAction ? null : _useLocalApi,
+                  child: Text(context.l10n.useBundledLocalApi),
                 ),
-                const SizedBox(height: 8),
-                TextButton(
-                  key: const Key('mobile-setup-sync'),
-                  onPressed: _runningAction
-                      ? null
-                      : () => setState(() => _showMobileSyncSetup = true),
-                  child: Text(context.l10n.mobileSetUpSync),
+              TextButton(
+                key: const Key('app-startup-skip-data-api'),
+                onPressed: _runningAction ? null : _skip,
+                child: Text(context.l10n.mobileStartLocally),
+              ),
+              if (_runningAction) const LinearProgressIndicator(),
+              if (_actionError != null)
+                Text(
+                  _actionError!,
+                  style: TextStyle(color: theme.colorScheme.error),
                 ),
-              ],
-            );
-            if (sideBySide) {
-              return Row(
-                children: [
-                  Expanded(child: introduction),
-                  const SizedBox(width: 32),
-                  SizedBox(width: constraints.maxWidth * .34, child: actions),
-                ],
-              );
-            }
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(child: introduction),
-                const SizedBox(height: 16),
-                actions,
-              ],
-            );
-          },
+            ],
+          ),
         ),
       ),
     ),
@@ -539,7 +414,7 @@ final class _AppStartupDataSetupViewState
         widget.requirement == AppStartupDataSetupRequirement.optional;
     final isMobile = _isMobile;
     final theme = Theme.of(context);
-    if (isMobile && canSkip && !_showMobileSyncSetup) {
+    if (canSkip && !_showMobileSyncSetup) {
       return _buildMobileWelcome(theme);
     }
 
@@ -645,40 +520,9 @@ final class _AppStartupDataSetupViewState
                                 ),
                               ),
                               SizedBox(height: compactLandscape ? 14 : 28),
-                              _buildUrlField(isMobile: isMobile),
+                              if (_showMobileSyncSetup)
+                                _buildUrlField(isMobile: isMobile),
                               SizedBox(height: compactLandscape ? 10 : 14),
-                              if (_supportsStartupApple) ...[
-                                _StartupAuthSelector(
-                                  value: _authMethod,
-                                  onChanged: _runningAction
-                                      ? null
-                                      : (value) {
-                                          setState(() {
-                                            _authMethod = value;
-                                            _actionError = null;
-                                          });
-                                        },
-                                ),
-                                const SizedBox(height: 14),
-                              ],
-                              if (_authMethod != _StartupAuthMethod.apple) ...[
-                                if (compactLandscape)
-                                  Row(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Expanded(child: _buildUsernameField()),
-                                      const SizedBox(width: 12),
-                                      Expanded(child: _buildPasswordField()),
-                                    ],
-                                  )
-                                else ...[
-                                  _buildUsernameField(),
-                                  const SizedBox(height: 14),
-                                  _buildPasswordField(),
-                                ],
-                                const SizedBox(height: 14),
-                              ],
                               if (usesAutomaticallySynchronizedAppleKeychain)
                                 const _AppleMasterKeyNotice()
                               else
@@ -703,7 +547,10 @@ final class _AppStartupDataSetupViewState
                                         context.l10n.masterKeyOpenExistingHelp,
                                   ),
                                   enabled: !_runningAction,
-                                  onSubmitted: (_) => _connect(),
+                                  onSubmitted: (_) => FocusManager
+                                      .instance
+                                      .primaryFocus
+                                      ?.unfocus(),
                                 ),
                               if (_actionError case final error?) ...[
                                 const SizedBox(height: 14),
@@ -814,7 +661,7 @@ final class _AppStartupFailureViewState extends State<_AppStartupFailureView> {
     } on Object catch (error) {
       if (mounted) {
         setState(() {
-          _actionError = error.toString();
+          _actionError = displayDataServiceMessage(error);
         });
       }
     } finally {
@@ -851,7 +698,7 @@ final class _AppStartupFailureViewState extends State<_AppStartupFailureView> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  SelectableText(failure.error.toString()),
+                  SelectableText(displayDataServiceMessage(failure.error)),
                   if (_actionError case final error?) ...[
                     const SizedBox(height: 12),
                     Text(
@@ -908,19 +755,12 @@ final class _AppStartupDataSettingsDialog extends StatefulWidget {
 
 final class _AppStartupDataSettingsDialogState
     extends State<_AppStartupDataSettingsDialog> {
-  final _usernameController = TextEditingController();
-  final _passwordController = TextEditingController();
   final _portableMasterKeyController = TextEditingController();
   DataApiConfiguration? _configuration;
   String? _loadError;
   String? _saveError;
   bool _loading = true;
   bool _saving = false;
-  _StartupAuthMethod _authMethod =
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS
-      ? _StartupAuthMethod.apple
-      : _StartupAuthMethod.password;
-
   @override
   void initState() {
     super.initState();
@@ -939,7 +779,7 @@ final class _AppStartupDataSettingsDialogState
     } on Object catch (error) {
       if (mounted) {
         setState(() {
-          _loadError = error.toString();
+          _loadError = displayDataServiceMessage(error);
           _loading = false;
         });
       }
@@ -971,29 +811,15 @@ final class _AppStartupDataSettingsDialogState
     }
   }
 
-  Future<void> _reconnect() async {
-    final remoteUri = _configuration?.remoteBaseUri;
-    if (remoteUri == null) {
-      return;
+  Future<void> _reconnectOAuth(DataApiRemoteLoginRequest request) async {
+    try {
+      await widget.settings.reconnect(request);
+    } on DataApiRemoteRevocationPendingWarning {
+      /* Session committed. */
+    } on DataApiSecureSessionMutationException catch (warning) {
+      if (!warning.configurationSaved) rethrow;
     }
-    await _save(() async {
-      final portableMasterKey = _portableMasterKeyController.text.trim();
-      if (portableMasterKey.isNotEmpty) {
-        final settings = widget.settings;
-        if (settings is! AppStartupMasterKeyCapability) {
-          throw StateError(context.l10n.masterKeyImportUnavailable);
-        }
-        await (settings as AppStartupMasterKeyCapability)
-            .importPortableMasterKey(portableMasterKey);
-      }
-      return widget.settings.reconnect(
-        _authMethod.request(
-          baseUri: remoteUri,
-          username: _usernameController.text,
-          password: _passwordController.text,
-        ),
-      );
-    });
+    if (mounted) Navigator.of(context).pop(true);
   }
 
   Future<void> _save(Future<void> Function() operation) async {
@@ -1014,7 +840,7 @@ final class _AppStartupDataSettingsDialogState
     } on Object catch (error) {
       if (mounted) {
         setState(() {
-          _saveError = error.toString();
+          _saveError = displayDataServiceMessage(error);
         });
       }
     } finally {
@@ -1028,8 +854,6 @@ final class _AppStartupDataSettingsDialogState
 
   @override
   void dispose() {
-    _usernameController.dispose();
-    _passwordController.dispose();
     _portableMasterKeyController.dispose();
     super.dispose();
   }
@@ -1056,45 +880,19 @@ final class _AppStartupDataSettingsDialogState
                       Text(context.l10n.reconnectConfiguredOrigin),
                       const SizedBox(height: 12),
                       SelectableText(
-                        remoteUri.toString(),
+                        isDefaultDataService(remoteUri)
+                            ? 'Trail'
+                            : remoteUri.toString(),
                         key: const Key('app-startup-remote-origin'),
                       ),
                       const SizedBox(height: 16),
-                      if (_supportsStartupApple) ...[
-                        _StartupAuthSelector(
-                          value: _authMethod,
-                          onChanged: _saving
-                              ? null
-                              : (value) {
-                                  setState(() {
-                                    _authMethod = value;
-                                    _saveError = null;
-                                  });
-                                },
-                        ),
-                        const SizedBox(height: 12),
-                      ],
-                      if (_authMethod != _StartupAuthMethod.apple) ...[
-                        TextField(
-                          key: const Key('app-startup-remote-username'),
-                          controller: _usernameController,
-                          decoration: InputDecoration(
-                            labelText: context.l10n.username,
-                          ),
-                          enabled: !_saving,
-                        ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          key: const Key('app-startup-remote-password'),
-                          controller: _passwordController,
-                          decoration: InputDecoration(
-                            labelText: context.l10n.password,
-                          ),
-                          obscureText: true,
-                          enabled: !_saving,
-                        ),
-                        const SizedBox(height: 12),
-                      ],
+                      OAuthSignInPanel(
+                        baseUri: remoteUri,
+                        onAuthenticated: _reconnectOAuth,
+                        onBusyChanged: (busy) {
+                          if (mounted) setState(() => _saving = busy);
+                        },
+                      ),
                       if (usesAutomaticallySynchronizedAppleKeychain)
                         const _AppleMasterKeyNotice()
                       else
@@ -1144,17 +942,6 @@ final class _AppStartupDataSettingsDialogState
           onPressed: _saving ? null : _disable,
           child: Text(context.l10n.useLocalTerminal),
         ),
-        if (remoteUri != null && _authMethod != _StartupAuthMethod.password)
-          _StartupAppleButton(
-            key: const Key('app-startup-reconnect'),
-            onPressed: _saving ? null : _reconnect,
-          )
-        else if (remoteUri != null)
-          FilledButton(
-            key: const Key('app-startup-reconnect'),
-            onPressed: _saving ? null : _reconnect,
-            child: Text(context.l10n.reconnectAndRetry),
-          ),
       ],
     );
   }
@@ -1194,90 +981,3 @@ bool get _supportsStartupApple =>
     !kIsWeb &&
     (defaultTargetPlatform == TargetPlatform.iOS ||
         defaultTargetPlatform == TargetPlatform.macOS);
-
-enum _StartupAuthMethod {
-  password,
-  apple,
-  link;
-
-  DataApiRemoteLoginRequest request({
-    required Uri baseUri,
-    required String username,
-    required String password,
-  }) => this == _StartupAuthMethod.password
-      ? DataApiRemoteLoginRequest(
-          baseUri: baseUri,
-          username: username,
-          password: password,
-        )
-      : DataApiRemoteLoginRequest.apple(
-          baseUri: baseUri,
-          username: this == _StartupAuthMethod.link ? username : null,
-          password: this == _StartupAuthMethod.link ? password : null,
-        );
-}
-
-class _StartupAuthSelector extends StatelessWidget {
-  const _StartupAuthSelector({required this.value, required this.onChanged});
-
-  final _StartupAuthMethod value;
-  final ValueChanged<_StartupAuthMethod>? onChanged;
-
-  @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      AppDropdownFormField<_StartupAuthMethod>(
-        key: const Key('app-startup-auth-method'),
-        initialValue: value,
-        isExpanded: true,
-        decoration: InputDecoration(labelText: context.l10n.signInMethod),
-        items: [
-          DropdownMenuItem(
-            value: _StartupAuthMethod.password,
-            child: Text(context.l10n.passwordSignIn),
-          ),
-          DropdownMenuItem(
-            value: _StartupAuthMethod.apple,
-            child: Text(context.l10n.appleSignIn),
-          ),
-          DropdownMenuItem(
-            value: _StartupAuthMethod.link,
-            child: Text(context.l10n.appleLinkExisting),
-          ),
-        ],
-        onChanged: onChanged == null
-            ? null
-            : (value) {
-                if (value != null) onChanged!(value);
-              },
-      ),
-      if (value == _StartupAuthMethod.link) ...[
-        const SizedBox(height: 12),
-        Text(context.l10n.appleLinkExistingHelp),
-      ],
-    ],
-  );
-}
-
-class _StartupAppleButton extends StatelessWidget {
-  const _StartupAppleButton({required this.onPressed, super.key});
-
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) => IgnorePointer(
-    ignoring: onPressed == null,
-    child: Opacity(
-      opacity: onPressed == null ? 0.5 : 1,
-      child: SignInWithAppleButton(
-        onPressed: onPressed ?? () {},
-        text: context.l10n.appleSignIn,
-        height: 48,
-        style: Theme.of(context).brightness == Brightness.dark
-            ? SignInWithAppleButtonStyle.white
-            : SignInWithAppleButtonStyle.black,
-      ),
-    ),
-  );
-}

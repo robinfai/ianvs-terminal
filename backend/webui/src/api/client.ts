@@ -105,6 +105,20 @@ export class DataApiClient {
     return this.request<Health>('GET', '/healthz')
   }
 
+  oauthChallenge(): Promise<{ nonce: string }> {
+    return this.request('POST', '/v1/auth/oauth/challenge', { body: {} })
+  }
+  linkedOAuthProviders(): Promise<{providers: string[]}> {
+    return this.request('GET', '/v1/auth/identities')
+  }
+  linkOAuthIdentity(proof: Record<string, unknown>): Promise<{providers: string[]}> {
+    return this.request('POST', '/v1/auth/identities', {body: proof})
+  }
+
+  beginOAuth(proof: Record<string, unknown>): Promise<PreparedAuthOperation> {
+    return this.request('POST', '/v1/auth/oauth/begin', { body: {...proof, device_id: deviceIdentity()} })
+  }
+
   appleChallenge(): Promise<{ nonce: string }> {
     return this.request('POST', '/v1/auth/apple/challenge', { body: {} })
   }

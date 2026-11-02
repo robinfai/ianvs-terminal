@@ -46,6 +46,11 @@ abstract interface class DataApiAccountManager
   Future<void> signOut();
 }
 
+abstract interface class DataApiOAuthAccountManager {
+  Future<List<String>> linkedOAuthProviders();
+  Future<void> linkOAuthIdentity(Map<String, Object?> proof);
+}
+
 extension DataApiAccountSettings on DataApiAccountManager {
   Future<DataApiConfiguration> loadForSettings() =>
       this is DataApiConfigurationRecoveryLoader
@@ -156,12 +161,36 @@ final class DataApiRemoteLoginRequest {
     );
   }
 
+  factory DataApiRemoteLoginRequest.oauth({
+    required Uri baseUri,
+    required DataApiPreparedAuthOperation operation,
+    String? encryptionKey,
+  }) {
+    final origin = DataApiConfiguration.remote(
+      baseUri.toString(),
+    ).remoteBaseUri!;
+    if (!isSecureDataApiRemoteOrigin(origin)) {
+      throw const FormatException('Remote authentication requires HTTPS.');
+    }
+    return DataApiRemoteLoginRequest._(
+      baseUri: origin,
+      username: '',
+      password: '',
+      encryptionKey: encryptionKey == null
+          ? null
+          : validateDataApiEncryptionKey(encryptionKey),
+      useApple: true,
+      preparedOAuth: operation,
+    );
+  }
+
   const DataApiRemoteLoginRequest._({
     required this.baseUri,
     required this.username,
     required this.password,
     required this._encryptionKey,
     this.useApple = false,
+    this.preparedOAuth,
   });
 
   final Uri baseUri;
@@ -169,6 +198,7 @@ final class DataApiRemoteLoginRequest {
   final String password;
   final String? _encryptionKey;
   final bool useApple;
+  final DataApiPreparedAuthOperation? preparedOAuth;
 
   String get encryptionKey => requireEncryptionKey;
 
@@ -183,6 +213,13 @@ final class DataApiRemoteLoginRequest {
   }
 
   DataApiRemoteLoginRequest withEncryptionKey(String value) {
+    if (preparedOAuth != null) {
+      return DataApiRemoteLoginRequest.oauth(
+        baseUri: baseUri,
+        operation: preparedOAuth!,
+        encryptionKey: value,
+      );
+    }
     if (useApple) {
       return DataApiRemoteLoginRequest.apple(
         baseUri: baseUri,
@@ -434,6 +471,7 @@ final class DataApiClientRemoteAuthenticator
       accessToken: null,
       encryptionKey: null,
     );
+    if (request.preparedOAuth != null) return request.preparedOAuth!;
     if (!request.useApple) {
       return client.beginLogin(
         deviceId: await dataApiDeviceIdentity(request.baseUri),
@@ -465,7 +503,7 @@ final class DataApiClientRemoteAuthenticator
     if (request.useApple &&
         (login.username == null || login.username!.isEmpty)) {
       throw const DataApiProtocolException(
-        'Apple login did not return the account username.',
+        'OAuth login did not return the account username.',
       );
     }
     return DataApiRemoteSession(
@@ -489,6 +527,7 @@ final class AuthenticatedDataApiConfigurationRepository
     implements
         DataApiConfigurationRepository,
         DataApiAccountManager,
+        DataApiOAuthAccountManager,
         DataApiRemoteConfigurationConnector,
         DataApiLocalToRemoteConfigurationConnector,
         DataApiRemoteToLocalConfigurationConnector,
@@ -551,6 +590,30 @@ final class AuthenticatedDataApiConfigurationRepository
       return _delegate.load();
     });
   }
+
+  Future<DataApiClient> _oauthAccountClientLocked() async {
+    final configuration = await _delegate.load();
+    final session = await _readActiveSessionLocked(configuration);
+    if (session == null || session.baseUri != configuration.remoteBaseUri) {
+      throw StateError('Please sign in again.');
+    }
+    return DataApiClient(
+      baseUri: session.baseUri,
+      accessToken: session.accessToken,
+      encryptionKey: null,
+    );
+  }
+
+  @override
+  Future<List<String>> linkedOAuthProviders() => _withSagaLock(() async {
+    return (await _oauthAccountClientLocked()).linkedOAuthProviders();
+  });
+
+  @override
+  Future<void> linkOAuthIdentity(Map<String, Object?> proof) =>
+      _withSagaLock(() async {
+        await (await _oauthAccountClientLocked()).linkOAuthIdentity(proof);
+      });
 
   @override
   Future<DataApiAccountInfo?> loadAccountInfo() => _withSagaLock(() async {

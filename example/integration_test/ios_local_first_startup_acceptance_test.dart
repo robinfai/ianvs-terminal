@@ -11,7 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
 void main() {
-  IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets(
     'iOS starts locally without an API and persists encrypted SSH profiles',
@@ -72,12 +72,22 @@ void main() {
       );
       expect(find.byKey(const Key('app-startup-use-local-api')), findsNothing);
       expect(find.byType(TextField), findsNothing);
+      expect(find.byKey(const Key('app-startup-configure-llm')), findsNothing);
+      await binding.takeScreenshot('first-launch-sign-in');
 
       await tester.tap(find.byKey(const Key('app-startup-skip-data-api')));
       await tester.pumpAndSettle();
 
       expect(coordinator.state, isA<AppStartupReady>());
       expect(find.byKey(const Key('app-startup-mobile-welcome')), findsNothing);
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(
+        find.byKey(const Key('ios-ssh-profile-empty-state')),
+        findsOneWidget,
+      );
+      await binding.takeScreenshot('first-launch-local-home');
       final graph = (coordinator.state as AppStartupReady).graph;
       expect(graph.dataApiRuntime, isNull);
       expect(graph.persistenceRepositories.usesDataApi, isFalse);

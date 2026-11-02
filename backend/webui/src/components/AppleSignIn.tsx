@@ -5,86 +5,152 @@ import { useSession } from '../state/SessionContext'
 import type { AppleWebConfig } from '../types'
 import { Button, Notice, TextField } from './ui'
 
-export function AppleSignIn({ config }: { config: AppleWebConfig }) {
-  const session = useSession()
-  const [nonce, setNonce] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [link, setLink] = useState(false)
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const generation = useRef(0)
-  const expiresAt = useRef(0)
-  const api = () => new DataApiClient({ baseUrl: session.baseUrl })
-  const prepare = async () => {
-    const current = ++generation.current
-    setNonce(null)
-    try {
-      const [, challenge] = await Promise.all([loadAppleSDK(), api().appleChallenge()])
-      if (current !== generation.current) return
-      expiresAt.current = Date.now() + 240000
-      setNonce(challenge.nonce)
-    } catch {
-      if (current === generation.current) setError('Apple 登录暂时无法准备，请检查网络后重试。')
-    }
-  }
-  useEffect(() => { void prepare(); return () => { ++generation.current } }, [session.baseUrl, config.client_id])
+type Proof = { provider: 'apple' | 'google'; identity_token: string; nonce: string }
+type GoogleSDK = { accounts: { id: {
+  initialize(options: {client_id: string; nonce: string; auto_select: false; callback: (response: {credential: string}) => void}): void
+  renderButton(element: HTMLElement, options: {type: 'standard'; theme: 'outline'; size: 'large'; text: 'signin_with'}): void
+} } }
+declare global { interface Window { google?: GoogleSDK } }
+let googleLoading: Promise<void> | undefined
+function loadGoogle() {
+  if (window.google) return Promise.resolve()
+  return googleLoading ??= new Promise<void>((resolve, reject) => {
+    const script = document.createElement('script')
+    const fail = () => { clearTimeout(timer); script.remove(); googleLoading = undefined; reject(new Error('Google 登录组件加载失败，请重试。')) }
+    const timer = setTimeout(fail, 15000)
+    script.src = 'https://accounts.google.com/gsi/client'; script.async = true
+    script.onload = () => { clearTimeout(timer); if (window.google) resolve(); else fail() }; script.onerror = fail
+    document.head.append(script)
+  })
+}
 
-  const [atCapacity, setAtCapacity] = useState(false)
-  const [replaceOldest, setReplaceOldest] = useState(false)
-  const signIn = async () => {
-    if (busy || !nonce) return
-    setError(null)
-    if (link && (!username.trim() || !password)) { setError('请填写要关联的现有账号及密码。'); return }
-    if (Date.now() >= expiresAt.current) { await prepare(); setError('登录验证已刷新，请再次点击使用 Apple 登录。'); return }
-    setBusy(true)
-    let operation: string | undefined
-    let signedIn = false
+function IdentityButtons({apple, google, onProof, busy}: {apple?: AppleWebConfig | null; google?: string; onProof: (proof: Proof) => Promise<void>; busy: boolean}) {
+  const session = useSession()
+  const [nonce, setNonce] = useState('')
+  const [error, setError] = useState('')
+  const [generation, setGeneration] = useState(0)
+  const googleHost = useRef<HTMLDivElement>(null)
+  const receive = useRef(onProof); receive.current = onProof
+  const locked = useRef(busy); locked.current = busy
+  useEffect(() => {
+    let live = true
+    setNonce(''); setError('')
+    void (async () => {
+      try {
+        const api = new DataApiClient({baseUrl: session.baseUrl})
+        const challenge = await api.oauthChallenge()
+        if (apple) await loadAppleSDK()
+        if (google) await loadGoogle()
+        if (!live) return
+        setNonce(challenge.nonce)
+        if (google && googleHost.current && window.google) {
+          window.google.accounts.id.initialize({client_id: google, nonce: challenge.nonce, auto_select: false, callback: response => {
+            if (live && !locked.current && response.credential) void receive.current({provider:'google',identity_token:response.credential,nonce:challenge.nonce})
+          }})
+          googleHost.current.replaceChildren()
+          window.google.accounts.id.renderButton(googleHost.current,{type:'standard',theme:'outline',size:'large',text:'signin_with'})
+        }
+      } catch (e) { if (live) setError(e instanceof Error ? e.message : '登录组件加载失败。') }
+    })()
+    const timer = setTimeout(() => { if (live) setGeneration(v=>v+1) },240000)
+    return () => {live=false;clearTimeout(timer)}
+  },[session.baseUrl,apple?.client_id,google,generation])
+  const appleSignIn = async () => {
+    if (!apple || !nonce || busy) return
     try {
       const state = crypto.randomUUID()
-      const result = await startAppleSignIn(config, nonce, state)
-      const token = checkedAppleToken(result, state)
-      const prepared = await api().beginApple(token, nonce, link ? username.trim() : '', link ? password : '', replaceOldest)
-      operation = prepared.operation_id
-      const resultSession = await api().completeLogin(operation, 'Web · Apple')
-      await session.signIn(resultSession.token, resultSession.expires_at)
-      signedIn = true
-      setPassword('')
-    } catch (err) {
-      let message = 'Apple 登录未完成，请重试。'
-      if (err instanceof ApiError) {
-        setAtCapacity(err.code === 'auth_session_capacity')
-        const messages: Record<string, string> = {
-          invalid_credentials: '现有账号或密码不正确。',
-          apple_link_conflict: '此 Apple 账号或现有账号已关联其他账号，无法再次关联。',
-          apple_registration_disabled: '此服务未开放新账号注册，请关联已有账号登录。',
-          invalid_apple_identity: 'Apple 身份验证失败，请重试。',
-          auth_session_capacity: '登录会话已满。可退出其他设备，或勾选下方选项后重新验证 Apple 身份登录。',
-        }
-        message = messages[err.code] ?? message
-      } else if (err && typeof err === 'object' && 'error' in err) {
-        const code = String(err.error)
-        message = code === 'popup_closed_by_user' || code === 'user_cancelled_authorize'
-          ? '已取消 Apple 登录。'
-          : code === 'popup_blocked_by_browser' ? '浏览器阻止了登录窗口，请允许本站弹出窗口后重试。' : message
-      } else if (err instanceof Error) message = err.message
-      if (operation) {
-        try { await api().cancelOperation(operation) }
-        catch { message += ' 本次登录清理未确认，请稍后检查账户会话。' }
-      }
-      setError(message)
-    } finally {
-      setBusy(false)
-      if (!signedIn) void prepare()
-    }
+      const response = await startAppleSignIn(apple,nonce,state)
+      await onProof({provider:'apple',identity_token:checkedAppleToken(response,state),nonce})
+    } catch { setError('Apple 登录未完成，请重试。') }
   }
-  return <section className="stack apple-signin" aria-label="Apple 登录">
-    <Button className="apple-signin__button" disabled={!nonce || busy} busy={busy} onClick={() => void signIn()}>使用 Apple 登录</Button>
-    <p className="secondary">使用与 Trail App 相同的 Apple 账号，可访问同一账户。首次使用且未关联旧账号时，将创建新账户。</p>
-    <label className="row"><input type="checkbox" checked={link} disabled={busy} onChange={e => { setLink(e.target.checked); setPassword('') }} />关联已有用户名账号</label>
-    {link && <div className="stack"><TextField label="已有用户名" value={username} disabled={busy} onChange={e => setUsername(e.target.value)} autoComplete="username" /><TextField label="已有账号密码" type="password" value={password} disabled={busy} onChange={e => setPassword(e.target.value)} autoComplete="current-password" hint="验证账号归属后关联，保留已有配置、额度与使用记录。" /></div>}
-    {atCapacity && <label className="row"><input type="checkbox" checked={replaceOldest} disabled={busy} onChange={e => setReplaceOldest(e.target.checked)} />退出最早的一个会话并重新登录（该设备需要重新登录）</label>}
+  return <div className="stack">
+    {apple && <Button className="apple-signin__button" disabled={busy || !nonce} onClick={()=>void appleSignIn()}>使用 Apple 登录</Button>}
+    {google && <div ref={googleHost} hidden={busy} />}
+    {error && <><Notice tone="error">{error}</Notice><Button variant="ghost" onClick={()=>setGeneration(v=>v+1)}>重试</Button></>}
+  </div>
+}
+
+export function AppleSignIn({ config, googleClientId }: { config?: AppleWebConfig | null; googleClientId?: string }) {
+  const session = useSession()
+  const [proof,setProof] = useState<Proof | null>(null)
+  const [link,setLink] = useState(false)
+  const [passwordLink,setPasswordLink] = useState(false)
+  const [username,setUsername] = useState('')
+  const [password,setPassword] = useState('')
+  const [busy,setBusy] = useState(false)
+  const [error,setError] = useState('')
+  const [capacity,setCapacity] = useState(false)
+  const [replaceOldest,setReplaceOldest] = useState(false)
+  const submit = async (identity: Proof, action = '', other?: Proof) => {
+    if (busy) return
+    setBusy(true);setError('')
+    const api = new DataApiClient({baseUrl:session.baseUrl})
+    let operation: string | undefined
+    try {
+      const prepared = await api.beginOAuth({...identity,action,replace_oldest:replaceOldest,...(other ? {link:other} : action === 'link' ? {username,password} : {})})
+      operation=prepared.operation_id
+      const result=await api.completeLogin(operation,`Web · ${identity.provider}`)
+      await session.signIn(result.token,result.expires_at)
+      setPassword('');setProof(null)
+    } catch (e) {
+      if (e instanceof ApiError && e.code==='oauth_account_choice_required') { setProof(identity);return }
+      const code=e instanceof ApiError ? e.code : ''
+      setCapacity(code==='auth_session_capacity')
+      setError(({
+        invalid_credentials:'账号或密码不正确。',
+        apple_link_conflict:'该身份已关联其他账号，无法再次关联。',
+        oauth_historical_account_missing:'该身份尚无历史账号，请选择其他方式或创建新账号。',
+        apple_registration_disabled:'此服务未开放注册，请关联历史账号。',
+        invalid_apple_identity:'验证已过期，请返回重新登录。',
+        auth_session_capacity:'登录会话已满，可勾选下方选项后重试。',
+      } as Record<string,string>)[code] ?? '登录未完成，请检查网络后重试。')
+      if (operation) { try { await api.cancelOperation(operation) } catch { setError('登录清理未完成，请稍后重试。') } }
+    } finally {setBusy(false)}
+  }
+  return <section className="stack" aria-label="账户登录">
+    {!proof ? <IdentityButtons apple={config} google={googleClientId} busy={busy} onProof={p=>submit(p)} /> : <>
+      <h2>{link ? '关联历史账号' : '首次登录'}</h2>
+      {!link ? <><Button variant="primary" disabled={busy} onClick={()=>setLink(true)}>关联历史账号</Button><Button disabled={busy} onClick={()=>void submit(proof,'create')}>创建新账号</Button></> : <>
+        {!passwordLink ? <><IdentityButtons apple={proof.provider==='google' ? config : null} google={proof.provider==='apple' ? googleClientId : undefined} busy={busy} onProof={other=>submit(proof,'link',other)} /><Button disabled={busy} onClick={()=>setPasswordLink(true)}>使用账号密码关联</Button></> : <>
+          <TextField label="用户名" value={username} disabled={busy} onChange={e=>setUsername(e.target.value)} autoComplete="username" />
+          <TextField label="密码" type="password" value={password} disabled={busy} onChange={e=>setPassword(e.target.value)} autoComplete="current-password" />
+          <Button disabled={busy || !username || !password} onClick={()=>void submit(proof,'link')}>验证并关联</Button>
+        </>}
+      </>}
+      <Button variant="ghost" disabled={busy} onClick={()=>{setProof(null);setLink(false);setPasswordLink(false);setPassword('');setError('')}}>返回</Button>
+    </>}
+    {capacity && <label className="row"><input type="checkbox" checked={replaceOldest} disabled={busy} onChange={e=>setReplaceOldest(e.target.checked)} />退出最早的一个会话后重试</label>}
     {error && <Notice tone="error" role="alert">{error}</Notice>}
-    {!nonce && !busy && <Button variant="ghost" onClick={() => { setError(null); void prepare() }}>重新准备 Apple 登录</Button>}
+  </section>
+}
+
+
+export function LinkedSignInMethods() {
+  const session = useSession()
+  const [providers,setProviders] = useState<string[] | null>(null)
+  const [config,setConfig] = useState<AppleWebConfig | null>(null)
+  const [google,setGoogle] = useState('')
+  const [busy,setBusy] = useState(false)
+  const [error,setError] = useState('')
+  const load = async () => {
+    if (!session.client) return
+    setBusy(true);setError('')
+    try {
+      const [health,linked] = await Promise.all([session.client.health(),session.client.linkedOAuthProviders()])
+      setConfig(health.apple_web ?? null);setGoogle(health.google_web_client_id ?? '');setProviders(linked.providers)
+    } catch {setError('无法读取关联的登录方式，请重试。')} finally {setBusy(false)}
+  }
+  useEffect(()=>{void load()},[session.client])
+  const link = async (proof: Proof) => {
+    if (busy || !session.client) return
+    setBusy(true);setError('')
+    try {setProviders((await session.client.linkOAuthIdentity(proof)).providers)}
+    catch(e) {setError(e instanceof ApiError && e.code==='apple_link_conflict' ? '该身份已关联其他账号，不能绑定到当前账号。' : '关联未完成，请重新验证后重试。')}
+    finally {setBusy(false)}
+  }
+  return <section className="stack" aria-label="关联登录方式">
+    {providers?.map(p=><p key={p}>{p==='apple'?'Apple':'Google'} · 已关联</p>)}
+    {providers && <IdentityButtons apple={providers.includes('apple')?null:config} google={providers.includes('google')?undefined:google} busy={busy} onProof={link} />}
+    {error && <><Notice tone="error">{error}</Notice><Button disabled={busy} onClick={()=>void load()}>重试</Button></>}
   </section>
 }

@@ -25,10 +25,18 @@ type AppleTokenVerifier struct {
 	keys    map[string]*rsa.PublicKey
 	fetched time.Time
 	client  *http.Client
+	jwksURL string
+	issuer  string
 }
 
 func NewAppleTokenVerifier() *AppleTokenVerifier {
 	return &AppleTokenVerifier{client: &http.Client{Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
+}
+func NewGoogleTokenVerifier() *AppleTokenVerifier {
+	v := NewAppleTokenVerifier()
+	v.jwksURL = "https://www.googleapis.com/oauth2/v3/certs"
+	v.issuer = "https://accounts.google.com"
+	return v
 }
 func (v *AppleTokenVerifier) publicKeys(ctx context.Context) (map[string]*rsa.PublicKey, error) {
 	v.mu.Lock()
@@ -36,7 +44,11 @@ func (v *AppleTokenVerifier) publicKeys(ctx context.Context) (map[string]*rsa.Pu
 	if v.keys != nil && time.Since(v.fetched) < 5*time.Minute {
 		return v.keys, nil
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://appleid.apple.com/auth/keys", nil)
+	endpoint := v.jwksURL
+	if endpoint == "" {
+		endpoint = "https://appleid.apple.com/auth/keys"
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +136,12 @@ func (v *AppleTokenVerifier) Verify(ctx context.Context, token, nonce string, au
 		}
 	}
 	now := time.Now().Unix()
-	if !accepted || claims.Iss != "https://appleid.apple.com" || claims.Nonce != nonce || claims.Exp <= now || claims.Iat > now+60 || claims.Iat < now-600 || len(claims.Sub) == 0 || len(claims.Sub) > 255 {
+	issuer := v.issuer
+	if issuer == "" {
+		issuer = "https://appleid.apple.com"
+	}
+	validIssuer := claims.Iss == issuer || (issuer == "https://accounts.google.com" && claims.Iss == "accounts.google.com")
+	if !accepted || !validIssuer || claims.Nonce != nonce || claims.Exp <= now || claims.Iat > now+60 || claims.Iat < now-600 || len(claims.Sub) == 0 || len(claims.Sub) > 255 {
 		return "", ErrAppleIdentity
 	}
 	return claims.Sub, nil

@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:app/data/configuration/data_api_configuration.dart';
 import 'package:app/data/configuration/data_api_configuration_repository.dart';
+import 'package:app/data/configuration/oauth_sign_in_panel.dart';
 import 'package:app/data/services/data_api_remote_session_store.dart';
 import 'package:app/data/services/portable_master_key.dart';
 import 'package:app/features/ai/ai_settings.dart';
@@ -27,181 +28,88 @@ import '../design/visual_capture_fonts.dart';
 
 void main() {
   for (final platform in [TargetPlatform.iOS, TargetPlatform.android]) {
-    for (final configure in [false, true]) {
-      testWidgets(
-        'first install LLM can be configured or skipped: $platform $configure',
-        (tester) async {
-          final harness = _HostHarness.create(
-            initialSetupRequirement: AppStartupDataSetupRequirement.optional,
-            localDataApiAvailable: false,
-          );
-          final store = MemoryAiStore(null);
-          final settings = AiSettingsController(store);
-          addTearDown(settings.dispose);
-          addTearDown(() => _disposeHarness(tester, harness));
-          await tester.pumpWidget(harness.host(aiSettings: settings));
-          await harness.coordinator.start();
-          await tester.pumpAndSettle();
-          expect(
-            find.byKey(const Key('app-startup-configure-llm')),
-            findsOneWidget,
-          );
-          if (configure) {
-            await tester.tap(
-              find.byKey(const Key('app-startup-configure-llm')),
-            );
-            await tester.pumpAndSettle();
-            await tester.tap(find.byKey(const Key('ai-custom-connection')));
-            await tester.pumpAndSettle();
-            expect(find.text('Codex ACP'), findsNothing);
-            await tester.enterText(
-              find.byKey(const Key('ai-endpoint')),
-              'https://llm.example/v1',
-            );
-            await tester.enterText(
-              find.byKey(const Key('ai-api-key')),
-              'test-local-key',
-            );
-            await tester.enterText(
-              find.byKey(const Key('ai-model')),
-              'test-model',
-            );
-            await tester.ensureVisible(
-              find.byKey(const Key('ai-save-settings')),
-            );
-            await tester.tap(find.byKey(const Key('ai-save-settings')));
-            await tester.pumpAndSettle();
-            expect(settings.hasLlmConfiguration, isTrue);
-            expect(store.value?.model, 'test-model');
-          }
-          await tester.tap(find.byKey(const Key('app-startup-skip-data-api')));
-          await tester.pumpAndSettle();
-          expect(harness.coordinator.state, isA<AppStartupReady>());
-          expect(settings.hasLlmConfiguration, configure);
-          expect(
-            find.byKey(const Key('app-startup-mobile-welcome')),
-            findsNothing,
-          );
-          await harness.coordinator.retry();
-          await tester.pumpAndSettle();
-          expect(
-            find.byKey(const Key('app-startup-mobile-welcome')),
-            findsNothing,
-          );
-          final reloaded = AiSettingsController(store);
-          await reloaded.loaded;
-          expect(reloaded.hasLlmConfiguration, configure);
-          reloaded.dispose();
-        },
-        variant: TargetPlatformVariant.only(platform),
-      );
-    }
+    testWidgets(
+      'first install skips without requiring LLM configuration: $platform',
+      (tester) async {
+        final harness = _HostHarness.create(
+          initialSetupRequirement: AppStartupDataSetupRequirement.optional,
+          localDataApiAvailable: false,
+        );
+        addTearDown(() => _disposeHarness(tester, harness));
+        await tester.pumpWidget(harness.host());
+        await harness.coordinator.start();
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const Key('app-startup-configure-llm')),
+          findsNothing,
+        );
+        expect(find.byType(TextField), findsNothing);
+        await tester.tap(find.byKey(const Key('app-startup-skip-data-api')));
+        await tester.pumpAndSettle();
+        expect(harness.coordinator.state, isA<AppStartupReady>());
+        expect(
+          find.byKey(const Key('app-startup-mobile-welcome')),
+          findsNothing,
+        );
+      },
+      variant: TargetPlatformVariant.only(platform),
+    );
   }
   for (final brightness in Brightness.values) {
     for (final recovery in [false, true]) {
-      for (final link in [false, true]) {
-        testWidgets(
-          'iOS Apple login recovery=$recovery link=$link $brightness',
-          (tester) async {
-            tester.platformDispatcher.platformBrightnessTestValue = brightness;
-            addTearDown(
-              tester.platformDispatcher.clearPlatformBrightnessTestValue,
+      testWidgets(
+        'OAuth-only startup recovery=$recovery $brightness',
+        (tester) async {
+          tester.platformDispatcher.platformBrightnessTestValue = brightness;
+          addTearDown(
+            tester.platformDispatcher.clearPlatformBrightnessTestValue,
+          );
+          final harness = _HostHarness.create(
+            initialSetupRequirement: recovery
+                ? null
+                : AppStartupDataSetupRequirement.required,
+            failingStage: recovery ? AppStartupStage.configuration : null,
+            recoveryConfiguration: DataApiConfiguration.remote(
+              'https://sync.example.com/',
+            ),
+            localDataApiAvailable: false,
+          );
+          addTearDown(() => _disposeHarness(tester, harness));
+          await tester.pumpWidget(harness.host());
+          await harness.coordinator.start();
+          await tester.pumpAndSettle();
+          if (recovery) {
+            await tester.tap(
+              find.byKey(const Key('app-startup-open-data-settings')),
             );
-            tester.view.devicePixelRatio = 1;
-            tester.view.physicalSize = const Size(375, 812);
-            addTearDown(tester.view.reset);
-            final harness = _HostHarness.create(
-              initialSetupRequirement: recovery
-                  ? null
-                  : AppStartupDataSetupRequirement.required,
-              failingStage: recovery ? AppStartupStage.configuration : null,
-              recoveryConfiguration: DataApiConfiguration.remote(
-                'https://sync.example.com/',
-              ),
-              localDataApiAvailable: false,
-            );
-            addTearDown(() => _disposeHarness(tester, harness));
-            await tester.pumpWidget(harness.host());
-            await harness.coordinator.start();
             await tester.pumpAndSettle();
-            if (recovery) {
-              await tester.tap(
-                find.byKey(const Key('app-startup-open-data-settings')),
-              );
-              await tester.pumpAndSettle();
-            }
-            final selector = find.byKey(const Key('app-startup-auth-method'));
-            if (link) {
-              await tester.ensureVisible(selector);
-              await tester.tap(selector);
-              await tester.pumpAndSettle();
-              final context = tester.element(selector);
-              await tester.tap(find.text(context.l10n.appleLinkExisting).last);
-              await tester.pumpAndSettle();
-            }
-            final username = find.byKey(
-              Key(
-                recovery
-                    ? 'app-startup-remote-username'
-                    : 'app-startup-initial-data-api-username',
-              ),
-            );
-            final password = find.byKey(
-              Key(
-                recovery
-                    ? 'app-startup-remote-password'
-                    : 'app-startup-initial-data-api-password',
-              ),
-            );
-            if (link) {
-              await tester.enterText(username, 'Historical');
-              await tester.enterText(password, 'historical-password');
-              tester.testTextInput.hide();
-              await tester.pumpAndSettle();
-            } else {
-              expect(username, findsNothing);
-              expect(password, findsNothing);
-            }
-            final connect = find.byKey(
-              Key(
-                recovery
-                    ? 'app-startup-reconnect'
-                    : 'app-startup-connect-data-api',
-              ),
-            );
-            // Cancellation must not close the form or display an authentication error.
-            harness.settings.reconnectError = const DataApiAppleLoginCanceled();
-            await tester.ensureVisible(connect);
-            await tester.tap(connect);
-            await tester.pumpAndSettle();
-            expect(
-              find.byKey(const Key('app-startup-initial-data-api-error')),
-              findsNothing,
-            );
-            expect(
-              find.byKey(const Key('app-startup-settings-error')),
-              findsNothing,
-            );
-            expect(selector, findsOneWidget);
-            harness.settings.reconnectError = null;
-            await tester.tap(connect);
-            await tester.pumpAndSettle();
-            expect(harness.settings.lastReconnect?.useApple, isTrue);
-            expect(
-              harness.settings.lastReconnect?.username,
-              link ? 'historical' : '',
-            );
-            expect(
-              harness.settings.lastReconnect?.password,
-              link ? 'historical-password' : '',
-            );
-            expect(harness.settings.reconnectCount, 2);
-            expect(harness.coordinator.state, isA<AppStartupReady>());
-            expect(tester.takeException(), isNull);
-          },
-          variant: TargetPlatformVariant.only(TargetPlatform.iOS),
-        );
-      }
+          }
+          expect(find.byType(OAuthSignInPanel), findsOneWidget);
+          expect(
+            find.byKey(const Key('app-startup-auth-method')),
+            findsNothing,
+          );
+          expect(
+            find.byKey(const Key('app-startup-remote-password')),
+            findsNothing,
+          );
+          expect(
+            find.byKey(const Key('app-startup-initial-data-api-password')),
+            findsNothing,
+          );
+          final panel = tester.widget<OAuthSignInPanel>(
+            find.byType(OAuthSignInPanel),
+          );
+          await panel.onAuthenticated!(
+            DataApiRemoteLoginRequest.apple(baseUri: panel.baseUri),
+          );
+          await tester.pumpAndSettle();
+          expect(harness.coordinator.state, isA<AppStartupReady>());
+          expect(harness.settings.reconnectCount, 1);
+          expect(tester.takeException(), isNull);
+        },
+        variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+      );
     }
   }
   if (uiReviewEvidenceDirectory.isNotEmpty) {
@@ -288,8 +196,8 @@ void main() {
                   if (scene == 'onboarding-error') {
                     await tester.ensureVisible(url);
                     await tester.enterText(url, 'not a valid URL');
-                    final connect = find.byKey(
-                      const Key('app-startup-connect-data-api'),
+                    final connect = find.text(
+                      tester.element(url).l10n.appleSignIn,
                     );
                     await tester.ensureVisible(connect);
                     await tester.tap(connect);
@@ -302,10 +210,7 @@ void main() {
                     find.byKey(const Key('app-startup-open-data-settings')),
                   );
                   await tester.pumpAndSettle();
-                  expect(
-                    find.byKey(const Key('app-startup-remote-username')),
-                    findsOneWidget,
-                  );
+                  expect(find.byType(OAuthSignInPanel), findsOneWidget);
                   if (scene == 'failure-confirm-disable') {
                     await tester.tap(
                       find.byKey(const Key('app-startup-save-disabled')),
@@ -407,7 +312,7 @@ void main() {
 
       expect(harness.coordinator.state, isA<AppStartupDataSetupRequired>());
       expect(harness.composeCount, 0);
-      expect(find.text('Choose your data mode'), findsOneWidget);
+      expect(find.text('Trail'), findsOneWidget);
       expect(
         find.byKey(const Key('app-startup-skip-data-api')),
         findsOneWidget,
@@ -468,19 +373,8 @@ void main() {
       await harness.coordinator.start();
       await tester.pump();
 
-      expect(
-        find.textContaining('Your data stays available locally'),
-        findsOneWidget,
-      );
-      expect(
-        find.textContaining('optionally connect a remote API'),
-        findsOneWidget,
-      );
+      expect(find.byType(TextField), findsNothing);
       expect(find.byKey(const Key('app-startup-use-local-api')), findsNothing);
-      expect(find.text('Use bundled local API'), findsNothing);
-      expect(find.text('Use local terminal only'), findsNothing);
-      expect(find.text('Continue without data service'), findsOneWidget);
-
       await tester.tap(find.byKey(const Key('app-startup-skip-data-api')));
       await tester.pumpAndSettle();
 
@@ -518,10 +412,14 @@ void main() {
         find.byKey(const Key('app-startup-initial-data-api-url')),
       );
       expect(urlField.autofocus, isFalse);
-      expect(
-        find.byKey(const Key('app-startup-connect-data-api')),
-        findsOneWidget,
+      expect(urlField.controller!.text, isEmpty);
+      expect(find.text(defaultRemoteDataApiBaseUrl), findsNothing);
+      await tester.enterText(
+        find.byKey(const Key('app-startup-initial-data-api-url')),
+        'https://sync.example.com/',
       );
+      await tester.pumpAndSettle();
+      expect(find.byType(OAuthSignInPanel), findsOneWidget);
       await tester.tap(find.byType(BackButton));
       await tester.pumpAndSettle();
       expect(
@@ -533,168 +431,69 @@ void main() {
   );
 
   testWidgets(
-    'iPhone landscape setup keeps credentials and actions usable with keyboard',
+    'iPhone landscape third-party setup only offers OAuth',
     (tester) async {
-      const surfaceSize = Size(844, 390);
-      const keyboardHeight = 216.0;
-      await tester.binding.setSurfaceSize(surfaceSize);
-      addTearDown(() => tester.binding.setSurfaceSize(null));
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(844, 390);
       addTearDown(tester.view.reset);
       final harness = _HostHarness.create(
         initialSetupRequirement: AppStartupDataSetupRequirement.optional,
         localDataApiAvailable: false,
       );
       addTearDown(() => _disposeHarness(tester, harness));
-
       await tester.pumpWidget(harness.host());
       await harness.coordinator.start();
       await tester.pumpAndSettle();
-
       await tester.tap(find.byKey(const Key('mobile-setup-sync')));
       await tester.pumpAndSettle();
-      final method = find.byKey(const Key('app-startup-auth-method'));
-      await tester.ensureVisible(method);
-      await tester.tap(method);
-      await tester.pumpAndSettle();
-      await tester.tap(
-        find.text(tester.element(method).l10n.passwordSignIn).last,
-      );
-      await tester.pumpAndSettle();
-      final username = find.byKey(
-        const Key('app-startup-initial-data-api-username'),
-      );
-      final password = find.byKey(
-        const Key('app-startup-initial-data-api-password'),
-      );
-      final connect = find.byKey(const Key('app-startup-connect-data-api'));
-      expect(tester.getTopLeft(username).dy, tester.getTopLeft(password).dy);
-      expect(tester.getRect(connect).bottom, lessThanOrEqualTo(390));
-      expect(
-        tester.widget<TextField>(password).textInputAction,
-        TextInputAction.done,
-      );
-      expect(tester.takeException(), isNull);
-
-      await tester.ensureVisible(password);
-      await tester.tap(password);
-      tester.view.viewInsets = FakeViewPadding(
-        bottom: keyboardHeight * tester.view.devicePixelRatio,
-      );
-      await tester.pumpAndSettle();
-
-      expect(
-        tester.getRect(password).bottom,
-        lessThanOrEqualTo(surfaceSize.height - keyboardHeight),
-      );
-      tester.widget<TextField>(password).onSubmitted?.call('');
-      await tester.pump();
-      expect(
-        tester
-            .widget<EditableText>(
-              find.descendant(
-                of: password,
-                matching: find.byType(EditableText),
-              ),
-            )
-            .focusNode
-            .hasFocus,
-        isFalse,
-      );
-      expect(tester.takeException(), isNull);
-    },
-    variant: const TargetPlatformVariant(<TargetPlatform>{TargetPlatform.iOS}),
-  );
-
-  testWidgets(
-    'required data setup blocks use until remote login succeeds',
-    (tester) async {
-      tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = const Size(375, 667);
-      addTearDown(() {
-        tester.view.resetDevicePixelRatio();
-        tester.view.resetPhysicalSize();
-      });
-      final harness = _HostHarness.create(
-        initialSetupRequirement: AppStartupDataSetupRequirement.required,
-      );
-      addTearDown(() => _disposeHarness(tester, harness));
-
-      await tester.pumpWidget(harness.host());
-      await harness.coordinator.start();
-      await tester.pump();
-
-      expect(find.byKey(const Key('app-startup-skip-data-api')), findsNothing);
-      expect(find.byKey(const Key('app-startup-use-local-api')), findsNothing);
-      expect(harness.composeCount, 0);
-      expect(
-        tester
-            .widget<TextField>(
-              find.byKey(const Key('app-startup-initial-data-api-url')),
-            )
-            .controller
-            ?.text,
-        defaultRemoteDataApiBaseUrl,
-      );
-
-      final method = find.byKey(const Key('app-startup-auth-method'));
-      await tester.ensureVisible(method);
-      await tester.tap(method);
-      await tester.pumpAndSettle();
-      await tester.tap(
-        find.text(tester.element(method).l10n.passwordSignIn).last,
-      );
-      await tester.pumpAndSettle();
-      await tester.enterText(
-        find.byKey(const Key('app-startup-initial-data-api-url')),
-        'http://sync.example.com/',
-      );
-      await tester.enterText(
-        find.byKey(const Key('app-startup-initial-data-api-username')),
-        'operator',
-      );
-      await tester.enterText(
-        find.byKey(const Key('app-startup-initial-data-api-password')),
-        'correct horse battery',
-      );
-      expect(
-        find.byKey(const Key('app-startup-initial-master-key')),
-        findsNothing,
-      );
-      expect(
-        find.byKey(const Key('app-startup-apple-keychain-status')),
-        findsOneWidget,
-      );
-      await tester.pump();
-      final connect = find.byKey(const Key('app-startup-connect-data-api'));
-      await tester.ensureVisible(connect);
-      expect(tester.widget<FilledButton>(connect).onPressed, isNotNull);
-      await tester.tap(connect);
-      await tester.pumpAndSettle();
-
-      expect(
-        find.byKey(const Key('app-startup-initial-data-api-error')),
-        findsOneWidget,
-      );
-      expect(harness.settings.reconnectCount, 0);
-      expect(harness.coordinator.state, isA<AppStartupDataSetupRequired>());
-
       await tester.enterText(
         find.byKey(const Key('app-startup-initial-data-api-url')),
         'https://sync.example.com/',
       );
-      await tester.ensureVisible(connect);
-      await tester.tap(connect);
       await tester.pumpAndSettle();
-
-      expect(harness.settings.reconnectCount, 1);
+      expect(find.byType(OAuthSignInPanel), findsOneWidget);
       expect(
-        harness.settings.lastReconnect?.baseUri,
-        Uri.parse('https://sync.example.com/'),
+        find.byKey(const Key('app-startup-initial-data-api-password')),
+        findsNothing,
       );
+      expect(
+        find.byKey(const Key('app-startup-initial-data-api-url')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+  );
+
+  testWidgets(
+    'required setup cannot bypass OAuth login',
+    (tester) async {
+      final harness = _HostHarness.create(
+        initialSetupRequirement: AppStartupDataSetupRequirement.required,
+      );
+      addTearDown(() => _disposeHarness(tester, harness));
+      await tester.pumpWidget(harness.host());
+      await harness.coordinator.start();
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('app-startup-skip-data-api')), findsNothing);
+      expect(find.byKey(const Key('app-startup-use-local-api')), findsNothing);
+      expect(
+        find.byKey(const Key('app-startup-initial-data-api-url')),
+        findsNothing,
+      );
+      expect(find.text(defaultRemoteDataApiBaseUrl), findsNothing);
+      expect(harness.composeCount, 0);
+      final panel = tester.widget<OAuthSignInPanel>(
+        find.byType(OAuthSignInPanel),
+      );
+      await panel.onAuthenticated!(
+        DataApiRemoteLoginRequest.apple(baseUri: panel.baseUri),
+      );
+      await tester.pumpAndSettle();
       expect(harness.coordinator.state, isA<AppStartupReady>());
       expect(harness.composeCount, 1);
     },
-    variant: const TargetPlatformVariant(<TargetPlatform>{TargetPlatform.iOS}),
+    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
   );
 
   testWidgets('retry replaces the complete keyed ProviderScope graph', (
@@ -856,23 +655,16 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('https://sync.example.com/'), findsOneWidget);
-      await tester.enterText(
-        find.byKey(const Key('app-startup-remote-username')),
-        'operator',
-      );
-      await tester.enterText(
-        find.byKey(const Key('app-startup-remote-password')),
-        'correct horse battery',
-      );
       expect(
-        find.byKey(const Key('app-startup-remote-master-key')),
+        find.byKey(const Key('app-startup-remote-password')),
         findsNothing,
       );
-      expect(
-        find.byKey(const Key('app-startup-apple-keychain-status')),
-        findsOneWidget,
+      final panel = tester.widget<OAuthSignInPanel>(
+        find.byType(OAuthSignInPanel),
       );
-      await tester.tap(find.byKey(const Key('app-startup-reconnect')));
+      await panel.onAuthenticated!(
+        DataApiRemoteLoginRequest.apple(baseUri: panel.baseUri),
+      );
       await tester.pumpAndSettle();
       expect(_hasRuntimeGeneration(tester, 1), isTrue);
 

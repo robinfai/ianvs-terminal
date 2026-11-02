@@ -47,6 +47,7 @@ type requestIDContextKey struct{}
 type API struct {
 	aiLimiter            *aiRateLimiter
 	purchaseLimiter      *peerRateLimiter
+	googleVerifier       *auth.AppleTokenVerifier
 	appleVerifier        *auth.AppleTokenVerifier
 	cfg                  config.Config
 	auth                 *auth.Service
@@ -77,6 +78,7 @@ func newWithLogger(
 		aiLimiter:            &aiRateLimiter{users: make(map[string][]*aiRateEvent)},
 		purchaseLimiter:      newAnonymousAuthRateLimiter(),
 		appleVerifier:        auth.NewAppleTokenVerifier(),
+		googleVerifier:       auth.NewGoogleTokenVerifier(),
 		cfg:                  cfg,
 		auth:                 authService,
 		store:                resourceStore,
@@ -120,6 +122,10 @@ func (a *API) routes() {
 	a.mux.Handle("GET /v1/ai/requests", a.aiRuntime(func(api *API) protectedHandler { return api.aiLedger }))
 	a.mux.HandleFunc("GET /healthz", a.health)
 	a.mux.HandleFunc("POST /v1/auth/apple/challenge", a.appleChallenge)
+	a.mux.HandleFunc("POST /v1/auth/oauth/challenge", a.oauthChallenge)
+	a.mux.HandleFunc("POST /v1/auth/oauth/begin", a.beginOAuthLogin)
+	a.mux.Handle("GET /v1/auth/identities", a.protected(a.oauthIdentities))
+	a.mux.Handle("POST /v1/auth/identities", a.protected(a.linkOAuthIdentity))
 	a.mux.HandleFunc("POST /v1/auth/apple/begin", a.beginAppleLogin)
 	a.mux.HandleFunc("POST /v1/auth/register/begin", a.beginRegister)
 	a.mux.HandleFunc("POST /v1/auth/register/complete", a.completeRegister)
@@ -145,15 +151,22 @@ func (a *API) health(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"status":    "ok",
-		"mode":      a.cfg.Mode,
-		"server_id": a.store.ServerID(),
-		"apple_web": a.cfg.AppleWeb,
-		"time":      time.Now().UTC(),
+		"status":                 "ok",
+		"mode":                   a.cfg.Mode,
+		"server_id":              a.store.ServerID(),
+		"apple_web":              a.cfg.AppleWeb,
+		"google_web_client_id":   a.cfg.GoogleWebClientID,
+		"google_ios_client_id":   a.cfg.GoogleIOSClientID,
+		"google_macos_client_id": a.cfg.GoogleMacOSClientID,
+		"time":                   time.Now().UTC(),
 	})
 }
 
 func (a *API) beginRegister(w http.ResponseWriter, r *http.Request) {
+	if a.cfg.Mode == config.ModeRemote && !a.cfg.PasswordAuthEnabled {
+		writeError(w, http.StatusForbidden, "password_auth_disabled", "Use Apple or Google sign-in")
+		return
+	}
 	if a.cfg.Mode != config.ModeRemote || !a.cfg.AllowRegistration {
 		writeError(w, http.StatusNotFound, "not_found", "registration is not available")
 		return
@@ -187,6 +200,10 @@ func (a *API) beginRegister(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) completeRegister(w http.ResponseWriter, r *http.Request) {
+	if a.cfg.Mode == config.ModeRemote && !a.cfg.PasswordAuthEnabled {
+		writeError(w, http.StatusForbidden, "password_auth_disabled", "Use Apple or Google sign-in")
+		return
+	}
 	if a.cfg.Mode != config.ModeRemote {
 		writeError(w, http.StatusNotFound, "not_found", "registration completion is not available in local mode")
 		return
@@ -215,6 +232,10 @@ func (a *API) completeRegister(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *API) beginLogin(w http.ResponseWriter, r *http.Request) {
+	if a.cfg.Mode == config.ModeRemote && !a.cfg.PasswordAuthEnabled {
+		writeError(w, http.StatusForbidden, "password_auth_disabled", "Use Apple or Google sign-in")
+		return
+	}
 	if a.cfg.Mode != config.ModeRemote {
 		writeError(w, http.StatusNotFound, "not_found", "login is not available in local mode")
 		return
@@ -529,6 +550,10 @@ func (a *API) sensitiveTransportAllowed(r *http.Request) bool {
 
 func (a *API) writeServiceError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, auth.ErrOAuthChoiceRequired):
+		writeError(w, http.StatusConflict, "oauth_account_choice_required", err.Error())
+	case errors.Is(err, auth.ErrOAuthHistoricalMissing):
+		writeError(w, http.StatusConflict, "oauth_historical_account_missing", err.Error())
 	case errors.Is(err, auth.ErrAppleIdentity):
 		writeError(w, http.StatusUnauthorized, "invalid_apple_identity", "Apple sign-in expired or could not be verified; please try again")
 	case errors.Is(err, auth.ErrAppleLinkConflict):
@@ -623,6 +648,15 @@ func (a *API) withSecurityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("Content-Security-Policy", "default-src 'self'; connect-src 'self'; img-src 'self'; script-src 'self'; style-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
 		if a.cfg.Mode == config.ModeRemote && a.cfg.AppleWeb != nil && isWebUIRequest(r) {
 			w.Header().Set("Content-Security-Policy", "default-src 'self'; connect-src 'self'; img-src 'self'; script-src 'self' https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js; style-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
+		}
+		if a.cfg.Mode == config.ModeRemote && a.cfg.GoogleWebClientID != "" && isWebUIRequest(r) {
+			policy := w.Header().Get("Content-Security-Policy")
+			policy = strings.Replace(policy, "script-src 'self'", "script-src 'self' https://accounts.google.com/gsi/client", 1)
+			policy = strings.Replace(policy, "connect-src 'self'", "connect-src 'self' https://accounts.google.com/gsi/", 1)
+			policy = strings.Replace(policy, "style-src 'self'", "style-src 'self' https://accounts.google.com/gsi/style", 1)
+			policy += "; frame-src https://accounts.google.com/gsi/"
+			w.Header().Set("Content-Security-Policy", policy)
+			w.Header().Set("Cross-Origin-Opener-Policy", "same-origin-allow-popups")
 		}
 		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
 		w.Header().Set("Referrer-Policy", "no-referrer")

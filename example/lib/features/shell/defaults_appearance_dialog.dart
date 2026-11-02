@@ -7,7 +7,7 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 import '../../data/configuration/data_api_configuration.dart';
 import '../../data/configuration/data_api_configuration_repository.dart';
-import '../../data/services/data_api_auth_contract.dart';
+import '../../data/configuration/oauth_sign_in_panel.dart';
 import '../../data/services/portable_master_key.dart';
 import '../../data/sync/api_sync_panel.dart';
 import '../../ui/app_ui.dart';
@@ -227,20 +227,15 @@ class _DefaultsAndAppearanceDialogState
   bool _accountLoadFailed = false;
   Key _accountErrorKey = const Key('data-api-account-error');
   bool _remoteReconnectRequested = false;
+  bool _customSyncService = false;
   String _remoteAuthMethod = _defaultRemoteAuthMethod;
   static String get _defaultRemoteAuthMethod =>
-      !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS
+      !kIsWeb &&
+          (defaultTargetPlatform == TargetPlatform.iOS ||
+              defaultTargetPlatform == TargetPlatform.macOS)
       ? 'apple'
       : 'password';
-  bool get _appleSupported =>
-      !kIsWeb &&
-      (defaultTargetPlatform == TargetPlatform.iOS ||
-          defaultTargetPlatform == TargetPlatform.macOS);
-
   bool _remoteDataApiUrlEdited = false;
-  bool _remoteDataApiUsernameEdited = false;
-  bool _remoteDataApiPasswordEdited = false;
-  bool _obscureRemotePassword = true;
   bool _showShortcutEditor = false;
   bool _showReportVariableManagement = false;
   String _terminalPresetFilter = '';
@@ -284,6 +279,10 @@ class _DefaultsAndAppearanceDialogState
           _savedDataApiConfiguration.remoteBaseUri?.toString() ??
           defaultRemoteDataApiBaseUrl,
     );
+    _customSyncService =
+        Uri.tryParse(_remoteDataApiUrlController.text)?.origin !=
+        Uri.parse(defaultRemoteDataApiBaseUrl).origin;
+    if (_customSyncService) _remoteAuthMethod = 'password';
     _remoteDataApiUsernameController = TextEditingController();
     _remoteDataApiPasswordController = TextEditingController();
     for (final controller in <TextEditingController>[
@@ -324,12 +323,33 @@ class _DefaultsAndAppearanceDialogState
       if (mounted) {
         setState(() {
           _accountLoadFailed = true;
-          _accountError = error.toString();
+          _accountError = displayDataServiceMessage(error);
         });
       }
     } finally {
       if (mounted) setState(() => _accountBusy = false);
     }
+  }
+
+  Future<void> _authenticateOAuth(DataApiRemoteLoginRequest request) async {
+    final manager = widget.accountManager;
+    if (manager == null) throw StateError('Account settings are unavailable.');
+    try {
+      await manager.connectAndSaveRemote(request);
+    } on DataApiRemoteRevocationPendingWarning {
+      /* New session is committed. */
+    } on DataApiSecureSessionMutationException catch (warning) {
+      if (!warning.configurationSaved) rethrow;
+    }
+    // Persistence already committed: a view refresh must not revoke the login.
+    try {
+      await widget.onAccountChanged?.call();
+    } on Object catch (error) {
+      if (mounted) {
+        setState(() => _accountError = displayDataServiceMessage(error));
+      }
+    }
+    if (mounted) await _refreshAccount();
   }
 
   Future<void> _authenticate({bool signOut = false}) async {
@@ -371,7 +391,9 @@ class _DefaultsAndAppearanceDialogState
     } on DataApiAppleLoginCanceled {
       // Consent cancellation leaves the form available for another attempt.
     } on Object catch (error) {
-      if (mounted) setState(() => _accountError = error.toString());
+      if (mounted) {
+        setState(() => _accountError = displayDataServiceMessage(error));
+      }
     } finally {
       if (mounted && committed) {
         _remoteDataApiPasswordController.clear();
@@ -482,30 +504,6 @@ class _DefaultsAndAppearanceDialogState
       );
     } on FormatException {
       return null;
-    }
-  }
-
-  String? get _remoteUsernameError {
-    if (!_requiresRemoteLogin || !_remoteDataApiUsernameEdited) {
-      return null;
-    }
-    try {
-      normalizeDataApiUsername(_remoteDataApiUsernameController.text);
-      return null;
-    } on FormatException {
-      return context.l10n.usernameValidation;
-    }
-  }
-
-  String? get _remotePasswordError {
-    if (!_requiresRemoteLogin || !_remoteDataApiPasswordEdited) {
-      return null;
-    }
-    try {
-      validateDataApiPassword(_remoteDataApiPasswordController.text);
-      return null;
-    } on FormatException {
-      return context.l10n.passwordValidation;
     }
   }
 
@@ -2029,13 +2027,19 @@ class _DefaultsAndAppearanceDialogState
                                           context,
                                         ).textTheme.titleLarge,
                                       ),
-                                      SelectableText(
-                                        account.baseUri.toString(),
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(color: theme.textSubtle),
-                                      ),
+                                      if (account.baseUri.origin !=
+                                          Uri.parse(
+                                            defaultRemoteDataApiBaseUrl,
+                                          ).origin)
+                                        SelectableText(
+                                          account.baseUri.toString(),
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: theme.textSubtle,
+                                              ),
+                                        ),
                                       const Divider(height: 24),
                                       AppActionButton(
                                         buttonKey: const Key(
@@ -2079,227 +2083,135 @@ class _DefaultsAndAppearanceDialogState
                                                           true,
                                                 ),
                                         ),
-                                      AppConfigurationField(
-                                        subtleLabel: true,
-                                        label: context.l10n.remoteApiBaseUrl,
-                                        stackedOnPhone: true,
-                                        child: TextField(
-                                          key: const Key('data-api-remote-url'),
-                                          controller:
-                                              _remoteDataApiUrlController,
-                                          style: dataServiceFieldTextStyle,
-                                          onChanged: (_) {
-                                            if (!_remoteDataApiUrlEdited) {
-                                              setState(
-                                                () => _remoteDataApiUrlEdited =
-                                                    true,
-                                              );
-                                            }
-                                          },
-                                          scrollPadding: EdgeInsets.only(
-                                            bottom: theme.spacing.xxl * 2,
-                                          ),
-                                          keyboardType: TextInputType.url,
-                                          textInputAction: TextInputAction.next,
-                                          autocorrect: false,
-                                          enableSuggestions: false,
-                                          decoration:
-                                              _dataServiceInputDecoration(
-                                                context,
-                                                hintText:
-                                                    defaultRemoteDataApiBaseUrl,
-                                                errorText:
-                                                    _remoteDataApiUrlError,
-                                              ),
+                                      DropdownButtonFormField<bool>(
+                                        key: const Key('sync-service-choice'),
+                                        initialValue: _customSyncService,
+                                        decoration: InputDecoration(
+                                          labelText:
+                                              Localizations.localeOf(
+                                                    context,
+                                                  ).languageCode ==
+                                                  'zh'
+                                              ? '同步服务'
+                                              : 'Sync service',
                                         ),
-                                      ),
-                                      SizedBox(height: theme.spacing.lg),
-                                    ],
-                                  ],
-                                ),
-                                if (_account == null &&
-                                    !_accountLoadFailed &&
-                                    !_accountBusy) ...[
-                                  const SizedBox(height: 24),
-                                  AppSettingsSection(
-                                    key: const Key('data-api-login-section'),
-                                    title:
-                                        Localizations.localeOf(
-                                              context,
-                                            ).languageCode ==
-                                            'zh'
-                                        ? '登录账户'
-                                        : 'Sign in',
-                                    children: [
-                                      if (_appleSupported) ...[
-                                        AppConfigurationField(
-                                          subtleLabel: true,
-                                          label: context.l10n.signInMethod,
-                                          child: AppDropdownFormField<String>(
-                                            isExpanded: true,
-                                            key: const Key(
-                                              'data-api-auth-method',
+                                        items: [
+                                          const DropdownMenuItem(
+                                            value: false,
+                                            child: Text('Trail'),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: true,
+                                            child: Text(
+                                              Localizations.localeOf(
+                                                        context,
+                                                      ).languageCode ==
+                                                      'zh'
+                                                  ? '第三方同步服务'
+                                                  : 'Another sync service',
                                             ),
-                                            initialValue: _remoteAuthMethod,
-                                            decoration:
-                                                _dataServiceInputDecoration(
-                                                  context,
-                                                ),
-                                            items: [
-                                              DropdownMenuItem(
-                                                value: 'password',
-                                                child: Text(
-                                                  context.l10n.passwordSignIn,
-                                                ),
-                                              ),
-                                              DropdownMenuItem(
-                                                value: 'apple',
-                                                child: Text(
-                                                  context.l10n.appleSignIn,
-                                                ),
-                                              ),
-                                              DropdownMenuItem(
-                                                value: 'link',
-                                                child: Text(
-                                                  context
-                                                      .l10n
-                                                      .appleLinkExisting,
-                                                ),
-                                              ),
-                                            ],
-                                            onChanged: (value) {
-                                              if (value != null) {
-                                                setState(() {
-                                                  _remoteAuthMethod = value;
-                                                  _remoteReconnectRequested =
-                                                      true;
-                                                });
-                                              }
-                                            },
                                           ),
-                                        ),
-                                        SizedBox(height: theme.spacing.lg),
-                                        if (_remoteAuthMethod == 'link')
-                                          Text(
-                                            context.l10n.appleLinkExistingHelp,
-                                          ),
-                                      ],
-                                      if (_remoteAuthMethod != 'apple') ...[
+                                        ],
+                                        onChanged: (value) => setState(() {
+                                          _customSyncService = value ?? false;
+                                          _remoteAuthMethod = _customSyncService
+                                              ? 'password'
+                                              : _defaultRemoteAuthMethod;
+                                          _remoteReconnectRequested = true;
+                                          if (_customSyncService &&
+                                              isDefaultDataService(
+                                                Uri.parse(
+                                                  _remoteDataApiUrlController
+                                                      .text,
+                                                ),
+                                              )) {
+                                            _remoteDataApiUrlController.clear();
+                                          }
+                                          if (!_customSyncService) {
+                                            _remoteDataApiUrlController.text =
+                                                defaultRemoteDataApiBaseUrl;
+                                          }
+                                        }),
+                                      ),
+                                      if (_customSyncService) ...[
+                                        const SizedBox(height: 16),
                                         AppConfigurationField(
                                           subtleLabel: true,
-                                          label: context.l10n.username,
+                                          label: context.l10n.remoteApiBaseUrl,
+                                          stackedOnPhone: true,
                                           child: TextField(
                                             key: const Key(
-                                              'data-api-remote-username',
+                                              'data-api-remote-url',
                                             ),
                                             controller:
-                                                _remoteDataApiUsernameController,
+                                                _remoteDataApiUrlController,
                                             style: dataServiceFieldTextStyle,
-                                            onChanged: (_) {
-                                              if (!_remoteDataApiUsernameEdited) {
-                                                setState(
-                                                  () =>
-                                                      _remoteDataApiUsernameEdited =
-                                                          true,
-                                                );
-                                              }
-                                            },
+                                            onChanged: (_) => setState(
+                                              () => _remoteDataApiUrlEdited =
+                                                  true,
+                                            ),
                                             scrollPadding: EdgeInsets.only(
                                               bottom: theme.spacing.xxl * 2,
                                             ),
+                                            keyboardType: TextInputType.url,
                                             textInputAction:
                                                 TextInputAction.next,
                                             autocorrect: false,
                                             enableSuggestions: false,
-                                            autofillHints: const <String>[
-                                              AutofillHints.username,
-                                            ],
                                             decoration:
                                                 _dataServiceInputDecoration(
                                                   context,
+                                                  hintText:
+                                                      'https://sync.example.com',
                                                   errorText:
-                                                      _remoteUsernameError,
+                                                      _remoteDataApiUrlError,
                                                 ),
                                           ),
                                         ),
                                         SizedBox(height: theme.spacing.lg),
-                                        AppConfigurationField(
-                                          subtleLabel: true,
-                                          label: context.l10n.password,
-                                          helper:
-                                              context.l10n.loginPasswordHelp,
-                                          child: TextField(
-                                            key: const Key(
-                                              'data-api-remote-password',
-                                            ),
-                                            controller:
-                                                _remoteDataApiPasswordController,
-                                            style: dataServiceFieldTextStyle,
-                                            onChanged: (_) {
-                                              if (!_remoteDataApiPasswordEdited) {
-                                                setState(
-                                                  () =>
-                                                      _remoteDataApiPasswordEdited =
-                                                          true,
-                                                );
-                                              }
-                                            },
-                                            scrollPadding: EdgeInsets.only(
-                                              bottom: theme.spacing.xxl * 2,
-                                            ),
-                                            textInputAction:
-                                                TextInputAction.done,
-                                            obscureText: _obscureRemotePassword,
-                                            autocorrect: false,
-                                            enableSuggestions: false,
-                                            autofillHints: const <String>[
-                                              AutofillHints.password,
-                                            ],
-                                            decoration:
-                                                _dataServiceInputDecoration(
-                                                  context,
-                                                  errorText:
-                                                      _remotePasswordError,
-                                                ).copyWith(
-                                                  suffixIcon: IconButton(
-                                                    key: const Key(
-                                                      'data-api-password-visibility',
-                                                    ),
-                                                    tooltip:
-                                                        Localizations.localeOf(
-                                                              context,
-                                                            ).languageCode ==
-                                                            'zh'
-                                                        ? (_obscureRemotePassword
-                                                              ? '显示密码'
-                                                              : '隐藏密码')
-                                                        : (_obscureRemotePassword
-                                                              ? 'Show password'
-                                                              : 'Hide password'),
-                                                    onPressed: () => setState(
-                                                      () => _obscureRemotePassword =
-                                                          !_obscureRemotePassword,
-                                                    ),
-                                                    icon: Icon(
-                                                      _obscureRemotePassword
-                                                          ? Icons
-                                                                .visibility_outlined
-                                                          : Icons
-                                                                .visibility_off_outlined,
-                                                    ),
-                                                  ),
-                                                ),
-                                            onSubmitted: (_) => FocusManager
-                                                .instance
-                                                .primaryFocus
-                                                ?.unfocus(),
-                                          ),
-                                        ),
-                                        SizedBox(height: theme.spacing.sm),
                                       ],
                                     ],
+                                  ],
+                                ),
+                                if (_account != null &&
+                                    widget.accountManager
+                                        is DataApiOAuthAccountManager)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 24),
+                                    child: OAuthSignInPanel(
+                                      key: ValueKey(
+                                        'linked-${_account!.baseUri}-${_account!.username}',
+                                      ),
+                                      baseUri: _account!.baseUri,
+                                      accountManager:
+                                          widget.accountManager!
+                                              as DataApiOAuthAccountManager,
+                                    ),
                                   ),
-                                ],
+                                if (_account == null &&
+                                    !_accountLoadFailed &&
+                                    !_accountBusy &&
+                                    (!_customSyncService ||
+                                        _remoteDataApiUrlController.text
+                                            .trim()
+                                            .isNotEmpty))
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 24),
+                                    child: OAuthSignInPanel(
+                                      key: ValueKey(
+                                        _remoteDataApiUrlController.text.trim(),
+                                      ),
+                                      baseUri:
+                                          Uri.tryParse(
+                                            _remoteDataApiUrlController.text
+                                                .trim(),
+                                          ) ??
+                                          Uri.parse(
+                                            defaultRemoteDataApiBaseUrl,
+                                          ),
+                                      onAuthenticated: _authenticateOAuth,
+                                    ),
+                                  ),
                               ],
                             ],
                           ),
@@ -2578,7 +2490,9 @@ class _DefaultsAndAppearanceDialogState
                         label: context.l10n.cancel,
                         onPressed: () => Navigator.of(context).pop(),
                       ),
-                      if (_requiresRemoteLogin &&
+                      if (_requiresRemoteLogin)
+                        const SizedBox.shrink()
+                      else if (_requiresRemoteLogin &&
                           _remoteAuthMethod != 'password')
                         SizedBox(
                           width: 250,

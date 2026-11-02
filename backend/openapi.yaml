@@ -308,6 +308,85 @@ paths:
           description: Provider unavailable or rejected the request.
         '503':
           description: Gateway or durable quota storage unavailable.
+  /v1/auth/identities:
+    get:
+      operationId: listOAuthIdentities
+      security: [{bearerAuth: []}]
+      responses:
+        '200': {description: Linked provider names only.}
+        '401': {description: Authentication required.}
+    post:
+      operationId: linkOAuthIdentity
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [provider, identity_token, nonce]
+              properties:
+                provider: {type: string, enum: [apple, google]}
+                identity_token: {type: string}
+                nonce: {type: string}
+      responses:
+        '200': {description: Identity linked to the authenticated account.}
+        '401': {description: Invalid session or provider proof.}
+        '409': {description: Identity or account already bound to another identity.}
+  /v1/auth/oauth/challenge:
+    post:
+      tags: [auth]
+      operationId: oauthChallenge
+      summary: Issue a single-use five-minute identity nonce.
+      security: []
+      responses:
+        '200':
+          description: Nonce for Apple or Google authentication.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [nonce]
+                properties:
+                  nonce: {type: string, minLength: 43, maxLength: 43}
+        '429': {description: Too many authentication attempts.}
+  /v1/auth/oauth/begin:
+    post:
+      tags: [auth]
+      operationId: beginOAuthLogin
+      summary: Authenticate an existing identity or explicitly create/link a first-login identity.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [provider, identity_token, nonce]
+              properties:
+                provider: {type: string, enum: [apple, google]}
+                identity_token: {type: string, maxLength: 16384}
+                nonce: {type: string, minLength: 43, maxLength: 43}
+                action: {type: string, enum: ['', create, link]}
+                device_id: {type: string, minLength: 16, maxLength: 128}
+                replace_oldest: {type: boolean, default: false}
+                username: {type: string}
+                password: {type: string, format: password}
+                link:
+                  type: object
+                  required: [provider, identity_token, nonce]
+                  properties:
+                    provider: {type: string, enum: [apple, google]}
+                    identity_token: {type: string, maxLength: 16384}
+                    nonce: {type: string, minLength: 43, maxLength: 43}
+      responses:
+        '200': {description: Prepared login operation; complete with the standard login endpoint.}
+        '400': {description: Invalid request.}
+        '401': {description: Invalid identity or historical credentials.}
+        '403': {description: Registration is disabled.}
+        '409': {description: First login requires an explicit choice, historical account missing, identity conflict or session capacity.}
+        '429': {description: Too many attempts.}
   /v1/auth/apple/challenge:
     post:
       tags: [auth]
@@ -336,7 +415,7 @@ paths:
       tags: [auth]
       operationId: beginAppleLogin
       summary: Verify native Apple identity and prepare login, optionally linking an existing account.
-      description: Verify Apple RS256 signature, issuer, configured audience, expiration and server-issued nonce. Supplying username and password links that verified account without changing its ID or resources. Email is never used for matching. New Apple accounts respect allow_registration. Persist operation_id before using the existing login/complete endpoint; cancel-operation retains its existing semantics.
+      description: Verify Apple RS256 signature, issuer, configured audience, expiration and server-issued nonce. Supplying username and password links that verified account without changing its ID or resources. Email is never used for matching. An unlinked identity without an explicit action returns oauth_account_choice_required. New Apple accounts require action=create and respect allow_registration. Persist operation_id before using the existing login/complete endpoint; cancel-operation retains its existing semantics.
       x-ianvs-json-request-limit-bytes: 20480
       requestBody:
         required: true
@@ -349,6 +428,7 @@ paths:
               properties:
                 device_id: {type: string, minLength: 16, maxLength: 128, description: Random installation identity; never used as authentication proof.}
                 replace_oldest: {type: boolean, default: false, description: Explicit consent to replace the oldest session if capacity is full after Apple verification.}
+                action: {type: string, enum: ['', create, link]}
                 identity_token: {type: string, maxLength: 16384}
                 nonce: {type: string, minLength: 43, maxLength: 43}
                 username: {type: string, minLength: 3, maxLength: 64}
@@ -369,7 +449,7 @@ paths:
         '401': {description: Invalid Apple identity, used nonce or existing-account credentials.}
         '403': {description: New account registration is disabled.}
         '404': {description: Apple authentication is unavailable.}
-        '409': {description: An identity is already linked to another account.}
+        '409': {description: Account choice is required, or an identity is already linked to another account.}
         '413': {description: Request exceeds 20 KiB.}
         '415': {$ref: '#/components/responses/UnsupportedMediaType'}
         '429':
@@ -394,6 +474,9 @@ paths:
                   status: {type: string, const: ok}
                   mode: {type: string, enum: [local, remote]}
                   server_id: {type: string}
+                  google_web_client_id: {type: string, description: Public Google Web client ID; empty when disabled.}
+                  google_ios_client_id: {type: string}
+                  google_macos_client_id: {type: string}
                   apple_web:
                     type: [object, 'null']
                     description: Public Sign in with Apple JS configuration; null when web login is disabled.

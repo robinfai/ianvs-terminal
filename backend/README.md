@@ -486,3 +486,24 @@ only when restoring saved configuration, sessions and recovery records.
 | Generated protobuf deprecation comments | Generated API metadata, not manually removed. |
 
 No production data, keychain entries or databases were deleted during this audit.
+
+
+### Apple / Google 首次登录与关联
+
+客户端使用 `POST /v1/auth/oauth/challenge` 获取五分钟单次 nonce，以该 nonce 完成提供方认证，然后调用 `/v1/auth/oauth/begin`。已关联身份直接登录；未关联身份返回 `oauth_account_choice_required`，不创建用户或会话。用户明确选择 `action: create` 才创建账号；选择 `action: link` 时必须再次证明已有账号的密码或另一提供方的身份。另一身份必须已有账号，关联保留原账号 ID、资源和额度，不按邮箱自动合并。两个 nonce 在同一事务中消费，失败回滚，重放被拒绝。
+
+Google 配置仅包含公开客户端 ID（不需要 Web client secret）：
+
+```json
+{
+  "google_web_client_id": "WEB_CLIENT.apps.googleusercontent.com",
+  "google_ios_client_id": "APPLE_CLIENT.apps.googleusercontent.com",
+  "google_macos_client_id": "APPLE_CLIENT.apps.googleusercontent.com"
+}
+```
+
+这些配置自动加入服务端 audience 白名单；可通过 `google_client_ids` 补充受信任客户端。AppAuth 使用系统浏览器、PKCE 和服务端 nonce；iOS/macOS `Info.plist` 必须登记对应反转客户端 ID 的 URL scheme。Web 使用 Google Identity Services，授权 JavaScript 来源必须与部署来源完全一致。私钥、密钥或客户端 secret 不得下发至客户端。当前测试部署仅允许指定测试账号，Google 同意页面沿用 ianvs-cloud 项目既有品牌名称。
+
+独立账号密码登录/注册默认关闭（`password_auth_enabled: false`）。当前 Trail 仅展示 Apple / Google 登录；历史账号的密码仅用于首次 OAuth 关联验证，不签发独立密码登录会话。`allow_registration` 继续控制 OAuth“创建新账号”，不要用它代替密码登录开关。
+
+已登录用户可通过 `GET /v1/auth/identities` 查看已关联提供方，并通过 `POST /v1/auth/identities` 提交新的 `provider / identity_token / nonce`。服务端以当前 Bearer 会话确定目标账号，验证提供方证明后绑定；不接受目标用户 ID，不转移已有身份，不合并账号，不新建账号。已关联状态只返回提供方名称。

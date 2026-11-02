@@ -2,6 +2,11 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+  <key>CFBundleURLTypes</key>
+  <array><dict>
+    <key>CFBundleTypeRole</key><string>Editor</string>
+    <key>CFBundleURLSchemes</key><array><string>com.googleusercontent.apps.56242775410-sahfehmm9v4oljmsmtgs3b9fbl2jaagb</string></array>
+  </dict></array>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>选择照片作为 AI 对话附件，仅在你确认发送后上传所选内容。</string>
 	<key>NSCameraUsageDescription</key>

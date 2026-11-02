@@ -8,6 +8,7 @@ export interface AppleWebConfig {
 }
 
 export interface Health {
+  google_web_client_id?: string
   apple_web?: AppleWebConfig | null
   status: 'ok'
   mode: Mode

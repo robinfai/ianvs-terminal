@@ -2,6 +2,11 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+  <key>CFBundleURLTypes</key>
+  <array><dict>
+    <key>CFBundleTypeRole</key><string>Editor</string>
+    <key>CFBundleURLSchemes</key><array><string>com.googleusercontent.apps.56242775410-sahfehmm9v4oljmsmtgs3b9fbl2jaagb</string></array>
+  </dict></array>
     <key>SUFeedURL</key>
     <string>https://github.com/robinfai/ianvs-terminal/releases/latest/download/appcast.xml</string>
     <key>SUPublicEDKey</key>

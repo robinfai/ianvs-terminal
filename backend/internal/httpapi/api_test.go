@@ -768,6 +768,7 @@ func testAPI(t *testing.T, mode config.Mode) (config.Config, *gorm.DB, http.Hand
 		}
 	})
 	cfg.AllowRegistration = true
+	cfg.PasswordAuthEnabled = true
 	cfg.AllowInsecureSensitiveTransport = mode == config.ModeRemote
 	db, handler := testAPIHandlerAndDB(t, cfg)
 	return cfg, db, handler

@@ -517,6 +517,9 @@ class SessionController extends Notifier<SessionState> {
   bool _layoutPersistenceBlocked = false;
   bool _layoutRestoreHasFailures = false;
   bool _layoutAwaitingChangeAfterRestore = false;
+  // Provider teardown cannot read Notifier.state; retain the last published
+  // immutable snapshot so shutdown can still capture the layout safely.
+  SessionState _shutdownSnapshot = SessionState.initial();
 
   bool get canReplaceFailedLayout => _layoutRestoreHasFailures;
   Timer? _layoutPersistenceTimer;
@@ -590,7 +593,10 @@ class SessionController extends Notifier<SessionState> {
 
   @override
   SessionState build() {
-    listenSelf(_handleLayoutStateChanged);
+    listenSelf((previous, next) {
+      _shutdownSnapshot = next;
+      _handleLayoutStateChanged(previous, next);
+    });
     _ensureRuntimeSubscription();
     _scheduleBootstrap();
     final liveRecorder = ref.read(sessionDemoFixtureProvider) == null
@@ -2812,8 +2818,8 @@ class SessionController extends Notifier<SessionState> {
     final finalLayout =
         _layoutPersistenceEnabled &&
             !_layoutAwaitingChangeAfterRestore &&
-            state.isReady
-        ? LocalSessionLayoutCodec.capture(state)
+            _shutdownSnapshot.isReady
+        ? LocalSessionLayoutCodec.capture(_shutdownSnapshot)
         : null;
     if (finalLayout != null) {
       _lastLayoutSnapshot = jsonEncode(finalLayout.toJson());
