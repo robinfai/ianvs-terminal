@@ -29,6 +29,7 @@ class NotaryPreflightTest(unittest.TestCase):
             'PATH': str(self.root) + os.pathsep + os.environ['PATH'],
             'PREFLIGHT_LOG': str(self.log),
             'MACOS_SIGNING_IDENTITY': 'Developer ID Application: Fixture',
+            'MACOS_PROFILE_FILE': 'fixture.provisionprofile',
             'SPARKLE_PUBLIC_KEY': 'fixture', 'SPARKLE_KEY_FILE': 'fixture',
             'RELEASE_VERSION': '0.1.0', 'RELEASE_BUILD': '1',
             'RELEASE_REPOSITORY': 'fixture/repo',

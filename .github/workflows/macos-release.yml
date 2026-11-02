@@ -49,13 +49,14 @@ jobs:
         env:
           MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_PROVISIONPROFILE_BASE64: ${{ secrets.MACOS_PROVISIONPROFILE_BASE64 }}
           NOTARY_API_KEY_BASE64: ${{ secrets.NOTARY_API_KEY_BASE64 }}
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: |
           python3 - <<'PY'
           import os
           required = (
-              'MACOS_CERTIFICATE_P12_BASE64', 'MACOS_CERTIFICATE_PASSWORD',
+              'MACOS_CERTIFICATE_P12_BASE64', 'MACOS_CERTIFICATE_PASSWORD', 'MACOS_PROVISIONPROFILE_BASE64',
               'SPARKLE_PRIVATE_KEY', 'SPARKLE_PUBLIC_KEY', 'MACOS_SIGNING_IDENTITY',
           )
           notary = ('NOTARY_API_KEY_BASE64', 'NOTARY_KEY_ID', 'NOTARY_ISSUER_ID') if os.environ.get('NOTARY_API_KEY_BASE64') else ('APPLE_ID', 'APPLE_TEAM_ID', 'APPLE_APP_SPECIFIC_PASSWORD')
@@ -145,6 +146,7 @@ jobs:
         env:
           MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_PROVISIONPROFILE_BASE64: ${{ secrets.MACOS_PROVISIONPROFILE_BASE64 }}
           NOTARY_API_KEY_BASE64: ${{ secrets.NOTARY_API_KEY_BASE64 }}
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: |
@@ -156,7 +158,7 @@ jobs:
           import os, base64
           from pathlib import Path
           root = Path(os.environ['RUNNER_TEMP']) / 'trail-signing'
-          for name, filename in [('MACOS_CERTIFICATE_P12_BASE64', 'certificate.p12'), ('NOTARY_API_KEY_BASE64', 'notary.p8')]:
+          for name, filename in [('MACOS_CERTIFICATE_P12_BASE64', 'certificate.p12'), ('NOTARY_API_KEY_BASE64', 'notary.p8'), ('MACOS_PROVISIONPROFILE_BASE64', 'distribution.provisionprofile')]:
               if os.environ.get(name):
                   (root / filename).write_bytes(base64.b64decode(os.environ[name], validate=True))
           (root / 'sparkle.key').write_text(os.environ['SPARKLE_PRIVATE_KEY'])
@@ -170,6 +172,7 @@ jobs:
           security import "$signing_dir/certificate.p12" -k "$keychain" -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain" > /dev/null
           security list-keychains -d user -s "$keychain" login.keychain-db
+          echo "MACOS_PROFILE_FILE=$signing_dir/distribution.provisionprofile" >> "$GITHUB_ENV"
           echo "SPARKLE_KEY_FILE=$signing_dir/sparkle.key" >> "$GITHUB_ENV"
           if [[ -f "$signing_dir/notary.p8" ]]; then
             echo "NOTARY_KEY_FILE=$signing_dir/notary.p8" >> "$GITHUB_ENV"

@@ -19,6 +19,7 @@ import '../services/data_api_remote_session_store.dart';
 import '../services/data_api_runtime.dart';
 import '../services/portable_master_key.dart';
 import 'data_api_configuration.dart';
+import 'desktop_apple_identity.dart';
 
 abstract interface class DataApiConfigurationRepository {
   Future<DataApiConfiguration> load();
@@ -479,12 +480,20 @@ final class DataApiClientRemoteAuthenticator
         password: request.password,
       );
     }
-    final nonce = await client.createAppleChallenge();
-    final token = await appleIdentityProvider(nonce);
+    final Map<String, Object?> proof;
+    if (Platform.isMacOS && appleIdentityProvider == _nativeAppleIdentity) {
+      proof = await desktopAppleIdentity(client, request.baseUri);
+    } else {
+      final nonce = await client.createAppleChallenge();
+      proof = {
+        'nonce': nonce,
+        'identity_token': await appleIdentityProvider(nonce),
+      };
+    }
     return client.beginAppleLogin(
       deviceId: await dataApiDeviceIdentity(request.baseUri),
-      identityToken: token,
-      nonce: nonce,
+      identityToken: proof['identity_token']! as String,
+      nonce: proof['nonce']! as String,
       username: request.username,
       password: request.password,
     );

@@ -37,6 +37,27 @@ func TestAppleEndpointsRequireExplicitConfigurationAndSecureTransport(t *testing
 	assertTypedError(t, response, http.StatusUnauthorized, "invalid_apple_identity")
 }
 
+func TestDesktopAppleStartAndRejectForgedCompletion(t *testing.T) {
+	cfg, _, _ := testAPI(t, config.ModeRemote)
+	cfg.AppleClientIDs = []string{"work.ianvs.trail.web"}
+	cfg.AppleWeb = &config.AppleWeb{ClientID: "work.ianvs.trail.web", RedirectURI: "https://example.com/"}
+	handler := testAPIHandler(t, cfg)
+	start := request(t, handler, http.MethodPost, "/v1/auth/apple/desktop/start", map[string]any{}, nil)
+	var flow map[string]string
+	if start.Code != 200 || json.Unmarshal(start.Body.Bytes(), &flow) != nil || len(flow["id"]) != 43 || len(flow["secret"]) != 43 || len(flow["nonce"]) != 43 || flow["id"] == flow["secret"] {
+		t.Fatal(start.Code, start.Body.String())
+	}
+	forged := request(t, handler, http.MethodPost, "/v1/auth/apple/desktop/complete", map[string]any{"id": flow["id"], "identity_token": "forged"}, nil)
+	assertTypedError(t, forged, http.StatusUnauthorized, "invalid_apple_identity")
+	pending := request(t, handler, http.MethodPost, "/v1/auth/apple/desktop/poll", map[string]any{"id": flow["id"], "secret": flow["secret"]}, nil)
+	if pending.Code != 200 || !strings.Contains(pending.Body.String(), `"pending":true`) {
+		t.Fatal(pending.Body.String())
+	}
+	request(t, handler, http.MethodPost, "/v1/auth/apple/desktop/cancel", map[string]any{"id": flow["id"], "secret": flow["secret"]}, nil)
+	expired := request(t, handler, http.MethodPost, "/v1/auth/apple/desktop/info", map[string]any{"id": flow["id"]}, nil)
+	assertTypedError(t, expired, 410, "oauth_expired")
+}
+
 func TestAppleWebPublicConfigurationAndScopedSDKPolicy(t *testing.T) {
 	cfg, _, _ := testAPI(t, config.ModeRemote)
 	cfg.AppleClientIDs = []string{"work.ianvs.trail", "work.ianvs.trail.web"}

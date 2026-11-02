@@ -66,6 +66,7 @@ Repository secrets:
 | Name | Value |
 | --- | --- |
 | `MACOS_CERTIFICATE_P12_BASE64` | Base64 of the exported Developer ID Application certificate **and private key** |
+| `MACOS_PROVISIONPROFILE_BASE64` | Base64 Developer ID provisioning profile for `work.ianvs.trail`, authorizing its Keychain group |
 | `MACOS_CERTIFICATE_PASSWORD` | Password protecting that P12 |
 | `NOTARY_API_KEY_BASE64` | Optional: base64 of a team App Store Connect API `.p8` key; takes precedence over Apple account authentication |
 | `APPLE_ID` | Developer Apple account email, when not using an API key |
@@ -161,3 +162,5 @@ gh workflow run macos-release.yml --repo robinfai/ianvs-terminal --ref main -f v
 参考：[Apple Developer ID](https://developer.apple.com/developer-id/)、
 [Apple 公证](https://developer.apple.com/documentation/security/customizing-the-notarization-workflow)、
 [GitHub CI 证书](https://docs.github.com/en/actions/how-tos/deploy/deploy-to-third-party-platforms/sign-xcode-applications)。
+
+Developer ID 不支持原生 Apple 登录 entitlement；macOS 使用服务端 Apple Web OAuth，iOS 保留原生登录。分发流水线校验 profile 的类型、有效期、团队、Bundle ID 及 Keychain 授权，嵌入 profile 后签名、公证。不要通过重新生成 profile 或强加 entitlement 来绕过平台限制。

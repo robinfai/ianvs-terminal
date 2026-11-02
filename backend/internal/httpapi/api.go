@@ -45,6 +45,7 @@ var requestIDFallback atomic.Uint64
 type requestIDContextKey struct{}
 
 type API struct {
+	desktopAppleFlows    desktopAppleFlows
 	aiLimiter            *aiRateLimiter
 	purchaseLimiter      *peerRateLimiter
 	googleVerifier       *auth.AppleTokenVerifier
@@ -75,6 +76,7 @@ func newWithLogger(
 	logger *slog.Logger,
 ) *API {
 	api := &API{
+		desktopAppleFlows:    desktopAppleFlows{pending: make(map[string]desktopAppleFlow)},
 		aiLimiter:            &aiRateLimiter{users: make(map[string][]*aiRateEvent)},
 		purchaseLimiter:      newAnonymousAuthRateLimiter(),
 		appleVerifier:        auth.NewAppleTokenVerifier(),
@@ -122,6 +124,7 @@ func (a *API) routes() {
 	a.mux.Handle("GET /v1/ai/requests", a.aiRuntime(func(api *API) protectedHandler { return api.aiLedger }))
 	a.mux.HandleFunc("GET /healthz", a.health)
 	a.mux.HandleFunc("POST /v1/auth/apple/challenge", a.appleChallenge)
+	a.mux.HandleFunc("POST /v1/auth/apple/desktop/{action}", a.desktopApple)
 	a.mux.HandleFunc("POST /v1/auth/oauth/challenge", a.oauthChallenge)
 	a.mux.HandleFunc("POST /v1/auth/oauth/begin", a.beginOAuthLogin)
 	a.mux.Handle("GET /v1/auth/identities", a.protected(a.oauthIdentities))

@@ -442,6 +442,19 @@ final class DataApiClient
     return _jsonObject(response.body, documentName: 'OAuth configuration');
   }
 
+  Future<Map<String, dynamic>> desktopAppleExchange(
+    String action,
+    Map<String, String> body,
+  ) async {
+    final response = await _request(
+      'POST',
+      _resourceUri('v1/auth/apple/desktop/$action'),
+      requireAuthentication: false,
+      jsonBody: body,
+    );
+    return _jsonObject(response.body, documentName: 'Desktop Apple sign-in');
+  }
+
   Future<String> createOAuthChallenge() async {
     final response = await _request(
       'POST',

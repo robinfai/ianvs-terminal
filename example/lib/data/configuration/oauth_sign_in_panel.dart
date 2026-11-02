@@ -10,6 +10,7 @@ import '../services/data_api_client.dart';
 import '../services/data_api_device_identity.dart';
 import 'data_api_configuration.dart';
 import 'data_api_configuration_repository.dart';
+import 'desktop_apple_identity.dart';
 
 /// Inline account choice: identities are never joined using email addresses.
 class OAuthSignInPanel extends StatefulWidget {
@@ -77,6 +78,13 @@ class _OAuthSignInPanelState extends State<OAuthSignInPanel> {
   });
 
   Future<Map<String, Object?>> _identity(String provider) async {
+    if (provider == 'apple' && defaultTargetPlatform == TargetPlatform.macOS) {
+      return desktopAppleIdentity(
+        _client,
+        widget.baseUri,
+        isCancelled: () => !mounted,
+      );
+    }
     final nonce = await _client.createOAuthChallenge();
     String? token;
     if (provider == 'apple') {

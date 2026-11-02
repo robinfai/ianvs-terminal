@@ -15,6 +15,7 @@ else
   : "${APPLE_APP_SPECIFIC_PASSWORD:?Apple app-specific password is required}"
   notary_auth=(--apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD")
 fi
+: "${MACOS_PROFILE_FILE:?Developer ID provisioning profile is required}"
 : "${RELEASE_VERSION:?Release version is required}"
 : "${RELEASE_BUILD:?Monotonic build number is required}"
 : "${RELEASE_REPOSITORY:?Release repository is required}"
@@ -24,6 +25,9 @@ fi
 xcrun notarytool history "${notary_auth[@]}" --output-format json > /dev/null
 xcrun swift "$root/tools/release/update_keys.swift" verify "$SPARKLE_KEY_FILE" > /dev/null
 mkdir -p "$RELEASE_OUTPUT"
+security cms -D -i "$MACOS_PROFILE_FILE" > "$RELEASE_OUTPUT/profile.plist"
+python3 "$root/tools/release/prepare_distribution_profile.py" "$RELEASE_OUTPUT/profile.plist" \
+  "$RELEASE_OUTPUT/distribution.entitlements" --identity "$MACOS_SIGNING_IDENTITY"
 (
   cd "$root/example"
   flutter build macos --release --build-name="$RELEASE_VERSION" --build-number="$RELEASE_BUILD"
@@ -39,8 +43,9 @@ if [[ "${RELEASE_PRERELEASE:-false}" == true ]]; then
 fi
 python3 "$root/tools/release/macos_release.py" configure "$app" --public-key "$SPARKLE_PUBLIC_KEY" \
   --feed "$feed"
+cp "$MACOS_PROFILE_FILE" "$app/Contents/embedded.provisionprofile"
 python3 "$root/tools/release/macos_release.py" sign "$app" --identity "$MACOS_SIGNING_IDENTITY" \
-  --entitlements "$root/example/macos/Runner/Release.entitlements"
+  --entitlements "$RELEASE_OUTPUT/distribution.entitlements"
 python3 "$root/tools/verify_macos_native_library.py" \
   "$app/Contents/Frameworks/ianvs_core.framework/ianvs_core"
 # Every embedded executable must support both advertised architectures.
