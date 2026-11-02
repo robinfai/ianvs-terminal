@@ -1,0 +1,305 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Trail · macOS / iOS UI 美学审查</title><style>
+:root{color-scheme:light;--ink:#20242c;--muted:#5f6877;--line:#dce1e9;--blue:#2855ae}*{box-sizing:border-box}body{margin:0;background:#f4f6f9;color:var(--ink);font:15px/1.7 -apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif}main{max-width:1180px;margin:auto;padding:48px 28px}h1{font-size:36px;line-height:1.25;letter-spacing:-1px;margin:12px 0 20px}h2{font-size:24px;line-height:1.4}h3{font-size:17px}p{max-width:940px}.eyebrow,.meta{color:var(--muted);font-size:13px}a{color:var(--blue)}nav{display:flex;gap:8px;flex-wrap:wrap;margin:24px 0}nav a{background:white;border:1px solid var(--line);padding:8px 12px;text-decoration:none;border-radius:8px}section{background:white;border:1px solid var(--line);border-radius:14px;padding:28px;margin:28px 0;scroll-margin-top:16px}.tag{display:inline-block;background:#eaf0fe;color:#234b96;padding:3px 10px;border-radius:5px;font-size:12px}.decision{border-left:3px solid #5876b8;padding-left:18px}.reject{background:#f6f7f9;padding:14px 18px;border-radius:8px;font-size:14px}li{margin:8px 0}.gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px}figure{margin:0;background:#f3f4f6;border:1px solid var(--line);border-radius:8px;padding:10px;align-self:start}figure img{width:100%;height:330px;object-fit:contain;background:#e9ecf1}figcaption{font-size:12px;color:var(--muted);overflow-wrap:anywhere;line-height:1.4;margin-top:8px}details{margin:18px 0;border-top:1px solid var(--line);padding-top:12px}summary{cursor:pointer;font-weight:600}pre{white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.75 -apple-system,sans-serif;background:#f6f8fb;padding:18px;border-radius:8px}table{border-collapse:collapse;width:100%;font-size:14px}td,th{text-align:left;border-bottom:1px solid var(--line);padding:12px 8px;vertical-align:top}.limits{background:#edf1f7;padding:20px;border-radius:10px}button{padding:8px 14px;border:1px solid var(--line);background:white;border-radius:8px;cursor:pointer}button.active{background:var(--blue);color:white}.filters{display:flex;gap:8px;margin:20px 0}figure[hidden]{display:none}@media(max-width:600px){main{padding:24px 14px}section{padding:18px}h1{font-size:28px}}@media print{nav,.filters{display:none}section{break-before:page}details{display:none}}</style><main><p><strong>历史设计归档（2026-11-01）</strong> · 不代表当前产品验收。<a href="../20261101-archive.html">查看归档说明</a></p>
+<div class="eyebrow">TRAIL / DESIGN REVIEW / 2026.11.01</div><h1>减少视觉噪声，<br>让内容和下一步更清楚。</h1>
+<p>macOS 与 iOS 核心 UI 美学审查。保留现有蓝色强调与灰阶主题，重点调整信息层级、列表节奏、表单边界和平台容器。下面的定案由 Codex 对照截图及源码，结合 DeepSeek 两轮意见整理；不是对模型意见的照单全收。</p><p class="meta">8 个场景 · 42 张已检查截图 · 每场景 2 轮 / 共 16 次 API 调用 · DeepSeek-V4.1-Flash（API: deepseek-flash）· 仅审查，未实施 UI 修改</p><div class="limits"><strong>证据范围</strong><p>全部入选图均为本次重新运行的生产 Flutter 组件截图，使用测试数据与固定测试字体。iOS 逻辑尺寸 402×874，macOS 1280×900，PNG 为 2 倍导出。不是原生系统截图验收；尺寸是待落地验证的建议值，不是像素测量结果。手机按项目要求固定字号。</p><p>真机连接页已查看；已安装 macOS 同步界面落后于当前代码，截图保存还遇到瞬态浮层，故不纳入定案。Apple 原生授权、历史账号关联、最新已登录态、失败通知、真实键盘/焦点/读屏及对比度尚有验证缺口。</p></div><nav><a href="#01-entry">01 连接入口与连接管理</a><a href="#02-terminal">02 终端命令块与输入区</a><a href="#03-ai">03 AI 对话与命令审批</a><a href="#04-history">04 iOS 历史会话新列表</a><a href="#05-ssh">05 SSH 连接编辑</a><a href="#06-files">06 SFTP 文件浏览</a><a href="#07-settings">07 设置、外观与同步登录</a><a href="#08-feedback">08 成功与状态提示</a></nav><h2>先改什么</h2><p><strong>第一批：</strong>历史会话列表、AI 审批卡、SSH/同步表单。<strong>第二批：</strong>连接主次、macOS 管理弹层、终端元信息、SFTP 与通知视觉精修。任何精简都不改变登录、保存、同步冲突或 AI 执行授权。</p><table><thead><tr><th>场景</th><th>当前判断</th><th>优先级</th><th>轮数</th></tr></thead><tbody><tr><td><a href="#01-entry">连接入口与连接管理</a></td><td>层级可用，主次需调整</td><td>P2</td><td>2 / 3</td></tr><tr><td><a href="#02-terminal">终端命令块与输入区</a></td><td>内容清楚，控制信息略散</td><td>P2</td><td>2 / 3</td></tr><tr><td><a href="#03-ai">AI 对话与命令审批</a></td><td>功能层级明确，审批阅读顺序需优化</td><td>P1</td><td>2 / 3</td></tr><tr><td><a href="#04-history">iOS 历史会话新列表</a></td><td>新列表结构成立，卡片密度偏高</td><td>P1</td><td>2 / 3</td></tr><tr><td><a href="#05-ssh">SSH 连接编辑</a></td><td>字段齐全，描边和说明过于同权</td><td>P1</td><td>2 / 3</td></tr><tr><td><a href="#06-files">SFTP 文件浏览</a></td><td>基础干净，做轻量精修</td><td>P2</td><td>2 / 3</td></tr><tr><td><a href="#07-settings">设置、外观与同步登录</a></td><td>信息完备，表单与普通说明优先减负</td><td>P1</td><td>2 / 3</td></tr><tr><td><a href="#08-feedback">成功与状态提示</a></td><td>基本策略正确，容器视觉可减重</td><td>P2</td><td>2 / 3</td></tr></tbody></table><div class="filters"><button class="active" data-filter="all">全部截图</button><button data-filter="ios">仅 iOS</button><button data-filter="macos">仅 macOS</button></div><section id="01-entry"><span class="tag">P2 · 2 轮已定案</span><h2>01 / 连接入口与连接管理</h2><p>层级可用，主次需调整</p><div class="decision"><ol><li>连接行名称 17pt/600，地址 13–14pt 次级色；行高建议 64–72pt。地址可截断，完整信息仍在原编辑页查看。</li><li>已有连接时，新建降为次级描边按钮，管理保留文字操作；无连接时新建仍是实心蓝色主按钮。</li><li>macOS 连接管理改为居中自适应对话框，移除手机拖拽柄；建议宽 560–640pt，高度不超过可用区域 80%，内部列表滚动。</li></ol></div><p class="reject"><strong>保留与未采纳：</strong>不因终端空白而增加装饰；不引入独立管理窗口或新侧栏。DeepSeek 首轮误判桌面弹层位置，已在第二轮纠正。</p><p><strong>落地验收：</strong>检查空/非空状态主次正确；长地址、长列表在窄窗口下不遮挡操作。</p><p class="meta">点击截图查看原尺寸。截图展示当前界面，不是调整后的设计稿。</p><div class="gallery"><figure data-platform="ios"><a href="screenshots/iOS-light-portrait-shell-home.png" target="_blank"><img loading="lazy" src="screenshots/iOS-light-portrait-shell-home.png" alt="连接入口与连接管理 iOS-light-portrait-shell-home.png"></a><figcaption>iOS-light-portrait-shell-home.png</figcaption></figure><figure data-platform="ios"><a href="screenshots/iOS-dark-portrait-shell-home.png" target="_blank"><img loading="lazy" src="screenshots/iOS-dark-portrait-shell-home.png" alt="连接入口与连接管理 iOS-dark-portrait-shell-home.png"></a><figcaption>iOS-dark-portrait-shell-home.png</figcaption></figure><figure data-platform="macos"><a href="screenshots/macOS-light-portrait-shell-home.png" target="_blank"><img loading="lazy" src="screenshots/macOS-light-portrait-shell-home.png" alt="连接入口与连接管理 macOS-light-portrait-shell-home.png"></a><figcaption>macOS-light-portrait-shell-home.png</figcaption></figure><figure data-platform="macos"><a href="screenshots/macOS-dark-portrait-shell-home.png" target="_blank"><img loading="lazy" src="screenshots/macOS-dark-portrait-shell-home.png" alt="连接入口与连接管理 macOS-dark-portrait-shell-home.png"></a><figcaption>macOS-dark-portrait-shell-home.png</figcaption></figure><figure data-platform="ios"><a href="screenshots/iOS-light-portrait-shell-profiles.png" target="_blank"><img loading="lazy" src="screenshots/iOS-light-portrait-shell-profiles.png" alt="连接入口与连接管理 iOS-light-portrait-shell-profiles.png"></a><figcaption>iOS-light-portrait-shell-profiles.png</figcaption></figure><figure data-platform="ios"><a href="screenshots/iOS-dark-portrait-shell-profiles.png" target="_blank"><img loading="lazy" src="screenshots/iOS-dark-portrait-shell-profiles.png" alt="连接入口与连接管理 iOS-dark-portrait-shell-profiles.png"></a><figcaption>iOS-dark-portrait-shell-profiles.png</figcaption></figure><figure data-platform="macos"><a href="screenshots/macOS-light-portrait-shell-profiles.png" target="_blank"><img loading="lazy" src="screenshots/macOS-light-portrait-shell-profiles.png" alt="连接入口与连接管理 macOS-light-portrait-shell-profiles.png"></a><figcaption>macOS-light-portrait-shell-profiles.png</figcaption></figure><figure data-platform="macos"><a href="screenshots/macOS-dark-portrait-shell-profiles.png" target="_blank"><img loading="lazy" src="screenshots/macOS-dark-portrait-shell-profiles.png" alt="连接入口与连接管理 macOS-dark-portrait-shell-profiles.png"></a><figcaption>macOS-dark-portrait-shell-profiles.png</figcaption></figure></div><details><summary>查看两轮讨论原文与 Codex 的反驳</summary><h3>第 1 轮：Codex 的观察</h3><pre>iOS 连接页出现同权重的名称/地址；新建巨大蓝按钮、管理位于其下。macOS Profile 管理沿用底部弹层，宽屏利用有限。不要将终端本来为空的区域当作必须填满的缺陷。</pre><h3>第 1 轮：DeepSeek 回复</h3><pre>1. 整体判断：iOS 首页的层级清楚但“主次失衡”，列表项与 CTA 抢注意力；管理弹层信息可用，细节仍有 iOS 味不足。macOS 终端主体正常，Profile 用居中弹层在 1280 宽下空间利用差，更像移动端放大。
+
+2. 问题
+- P1｜iOS 首页列表卡：名称与 `deploy@…:22` 同字号同颜色，权重大致相同，地址应是次要信息。建议名称 17pt semibold，地址 13–14pt secondary，单行截断；行高 64–72pt。收益：扫读更快；风险：地址截断需提供完整副本入口（仅提示，不新增功能）。
+- P1｜iOS 首页按钮区：全宽实心蓝“新建”视觉重于唯一连接，且“管理连接”靠文字链接承载。建议 CTA 降为描边/次要或移入导航，列表行强化箭头与整行可点感（行高 ≥64pt，圆角 10–12pt）。收益：先选连接再新建；风险：新用户入口不够显眼，需确认产品优先级。
+- P2｜iOS 管理弹层：标题“管理连接”与右侧蓝色“新建”按钮、关闭 × 三者同排略拥挤；搜索框描边偏灰。建议标题 17pt semibold，新建用 secondary 按钮（或导航栏 `+`），关闭与新建间留 12–16pt，搜索框圆角 10pt。收益：头部更清爽；风险：新建入口被弱化。
+- P2｜iOS 弹层列表：元信息两行（地址 + “默认 Profile”换行），标签 chip 描边与背景对比偏弱。建议第二行单行截断，chip 高 20–22pt、圆角 6pt、文字 11–12pt。收益：行高稳定易扫读；风险：信息密度略降。
+- P2｜macOS Profile 弹层：在 1280×900 下仍是窄居中卡片，宽度约 680pt，列表双行紧凑，与桌面端“设置/管理”的使用预期不符。建议宽 720–820pt、行高 48–56pt，或改为侧栏/独立设置窗口（取舍见下）。收益：利用宽屏、编辑/删除有呼吸；风险：改动范围变大。
+
+3. 需确认的取舍
+- macOS 是否接受 Profile 管理改为右侧栏或独立设置窗口，而非继续底部弹层？
+- iOS 首页“新建”是否必须保持当前蓝实心主 CTA（产品拉新优先），还是可降级为次要？
+- 连接行地址截断是否可接受，是否需要单独查看完整地址的入口？</pre><h3>第 2 轮：Codex 核对与取舍</h3><pre>取舍：保留以选择现有连接为主，已有连接时新建降为次级描边/工具栏动作，空连接状态仍用实心主按钮；不要新增查看地址功能，现有编辑页可查看完整值。名称17/600，地址13–14/secondary，行高64–72，间距12–16。macOS截图是底部弹层，不是正常居中窗口；不要从PNG估680pt。定为去拖拽柄、改居中自适应对话框，建议560–640pt宽/最大可用高度80%，保留现有功能，暂不引入独立窗口或侧栏。拒绝为了填满宽屏盲目加宽。请确认/纠正后定案。
+这是第2轮也是最后一轮，请不要再提需用户选择的问题。输出具体最终方案（最多5项）、明确不改什么、2条验收条件和局限。若我有不合理之处可反驳但需说明证据。所有数字是待落地验证的建议值，不是截图测量结果。</pre><h3>第 2 轮：DeepSeek 回复</h3><pre>确认你的取舍，纠正一处：macOS 不是居中弹层，截图可见卡片贴近底部、上方有拖拽柄短横线，所以“去拖拽柄、改居中自适应对话框”的定方向正确；但移除拖动柄后要确认关闭路径仍清晰——截图已有右上 ×，可作为唯一显式关闭，不再加新交互。
+
+最终方案：
+- P1｜iOS 首页连接行：名称 17pt/600，地址 13–14pt secondary 单行截断，行高 64–72pt，图标与文字间距 12–16pt；整行以背景/箭头提示可点。收益：先选连接；风险：长地址截断，由编辑页查看完整值（符合取舍，不新增功能）。
+- P1｜iOS 首页动作：有连接时“新建 SSH 连接”降为次级描边按钮，或与“管理连接”同层级工具动作；空状态才用实心蓝主按钮。两动作间距 12–16pt。收益：主 CTA 不压过列表；风险：新连接入口变弱，需确认空/非空渲染分支一致。
+- P2｜iOS 管理弹层头部：标题 17pt/600，新建改次级描边（或工具栏 `+`），与关闭 × 间距 12–16pt；搜索框圆角 10pt、描边沿用现有 token。收益：头部不再三个强元素同排；风险：返回/关闭识别需靠 × 单独承担。
+- P2｜iOS 弹层列表：元信息收为一行并截断，标签 chip 高 20–22pt、圆角 6pt、文字 11–12pt，chip 描边沿用灰阶 token。收益：行高稳定；风险：多字段时信息密度下降。
+- P2｜macOS Profile 弹层：去掉拖拽柄，改居中自适应对话框，宽 560–640pt（建议值待验证），最大高度 80% 可用高度，列表行高 48–56pt，编辑/删除保持右侧对齐。收益：桌面语义正确、不盲目拉宽；风险：长列表依赖内部滚动，需确认滚动与固定头部不重叠。
+
+明确不改：终端空白区域不填充；不新增查看完整地址入口；不引入 macOS 独立窗口/侧栏；不改 AI 执行授权与业务范围；不改已有蓝强调色、灰阶 surface、深浅色 token；不改底部输入留白性质。
+
+验收条件：
+1. 空连接状态为实心蓝主按钮，非空状态新建为次级动作，连接行整行可点且名称/地址字号层级符合上述建议值。
+2. macOS Profile 对话框无拖拽柄、居中显示，宽度落在建议区间且最大高度不超过可用高度 80%，列表滚动时头部与搜索框不被遮挡。
+
+局限：无法从 PNG 判断点击热区、滚动行为、真实对比度；560–640pt 与 80% 高度为待验证建议值，不是截图测量。</pre></details></section><section id="02-terminal"><span class="tag">P2 · 2 轮已定案</span><h2>02 / 终端命令块与输入区</h2><p>内容清楚，控制信息略散</p><div class="decision"><ol><li>命令为主，目录与成功耗时降为次级色。状态/耗时紧凑成组，与更多菜单分开；失败退出码用错误语义色并保留图标。</li><li>块之间采用轻分隔线与 12–16pt 留白，块内间距更小；不增加厚卡片。</li><li>桌面输入区只整理内部 8–12pt 间距，使主输入行、工具行和执行按钮对齐；保留固定底部。</li></ol></div><p class="reject"><strong>保留与未采纳：</strong>不覆盖用户终端字体/字号/ANSI 配色，不改变输出换行或滚动。首轮提出的统一输出字号与新增裁切提示未采纳。</p><p><strong>落地验收：</strong>长命令与失败元信息同时出现仍能读出命令主体；深浅色下成功安静、失败可辨。</p><p class="meta">点击截图查看原尺寸。截图展示当前界面，不是调整后的设计稿。</p><div class="gallery"><figure data-platform="ios"><a href="screenshots/iOS-light-portrait-blocks.png" target="_blank"><img loading="lazy" src="screenshots/iOS-light-portrait-blocks.png" alt="终端命令块与输入区 iOS-light-portrait-blocks.png"></a><figcaption>iOS-light-portrait-blocks.png</figcaption></figure><figure data-platform="ios"><a href="screenshots/iOS-dark-portrait-blocks.png" target="_blank"><img loading="lazy" src="screenshots/iOS-dark-portrait-blocks.png" alt="终端命令块与输入区 iOS-dark-portrait-blocks.png"></a><figcaption>iOS-dark-portrait-blocks.png</figcaption></figure><figure data-platform="macos"><a href="screenshots/macOS-light-portrait-blocks.png" target="_blank"><img loading="lazy" src="screenshots/macOS-light-portrait-blocks.png" alt="终端命令块与输入区 macOS-light-portrait-blocks.png"></a><figcaption>macOS-light-portrait-blocks.png</figcaption></figure><figure data-platform="macos"><a href="screenshots/macOS-dark-portrait-blocks.png" target="_blank"><img loading="lazy" src="screenshots/macOS-dark-portrait-blocks.png" alt="终端命令块与输入区 macOS-dark-portrait-blocks.png"></a><figcaption>macOS-dark-portrait-blocks.png</figcaption></figure></div><details><summary>查看两轮讨论原文与 Codex 的反驳</summary><h3>第 1 轮：Codex 的观察</h3><pre>命令块和输出是核心，控制图标与时间状态密度较高。区分 shell 输出等宽字体和应用 UI 字体；不要对终端空白加入装饰。</pre><h3>第 1 轮：DeepSeek 回复</h3><pre>整体判断：这 4 张图呈现的是同一个“终端命令块与输入区”在 iOS 和 macOS 两种平台、浅色和深色两种模式下的版本；整体方向成立：命令块是视觉核心，shell 输出使用等宽字体、边界使用细描边、浅/深 token 也基本沿用得很一致。真正需要优先处理的是 iOS 端命令头的元信息密度，以及 macOS 端块之间的层级不够清晰，而不是终端空白处。
+
+1. **iOS 浅/深图 · 命令头右侧**：`✓ 145ms ···` 与命令文本在同一基线上，图标、耗时和更多菜单三项并排，信息比较分散。建议把时间和状态合并为一个视觉组（如 12pt 灰阶，图标与数字间距 4pt），`···` 单独成组并距右 0；命令文本维持 15–16pt 等宽。P1。收益：命令与元信息的主次关系更清楚；风险：命令较窄时右侧空间的挤压感会增加。
+
+2. **iOS 浅/深图 · 块分隔线**：当前整宽细线让三个块看起来像同一张长表，块与块之间的边界较弱。建议保留分隔线，但上下留白略大于块内命令与输出间距（如块间 20pt，块内 12pt），线条可降至更浅一级灰阶。P2。收益：更贴合“块”的心智；风险：纵向空间略吃紧。
+
+3. **macOS 浅/深图 · 命令块左侧**：路径像 `~/code/ianvs-terminal` 一样作为块头出现，而命令文本不带任何强调，导致“路径、命令、输出”三层几乎同一灰度。建议路径用 12pt 次级灰，命令用 14–15pt 等宽并稍加重权重；退出码单独放在块尾。P1。收益：扫读时先认出命令；风险：命令行是否与 iOS 同级需要确认。
+
+4. **macOS 浅/深图 · 输入区**：区域很高、内容很少，`本地 zsh / 路径 / Shell 就绪 / 输入命令… / 工具行 / 执行` 六个层级排开，留白较多，导致输入框的主输入 affordance 被工具栏削弱。建议压缩内边距，让 `输入命令…` 落在更靠上的主行，工具行与执行按钮保持在底部一行。P2。收益：聚焦输入；风险：底部输入区固定造成的留白不应视为缺陷，仅调整内部排布。
+
+5. **浅/深图 · 输出区字体**：`git status` 输出、`flutter test` 时间戳和 `Type &#x27;string&#x27;…` 都用了相近的等宽字号，长错误行右侧被截断（iOS 明显）。建议等宽输出统一 13–14pt，并对被截断的长行在裁切处给出纯文本层面的最小提示，是否横向滚动需要你确认。P2。收益：输出更易读；风险：处理不当可能引入装饰。
+
+需确认：你更想把“块间分隔”做成留白主导还是描边主导？macOS 输入区是否允许重排层级？以及 iOS 长输出行裁切，是保持截断，还是允许横向滚动？</pre><h3>第 2 轮：Codex 核对与取舍</h3><pre>取舍：块间以轻分隔线+12–16pt留白为主，不统一增至20避免手机过稀。沿用用户终端字体/字号配置，不硬覆盖为13–14pt或改变ANSI/输出换行语义。右侧成功耗时用secondary紧凑组，失败图标与退出码强调。路径弱化、命令相对强调；必须检查命令超长时元信息不挤掉主体。桌面输入框仅内部对齐/间距8–12，不改固定底部、不填空白。长输出裁切不能据截图判为缺失功能，本次不改滚动行为。请定案并给验收。
+这是第2轮也是最后一轮，请不要再提需用户选择的问题。输出具体最终方案（最多5项）、明确不改什么、2条验收条件和局限。若我有不合理之处可反驳但需说明证据。所有数字是待落地验证的建议值，不是截图测量结果。</pre><h3>第 2 轮：DeepSeek 回复</h3><pre>定案结论：你的取舍成立：用轻分隔线、12–16pt 留白，既保留“块”的边界，也避免手机端稀疏；不硬覆盖终端字体，尊重用户配置是对的；长输出裁切未改的前提，避免臆测交互。没有需要反驳的点。
+
+**最终方案（5项）**
+1. **P1 块分隔（iOS+macOS）**：保留整宽轻分隔线，块间留白 12–16pt（手机取 12–14，桌面取 16）；块内命令与输出间距保持小于块间，形成层级。收益：块边界清楚；风险：留白取上限时手机信息密度下降。
+2. **P1 命令头元信息**：成功耗时/状态用 secondary 紧凑组，状态图标与数值间距 4pt，与 `···` 分为两组、`···` 贴右；失败态图标与退出码用强调色描边或强调文本，退出码在 iOS 并入该组，macOS 放块尾。收益：成功时弱化、失败时突出重点；风险：失败态强调不宜过多占用右侧空间。
+3. **P1 超长命令保护**：命令文本单行时优先占据主体宽度，元信息组设最小可读宽度（如 72pt）；空间不足时命令行尾截断或允许换行，元信息不压缩到不可读。收益：命令始终是主体；风险：换取空间时可能牺牲选项图标。
+4. **P2 路径弱化、命令强调（仅影响 macOS 与 iOS 输入区）**：路径/目录用 12pt 次级灰；命令文本维持用户终端字体的字号与字重，仅以相对更大的权重或更亮灰度强调，不硬设 13–14pt。收益：扫读先见命令；风险：若用户终端字号偏小，块头对比不足以拉开。
+5. **P2 桌面输入框内部对齐**：仅调整内边距、行间距 8–12pt，使 `输入命令…` 主行靠上、工具行与执行按钮同在底部一行；不改变固定底部，不填空白。收益：主输入 affordance 更突出；风险：工具行变紧时触达区域需保持不低于现有行高。
+
+**明确不改**
+- 不改终端字体/字号/ANSI 语义与输出换行行为。
+- 不改底部输入固定造成的留白，不填充空白。
+- 不改长输出的裁切与滚动行为。
+- 不改节点图标体系、平台导航与业务执行授权。
+- 不根据截图判断或测量对比度，不新增装饰。
+
+**验收条件（2条）**
+1. 在 iOS 402pt 与 macOS 1280pt 下，长命令与成功/失败元信息同屏时，命令仍可读出主体（不因元信息被挤至不可辨），块间留白落在 12–16pt 建议区间且块间大于块内。
+2. 成功态元信息呈 secondary 紧凑组、失败态退出码可被识别为强调项；路径明显弱于命令；桌面输入区主行靠上、底行对齐，无新增空白填充，终端字体/输出语义与滚动行为均未变。
+
+**局限**
+- 所有数值为待落地验证的建议值，非截图测量。
+- 长命令截断 vs 换行、元信息最小宽度 72pt 的实施效果需在真实渲染与用户终端配置下验证。
+- 能否验证成功控制项间距与触达，需看实现后的实际布局与设备测试。</pre></details></section><section id="03-ai"><span class="tag">P1 · 2 轮已定案</span><h2>03 / AI 对话与命令审批</h2><p>功能层级明确，审批阅读顺序需优化</p><div class="decision"><ol><li>iOS 保持单行会话标题+动态状态行，右侧审阅入口保留至少 44pt 热区；不得把示例“有一条命令待确认”硬编码为所有状态。</li><li>审批卡按目的→执行目标与目录→完整命令→操作排列。卡内建议 16pt，命令前后 12pt。政策解释降为辅助层级，风险与执行目标保持完整。</li><li>手机正文建议 15–16pt、辅助 13pt；桌面正文 13–14pt、辅助 12–13pt。移动按钮文字保持平台可读尺寸，不照搬桌面的 13pt。</li><li>macOS 消息、审批卡与输入框对齐到同一内容列，最大宽建议 800–880pt；状态与输入间距 8pt，定位提案保持次级链接。</li></ol></div><p class="reject"><strong>保留与未采纳：</strong>不增加色条、渐变或新装饰；不改变审批授权，不引导自动开启智能审核，不把固定输入上方空白当成缺陷。</p><p><strong>落地验收：</strong>375/402pt 宽时标题不挤压操作；长命令完整可审阅，执行目标与风险不被省略。</p><p class="meta">点击截图查看原尺寸。截图展示当前界面，不是调整后的设计稿。</p><div class="gallery"><figure data-platform="ios"><a href="screenshots/ios-ai-light.png" target="_blank"><img loading="lazy" src="screenshots/ios-ai-light.png" alt="AI 对话与命令审批 ios-ai-light.png"></a><figcaption>ios-ai-light.png</figcaption></figure><figure data-platform="ios"><a href="screenshots/ios-ai-dark.png" target="_blank"><img loading="lazy" src="screenshots/ios-ai-dark.png" alt="AI 对话与命令审批 ios-ai-dark.png"></a><figcaption>ios-ai-dark.png</figcaption></figure><figure data-platform="macos"><a href="screenshots/macos-ai-light.png" target="_blank"><img loading="lazy" src="screenshots/macos-ai-light.png" alt="AI 对话与命令审批 macos-ai-light.png"></a><figcaption>macos-ai-light.png</figcaption></figure><figure data-platform="macos"><a href="screenshots/macos-ai-dark.png" target="_blank"><img loading="lazy" src="screenshots/macos-ai-dark.png" alt="AI 对话与命令审批 macos-ai-dark.png"></a><figcaption>macos-ai-dark.png</figcaption></figure></div><details><summary>查看两轮讨论原文与 Codex 的反驳</summary><h3>第 1 轮：Codex 的观察</h3><pre>截图使用与生产一致的 compactMobile/unifiedWorkspace 参数，审批风险及执行目标不可为美观删除；关注标题截断、工具图标堆叠、审批卡层级、输入区和内容对齐。</pre><h3>第 1 轮：DeepSeek 回复</h3><pre>1. **整体判断**：双端结构清晰，审批卡的轻暖色/中性色底与蓝色主操作辨识度高，深浅色 token 生效。主要空间层级偏平，信息块间节奏与平台惯例（特别是 macOS 底部输入与状态条）还有打磨空间。
+2. **问题与建议**：
+   - **P1 iOS/标题区**：长标题尾部截断并配“⌄”，与右侧“审阅命令”文字按钮横向拥挤。建议标题最大宽为 `calc(屏幕宽 - 左右控件 - 24pt)`，截断保留展开热区，视觉更稳。
+   - **P2 iOS+macOS/审批卡**：卡片内“待确认”标签与正文靠色/字重区分弱，命令块与上方信息间距紧凑。建议标签用 `12pt`/`semibold` 或加前置 2pt 色条，命令块上下内边距+8pt，提升扫描层级。
+   - **P2 iOS/输入区**：左侧“自动·AI”胶囊与中间占位文案、右侧圆形发送键，上下缘对齐但水平留白不均。建议左右内边距各 12pt、胶囊到文案间距 12pt，保持 44pt 触控高度。
+   - **P1 macOS/底部输入**：命令提示条、输入框、“补充要求”按钮三层元素垂直堆叠且贴底，视觉重心散。建议状态行与输入框间距 8pt，输入框与工具行间距 8pt，整体上移 8-12pt（非改固定留白逻辑）。
+   - **P2 macOS/审批卡**：“编辑/拒绝/执行一次”字号与卡内正文接近，主次对比不够。建议次要按钮 13pt/medium，主按钮 13pt/semibold，主按钮左右 `16pt` 内边距。
+3. **需确认的取舍**：
+   - iOS 标题是否必须展示完整意图？若允许两行，空间会挤压下方命令提示。
+   - macOS 底部“定位待确认提案”是作为一级状态入口，还是次级工具？决定它与输入框的视觉权重分配。</pre><h3>第 2 轮：Codex 核对与取舍</h3><pre>取舍：iOS标题保持单行省略+第二行任务状态；右侧审阅命令热区44pt以上，不添加两行标题挤压状态。不要再加色条，已有审批卡暖色底+描边足够。审批按目的→执行目标/目录→完整命令→操作四层，政策说明降为辅助但不隐藏关键风险。手机正文15–16，说明13；桌面13–14/说明12–13，均theme token。命令前后12pt、卡内16pt。桌面消息/审批卡/输入框统一内容列（建议最大800–880pt，受约束），定位提案保留为次级链接，状态与输入间距8；不要宣称按钮可执行或引导用户打开智能审核。请定案。
+这是第2轮也是最后一轮，请不要再提需用户选择的问题。输出具体最终方案（最多5项）、明确不改什么、2条验收条件和局限。若我有不合理之处可反驳但需说明证据。所有数字是待落地验证的建议值，不是截图测量结果。</pre><h3>第 2 轮：DeepSeek 回复</h3><pre>1. **整体判断**：方案收紧后方向明确：以单行标题+状态行保稳定，审批卡四层信息重排，双端共用列宽与字阶节奏。你给的取舍合理，仅“状态与输入间距8”在 macOS 下需配合状态行到卡片分组理解，否则会挤。定案如下。
+
+2. **最终方案（5项）**：
+   - **P1 标题与状态**：iOS 标题单行省略（右侧预留审阅命令热区≥44pt），第二行固定“有一条命令待确认”。状态字号 13pt/token，颜色用次级灰，首行与状态行间距 2–4pt。不改两行标题逻辑。
+   - **P1 审批卡四层**：按“目的→执行目标+目录→完整命令→操作”排布。卡内 padding 16pt，命令块上下 12pt；政策说明降为 13pt（iOS）/12–13pt（macOS 辅助色），但保留“每次确认/智能审核设置”文字，不隐藏。不加色条，沿用暖色底+描边。
+   - **P2 字阶与按钮**：iOS 正文 15–16pt、说明 13pt；macOS 正文 13–14pt、说明 12–13pt，均 theme token。主按钮 13pt/semibold，次按钮 13pt/medium，主按钮左右内边距 16pt；审批卡操作行与命令块间距≥16pt。
+   - **P2 iOS 输入区**：左右内边距 12pt，胶囊与占位文案间距 12pt，发送键保持 44pt 触控；整体行高一致。
+   - **P2 macOS 列宽与底部**：消息/审批卡/输入框统一内容列，max-width 800–880pt（受父级约束时居中）。定位提案保留为次级链接，状态行与输入框间距 8pt；不宣称按钮可执行，不引导开启智能审核。
+
+3. **明确不改**：审批风险文字与执行目标不可删；浅/深 token 与蓝色强调沿用；iOS 不做 Dynamic Type 讨论；底部输入固定导致的留白不算缺陷；不加新业务功能，不改 AI 执行授权。
+
+4. **验收条件**：
+   - iOS 375pt 宽下标题单行不压右侧按钮，状态行完整显示；审批卡四层自上而下阅读顺畅，命令块上下留 12pt。
+   - macOS 1280pt 下列宽不超 880pt 且三块左对齐一致；底部状态行与输入框间距 8pt，定位提案呈次级链接视觉。
+
+5. **局限**：以上数值为待落地验证建议，非截图测量；按钮真实执行状态、智能审核配置路径与对比度合规性无法从截图判断；macOS 最小窗口宽度下的列宽回退需实际构建验证。</pre></details></section><section id="04-history"><span class="tag">P1 · 2 轮已定案</span><h2>04 / iOS 历史会话新列表</h2><p>新列表结构成立，卡片密度偏高</p><div class="decision"><ol><li>保留当前会话的淡蓝底与勾选；最近会话改连续轻列表，以内缩细分隔线替代每项大底卡。</li><li>会话标题建议 16pt/600，摘要 13–14pt、最多两行；自然行高，无摘要行最少 56pt，行内垂直留白 12pt。</li><li>页面标题“历史会话”保留较大一级 20–22pt；不能把会话行标题的 16pt 误套到页面标题。搜索高 44pt、圆角 10–12pt，水平边距 16–20pt。</li><li>当前/最近分组间距 20–24pt。底部会话数弱化并保留现有细分隔线，不额外加边框。</li></ol></div><p class="reject"><strong>保留与未采纳：</strong>当前卡片间距已为 8pt，不再把“改为8pt”当成改动。无可靠时间不造今天/昨天；无摘要不补假内容、不删除空会话。</p><p><strong>落地验收：</strong>当前与最近层级一眼可辨；320pt 小屏、键盘弹起时搜索/关闭可用，末行可滚到完整可见。</p><p class="meta">点击截图查看原尺寸。截图展示当前界面，不是调整后的设计稿。</p><div class="gallery"><figure data-platform="ios"><a href="screenshots/ios-history-light.png" target="_blank"><img loading="lazy" src="screenshots/ios-history-light.png" alt="iOS 历史会话新列表 ios-history-light.png"></a><figcaption>ios-history-light.png</figcaption></figure><figure data-platform="ios"><a href="screenshots/ios-history-dark.png" target="_blank"><img loading="lazy" src="screenshots/ios-history-dark.png" alt="iOS 历史会话新列表 ios-history-dark.png"></a><figcaption>ios-history-dark.png</figcaption></figure></div><details><summary>查看两轮讨论原文与 Codex 的反驳</summary><h3>第 1 轮：Codex 的观察</h3><pre>这是新实现的 iOS 列表组件，在独立预览中展示，实际以大底部面板打开。当前会话置顶、按访问顺序排列；没有可靠时间戳，不能虚构今天/昨天。保留搜索与新建；macOS 没有此组件，勿假定跨平台相同。</pre><h3>第 1 轮：DeepSeek 回复</h3><pre>### 1 整体判断
+整体信息层级清晰，符合“当前置顶+最近列表”的预期。底色与卡片、分组标题区分明确，浅/深主题 token 应用一致。当前主要问题在主体行辨识度（“新会话”）、卡片视觉分组过重，以及底部工具栏与滚动内容的关系未交代。
+
+### 2 问题（P1/P2）
+**P1-1 | 两图“最近会话”首行** → “新会话”无摘要，卡片高度约为其他卡片一半，导致整列节奏被打断，也容易被误读为次级项 → 建议：空摘要时统一使用与有摘要卡片相同的最小高度（约 64–72pt 逻辑高），或不套卡片、做成纯文字行并减小间距 → 收益：列表纵向节奏稳定；风险：若新会话需强调可点击性，纯文字行需依靠箭头等 affordance 补足。
+
+**P1-2 | 两图“最近会话”各卡片** → 卡片底色与背景接近，仅靠 12pt 圆角区分，卡片之间约 12–16pt 间隙加上同色底，形成“一段段长条”而弱化连续列表感 → 建议：缩小卡片间垂直间距至 8pt，或将“最近会话”改为无卡片、仅用分隔线/内缩；保留下方“当前会话”单独着色 → 收益：扫读更快；风险：与现有 surface token 用法冲突需确认。
+
+**P2-3 | 浅色“当前会话”卡片** → 浅紫/淡蓝选中底与蓝色勾选并存，“选中”语义重复，且和最近会社区分偏色而非偏层级 → 建议：保留蓝色勾选，底色调淡一档或改用浅灰强调边（1pt）；深色同思路 → 收益：减少视觉噪声；风险：浅色环境可能降低“当前”识别度。
+
+**P2-4 | 两图顶部搜索框与标题** → 标题 24pt 级与搜索框等高区域之间留白偏紧，搜索框圆角/描边和下方卡片圆角未形成统一节奏 → 建议：标题下留白 16pt，搜索框高 44pt、圆角与卡片一致（12pt）；描边保持 1pt 低对比 → 收益：顶区呼吸感；风险：内容区起始下移约 8pt。
+
+**P2-5 | 两图底部栏** → “5 个会话”字号明显小于列表副标题，左侧文字与右侧省略号在垂直中线对齐，尚可；但底部栏与列表末尾缺少明确分隔线（浅色有细线，深色接近不可见）→ 建议：深浅统一使用 1pt 低对比顶边线，底部内边距约 12pt → 收益：工具栏归属明确；风险：深色需检查线与背景对比。
+
+### 3 需确认取舍
+1 “新会话”是否允许无摘要，以及是否与其它会话同等视觉权重？
+2 “最近会话”保留卡片分组，还是改成连续行+分隔线？
+3 当前会话底色是否就是现有强调色 token 的浅色档，可否接受调淡？
+4 底部工具栏是固定在面板底部，还是跟随列表滚动（截图无法判断）？</pre><h3>第 2 轮：Codex 核对与取舍</h3><pre>核对：实际卡间已是spacing.sm=8pt、当前背景primaryContainer alpha .35；你的改成8pt可能无效，当前勾选+底色并非需删除的冗余。底部固定，已有Divider(height:1)。取舍：保留当前淡蓝卡+勾，最近列表改连续轻行+内缩细分隔线，不再每行厚底卡。标题16/600一行（允许2行时需受限），摘要13–14两行以内，行内垂直12，搜索44高圆角10–12，左右16–20。无摘要项按内容自然高但至少56，不添加虚假摘要，不删除空会话；草稿只有实际草稿时标记。分组距20–24。底部会话数保留弱化，不增加额外边框。请定案。
+这是第2轮也是最后一轮，请不要再提需用户选择的问题。输出具体最终方案（最多5项）、明确不改什么、2条验收条件和局限。若我有不合理之处可反驳但需说明证据。所有数字是待落地验证的建议值，不是截图测量结果。</pre><h3>第 2 轮：DeepSeek 回复</h3><pre>### 定案
+
+核对后接受你的修正：卡间距 8pt 与 current 底色 alpha .35 不再动；勾选+淡蓝底是“当前会话”的语义双编码，非冗余；底部会话数无额外边框、Divider(height:1) 保留。以下只按你给的取舍收敛，最多 5 项。
+
+1. **P1｜“最近会话”改连续轻行+内缩细分隔线**
+   移除每行厚底卡（surface 填充+12 圆角），改为无底色行；分隔线内缩，对齐标题文字左缘（左右各 16，线不穿到卡片外边）。行内垂直 padding 12；有摘要项自然高，副标题 13–14pt、最多两行。收益：扫读节奏连续，与“当前会话”单张淡蓝卡形成层级对比；风险：行内点击热区须至少 44pt 高，无摘要行需靠 padding 而非卡片暗示可点。
+2. **P1｜“新会话”无摘要行**
+   不添加虚假摘要、不删空会话；按内容自然高、最小 56pt。草稿仅在确实存在草稿时标记，无草稿即无标记。收益：不打断列表节奏也不伪造信息；风险：56pt 与有摘要行高差明显，需靠分隔线维持连续感。
+3. **P2｜顶区**
+   标题 16pt/600 单行（2 行时截断受限，不换行撑高）；搜索框高 44、圆角 10–12（与卡片圆角一致）、左右 16–20 内边距；标题与搜索框、搜索框与首个分组标题间距各 20–24。收益：顶区呼吸感与圆角统一；风险：下移约 8pt，首屏可见行数略减。
+4. **P2｜分组间距与分组标题**
+   “当前会话”“最近会话”分组标题距上方内容 20–24，距下方第一行 8–12；分组标题沿用弱化次级色。收益：两个语义区的分界靠空间而非底色；风险：与连续行分隔线视觉密度叠加，需确认不显碎。
+5. **P2｜底部**
+   固定底栏保留，Divider(height:1) 保留，“5 个会话”维持弱化样式，不加额外边框。深色下需确认该 1pt 线在深底可见（截图判断不了对比度，仅提示验证）。收益：归属明确且不加重；风险：低。
+
+### 明确不改
+当前会话淡蓝底（primaryContainer α.35）+蓝色勾选、卡间 spacing.sm=8pt、底部固定与 Divider、搜索与新建图标位置与蓝色强调色、无时间戳不伪造今天/昨天、无摘要项不补摘要不删会话、灰阶 surface 与深浅 token 体系、手机固定字号不引入 Dynamic Type。
+
+### 验收条件
+1. 浅/深两图下，“最近会话”为连续行+内缩分隔线、无厚底卡；无摘要“新会话”自然高≥56pt 且有分隔线衔接；当前会话仍为唯一淡蓝底+勾选卡。
+2. 标题单行 16/600 不撑高；搜索框 44 高、圆角与卡片一致；分组间距 20–24；底部固定、仅 1pt Divider、会话数弱化、无额外边框。
+
+### 局限
+截图无法判断点击热区实测尺寸、深色 Divider 与低对比描边的对比度、滚动时底栏是否遮挡末行、系统安全区与面板圆角/拖拽条的关系；上述数值均为待落地验证的建议值，非截图测量。</pre></details></section><section id="05-ssh"><span class="tag">P1 · 2 轮已定案</span><h2>05 / SSH 连接编辑</h2><p>字段齐全，描边和说明过于同权</p><div class="decision"><ol><li>统一输入框、下拉和私钥行的弱描边与 surface；分组标题为主色、字段标签次级、说明更弱。保留可操作边界。</li><li>手机控件建议 44–48pt、连接按钮 48pt；桌面 28–32pt。字段间距 16pt、分组 24pt、说明距控件 6–8pt。</li><li>图标视觉 18–20pt，手机独立热区至少 44×44pt。仅可清空时显示删除图标，不把图标间空隙当作热区。</li><li>桌面保留左标签列和显式端口；手机保留上标签与更多连接设置。窄窗口按约束调整。</li></ol></div><p class="reject"><strong>保留与未采纳：</strong>不删认证字段、密钥说明或加密语义。私钥行不改成无法辨认可操作性的无边界文本。</p><p><strong>落地验收：</strong>键盘弹起时连接按钮与最后字段可达；长路径和两个图标不挤压输入，深浅色字段状态清晰。</p><p class="meta">点击截图查看原尺寸。截图展示当前界面，不是调整后的设计稿。</p><div class="gallery"><figure data-platform="ios"><a href="screenshots/iOS-light-portrait-ssh.png" target="_blank"><img loading="lazy" src="screenshots/iOS-light-portrait-ssh.png" alt="SSH 连接编辑 iOS-light-portrait-ssh.png"></a><figcaption>iOS-light-portrait-ssh.png</figcaption></figure><figure data-platform="ios"><a href="screenshots/iOS-dark-portrait-ssh.png" target="_blank"><img loading="lazy" src="screenshots/iOS-dark-portrait-ssh.png" alt="SSH 连接编辑 iOS-dark-portrait-ssh.png"></a><figcaption>iOS-dark-portrait-ssh.png</figcaption></figure><figure data-platform="macos"><a href="screenshots/macOS-light-portrait-ssh.png" target="_blank"><img loading="lazy" src="screenshots/macOS-light-portrait-ssh.png" alt="SSH 连接编辑 macOS-light-portrait-ssh.png"></a><figcaption>macOS-light-portrait-ssh.png</figcaption></figure><figure data-platform="macos"><a href="screenshots/macOS-dark-portrait-ssh.png" target="_blank"><img loading="lazy" src="screenshots/macOS-dark-portrait-ssh.png" alt="SSH 连接编辑 macOS-dark-portrait-ssh.png"></a><figcaption>macOS-dark-portrait-ssh.png</figcaption></figure></div><details><summary>查看两轮讨论原文与 Codex 的反驳</summary><h3>第 1 轮：Codex 的观察</h3><pre>桌面双列紧凑标签与手机单列不同。认证方式相关字段/说明密集，所有描边同权重。真实密钥和密码未传送，都是测试夹具。安全信息不能因美学删除。</pre><h3>第 1 轮：DeepSeek 回复</h3><pre>1. 整体判断：双端信息架构清晰，安全说明完整，浅/深色 token 一致；桌面端左标签/右控件、底部固定操作是正确方向。主要问题是全屏所有边框同权重，导致层级弱；手机端密文字段与私钥字段的操作入口拥挤。
+
+2. 问题
+- P1 全图：输入框、下拉框、卡片均为同一级浅灰细描边，主次不分。建议基础控件用 1pt 中性弱描边；私钥路径展示可直接去掉外框，改成浅 surface + 圆角 8pt，仅保留左右内边距，避免与普通输入框抢权重；保留当前 44/-pt 触控行高。
+- P2 iOS 图“密码回退”“私钥口令”：眼睛与垃圾桶同行，右侧密集，且密码回退为空时垃圾桶仍显示。建议仅当有内容时显示垃圾桶，间距 ≥12pt；两种状态都保证右侧图标有独立点击区。
+- P2 macOS 图：左标签字重与控件文本接近，分组标题“连接”“身份验证”只靠上下留白区分。建议标签降为 secondary 色，分组标题保留 primary 并增加上间距 16pt，形成层级，不增加新字段。
+- P2 双端图身份验证区：说明文案紧贴控件下方，且“密码回退”字段与“私钥”区之间垂直间距偏小。建议说明文字距控件 6pt、组间 16pt；这只是空间调整，不改变字段关系。
+- P2 iOS 底部“连接”按钮：宽高比偏扁、上下留白大；建议按钮高度约 50pt，圆角与输入框统一（约 8–10pt），并让按钮与最后控件保持 24pt 间距。
+
+3. 需确认取舍
+- 桌面是否保留左侧标签列，还是改为控件上方标签以贴近 macOS 设置表单惯例？我倾向前者，风险是窄窗口时标签列压缩。
+- “端口 22”在 macOS 从更多设置中提前，是否视为信息层级提升？若坚持默认隐藏，可回到更多设置内。
+- 私钥行是否允许去掉外框？若团队认为安全字段必须有明确边界，则保留描边、仅提高左右图标间距。</pre><h3>第 2 轮：Codex 核对与取舍</h3><pre>取舍：桌面保留左标签列，自适应窄窗口；保留桌面端口22显式字段，手机保持更多连接设置。私钥可操作行不去掉全部可点击边界，改弱描边/浅surface；统一输入样式，标签secondary、分组primary。移动字段44–48高，连接48高，分组24、字段16、说明距6–8。桌面控件28–32，不强推所有控件44。图标视觉18–20但手机热区至少44；避免眼睛/删除12pt间距被误读成热区。仅有效可清空状态显示清除。安全说明保留，重复解释才收束。不删除字段或认证流程。请定案。
+这是第2轮也是最后一轮，请不要再提需用户选择的问题。输出具体最终方案（最多5项）、明确不改什么、2条验收条件和局限。若我有不合理之处可反驳但需说明证据。所有数字是待落地验证的建议值，不是截图测量结果。</pre><h3>第 2 轮：DeepSeek 回复</h3><pre>定案如下（数值为待落地验证的建议值）。
+
+1. P1 全端输入与分组层级
+- 统一输入/下拉/公私钥行：1pt 弱描边 + 浅 surface 底，圆角 8pt；保留私钥行整行可点击边界，不改为无边框。
+- 标签文字用 secondary 色，分组标题（连接/身份验证）用 primary 且上间距 24pt；字段间距 16pt，说明距控件 6–8pt。桌面控件高 28–32pt，移动 44–48pt。
+- 收益：一眼分清字段名、控件、注解；风险：弱 surface 在深色下需复核可读性。
+
+2. P1 “密码回退/私钥口令”操作图标
+- 眼睛/删除视觉 18–20pt，热区至少 44×44pt（桌面按指针目标可 28–32）；图标之间留白不得当作热区，热区间实际间隔 ≥12pt 或明确分区。
+- 仅在有可清空内容时显示删除图标；无内容时隐藏，避免空白操作噪声。安全说明保留，仅当同一解释重复出现才收束。
+
+3. P2 iOS 底部“连接”按钮
+- 高度 48pt，圆角与输入框一致（8pt）；与最后控件间距 24pt。下方留白按既有底部输入占位处理，不视为缺陷。
+
+4. P2 macOS 表单
+- 保持左标签列 + 右侧控件，窄窗口自适应；保留显式“端口 22”，不并入更多设置；底部保存/取消/连接不动。私钥行保留“替换/垃圾桶”操作，弱化描边、不弱化文案。
+
+明确不改：字段与认证流程、安全说明、保存加密语义、AI 执行授权、桌面/手机的信息组织差异（端口位置、更多连接设置），以及手机固定字号。
+
+验收条件：
+1. 浅/深色下，分组标题强于标签、标签强于说明，弱描边不与强调按钮抢焦点；眼睛/删除仅在有效状态出现且热区不低于 44pt（移动）。
+2. 桌面 1280×900 与窄窗口下左标签列不压缩控件；手机高度 48pt 按钮不遮挡最后字段，字段间距 16、分组 24、说明 6–8 在两端一致落地。
+
+局限：截图无法判定真实对比度、焦点/悬停态、动态标签溢出、Flutter 实际热区命中与滚动行为；上述数值需在实现后复测，键盘弹起与底部安全区表现不在本轮结论内。</pre></details></section><section id="06-files"><span class="tag">P2 · 2 轮已定案</span><h2>06 / SFTP 文件浏览</h2><p>基础干净，做轻量精修</p><div class="decision"><ol><li>路径按钮保留现有查看完整路径/复制功能；根目录显示“根目录 /”，用弱 surface 增强可点感，不加重描边。</li><li>目录整行进入，手机右侧省略号仍是目录/文件的真实操作菜单。桌面保持原有目录箭头与右键菜单，不强行增加省略号。</li><li>图标视觉 18–20pt，标题副标题分层；手机行高建议 44–48pt，所有操作热区至少 44pt。桌面保留 dense，32–40pt 仅作为需复测的密度候选。</li><li>在 320–420pt 实际侧栏宽度复核文件名截断、路径展示与操作列；不依据夹具全宽推断真实面板过宽。</li></ol></div><p class="reject"><strong>保留与未采纳：</strong>拒绝 DeepSeek 的小圆点/轻染进入提示、22–24pt手机命中区和新增桌面菜单。没有可靠大小/时间不造元数据；“路径只读”“桌面行高60pt”已撤回。</p><p><strong>落地验收：</strong>长文件名不盖住菜单；目录可进入且菜单功能保留，手机热区不能因视觉收紧缩小。</p><p class="meta">点击截图查看原尺寸。截图展示当前界面，不是调整后的设计稿。</p><div class="gallery"><figure data-platform="ios"><a href="screenshots/iOS-light-portrait-sftp.png" target="_blank"><img loading="lazy" src="screenshots/iOS-light-portrait-sftp.png" alt="SFTP 文件浏览 iOS-light-portrait-sftp.png"></a><figcaption>iOS-light-portrait-sftp.png</figcaption></figure><figure data-platform="ios"><a href="screenshots/iOS-dark-portrait-sftp.png" target="_blank"><img loading="lazy" src="screenshots/iOS-dark-portrait-sftp.png" alt="SFTP 文件浏览 iOS-dark-portrait-sftp.png"></a><figcaption>iOS-dark-portrait-sftp.png</figcaption></figure><figure data-platform="macos"><a href="screenshots/macOS-light-portrait-sftp.png" target="_blank"><img loading="lazy" src="screenshots/macOS-light-portrait-sftp.png" alt="SFTP 文件浏览 macOS-light-portrait-sftp.png"></a><figcaption>macOS-light-portrait-sftp.png</figcaption></figure><figure data-platform="macos"><a href="screenshots/macOS-dark-portrait-sftp.png" target="_blank"><img loading="lazy" src="screenshots/macOS-dark-portrait-sftp.png" alt="SFTP 文件浏览 macOS-dark-portrait-sftp.png"></a><figcaption>macOS-dark-portrait-sftp.png</figcaption></figure></div><details><summary>查看两轮讨论原文与 Codex 的反驳</summary><h3>第 1 轮：Codex 的观察</h3><pre>这是生产 SFTP 面板的独立测试渲染，macOS 全宽仅是夹具容器，不代表实际侧栏宽度。数据只有目录与文件名，没有可靠大小/时间，不能凭空增加元数据。关注路径、工具栏、图标、行高。</pre><h3>第 1 轮：DeepSeek 回复</h3><pre>同意你的前提：macOS 全宽仅作夹具；无可靠元数据则不增列。以下为第一轮审查。
+
+**1. 整体判断**
+结构干净、双端方向正确：iOS 用标题+副标题交代目标，macOS 用行头图标+标题区分面板。层级主要靠“工具栏路径/刷新”和“行尾操作”承载，目前最大的问题是路径区语义与视觉都偏弱、双端行尾操作符号不统一。P2
+
+**2. 问题清单**
+
+P1｜iOS 浅/深 SFTP｜工具栏中的 “/” 路径 → 为只读裸文本，缺少地址/面包屑容器感，与上行 home、up 图标视觉权重不匹配；当前根路径用户不易辨识。建议：路径文本改用 secondary label 色（与图标同灰阶），并置于至少 44pt 高、可横向裁切的胶囊/描边容器中；显示 “根目录 /” 或 “/（根目录）” 轻标签。收益：明确“当前位置”；风险：若面包屑扩展会增加点击热区，需确认是否可点。P1
+
+P1｜iOS 双主题｜行尾 “…” → 与 macOS 的 “&gt;”（目录）和省略操作表达不一致；在本场景无大小/时间时，“…” 更接近“更多操作”，但目录行缺乏进入暗示。建议：目录行行尾统一用 chevron.right（14pt，secondary）；文件行用 ellipsis（SF 等价），二者同宽占位。收益：双端一致、层级更清晰；风险：若真机交互是长按/滑动操作，需与我确认。P1
+
+P2｜macOS 双主题｜行高与留白 → 三行之间约 60pt 行距，相对 1280 宽显得稀；列表像被拉散。建议：行高 52–56pt、图标与文本基线对齐，整行 hover 底色；标题与工具栏间距略收。收益：增强列表聚合度；风险：若实际面板更窄，收紧后需复测。P2
+
+P2｜iOS 浅/深｜标题区 → 副标题连接串 “deploy@prod.example.com:22” 虽清楚，但与标题几乎同级粗细，主题切换后对比变化不明显。建议：副标题降至 caption1，secondary；标题保持 headline。收益：主次更清晰。P2
+
+P2｜全图｜图标几何 → 蓝色文件夹/文件图标轮廓偏细，在深色背景上边缘略弱；macOS 文件图标与 iOS 视觉尺寸接近，但行内缩进与标题不对齐更醒目。建议：图标统一 20pt 命中框，与文本左缘间距 12pt；线宽与正文一致。收益：扫视更整齐。P2
+
+**3. 需你确认的取舍**
+- iOS 行尾是否有真实“更多操作”？决定 “…” 是操作入口还是装饰。
+- 路径是否允许点击/切换（面包屑）？决定是否加容器与热区。
+- macOS 夹具是否允许按窄侧栏（约 320pt）复测行高建议。</pre><h3>第 2 轮：Codex 核对与取舍</h3><pre>源码核对：iOS路径不是只读裸文字，是TextButton，可打开完整路径/复制；目录整行可进入，右侧省略号是目录也需要的真实菜单。不能替换成chevron而删操作入口。源码行最小 adaptiveControlHeight(42)，桌面dense，图标19；你说60pt不能作实测结论，桌面调成52–56会反向变稀。取舍：保留菜单，目录图标或文本旁轻提示进入，尽量不加第二个尾部按钮；路径根目录标为“根目录 /”、弱surface而非重描边，可点击与现有展开图标保留。手机44–48、桌面32–40为候选而非当前值；实际侧栏320–420宽验收长文件名。subtitle 12–13 secondary，图标18–20一致。不新增元数据。请明确撤回误判后定案。
+这是第2轮也是最后一轮，请不要再提需用户选择的问题。输出具体最终方案（最多5项）、明确不改什么、2条验收条件和局限。若我有不合理之处可反驳但需说明证据。所有数字是待落地验证的建议值，不是截图测量结果。</pre><h3>第 2 轮：DeepSeek 回复</h3><pre>**先明确撤回**
+- 撤回“iOS 路径是只读裸文本”：源码为 TextButton，功能与形态均成立；只保留“弱化视觉”建议。
+- 撤回“省略号应换 chevron”：目录行右侧是真实菜单入口，不能替换或引第二条尾部按钮。
+- 撤回“macOS 行高 60pt 偏稀”：无可靠测量，且桌面为 dense、最小控件高 42，收紧到 52–56 会反向变稀，予以撤回。
+
+**最终方案（5 项，数值均待验证）**
+1. **iOS 路径按钮**：保留可点、展开入口；文本用 secondary，根目录显示“根目录 /”；容器用弱 surface（浅色 tertiary/systemGray6 一类，深色 elevated 低对比层），不加重描边。高度候选 32–36pt，左右内边距 10–12pt，圆角 6–8pt。保留现有展开图标，置于同按钮内不另加尾部按钮。收益：可点性可读，视觉权重不压过 home/up。
+2. **iOS 行高与触摸目标**：行高候选 44–48pt；图标命中框 22–24pt，视觉 18–20pt，统一左缩进，文本左缘与图标间距 12pt。目录整行进入，省略号仅菜单，不新增第二尾部按钮。
+3. **iOS 目录进入轻提示**：不加尾部 chevron；在目录图标或文本旁维持现有单入口，若需提示，仅在图标右侧用 2–4pt secondary 小圆点/轻染，不占操作位、不改变整行进入。文件名过长时尾部省略，中间保留菜单固定宽度约 32–36pt。
+4. **macOS 行密度与对齐**：保留 dense，行高候选 32–40pt；图标视觉 18–20pt、命中框 24pt，左侧缩进 12pt，文本与图标基线对齐；整行 hover，行尾菜单同 iOS 用 ellipsis，不新增。长文件名在 320–420pt 侧栏内单行尾部省略，菜单列固定。
+5. **Subtitle**：iOS 与 macOS 的 subtitle 统一 12–13pt secondary；标题保持 headline 权重。不改现有连接串文案与信息量。
+
+**明确不改**
+- 不新增大小/时间等元数据。
+- 不替换或移除目录/文件右侧菜单，不加第二个尾部按钮。
+- 不改变 AI 执行授权、不新增业务功能；底部输入留白不作为缺陷。
+- 不改蓝色强调色、灰阶 surface 与深浅色 token 体系；不改图标语义。
+
+**验收条件**
+1. 375/402pt 宽 iOS 与 320、420pt 宽 macOS 侧栏中，最长文件名 “build-output-2026-10-13.log” 单行显示、尾部省略，菜单完整可见，图标与文本左缘对齐误差目测 ≤1–2pt。
+2. 在浅/深两主题下，路径按钮、目录/文件图标、行尾省略号的灰阶与蓝色一致；根目录显示“根目录 /”，按钮可点且展开图标仍在，无新增尾部按钮。
+
+**局限**
+- 行高、内边距、图标尺寸均为候选建议值，未从 2 倍 PNG 反推为 pt；实际以 320–420pt 侧栏复测为准。
+- 未验证真实点击/悬停态、长文件名中间省略策略与系统字回退表现；颜色对比度不做测量结论。</pre></details></section><section id="07-settings"><span class="tag">P1 · 2 轮已定案</span><h2>07 / 设置、外观与同步登录</h2><p>信息完备，表单与普通说明优先减负</p><div class="decision"><ol><li>登录方式、用户名、密码采用一致字段系统：手机上标签，桌面左标签；消除浮动标签与普通标签混搭。</li><li>同步模式说明从大表格收为简短可选项；明确区分“已应用”与“待保存”，表单与模式说明分组。保留两者真实状态差异。</li><li>常规说明最多两行+按需展开，删除重复标题；关键失败、风险与恢复动作完整展示。只使用语义颜色 token，不硬编码透明灰。</li><li>保存栏位置稳定；仅表单有效、有改动且未进行中时显示主操作强调。保留现有校验和禁用条件，不把截图禁用态当作缺陷。</li><li>外观选择保持对勾单选，分隔线内缩16pt；不替换为另一套Radio。</li></ol></div><p class="reject"><strong>保留与未采纳：</strong>截图并未证明缺少选中反馈、保存校验或滚动能力；不把这些列为已知功能Bug。Apple 原生授权、关联表单和最新已登录卡未采集，不对其定案。</p><p><strong>落地验收：</strong>已应用与待保存状态不混淆；无效表单不可保存，说明收束后错误完整可见，手机固定字号验收。</p><p class="meta">点击截图查看原尺寸。截图展示当前界面，不是调整后的设计稿。</p><div class="gallery"><figure data-platform="ios"><a href="screenshots/iOS-light-portrait-settings-general.png" target="_blank"><img loading="lazy" src="screenshots/iOS-light-portrait-settings-general.png" alt="设置、外观与同步登录 iOS-light-portrait-settings-general.png"></a><figcaption>iOS-light-portrait-settings-general.png</figcaption></figure><figure data-platform="ios"><a href="screenshots/iOS-dark-portrait-settings-general.png" target="_blank"><img loading="lazy" src="screenshots/iOS-dark-portrait-settings-general.png" alt="设置、外观与同步登录 iOS-dark-portrait-settings-general.png"></a><figcaption>iOS-dark-portrait-settings-general.png</figcaption></figure><figure data-platform="macos"><a href="screenshots/macOS-light-portrait-settings-general.png" target="_blank"><img loading="lazy" src="screenshots/macOS-light-portrait-settings-general.png" alt="设置、外观与同步登录 macOS-light-portrait-settings-general.png"></a><figcaption>macOS-light-portrait-settings-general.png</figcaption></figure><figure data-platform="macos"><a href="screenshots/macOS-dark-portrait-settings-general.png" target="_blank"><img loading="lazy" src="screenshots/macOS-dark-portrait-settings-general.png" alt="设置、外观与同步登录 macOS-dark-portrait-settings-general.png"></a><figcaption>macOS-dark-portrait-settings-general.png</figcaption></figure><figure data-platform="ios"><a href="screenshots/iOS-light-portrait-settings-appearance.png" target="_blank"><img loading="lazy" src="screenshots/iOS-light-portrait-settings-appearance.png" alt="设置、外观与同步登录 iOS-light-portrait-settings-appearance.png"></a><figcaption>iOS-light-portrait-settings-appearance.png</figcaption></figure><figure data-platform="ios"><a href="screenshots/iOS-dark-portrait-settings-appearance.png" target="_blank"><img loading="lazy" src="screenshots/iOS-dark-portrait-settings-appearance.png" alt="设置、外观与同步登录 iOS-dark-portrait-settings-appearance.png"></a><figcaption>iOS-dark-portrait-settings-appearance.png</figcaption></figure><figure data-platform="macos"><a href="screenshots/macOS-light-portrait-settings-appearance.png" target="_blank"><img loading="lazy" src="screenshots/macOS-light-portrait-settings-appearance.png" alt="设置、外观与同步登录 macOS-light-portrait-settings-appearance.png"></a><figcaption>macOS-light-portrait-settings-appearance.png</figcaption></figure><figure data-platform="macos"><a href="screenshots/macOS-dark-portrait-settings-appearance.png" target="_blank"><img loading="lazy" src="screenshots/macOS-dark-portrait-settings-appearance.png" alt="设置、外观与同步登录 macOS-dark-portrait-settings-appearance.png"></a><figcaption>macOS-dark-portrait-settings-appearance.png</figcaption></figure><figure data-platform="ios"><a href="screenshots/iOS-light-portrait-settings-remote.png" target="_blank"><img loading="lazy" src="screenshots/iOS-light-portrait-settings-remote.png" alt="设置、外观与同步登录 iOS-light-portrait-settings-remote.png"></a><figcaption>iOS-light-portrait-settings-remote.png</figcaption></figure><figure data-platform="ios"><a href="screenshots/iOS-dark-portrait-settings-remote.png" target="_blank"><img loading="lazy" src="screenshots/iOS-dark-portrait-settings-remote.png" alt="设置、外观与同步登录 iOS-dark-portrait-settings-remote.png"></a><figcaption>iOS-dark-portrait-settings-remote.png</figcaption></figure><figure data-platform="macos"><a href="screenshots/macOS-light-portrait-settings-remote.png" target="_blank"><img loading="lazy" src="screenshots/macOS-light-portrait-settings-remote.png" alt="设置、外观与同步登录 macOS-light-portrait-settings-remote.png"></a><figcaption>macOS-light-portrait-settings-remote.png</figcaption></figure><figure data-platform="macos"><a href="screenshots/macOS-dark-portrait-settings-remote.png" target="_blank"><img loading="lazy" src="screenshots/macOS-dark-portrait-settings-remote.png" alt="设置、外观与同步登录 macOS-dark-portrait-settings-remote.png"></a><figcaption>macOS-dark-portrait-settings-remote.png</figcaption></figure></div><details><summary>查看两轮讨论原文与 Codex 的反驳</summary><h3>第 1 轮：Codex 的观察</h3><pre>macOS 居中设置弹窗，手机导航页面。新需求普通提示减少、失败突出、成功短暂。未登录截图不代表 Apple 登录按钮真实原生行为或已登录状态，不能声称验证登录。关注说明文字、分组、禁用保存按钮、表单。</pre><h3>第 1 轮：DeepSeek 回复</h3><pre>1. **整体判断**：双端信息架构延续了统一的 token 与分组逻辑，深浅色适配稳定。macOS 侧边栏配合居中弹窗、底部脏状态提示符合平台习惯；iOS 端层级清晰。但登录表单与密码管理交互仍偏向 Web 化，部分说明文字密度过高，且存在跨端控件形态不一致的细节。
+
+2. **问题列表**：
+- **P1｜iOS/macOS 同步页（远程 API）→ 登录区域**：iOS 的“登录方式”使用浮动标签描边框，macOS 则通过顶部悬浮框截断展示，两端不一致；且用户名与密码输入框均有留白且无占位符提示。**建议**：统一为常规“标签+输入框”布局，明确输入框最小高度为 44pt（iOS）/ 28pt（macOS）；桌面端表单应避免被底部“保存”栏截断，需预留滚动安全区。**收益/风险**：提升跨端一致性，降低表单截断风险；改动涉及两端组件库的适配。
+- **P1｜macOS 常规/外观/同步页 → 底部状态栏**：未保存时，左侧状态由“暂无更改”变为“有未保存的更改”，但右侧的“保存更改”按钮视觉权重（灰色描边）与“取消”几乎等同，缺乏保存引导。**建议**：保存按钮在脏状态时切换为品牌蓝实底，白字，圆角 6pt，宽约 80pt。**收益/风险**：明确主操作层级，减少操作中断；需确认是否增加点击即保存的默认行为。
+- **P2｜iOS 外观页 → 外观选项卡片**：三个选项堆叠在带圆角描边的组容器内，右侧仅“跟随系统”打勾，但“浅色”“深色”行点击后无选中态（图里看不出），且行间距压缩，灰色分割线贯穿。**建议**：确保三行可点击且选中后统一显示右侧蓝色对勾；行高保持 44pt，分割线内缩 16pt。**收益/风险**：增强可点性暗示，降低误触风险。
+- **P2｜iOS 常规/外观页 → 分组标题与说明文案**：常规页“优先终端模式”下方说明文字长达 5 行，层级较弱；外观页“启动”区块下方没有类似“恢复会话”开关的说明。**建议**：说明文字限制单行或最多 2 行，超出部分折叠（或置于“？”气泡内）；文字使用浅灰辅助色（如 60% 不透明度），字号较正文小 1-2pt（例如正文 17pt，说明 13pt）。**收益/风险**：降低阅读负担，提升扫视效率。
+- **P2｜iOS 同步页 → 顶部“仅此设备”与“同步服务”并列**：视觉上两段是并列的，但“同步服务”下方又嵌套了表单并选中打勾，关系显得焦灼。**建议**：将“仅此设备”与“同步服务”改为标准 Radio 单选组，选中“同步服务”时才展开下方的表单，默认收起。**收益/风险**：澄清配置路径，减少未展开时的首屏信息密度。
+
+3. **需确认的取舍**：
+- 是否同意将桌面端“保存更改”在主操作脏状态时改为品牌蓝实底？
+- 是否接受 iOS 端“登录方式”改为标准非浮动标签形式，同时同步页表单是否默认收起，仅在选中“同步服务”时展开？
+- 对于“警告/提示/成功”的 toast 或行内反馈，是否希望在此轮截图外做后续验证？</pre><h3>第 2 轮：Codex 核对与取舍</h3><pre>核对：外观已有单选勾选逻辑，没点击截图不能断言缺选中态；同步已只在选远程时展开；当前远程已选但表单为空且尚未提交，所以“当前本地模式”与选项不同有真实含义，不能直接删除当前模式状态。保存按钮禁用是表单不完整，不能只因hasChanges就启用/染蓝；须hasChanges&amp;&amp;valid&amp;&amp;非进行中。iOS选项保持原生风格对勾而非换Radio。拒绝60%透明灰的硬编码，使用secondary token并测对比度。定案：统一字段标签与输入边界；桌面左标签、手机上标签；删重复标题/普通说明，常规说明最多2行+按需展开，关键失败和风险完整；模式说明表缩为简短可选项+已应用状态（待保存标注），表单分开；保存栏保持位置稳定、不改保存语义；外观组分隔线内缩16。Apple原生登录及已登录卡未捕获，列缺口不做结论。请定案。
+这是第2轮也是最后一轮，请不要再提需用户选择的问题。输出具体最终方案（最多5项）、明确不改什么、2条验收条件和局限。若我有不合理之处可反驳但需说明证据。所有数字是待落地验证的建议值，不是截图测量结果。</pre><h3>第 2 轮：DeepSeek 回复</h3><pre>**定案方案（最终方案）**
+
+1. **P1 表单字段统一（iOS `同步` / macOS `数据同步`）**
+   - **布局**：桌面端保留左侧标签右对齐、控件对齐基线；手机端改为顶部标签 + 全宽输入框（当前 iOS 的浮动标签一并回退为常规顶部标签）。
+   - **输入边界**：统一 1pt 描边、圆角 6pt（macOS）/ 8pt（iOS）；输入框高度建议 iOS 44pt、macOS 28pt。
+   - **收益/风险**：消除两端描边与浮动标签差异，降低表单拼装感；风险是需回归旧版输入校验逻辑。
+
+2. **P1 保存按钮状态与状态栏位置**（macOS `常规`/`外观`/`同步`）
+   - **状态逻辑**：保存按钮启用条件 = `hasChanges &amp;&amp; valid &amp;&amp; !isInProgress`（当前截图“未填写即禁用”符合此条件，保留）。主按钮仅在满足该条件时用品牌蓝实底，否则保持描边灰。
+   - **底部栏**：保持固定在底部，不随内容滚动出现遮挡。
+   - **收益/风险**：维护现有“表单不完整即禁用”的保护，仅补上 valid 校验；风险是需确保 valid 更新为异步时无闪烁。
+
+3. **P1 模式说明表重构**（macOS `数据同步`）
+   - **调整**：将三行四列表格缩为三个简短的单列可选项：“本地终端”“内置本地服务”“远程 API 服务”；选项下方保留单行说明（如“通过你的服务同步”）。
+   - **状态标注**：当前模式（本地终端）保留但标记为“已应用”；若用户轻点其他模式，未保存前在选中项旁标注“待保存”。
+   - **收益/风险**：保留“当前本地模式”的真实含义，同时降低表格视觉权重；风险是需确认“待保存”状态不会与脏状态栏冲突。
+
+4. **P2 说明文字与重复标题精简**
+   - **常规页**：删除“新会话→默认连接”“语言→界面语言”中重复的大标题；说明文字最多 2 行（例如 iOS 优先终端模式说明），超出部分改为“了解更多”展开。
+   - **例外**：关键失败、风险及错误提示（如登录接口报错）必须完整展示，不折叠。
+   - **颜色**：说明文字统一使用 `secondary` token，实测对比度达到 4.5:1 以上，拒绝不透明的硬编码 60% 灰色。
+
+5. **P2 外观组与 iOS 选项**
+   - **外观卡片**：维持原生对勾逻辑，不改为 Radio，只将卡片内分隔线左右内缩 16pt，行高保持 44pt 以增强可点感。
+   - **收益/风险**：符合 iOS 平台习惯，视觉上更容易辨认区块。
+
+**明确不改什么**
+- 不改保存按钮语义（不允许仅凭 hasChanges 启用或染蓝）。
+- 不改当前已应用的本地终端状态，不直接删掉。
+- 不将 iOS 对勾选项换成 Radio 按钮。
+- 不擅自固定底部输入栏的留白为缺陷。
+- 不基于未捕获 Apple 原生登录及已登录卡截图做任何断言或推断。
+
+**验收条件**
+1. 保存按钮必须满足 `hasChanges &amp;&amp; valid &amp;&amp; !isInProgress` 时才可呈现主操作实底，否则应处于禁用描边状态；且底部栏在所有页面内容滚动时位置稳定。
+2. 表单所有输入框需具备明确边界与顶部标签，说明文字统一使用 `secondary` token 且对比度 ≥ 4.5:1；常规说明超过 2 行时，“了解更多”可触发展开，失败/风险提示不折叠。
+
+**局限**
+- 以上尺寸参数（如输入框高度、分隔线内缩 16pt）均为待落地验证的建议值，非截图测量；两端的动态字体适配、禁用按钮视觉密度未在截图中体现，需后续补测。
+- 未捕获 Apple 原生登录界面及已登录卡片，无法对授权流程和登录态展示得出最终结论。</pre></details></section><section id="08-feedback"><span class="tag">P2 · 2 轮已定案</span><h2>08 / 成功与状态提示</h2><p>基本策略正确，容器视觉可减重</p><div class="decision"><ol><li>普通成功优先在原操作控件短暂反馈；必要的 toast 保持轻量。通用 helper 已是成功/普通2秒、失败默认8秒，沿用。</li><li>通知容器只保留弱边框或轻阴影一种主要边界。桌面宽建议320–360pt并右对齐；手机左右16pt，避开键盘/输入栏8–12pt。</li><li>带操作通知保留动作与关闭入口，正文和长翻译自然换行；不强制固定动作按钮宽度。</li><li>失败使用错误语义色+图标+可恢复信息，成功不遮住失败。只有业务已有重试能力时才展示重试，不新增虚假操作。</li></ol></div><p class="reject"><strong>保留与未采纳：</strong>演示连续触发三条通知，不证明生产必然堆积。通用成功图标已存在，不重复“修复”；不声称静态图验证了消失时长。</p><p><strong>落地验收：</strong>补采失败态与键盘弹起后，验证失败可辨、成功不覆盖失败；带动作通知不遮挡输入或裁掉长文件名。</p><p class="meta">点击截图查看原尺寸。截图展示当前界面，不是调整后的设计稿。</p><div class="gallery"><figure data-platform="ios"><a href="screenshots/iOS-light-portrait-notifications.png" target="_blank"><img loading="lazy" src="screenshots/iOS-light-portrait-notifications.png" alt="成功与状态提示 iOS-light-portrait-notifications.png"></a><figcaption>iOS-light-portrait-notifications.png</figcaption></figure><figure data-platform="ios"><a href="screenshots/iOS-dark-portrait-notifications.png" target="_blank"><img loading="lazy" src="screenshots/iOS-dark-portrait-notifications.png" alt="成功与状态提示 iOS-dark-portrait-notifications.png"></a><figcaption>iOS-dark-portrait-notifications.png</figcaption></figure><figure data-platform="macos"><a href="screenshots/macOS-light-portrait-notifications.png" target="_blank"><img loading="lazy" src="screenshots/macOS-light-portrait-notifications.png" alt="成功与状态提示 macOS-light-portrait-notifications.png"></a><figcaption>macOS-light-portrait-notifications.png</figcaption></figure><figure data-platform="macos"><a href="screenshots/macOS-dark-portrait-notifications.png" target="_blank"><img loading="lazy" src="screenshots/macOS-dark-portrait-notifications.png" alt="成功与状态提示 macOS-dark-portrait-notifications.png"></a><figcaption>macOS-dark-portrait-notifications.png</figcaption></figure></div><details><summary>查看两轮讨论原文与 Codex 的反驳</summary><h3>第 1 轮：Codex 的观察</h3><pre>这是通知组件演示夹具，主动连续触发复制、保存、录制成功，截图不证明真实流程必然堆积。代码策略现为成功/普通2秒、失败默认8秒，成功不能覆盖失败。讨论视觉承载与优先级，不据静态图推断实际消失时长。</pre><h3>第 1 轮：DeepSeek 回复</h3><pre>1. 整体判断：将展示用的通知排列起来观察是合理的。macOS 上三条卡片信息层级清楚，复制和保存可只用文本或小图标降级；录音保存带 Reveal 操作，优先级更高，符合这一取舍。iOS 只显示最上面的“Recording saved”，底部卡片视觉承载过重，并且与固定输入区之间的纵向关系需要确认，静态图不能证明没有遮挡或实际时长。
+
+2. 问题
+- P1，iOS 两个主题底部通知：卡片贴近底边和输入区，呈现为占满整行的宽条，阴影与描边都很重。建议改为左右 16pt 的浮层、最大宽度约 560pt、圆角 12–14pt，并评估与输入区之间至少留 8pt 的间隙；在悬浮层与其下方输入区的叠放关系上，优先做悬浮 Toast，而不是固定条。收益是减少内容区被压迫感、让 Toast 更像临时反馈；风险是若底部已有固定工具条，需要确认不遮挡焦点输入。
+- P1，macOS 三张卡片堆叠：三条通知都占较大矩形，图标、正文、关闭按钮同权，录音保存的 Reveal 反而落在第二行。建议成功类缩为 300–340pt 宽的单行，操作行单独占一行或把 Reveal 包成小文字按钮；卡间距 8–10pt。收益是允许一屏容纳更多状态且主操作更显眼；风险是宽度不一致时右对齐边缘可能“跳”。
+- P2，macOS 卡片关闭按钮：右侧小 × 对成功态可能多余，对录音保存却有价值。建议成功/普通 2 秒态不显示 ×，失败或带 Reveal 的持久提示才显示；按钮热区不小于 24pt。收益是降低视觉噪音和误触；风险是用户失去手动关闭成功提示的途径，需要你确认是否接受。
+- P2，图标与文案：Connection settings saved 与 Recording saved 用同一圆圈信息图标，语义不够区分；Copy 用剪贴板图标还可。建议沿用灰阶图标体系，成功类统一为 check 造型且只用一种；Reveal 保持蓝色强调。收益是图标层级更明确；风险是 copy 图标与语义对齐需要你确认。
+- P2，iOS 通知整行按钮：Reveal 在卡片最右侧、与长文件名同排，行高紧张时容易成为唯一操作焦点。建议把主按钮放在右侧固定 72–88pt 区域，正文可两行截断；不要新增次要按钮。收益是可读性更稳；风险是文件名被压缩。
+
+3. 需确认的取舍
+- 成功提示是否必须可手动关闭，还是完全依赖自动消失；这决定 × 是否保留。
+- macOS 是否必须三张同宽堆叠，还是允许成功态单行、录音态两行形成优先级差异。
+- iOS 是否确认底部是悬浮 Toast 而非固定通知条，以便我按 pt 给最终间距。</pre><h3>第 2 轮：Codex 核对与取舍</h3><pre>源码核对：通用message helper已按success/info2秒、failure8秒，失败用errorContainer+error_outline，成功是check；演示夹具手写show所以信息图标不是所有生产成功图标缺陷。移动fallback是SnackBar；桌面自定义host。不要取消带操作提示的关闭入口，不给固定动作宽72–88导致长翻译溢出。定案：普通成功优先原控件短暂反馈，toast必要时同宽320–360桌面、移动左右16；简化阴影/弱边框只保留一种强调，失败图标+error色+明确可重试文案/动作保持；移动避开键盘/输入栏8–12，不改变自动消失策略；失败样本此次未截取，明确需要补验，不能声称已验证失败外观和时长。仅建议未来合并重复成功，不把演示3条认定真实堆积。请定案。
+这是第2轮也是最后一轮，请不要再提需用户选择的问题。输出具体最终方案（最多5项）、明确不改什么、2条验收条件和局限。若我有不合理之处可反驳但需说明证据。所有数字是待落地验证的建议值，不是截图测量结果。</pre><h3>第 2 轮：DeepSeek 回复</h3><pre>定案如下。我先纠正一处观察：iOS 底部通知显示为近乎等宽的长条，而不是“左右各 16pt 的浮动 Toast”。因此不能仅凭静态图确认所有移动端容器的边距；实施时按源码中 SnackBar 与自定义 host 的实际布局规则执行，并以此为准。
+
+1. 最终方案（最多 5 项）
+- 成功/普通反馈：坚持“优先原控件短暂反馈”；只有在无法附着控件时才用 toast。桌面 toast 建议宽度 320–360pt、右侧对齐、卡间距 8–10pt；移动 toast 左右边距建议 16pt，并距输入栏/键盘 8–12pt。演示中的 3 条并列不视为真实堆积，不据此改变合并策略。
+- 成功外观：沿用“check + 一种强调色”；不要为每条成功提示都加出独立的信息图标。macOS 的保存提示与复制提示可以合并为单行简化卡，Reveal 保留为卡内文字按钮，不设固定 72–88pt 动作区，让长文件名/翻译自然换行。
+- 视觉承载：简化卡片阴影与边框，建议只保留一个弱边框或一个轻阴影，而不是两者叠满；卡片圆角建议 12–14pt（待验证）。桌面和移动统一“临时反馈”气质，不把通知做成常驻面板。
+- 关闭入口：保留带操作提示（如 Reveal）的关闭入口；成功且无操作提示的短提示也不强制取消关闭，按现有实现继续保留，不因简化而删入口。
+- 失败策略不变：保持 errorContainer + error_outline、明确可重试文案/动作、失败 8 秒、成功不覆盖失败。本次截图没有失败样本，因此不声明已验证失败外观和时长。
+
+2. 明确不改什么
+- 不改自动消失策略：成功/普通 2 秒、失败 8 秒。
+- 不改失败图标/错误色/可重试文案与动作。
+- 不改变 AI 执行授权与业务功能，不新增操作。
+- 不因底部输入固定留白而判缺陷。
+- 不把演示夹具的连续成功截图认定为生产必然堆积；只建议未来合并重复成功。
+- 不设固定动作宽度；不删除必须的关闭入口。
+
+3. 验收条件
+- 在 iOS 逻辑宽度 402pt、macOS 1280×900 下，成功提示用 check 与一种强调色；桌面两条以上提示同侧堆叠时无重叠、无横向跳动；移动提示不遮挡输入栏/键盘，间距落在 8–12pt 建议区间内（以源码布局验证为准）。
+- 带 Reveal 的提示保留关闭入口，长文件名/翻译在 320–360pt 桌面宽度内可换行，无截断遮挡；失败样本补验时可区分 errorContainer + error_outline + 可重试文案，并观察其 8 秒去留（不以本次截图为证）。
+
+4. 局限
+- 以上数字为待落地验证的建议值，不是截图测量结果；字体为固定测试字体，不等于原生系统字体。
+- iOS 底部通知的边距和容器形态需以源码布局坐标复核，不能仅凭截图认定。
+- 失败外观、时长、真实流程中的堆积/覆盖行为本次未截取，均未验证。</pre></details></section><section><h2>统一约束与证据</h2><ul><li>继续使用 ColorScheme / ThemeExtension；建议尺寸映射到现有 token，不在 widget 内硬编码颜色。</li><li>手机固定字号，视觉图标与命中区分开；触控目标至少 44pt。桌面保持紧凑密度与指针/键盘可用性。</li><li>失败需要语义色和文字/图标共同表达，不能只靠颜色；对比度、焦点、读屏尚需实现后的实测。</li><li>不伪造时间、文件元数据或摘要；不为美学删安全信息、登录状态、审批目标或菜单。</li><li>API 请求只发送入选的测试数据截图及评审文字，密钥从环境读取，未写入报告。两轮请求/响应已保留，图像用文件名+SHA256对应，不重复存储base64。</li></ul><p>API 记录：输入 91,506 tokens，输出 11,056 tokens，合计 102,562 tokens。未推算账单金额。</p><p><a href="manifest.json">截图来源、哈希与调用记录清单</a> · <a href="https://api-docs.deepseek.com/guides/vision/">DeepSeek 官方图像输入说明</a></p><p class="meta">基线提交 80edd677 + 上轮尚未提交的 iOS 历史列表改动。46 项捕获测试通过。审查结论不等同于新界面已实现或完整可访问性认证。</p></section></main><script>document.querySelectorAll("[data-filter]").forEach(b=>b.onclick=()=>{document.querySelectorAll("[data-filter]").forEach(x=>x.classList.toggle("active",x===b));document.querySelectorAll("figure[data-platform]").forEach(f=>f.hidden=b.dataset.filter!=="all"&&f.dataset.platform!==b.dataset.filter)});</script></html>

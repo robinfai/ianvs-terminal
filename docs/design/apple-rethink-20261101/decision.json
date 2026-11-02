@@ -1,0 +1,25 @@
+{
+  "status": "visual proposal awaiting user review; no app source changed this turn",
+  "discussion_rounds": 2,
+  "reference": [
+    "https://developer.apple.com/design/human-interface-guidelines/lists-and-tables",
+    "https://developer.apple.com/design/human-interface-guidelines/search-fields"
+  ],
+  "decision": [
+    "历史次级sheet使用居中小标题和工具栏",
+    "当前会话单独分组，最近会话统一白色分组列表",
+    "保留搜索，新建动作独立放置",
+    "标题17、摘要15为本次设计选择，非HIG强制参数",
+    "不增加虚构日期和元数据，不删除管理入口",
+    "AI审批和SSH/同步暂不实施，先由历史视觉确定语言"
+  ],
+  "rejected": [
+    "继续机械去卡片",
+    "蓝竖线被视作原生Apple规范",
+    "把局部精确尺寸声称Apple强制规定"
+  ],
+  "validation": {
+    "phone": "not accessed this turn",
+    "simulator": "iOS 27.0 simulator available; concept has not been implemented or runtime-tested"
+  }
+}

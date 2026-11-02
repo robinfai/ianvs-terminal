@@ -1,0 +1,461 @@
+{
+  "date": "2026-11-01",
+  "timezone": "Asia/Shanghai",
+  "git_head": "80edd677b7eac2ab8648ff13ddd053bbf83012ff",
+  "working_tree": "Includes uncommitted iOS AI history redesign from prior task; no production UI code changed by audit",
+  "model_requested": "deepseek-flash",
+  "model_catalog_name": "DeepSeek-V4.1-Flash",
+  "endpoint": "https://api.deepseek.com/chat/completions",
+  "scenes": [
+    {
+      "id": "01-entry",
+      "name": "连接入口与连接管理",
+      "rounds": 2,
+      "images": [
+        "iOS-light-portrait-shell-home.png",
+        "iOS-dark-portrait-shell-home.png",
+        "macOS-light-portrait-shell-home.png",
+        "macOS-dark-portrait-shell-home.png",
+        "iOS-light-portrait-shell-profiles.png",
+        "iOS-dark-portrait-shell-profiles.png",
+        "macOS-light-portrait-shell-profiles.png",
+        "macOS-dark-portrait-shell-profiles.png"
+      ]
+    },
+    {
+      "id": "02-terminal",
+      "name": "终端命令块与输入区",
+      "rounds": 2,
+      "images": [
+        "iOS-light-portrait-blocks.png",
+        "iOS-dark-portrait-blocks.png",
+        "macOS-light-portrait-blocks.png",
+        "macOS-dark-portrait-blocks.png"
+      ]
+    },
+    {
+      "id": "03-ai",
+      "name": "AI 对话与命令审批",
+      "rounds": 2,
+      "images": [
+        "ios-ai-light.png",
+        "ios-ai-dark.png",
+        "macos-ai-light.png",
+        "macos-ai-dark.png"
+      ]
+    },
+    {
+      "id": "04-history",
+      "name": "iOS 历史会话新列表",
+      "rounds": 2,
+      "images": [
+        "ios-history-light.png",
+        "ios-history-dark.png"
+      ]
+    },
+    {
+      "id": "05-ssh",
+      "name": "SSH 连接编辑",
+      "rounds": 2,
+      "images": [
+        "iOS-light-portrait-ssh.png",
+        "iOS-dark-portrait-ssh.png",
+        "macOS-light-portrait-ssh.png",
+        "macOS-dark-portrait-ssh.png"
+      ]
+    },
+    {
+      "id": "06-files",
+      "name": "SFTP 文件浏览",
+      "rounds": 2,
+      "images": [
+        "iOS-light-portrait-sftp.png",
+        "iOS-dark-portrait-sftp.png",
+        "macOS-light-portrait-sftp.png",
+        "macOS-dark-portrait-sftp.png"
+      ]
+    },
+    {
+      "id": "07-settings",
+      "name": "设置、外观与同步登录",
+      "rounds": 2,
+      "images": [
+        "iOS-light-portrait-settings-general.png",
+        "iOS-dark-portrait-settings-general.png",
+        "macOS-light-portrait-settings-general.png",
+        "macOS-dark-portrait-settings-general.png",
+        "iOS-light-portrait-settings-appearance.png",
+        "iOS-dark-portrait-settings-appearance.png",
+        "macOS-light-portrait-settings-appearance.png",
+        "macOS-dark-portrait-settings-appearance.png",
+        "iOS-light-portrait-settings-remote.png",
+        "iOS-dark-portrait-settings-remote.png",
+        "macOS-light-portrait-settings-remote.png",
+        "macOS-dark-portrait-settings-remote.png"
+      ]
+    },
+    {
+      "id": "08-feedback",
+      "name": "成功与状态提示",
+      "rounds": 2,
+      "images": [
+        "iOS-light-portrait-notifications.png",
+        "iOS-dark-portrait-notifications.png",
+        "macOS-light-portrait-notifications.png",
+        "macOS-dark-portrait-notifications.png"
+      ]
+    }
+  ],
+  "screenshots": [
+    {
+      "file": "screenshots/iOS-dark-portrait-blocks.png",
+      "width": 804,
+      "height": 1748,
+      "sha256": "5875f65a0bd9f5b80463d55dd4fd902da951a9fffa61617bbedd367444b406bd",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/iOS-dark-portrait-notifications.png",
+      "width": 804,
+      "height": 1748,
+      "sha256": "c072d0aef8b9a12ebd8d56caf92bf9917d68a6949d06d8b4534e918690244c8e",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/iOS-dark-portrait-settings-appearance.png",
+      "width": 804,
+      "height": 1748,
+      "sha256": "70a2b39595e5724f323d36f4d665e1f4f425aa9735320963f641691e491bcf9d",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/iOS-dark-portrait-settings-general.png",
+      "width": 804,
+      "height": 1748,
+      "sha256": "00f4803be3c42e69a09360b1f4887b98993ce761b0229c44b2a43864a5f86641",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/iOS-dark-portrait-settings-remote.png",
+      "width": 804,
+      "height": 1748,
+      "sha256": "600a792156361d282f956c4cf8351352ba8df6a74a6734dc854bd9f2fdcfbee0",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/iOS-dark-portrait-sftp.png",
+      "width": 804,
+      "height": 1748,
+      "sha256": "03cb8df0cea9af1a6fd7f397f23aa41bf0f9330ea6c1d0078f94aa8c358a34c3",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/iOS-dark-portrait-shell-home.png",
+      "width": 804,
+      "height": 1748,
+      "sha256": "edb5066dd9af7f921d2a16f22fddaaedb600112fbaf7442d9e7197df31d27844",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/iOS-dark-portrait-shell-profiles.png",
+      "width": 804,
+      "height": 1748,
+      "sha256": "eff3d32d70004f9155129d5b9d9d4922e3ec6524417a0015c78835cc3e59add1",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/iOS-dark-portrait-ssh.png",
+      "width": 804,
+      "height": 1748,
+      "sha256": "14bd1026a5c8fb7c2b83f9ea1dd75a09cbd0dba7f7f691fce5fd9f26a8fd40e9",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/iOS-light-portrait-blocks.png",
+      "width": 804,
+      "height": 1748,
+      "sha256": "d11e3b68021e1eebc2026e05f30d391f7488f3a68d57c5a1146e89c7f3fc79ca",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/iOS-light-portrait-notifications.png",
+      "width": 804,
+      "height": 1748,
+      "sha256": "a418f32a34b4f0ccfcfdc6a701b0efc570c524604c5c9776edda730f9b038880",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/iOS-light-portrait-settings-appearance.png",
+      "width": 804,
+      "height": 1748,
+      "sha256": "de7bd0693a862d083ecd727acf363e523c11e9d963fd39272754a8aa7731328d",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/iOS-light-portrait-settings-general.png",
+      "width": 804,
+      "height": 1748,
+      "sha256": "a2f17e4629cc9bd975232dc4a8655c5fe9922d9524f59ea712367ef57f436790",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/iOS-light-portrait-settings-remote.png",
+      "width": 804,
+      "height": 1748,
+      "sha256": "971726ddb91d4856dcd7e0ab78ab91981eeb7b7001ffc1b61df49f488dc55fd4",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/iOS-light-portrait-sftp.png",
+      "width": 804,
+      "height": 1748,
+      "sha256": "93e863c33cb6b00a116fba7882be1f31251042361e55f7a2e07906ea4f1cafae",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/iOS-light-portrait-shell-home.png",
+      "width": 804,
+      "height": 1748,
+      "sha256": "52742832569530e7c9efb6e2628c1f7a0c0fc3b2fe4084e88111928ca1abdb29",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/iOS-light-portrait-shell-profiles.png",
+      "width": 804,
+      "height": 1748,
+      "sha256": "e82a30ddbf55d0a2fde1577b8eb8b8ba3c6416bece7ad037c40d411b342d85d6",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/iOS-light-portrait-ssh.png",
+      "width": 804,
+      "height": 1748,
+      "sha256": "0f03737591195bc089be1cc47a0af7b339a0cef7baf9157e7c93c4e2b178a3cd",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/ios-ai-dark.png",
+      "width": 804,
+      "height": 1748,
+      "sha256": "10283e22a19e9d96dd3a2438ac79c32125fe762dc23e38801ebc02f5ba723508",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/ios-ai-light.png",
+      "width": 804,
+      "height": 1748,
+      "sha256": "773b27492495859d1ca0fa0354dfd7786f17bfc45a99a8f96815ea638993bdb6",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/ios-history-dark.png",
+      "width": 804,
+      "height": 1748,
+      "sha256": "ea2489c9cefcb665ae611a748f6afeeeacba41c17725c75296e4a457336975fb",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/ios-history-light.png",
+      "width": 804,
+      "height": 1748,
+      "sha256": "37e0a6b744df5ed4f2b58afeeb1e0a5fca5daf18eb3811faae1393f9f2caba90",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/macOS-dark-portrait-blocks.png",
+      "width": 2560,
+      "height": 1800,
+      "sha256": "46a991149428ea001821085cc1d6c3e528cc146035abca7ce37f9056f6df157b",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/macOS-dark-portrait-notifications.png",
+      "width": 2560,
+      "height": 1800,
+      "sha256": "70f49818984938cd6592ee13296199f4990c80968b01e805fe56071a82fcd594",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/macOS-dark-portrait-settings-appearance.png",
+      "width": 2560,
+      "height": 1800,
+      "sha256": "edc5d67c13705a4f327eb0cb677dadfff5b78089e7a474452a3146fd5bd09b2a",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/macOS-dark-portrait-settings-general.png",
+      "width": 2560,
+      "height": 1800,
+      "sha256": "804e31401a450155614529931390dd9fb1bbcb0a242aeb704515cd09de58355a",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/macOS-dark-portrait-settings-remote.png",
+      "width": 2560,
+      "height": 1800,
+      "sha256": "8ebeedc64a99753148850fa4202cd374836b1ae589294ac6d3cf3d0e6dc3adeb",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/macOS-dark-portrait-sftp.png",
+      "width": 2560,
+      "height": 1800,
+      "sha256": "99897c8cbc4f7282dfcf2280374607a444bfa5aed1638770ea7bd2837fe9654d",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/macOS-dark-portrait-shell-home.png",
+      "width": 2560,
+      "height": 1800,
+      "sha256": "d3da794f436532fb2b8290f8264443c10d71c78ef63bc77d0e4823f1c6f23fe3",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/macOS-dark-portrait-shell-profiles.png",
+      "width": 2560,
+      "height": 1800,
+      "sha256": "67cfe5641364a3236b86d42b7c47ea698eb661e65f76e49aea12c8dd6b1eff9b",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/macOS-dark-portrait-ssh.png",
+      "width": 2560,
+      "height": 1800,
+      "sha256": "5d0ded11fada1855ec1589ff3b4043dc572d3abccb557a10dbb6802bc833df01",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/macOS-light-portrait-blocks.png",
+      "width": 2560,
+      "height": 1800,
+      "sha256": "5f40984cae5e4215c38970ac06e6dbd83997b503def4516e67c45825a3f942bc",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/macOS-light-portrait-notifications.png",
+      "width": 2560,
+      "height": 1800,
+      "sha256": "67e2af872ac2d4b611dc5e4ed1820ce911c8c626a12f5aabba07f45892ab21ae",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/macOS-light-portrait-settings-appearance.png",
+      "width": 2560,
+      "height": 1800,
+      "sha256": "a8765fc9d34e2f98203270dc431bd102ad45459a43d9ba96a80049b03e4cada9",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/macOS-light-portrait-settings-general.png",
+      "width": 2560,
+      "height": 1800,
+      "sha256": "86197632fed7f0295855b13e3da5a7213f1566d91329c277f29fb276e9b687d8",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/macOS-light-portrait-settings-remote.png",
+      "width": 2560,
+      "height": 1800,
+      "sha256": "3734aca4f388aecf381814fc52fd6837234c3e2fd9f218d1602ea1dc80e6ef4b",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/macOS-light-portrait-sftp.png",
+      "width": 2560,
+      "height": 1800,
+      "sha256": "0f4dc30e990541213f740656e5ceb5191cb8deabc2c559f6f1552bd81ca94b5b",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/macOS-light-portrait-shell-home.png",
+      "width": 2560,
+      "height": 1800,
+      "sha256": "3e94aba0af3ae0a8002f6e8495426ab038f501f7af6fc9c1d6b0caf923cbeca3",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/macOS-light-portrait-shell-profiles.png",
+      "width": 2560,
+      "height": 1800,
+      "sha256": "cdb0ba2f5e03ab054284dca264840360fa7cb436b1464514cecc2becf4e5e3e9",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/macOS-light-portrait-ssh.png",
+      "width": 2560,
+      "height": 1800,
+      "sha256": "511f3eae453d941f55f075d31de7d889a70df88af1c39f9556f475010f2cfe97",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/macos-ai-dark.png",
+      "width": 2560,
+      "height": 1800,
+      "sha256": "1912024a96da9aeb76aa56b3449af7a9eef92050ec666a414394cb84d12f27a7",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    },
+    {
+      "file": "screenshots/macos-ai-light.png",
+      "width": 2560,
+      "height": 1800,
+      "sha256": "91460ecb0009f7c4e483d0662c871f03a467454043324dad4699d6cb8a3a5e42",
+      "source": "current production widget fixture",
+      "export_pixel_ratio": 2
+    }
+  ],
+  "source": "Fresh Flutter production-widget captures with synthetic/in-memory data; no native rendering equivalence claim",
+  "native_capture": "iPhone connection screenshot observed locally; excluded from external discussion. Installed macOS sync view is older, save returned transient overlay: rejected. No native capture is counted in accepted gallery.",
+  "limitations": [
+    "No Apple native authorization/legacy linking/account logged-in capture",
+    "No failure toast capture or timing validation",
+    "No physical-device keyboard/focus/screen-reader/contrast validation",
+    "SFTP full-width fixture is not actual desktop sidebar width"
+  ],
+  "capture_tests_passed": 46,
+  "api_usage": {
+    "prompt_tokens": 91506,
+    "completion_tokens": 11056,
+    "total_tokens": 102562
+  }
+}

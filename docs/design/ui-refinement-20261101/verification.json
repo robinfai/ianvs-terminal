@@ -1,0 +1,46 @@
+{
+  "date": "2026-11-01",
+  "scope": [
+    "iOS 历史会话列表",
+    "iOS/macOS AI 审批卡",
+    "iOS/macOS SSH 与同步表单"
+  ],
+  "tests": {
+    "behavior": 282,
+    "captures": 14,
+    "analysis": "No issues found",
+    "diff_check": "passed"
+  },
+  "installation": {
+    "ios": {
+      "device": "iPhone 17",
+      "os": "27.0.1",
+      "bundle": "work.ianvs.trail",
+      "signed": true,
+      "installed": true,
+      "launched": true,
+      "observed": "新建 SSH 表单"
+    },
+    "macos": {
+      "os": "27.0.1",
+      "path": "/Applications/Trail.app",
+      "signed": true,
+      "installed": true,
+      "launched": true,
+      "observed": "已登录的同步页面，简化状态行",
+      "app_framework_sha256": "95c33ba9cd87297883c32e7b3e0ea752032348af0c9da0b2f8b4b540645a9a3b"
+    }
+  },
+  "limitations": [
+    "前后对比是相同测试数据、尺寸与主题的真实 Flutter 组件截图，非真机逐场景对比",
+    "本轮真机确认安装启动、iOS SSH 页面及 macOS 同步页面；未重新执行 Apple 登录或远端 SSH 命令",
+    "只在当前 iOS/macOS 27.0.1 实机验证，未覆盖其余支持的 OS 版本"
+  ],
+  "behavior_preserved": [
+    "审批安全提示与执行守卫",
+    "登录注销与表单验证",
+    "当前生效与待保存的模式区别",
+    "桌面忘记已保存凭据入口"
+  ],
+  "archive_note": "Historical verification recorded on 2026-11-01; raw device captures and logs retained locally, not included in this repository."
+}

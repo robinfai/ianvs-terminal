@@ -1,0 +1,100 @@
+[
+  {
+    "id": "01-entry",
+    "name": "连接入口与连接管理",
+    "images": [
+      "iOS-light-portrait-shell-home.png",
+      "iOS-dark-portrait-shell-home.png",
+      "macOS-light-portrait-shell-home.png",
+      "macOS-dark-portrait-shell-home.png",
+      "iOS-light-portrait-shell-profiles.png",
+      "iOS-dark-portrait-shell-profiles.png",
+      "macOS-light-portrait-shell-profiles.png",
+      "macOS-dark-portrait-shell-profiles.png"
+    ],
+    "observation": "iOS 连接页出现同权重的名称/地址；新建巨大蓝按钮、管理位于其下。macOS Profile 管理沿用底部弹层，宽屏利用有限。不要将终端本来为空的区域当作必须填满的缺陷。"
+  },
+  {
+    "id": "02-terminal",
+    "name": "终端命令块与输入区",
+    "images": [
+      "iOS-light-portrait-blocks.png",
+      "iOS-dark-portrait-blocks.png",
+      "macOS-light-portrait-blocks.png",
+      "macOS-dark-portrait-blocks.png"
+    ],
+    "observation": "命令块和输出是核心，控制图标与时间状态密度较高。区分 shell 输出等宽字体和应用 UI 字体；不要对终端空白加入装饰。"
+  },
+  {
+    "id": "03-ai",
+    "name": "AI 对话与命令审批",
+    "images": [
+      "ios-ai-light.png",
+      "ios-ai-dark.png",
+      "macos-ai-light.png",
+      "macos-ai-dark.png"
+    ],
+    "observation": "截图使用与生产一致的 compactMobile/unifiedWorkspace 参数，审批风险及执行目标不可为美观删除；关注标题截断、工具图标堆叠、审批卡层级、输入区和内容对齐。"
+  },
+  {
+    "id": "04-history",
+    "name": "iOS 历史会话新列表",
+    "images": [
+      "ios-history-light.png",
+      "ios-history-dark.png"
+    ],
+    "observation": "这是新实现的 iOS 列表组件，在独立预览中展示，实际以大底部面板打开。当前会话置顶、按访问顺序排列；没有可靠时间戳，不能虚构今天/昨天。保留搜索与新建；macOS 没有此组件，勿假定跨平台相同。"
+  },
+  {
+    "id": "05-ssh",
+    "name": "SSH 连接编辑",
+    "images": [
+      "iOS-light-portrait-ssh.png",
+      "iOS-dark-portrait-ssh.png",
+      "macOS-light-portrait-ssh.png",
+      "macOS-dark-portrait-ssh.png"
+    ],
+    "observation": "桌面双列紧凑标签与手机单列不同。认证方式相关字段/说明密集，所有描边同权重。真实密钥和密码未传送，都是测试夹具。安全信息不能因美学删除。"
+  },
+  {
+    "id": "06-files",
+    "name": "SFTP 文件浏览",
+    "images": [
+      "iOS-light-portrait-sftp.png",
+      "iOS-dark-portrait-sftp.png",
+      "macOS-light-portrait-sftp.png",
+      "macOS-dark-portrait-sftp.png"
+    ],
+    "observation": "这是生产 SFTP 面板的独立测试渲染，macOS 全宽仅是夹具容器，不代表实际侧栏宽度。数据只有目录与文件名，没有可靠大小/时间，不能凭空增加元数据。关注路径、工具栏、图标、行高。"
+  },
+  {
+    "id": "07-settings",
+    "name": "设置、外观与同步登录",
+    "images": [
+      "iOS-light-portrait-settings-general.png",
+      "iOS-dark-portrait-settings-general.png",
+      "macOS-light-portrait-settings-general.png",
+      "macOS-dark-portrait-settings-general.png",
+      "iOS-light-portrait-settings-appearance.png",
+      "iOS-dark-portrait-settings-appearance.png",
+      "macOS-light-portrait-settings-appearance.png",
+      "macOS-dark-portrait-settings-appearance.png",
+      "iOS-light-portrait-settings-remote.png",
+      "iOS-dark-portrait-settings-remote.png",
+      "macOS-light-portrait-settings-remote.png",
+      "macOS-dark-portrait-settings-remote.png"
+    ],
+    "observation": "macOS 居中设置弹窗，手机导航页面。新需求普通提示减少、失败突出、成功短暂。未登录截图不代表 Apple 登录按钮真实原生行为或已登录状态，不能声称验证登录。关注说明文字、分组、禁用保存按钮、表单。"
+  },
+  {
+    "id": "08-feedback",
+    "name": "成功与状态提示",
+    "images": [
+      "iOS-light-portrait-notifications.png",
+      "iOS-dark-portrait-notifications.png",
+      "macOS-light-portrait-notifications.png",
+      "macOS-dark-portrait-notifications.png"
+    ],
+    "observation": "这是通知组件演示夹具，主动连续触发复制、保存、录制成功，截图不证明真实流程必然堆积。代码策略现为成功/普通2秒、失败默认8秒，成功不能覆盖失败。讨论视觉承载与优先级，不据静态图推断实际消失时长。"
+  }
+]

@@ -1,0 +1,142 @@
+[
+  {
+    "id": "history-light",
+    "title": "iOS 历史会话",
+    "theme": "light",
+    "file": "ios-history-light.png",
+    "notes": [
+      "搜索框与列表边缘对齐，减少横向缩进",
+      "最近会话改为连续行与内缩分隔线；标题与摘要层级更清楚"
+    ]
+  },
+  {
+    "id": "history-dark",
+    "title": "iOS 历史会话",
+    "theme": "dark",
+    "file": "ios-history-dark.png",
+    "notes": [
+      "搜索框与列表边缘对齐，减少横向缩进",
+      "最近会话改为连续行与内缩分隔线；标题与摘要层级更清楚"
+    ]
+  },
+  {
+    "id": "ios-ai-light",
+    "title": "iOS AI 审批卡",
+    "theme": "light",
+    "file": "ios-ai-light.png",
+    "notes": [
+      "先读目的、执行目标与目录，再读命令；增加内容留白",
+      "策略说明移到命令后；确认与拒绝仍完整保留"
+    ]
+  },
+  {
+    "id": "ios-ai-dark",
+    "title": "iOS AI 审批卡",
+    "theme": "dark",
+    "file": "ios-ai-dark.png",
+    "notes": [
+      "先读目的、执行目标与目录，再读命令；增加内容留白",
+      "策略说明移到命令后；确认与拒绝仍完整保留"
+    ]
+  },
+  {
+    "id": "macos-ai-light",
+    "title": "macOS AI 审批卡",
+    "theme": "light",
+    "file": "macos-ai-light.png",
+    "notes": [
+      "目的加重，执行目标前置；统一 16 px 内容边距",
+      "辅助说明降低视觉权重，操作区与正文拉开间距"
+    ]
+  },
+  {
+    "id": "macos-ai-dark",
+    "title": "macOS AI 审批卡",
+    "theme": "dark",
+    "file": "macos-ai-dark.png",
+    "notes": [
+      "目的加重，执行目标前置；统一 16 px 内容边距",
+      "辅助说明降低视觉权重，操作区与正文拉开间距"
+    ]
+  },
+  {
+    "id": "ios-ssh-light",
+    "title": "iOS SSH 表单",
+    "theme": "light",
+    "file": "iOS-light-portrait-ssh.png",
+    "notes": [
+      "输入控件统一浅填充、弱边框与圆角",
+      "连接按钮统一 48 px 高度，表单间距更一致"
+    ]
+  },
+  {
+    "id": "ios-ssh-dark",
+    "title": "iOS SSH 表单",
+    "theme": "dark",
+    "file": "iOS-dark-portrait-ssh.png",
+    "notes": [
+      "输入控件统一浅填充、弱边框与圆角",
+      "连接按钮统一 48 px 高度，表单间距更一致"
+    ]
+  },
+  {
+    "id": "macos-ssh-light",
+    "title": "macOS SSH 表单",
+    "theme": "light",
+    "file": "macOS-light-portrait-ssh.png",
+    "notes": [
+      "标签降低视觉权重；保留左侧标签与紧凑 32 px 输入高度",
+      "统一认证区输入框，保留已有密钥清除能力"
+    ]
+  },
+  {
+    "id": "macos-ssh-dark",
+    "title": "macOS SSH 表单",
+    "theme": "dark",
+    "file": "macOS-dark-portrait-ssh.png",
+    "notes": [
+      "标签降低视觉权重；保留左侧标签与紧凑 32 px 输入高度",
+      "统一认证区输入框，保留已有密钥清除能力"
+    ]
+  },
+  {
+    "id": "ios-sync-light",
+    "title": "iOS 同步表单",
+    "theme": "light",
+    "file": "iOS-light-portrait-settings-remote.png",
+    "notes": [
+      "模式选项与表单以分隔线分组，标明尚未保存",
+      "登录方式采用同一标签布局；字段填充与 SSH 保持一致"
+    ]
+  },
+  {
+    "id": "ios-sync-dark",
+    "title": "iOS 同步表单",
+    "theme": "dark",
+    "file": "iOS-dark-portrait-settings-remote.png",
+    "notes": [
+      "模式选项与表单以分隔线分组，标明尚未保存",
+      "登录方式采用同一标签布局；字段填充与 SSH 保持一致"
+    ]
+  },
+  {
+    "id": "macos-sync-light",
+    "title": "macOS 同步表单",
+    "theme": "light",
+    "file": "macOS-light-portrait-settings-remote.png",
+    "notes": [
+      "重复状态卡收为低强调状态行",
+      "模式比较表改为选项列表，保留当前与待保存区别"
+    ]
+  },
+  {
+    "id": "macos-sync-dark",
+    "title": "macOS 同步表单",
+    "theme": "dark",
+    "file": "macOS-dark-portrait-settings-remote.png",
+    "notes": [
+      "重复状态卡收为低强调状态行",
+      "模式比较表改为选项列表，保留当前与待保存区别"
+    ]
+  }
+]
