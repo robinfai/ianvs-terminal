@@ -2906,11 +2906,17 @@ class _DefaultsSectionNavigationState
                     ),
                     SizedBox(height: theme.spacing.xs),
                     if (item.section == _DefaultsSection.general &&
-                        widget.aiEntry != null)
-                      Focus(
+                        widget.aiEntry != null) ...[
+                      _DefaultsSectionNavigationItem(
+                        key: const Key('defaults-ai-settings'),
+                        icon: Icons.auto_awesome_outlined,
+                        label: 'AI',
+                        selected: widget.selectedSection == _DefaultsSection.ai,
                         focusNode: _focusNodes[_DefaultsSection.ai.index],
-                        child: widget.aiEntry!,
+                        onPressed: () => _select(_DefaultsSection.ai),
                       ),
+                      SizedBox(height: theme.spacing.xs),
+                    ],
                   ],
                 ],
               ),

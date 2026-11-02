@@ -261,14 +261,15 @@ void main() {
       aiSettings: settings,
       onSelection: (_) {},
     );
-    expect(find.text('Loading saved configuration…'), findsOneWidget);
+    expect(find.byKey(const Key('defaults-ai-settings')), findsOneWidget);
+    expect(find.byKey(const Key('defaults-ai-connection-status')), findsNothing);
     store.pending.completeError(StateError('unreadable fixture'));
     await tester.pumpAndSettle();
     expect(
       find.text(
         'Saved configuration could not be read. Terminal features remain available.',
       ),
-      findsOneWidget,
+      findsNothing,
     );
     expect(
       find.text('Not configured. Terminal features work independently.'),
@@ -303,7 +304,7 @@ void main() {
       final entry = find.byKey(const Key('defaults-ai-settings'));
       const missing = 'Official service';
       const saved = 'Configured';
-      expect(find.text(missing), findsOneWidget);
+      expect(find.text(missing), findsNothing);
       await tester.tap(entry);
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('ai-custom-connection')));
@@ -312,7 +313,7 @@ void main() {
       await tester.tap(find.byKey(const Key('ai-use-mock')));
       await tester.tap(find.byKey(const Key('ai-save-settings')));
       await tester.pumpAndSettle();
-      expect(find.text(saved), findsOneWidget);
+      expect(find.text(saved), findsNothing);
       expect(find.text(missing), findsNothing);
       await tester.tap(entry);
       await tester.pumpAndSettle();
@@ -328,7 +329,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(settings.configuration!.model, 'trail-mock');
-      expect(find.text(saved), findsOneWidget);
+      expect(find.text(saved), findsNothing);
       await tester.tap(entry);
       await tester.pumpAndSettle();
       store.fail = true;
@@ -346,7 +347,7 @@ void main() {
       await tester.tap(find.byKey(const Key('ai-remove-settings')));
       await tester.pumpAndSettle();
       expect(settings.configuration, isNull);
-      expect(find.text(missing), findsOneWidget);
+      expect(find.text(missing), findsNothing);
       expect(find.text('trail-local-mock'), findsNothing);
       expect(tester.takeException(), isNull);
     },
