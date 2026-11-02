@@ -96,7 +96,22 @@ class AiSettingsController extends ChangeNotifier {
   final AiConfigurationStore store;
   late final Future<void> loaded;
   AiConfiguration? _gatewayConfiguration;
-  AiConfiguration? get gatewayConfiguration => _gatewayConfiguration;
+  AiConfiguration? get gatewayConfiguration {
+    final base = _gatewayConfiguration;
+    final preference = _customConfiguration;
+    if (base == null || preference?.officialService != true) return base;
+    return AiConfiguration(
+      endpoint: base.endpoint,
+      apiKey: base.apiKey,
+      model: preference!.model,
+      approvalMode: preference.approvalMode,
+      approvalSensitivity: preference.approvalSensitivity,
+    );
+  }
+
+  String get officialModel => _customConfiguration?.officialService == true
+      ? _customConfiguration!.model
+      : 'default';
   AiUsageController? _usage;
   AiUsageController? get usage => _usage ??= gatewayConfiguration == null
       ? null
@@ -114,12 +129,15 @@ class AiSettingsController extends ChangeNotifier {
   }
 
   AiConfiguration? _customConfiguration;
-  AiConfiguration? get customConfiguration => _customConfiguration;
+  AiConfiguration? get customConfiguration =>
+      _customConfiguration?.officialService == true
+      ? null
+      : _customConfiguration;
   AiConfiguration? get configuration =>
-      _customConfiguration ?? gatewayConfiguration;
+      customConfiguration ?? gatewayConfiguration;
   set configuration(AiConfiguration? value) => _customConfiguration = value;
   bool get usesGateway =>
-      _customConfiguration == null && gatewayConfiguration != null;
+      customConfiguration == null && gatewayConfiguration != null;
   bool loading = true;
   String? error;
   bool _disposed = false;

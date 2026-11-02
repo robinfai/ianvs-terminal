@@ -2213,6 +2213,8 @@ void main() {
         expect(find.byKey(const Key('ai-settings-dialog')), findsOneWidget);
         expect(api.requests, isEmpty);
         await _capture(tester, 'D14-missing-${variant.name}');
+        await tester.tap(find.byKey(const Key('ai-custom-connection')));
+        await tester.pumpAndSettle();
         await tester.enterText(
           find.byKey(const Key('ai-model')),
           'cancelled-model',
@@ -2230,6 +2232,8 @@ void main() {
         expect(controller.attachments.single, source);
         expect(settings.configuration, isNull);
         await tester.tap(find.byKey(const Key('ai-send')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('ai-custom-connection')));
         await tester.pumpAndSettle();
         expect(
           tester

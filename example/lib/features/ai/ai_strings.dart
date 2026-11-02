@@ -16,6 +16,18 @@ String aiErrorText(String code, bool zh) {
       'Automatic detection is available on macOS and Linux.',
       '自动检测目前支持 macOS 和 Linux。',
     ),
+    'models_auth': (
+      'Cannot load models. Sign in again or check your API key and permissions.',
+      '无法获取模型，请重新登录或检查 API Key 和账号权限。',
+    ),
+    'models_unavailable': (
+      'Cannot load models. Check the address and connection, then retry.',
+      '无法获取模型，请检查服务地址和网络后重试。',
+    ),
+    'models_invalid': (
+      'The models response is not OpenAI compatible.',
+      '模型列表响应格式不正确，请确认服务支持规范的 models 接口。',
+    ),
     'acp_discovery_found': (
       'Launch settings filled in. Test the connection, then save.',
       '已填入启动配置。请测试连接后保存。',

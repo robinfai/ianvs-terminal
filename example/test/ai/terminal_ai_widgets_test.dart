@@ -497,6 +497,8 @@ void main() {
       );
       await tester.tap(find.text('Configure'));
       await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('ai-custom-connection')));
+      await tester.pumpAndSettle();
       await tester.ensureVisible(find.byKey(const Key('ai-use-mock')));
       await tester.tap(find.byKey(const Key('ai-use-mock')));
       await tester.tap(find.byKey(const Key('ai-save-settings')));

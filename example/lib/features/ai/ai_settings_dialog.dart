@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/material.dart';
 
 import '../../ui/components/app_configuration_field.dart';
@@ -12,6 +13,7 @@ import '../../ui/foundation/app_motion.dart';
 import 'acp/acp_installation.dart';
 import 'acp/codex_acp_backend.dart';
 import 'ai_api_client.dart';
+import 'ai_model_picker.dart';
 import 'ai_models.dart';
 import 'ai_settings.dart';
 import 'ai_strings.dart';
@@ -25,7 +27,10 @@ Future<void> showAiSettings(
   final result = await showDialog<bool>(
     context: context,
     animationStyle: appDialogAnimation(context),
-    builder: (_) => AiSettingsDialog(settings: settings),
+    builder: (_) => ListenableBuilder(
+      listenable: settings,
+      builder: (_, _) => AiSettingsDialog(settings: settings),
+    ),
   );
   if (!context.mounted || result == null) return;
   if (onSaved != null) {
@@ -38,7 +43,7 @@ Future<void> showAiSettings(
     result
         ? (zh ? 'AI 连接已保存' : 'AI connection saved')
         : settings.usesGateway
-        ? (zh ? '已恢复后端 AI 服务' : 'Backend AI service restored')
+        ? (zh ? '已恢复官方 AI 服务' : 'Backend AI service restored')
         : (zh ? 'AI 连接已移除' : 'AI connection removed'),
     kind: AppNoticeKind.success,
   );
@@ -68,6 +73,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
   AiBackendKind _backend = AiBackendKind.llm;
   AiApprovalMode _approvalMode = AiApprovalMode.smart;
   AiApprovalSensitivity _approvalSensitivity = AiApprovalSensitivity.relaxed;
+  String _officialModel = 'default';
   String? _apiModel;
   String? _acpModel;
   bool _busy = false;
@@ -99,6 +105,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
   Future<void> _load() async {
     await widget.settings.loaded;
     if (!mounted) return;
+    _officialModel = widget.settings.officialModel;
     final value = widget.settings.customConfiguration;
     if (value != null) _fill(value);
     setState(() {
@@ -374,9 +381,9 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loaded && widget.settings.usesGateway && !_customize) {
-      return AlertDialog(
-        title: Text(t('AI service', 'AI 服务')),
+    if (_loaded && widget.settings.customConfiguration == null && !_customize) {
+      return _surface(
+        title: t('Official AI service', '官方 AI 服务'),
         content: SizedBox(
           width: 420,
           child: SingleChildScrollView(
@@ -385,10 +392,37 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
               children: [
                 Text(
                   t(
-                    'Using your signed-in backend AI service.',
-                    '当前使用已登录的后端 AI 服务。',
+                    'Official AI service is the default. Sign in to use your account credits.',
+                    '默认使用官方提供的 AI 服务，登录后使用账号额度。',
                   ),
                 ),
+                const SizedBox(height: 16),
+                if (widget.settings.gatewayConfiguration
+                    case final gateway?) ...[
+                  Text(
+                    _officialModel == 'default'
+                        ? t('Model: service default', '模型：服务默认')
+                        : '${t('Model', '模型')}：$_officialModel',
+                  ),
+                  AiModelPicker(
+                    configuration: gateway,
+                    selected: _officialModel,
+                    autoLoad: true,
+                    enabled: !_busy,
+                    onSelected: (value) =>
+                        setState(() => _officialModel = value),
+                  ),
+                ] else
+                  Text(
+                    t('Sign in to load available models.', '请先登录账号，再获取可用模型。'),
+                  ),
+                if (_error != null)
+                  Text(
+                    aiErrorText(_error!, zh),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
                 if (widget.settings.usage case final usage?)
                   AiUsageSummary(
                     controller: usage,
@@ -400,12 +434,30 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
         ),
         actions: [
           TextButton(
-            onPressed: () => setState(() => _customize = true),
+            key: const Key('ai-custom-connection'),
+            onPressed: _busy ? null : () => setState(() => _customize = true),
             child: Text(t('Custom connection', '自定义连接')),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(t('Done', '完成')),
+            key: const Key('ai-save-official'),
+            onPressed: _busy
+                ? null
+                : () async {
+                    setState(() => _busy = true);
+                    try {
+                      await widget.settings.save(
+                        AiConfiguration.official(model: _officialModel),
+                      );
+                      if (context.mounted) Navigator.pop(context, true);
+                    } on Object {
+                      if (mounted) {
+                        setState(() => _error = 'configuration_save');
+                      }
+                    } finally {
+                      if (mounted) setState(() => _busy = false);
+                    }
+                  },
+            child: Text(t('Save', '保存')),
           ),
         ],
       );
@@ -572,6 +624,20 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
                 ),
               ],
               const SizedBox(height: 16),
+              if (_backend == AiBackendKind.llm)
+                AiModelPicker(
+                  configuration: AiConfiguration(
+                    endpoint: _endpoint.text.trim(),
+                    apiKey: _key.text.trim(),
+                    model: 'catalog',
+                  ),
+                  selected: _model.text,
+                  enabled: _loaded && !_busy,
+                  onSelected: (value) {
+                    _model.text = value;
+                    _edited(value);
+                  },
+                ),
               AppConfigurationField(
                 key: _modelField,
                 label: t('Model', '模型'),
@@ -694,7 +760,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
                 spacing: 8,
                 runSpacing: 4,
                 children: [
-                  if (_backend == AiBackendKind.llm)
+                  if (_backend == AiBackendKind.llm && !kReleaseMode)
                     TextButton(
                       key: const Key('ai-use-mock'),
                       onPressed: _loaded && !_busy
@@ -730,7 +796,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
                   style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
               const SizedBox(height: 8),
-              if (_backend == AiBackendKind.llm)
+              if (_backend == AiBackendKind.llm && !kReleaseMode)
                 Text(
                   t(
                     'For an iPhone, use the Mac’s LAN address instead of 127.0.0.1.',
@@ -748,11 +814,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
         TextButton(
           key: const Key('ai-remove-settings'),
           onPressed: _busy || _detecting ? null : () => _save(remove: true),
-          child: Text(
-            widget.settings.gatewayConfiguration == null
-                ? t('Disconnect', '断开配置')
-                : t('Use backend service', '使用后端服务'),
-          ),
+          child: Text(t('Use official service', '使用官方服务')),
         ),
       TextButton(
         onPressed: _busy ? null : () => Navigator.of(context).pop(),
@@ -764,6 +826,18 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
         child: Text(t('Save', '保存')),
       ),
     ];
+    return _surface(
+      title: t('AI connection', 'AI 连接'),
+      content: content,
+      actions: actions,
+    );
+  }
+
+  Widget _surface({
+    required String title,
+    required Widget content,
+    required List<Widget> actions,
+  }) {
     if (context.usesAppleGroups) {
       return Dialog.fullscreen(
         key: const Key('ai-settings-dialog'),
@@ -771,7 +845,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
         child: SafeArea(
           child: Column(
             children: [
-              AppMobileHeader(title: t('AI connection', 'AI 连接')),
+              AppMobileHeader(title: title),
               Expanded(
                 child: SingleChildScrollView(
                   keyboardDismissBehavior:
@@ -798,7 +872,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
       key: const Key('ai-settings-dialog'),
       constraints: const BoxConstraints.tightFor(width: 680),
       backgroundColor: context.groupedBackground,
-      title: Text(t('AI connection', 'AI 连接')),
+      title: Text(title),
       scrollable: true,
       content: content,
       actions: actions,

@@ -638,6 +638,8 @@ void main() {
       expect(find.byKey(const Key('ai-settings-dialog')), findsOneWidget);
       expect(fixture.ai.transcript, isEmpty);
 
+      await tester.tap(find.byKey(const Key('ai-custom-connection')));
+      await _settle(tester);
       for (final field in {
         'ai-endpoint': 'http://127.0.0.1:8787/v1',
         'ai-api-key': 'public-fixture-key',

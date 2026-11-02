@@ -18,7 +18,18 @@ class AiConfiguration {
     required this.model,
     this.approvalMode = AiApprovalMode.manual,
     this.approvalSensitivity = AiApprovalSensitivity.balanced,
-  }) : backend = AiBackendKind.llm,
+  }) : officialService = false,
+       backend = AiBackendKind.llm,
+       agentCommand = '',
+       agentArguments = const [];
+  const AiConfiguration.official({
+    this.model = 'default',
+    this.approvalMode = AiApprovalMode.manual,
+    this.approvalSensitivity = AiApprovalSensitivity.balanced,
+  }) : officialService = true,
+       backend = AiBackendKind.llm,
+       endpoint = '',
+       apiKey = '',
        agentCommand = '',
        agentArguments = const [];
 
@@ -28,20 +39,23 @@ class AiConfiguration {
     this.model = 'gpt-5.6-sol',
     this.approvalMode = AiApprovalMode.manual,
     this.approvalSensitivity = AiApprovalSensitivity.balanced,
-  }) : backend = AiBackendKind.acp,
+  }) : officialService = false,
+       backend = AiBackendKind.acp,
        endpoint = '',
        apiKey = '';
 
   const AiConfiguration.mock({
     this.approvalMode = AiApprovalMode.manual,
     this.approvalSensitivity = AiApprovalSensitivity.balanced,
-  }) : endpoint = 'http://127.0.0.1:8787/v1',
+  }) : officialService = false,
+       endpoint = 'http://127.0.0.1:8787/v1',
        apiKey = 'trail-local-mock',
        model = 'trail-mock',
        backend = AiBackendKind.llm,
        agentCommand = '',
        agentArguments = const [];
 
+  final bool officialService;
   final AiBackendKind backend;
   final AiApprovalMode approvalMode;
   final AiApprovalSensitivity approvalSensitivity;
@@ -56,6 +70,7 @@ class AiConfiguration {
     bool includeApprovalPolicy = true,
   }) =>
       other != null &&
+      officialService == other.officialService &&
       backend == other.backend &&
       (!includeApprovalPolicy ||
           (approvalMode == other.approvalMode &&
@@ -70,6 +85,12 @@ class AiConfiguration {
       ).every((index) => agentArguments[index] == other.agentArguments[index]);
 
   void validate() {
+    if (officialService) {
+      if (model.trim().isEmpty || model.length > 200) {
+        throw const AiFailure('configuration');
+      }
+      return;
+    }
     if (backend == AiBackendKind.llm) {
       completionsUri;
       return;
@@ -107,6 +128,7 @@ class AiConfiguration {
   }
 
   Map<String, Object?> toJson() => {
+    if (officialService) 'officialService': true,
     'backend': backend.name,
     'approvalMode': approvalMode.name,
     'approvalSensitivity': approvalSensitivity.name,
@@ -130,6 +152,15 @@ class AiConfiguration {
       'relaxed' => AiApprovalSensitivity.relaxed,
       _ => AiApprovalSensitivity.balanced,
     };
+    if (json['officialService'] == true) {
+      final value = AiConfiguration.official(
+        model: json['model']! as String,
+        approvalMode: approvalMode,
+        approvalSensitivity: approvalSensitivity,
+      );
+      value.validate();
+      return value;
+    }
     if (json['backend'] == 'acp') {
       final value = AiConfiguration.acp(
         agentCommand: json['agentCommand']! as String,

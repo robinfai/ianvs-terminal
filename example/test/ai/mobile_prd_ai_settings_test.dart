@@ -77,6 +77,10 @@ class _SettingsFixture {
     );
     await tester.tap(find.text('Configure AI'));
     await tester.pumpAndSettle();
+    if (find.byKey(const Key('ai-custom-connection')).evaluate().isNotEmpty) {
+      await tester.tap(find.byKey(const Key('ai-custom-connection')));
+      await tester.pumpAndSettle();
+    }
   }
 
   void expectNoTaskSent() {
