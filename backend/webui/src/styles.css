@@ -1279,7 +1279,8 @@ body { overflow-wrap: break-word; }
 /* Keep provider presentation local, bounded, and independent of SDK-injected
    inline styles. The SDK's semantic button retains its own auth handlers. */
 .oauth-identity-buttons { width: 100%; max-width: 400px; }
-.google-signin-host { width: 100%; min-height: 44px; }
+.google-signin-host { width: 100%; height: 44px; min-height: 44px; overflow: clip; contain: paint; }
+.google-signin-host[hidden] { display: none; }
 .google-signin-host iframe { display: none !important; }
 .google-signin-host [role="button"] {
   box-sizing: border-box !important;
@@ -1313,5 +1314,5 @@ body { overflow-wrap: break-word; }
 .google-signin-host [role="button"]:hover { background-color: #f8faff !important; }
 .google-signin-host [role="button"]:focus-visible {
   outline: 3px solid var(--primary, #2563eb);
-  outline-offset: 3px;
+  outline-offset: -3px;
 }
