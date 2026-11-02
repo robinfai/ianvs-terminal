@@ -1275,3 +1275,43 @@ body { overflow-wrap: break-word; }
 .admin-columns { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(0, 2fr); gap: 24px; align-items: start; }
 .admin-json { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 360px; overflow: auto; }
 @media (max-width: 760px) { .admin-columns { grid-template-columns: minmax(0, 1fr); } }
+
+/* Keep provider presentation local, bounded, and independent of SDK-injected
+   inline styles. The SDK's semantic button retains its own auth handlers. */
+.oauth-identity-buttons { width: 100%; max-width: 400px; }
+.google-signin-host { width: 100%; min-height: 44px; }
+.google-signin-host iframe { display: none !important; }
+.google-signin-host [role="button"] {
+  box-sizing: border-box !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 12px !important;
+  width: 100% !important;
+  height: 44px !important;
+  min-height: 44px !important;
+  max-height: 44px !important;
+  padding: 0 16px !important;
+  border: 1px solid #747775 !important;
+  border-radius: 6px !important;
+  background: #fff !important;
+  color: #1f1f1f !important;
+  font: 500 14px/20px system-ui, sans-serif !important;
+  cursor: pointer;
+  overflow: hidden;
+}
+.google-signin-host [role="button"] > * { display: none !important; }
+.google-signin-host [role="button"]::before {
+  content: "";
+  display: block;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  background: url('/assets/google-g.svg') center / 18px 18px no-repeat;
+}
+.google-signin-host [role="button"]::after { content: "使用 Google 登录"; }
+.google-signin-host [role="button"]:hover { background-color: #f8faff !important; }
+.google-signin-host [role="button"]:focus-visible {
+  outline: 3px solid var(--primary, #2563eb);
+  outline-offset: 3px;
+}

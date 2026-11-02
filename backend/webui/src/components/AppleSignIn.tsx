@@ -63,9 +63,9 @@ function IdentityButtons({apple, google, onProof, busy}: {apple?: AppleWebConfig
       await onProof({provider:'apple',identity_token:checkedAppleToken(response,state),nonce})
     } catch { setError('Apple 登录未完成，请重试。') }
   }
-  return <div className="stack">
+  return <div className="stack oauth-identity-buttons">
     {apple && <Button className="apple-signin__button" disabled={busy || !nonce} onClick={()=>void appleSignIn()}>使用 Apple 登录</Button>}
-    {google && <div ref={googleHost} hidden={busy} />}
+    {google && <div ref={googleHost} className="google-signin-host" hidden={busy} />}
     {error && <><Notice tone="error">{error}</Notice><Button variant="ghost" onClick={()=>setGeneration(v=>v+1)}>重试</Button></>}
   </div>
 }
