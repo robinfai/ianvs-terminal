@@ -225,7 +225,11 @@ class _DefaultsAndAppearanceDialogState
   bool _accountLoadFailed = false;
   Key _accountErrorKey = const Key('data-api-account-error');
   bool _remoteReconnectRequested = false;
-  String _remoteAuthMethod = 'password';
+  String _remoteAuthMethod = _defaultRemoteAuthMethod;
+  static String get _defaultRemoteAuthMethod =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS
+      ? 'apple'
+      : 'password';
   bool get _appleSupported =>
       !kIsWeb &&
       (defaultTargetPlatform == TargetPlatform.iOS ||
@@ -370,7 +374,7 @@ class _DefaultsAndAppearanceDialogState
         _remoteDataApiPasswordController.clear();
         _remoteDataApiUsernameController.clear();
         _remoteReconnectRequested = false;
-        _remoteAuthMethod = 'password';
+        _remoteAuthMethod = _defaultRemoteAuthMethod;
         await _refreshAccount();
       }
       if (mounted) setState(() => _accountBusy = false);

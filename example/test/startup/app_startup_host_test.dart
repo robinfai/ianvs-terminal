@@ -51,6 +51,8 @@ void main() {
               find.byKey(const Key('app-startup-configure-llm')),
             );
             await tester.pumpAndSettle();
+            await tester.tap(find.byKey(const Key('ai-custom-connection')));
+            await tester.pumpAndSettle();
             expect(find.text('Codex ACP'), findsNothing);
             await tester.enterText(
               find.byKey(const Key('ai-endpoint')),
@@ -129,20 +131,14 @@ void main() {
               await tester.pumpAndSettle();
             }
             final selector = find.byKey(const Key('app-startup-auth-method'));
-            await tester.ensureVisible(selector);
-            await tester.tap(selector);
-            await tester.pumpAndSettle();
-            final context = tester.element(selector);
-            await tester.tap(
-              find
-                  .text(
-                    link
-                        ? context.l10n.appleLinkExisting
-                        : context.l10n.appleSignIn,
-                  )
-                  .last,
-            );
-            await tester.pumpAndSettle();
+            if (link) {
+              await tester.ensureVisible(selector);
+              await tester.tap(selector);
+              await tester.pumpAndSettle();
+              final context = tester.element(selector);
+              await tester.tap(find.text(context.l10n.appleLinkExisting).last);
+              await tester.pumpAndSettle();
+            }
             final username = find.byKey(
               Key(
                 recovery
@@ -556,6 +552,14 @@ void main() {
 
       await tester.tap(find.byKey(const Key('mobile-setup-sync')));
       await tester.pumpAndSettle();
+      final method = find.byKey(const Key('app-startup-auth-method'));
+      await tester.ensureVisible(method);
+      await tester.tap(method);
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.text(tester.element(method).l10n.passwordSignIn).last,
+      );
+      await tester.pumpAndSettle();
       final username = find.byKey(
         const Key('app-startup-initial-data-api-username'),
       );
@@ -632,6 +636,14 @@ void main() {
         defaultRemoteDataApiBaseUrl,
       );
 
+      final method = find.byKey(const Key('app-startup-auth-method'));
+      await tester.ensureVisible(method);
+      await tester.tap(method);
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.text(tester.element(method).l10n.passwordSignIn).last,
+      );
+      await tester.pumpAndSettle();
       await tester.enterText(
         find.byKey(const Key('app-startup-initial-data-api-url')),
         'http://sync.example.com/',

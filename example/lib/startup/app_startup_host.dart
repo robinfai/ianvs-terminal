@@ -168,7 +168,10 @@ final class _AppStartupDataSetupViewState
   bool get _isMobile =>
       defaultTargetPlatform == TargetPlatform.iOS ||
       defaultTargetPlatform == TargetPlatform.android;
-  _StartupAuthMethod _authMethod = _StartupAuthMethod.password;
+  _StartupAuthMethod _authMethod =
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS
+      ? _StartupAuthMethod.apple
+      : _StartupAuthMethod.password;
   bool _runningAction = false;
   bool _showMobileSyncSetup = false;
   String? _actionError;
@@ -913,7 +916,10 @@ final class _AppStartupDataSettingsDialogState
   String? _saveError;
   bool _loading = true;
   bool _saving = false;
-  _StartupAuthMethod _authMethod = _StartupAuthMethod.password;
+  _StartupAuthMethod _authMethod =
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS
+      ? _StartupAuthMethod.apple
+      : _StartupAuthMethod.password;
 
   @override
   void initState() {

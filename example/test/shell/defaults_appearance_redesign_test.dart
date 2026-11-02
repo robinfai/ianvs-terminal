@@ -44,11 +44,13 @@ void main() {
           accountManager: manager,
         );
         final method = find.byKey(const Key('data-api-auth-method'));
-        await tester.ensureVisible(method);
-        await tester.tap(method);
-        await tester.pumpAndSettle();
-        await tester.tap(find.text('Sign in with Apple').last);
-        await tester.pumpAndSettle();
+        if (platform != TargetPlatform.iOS) {
+          await tester.ensureVisible(method);
+          await tester.tap(method);
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Sign in with Apple').last);
+          await tester.pumpAndSettle();
+        }
         await tester.ensureVisible(find.byType(SignInWithAppleButton));
         await tester.tap(find.byType(SignInWithAppleButton));
         await tester.pumpAndSettle();
@@ -85,15 +87,23 @@ void main() {
         expect(manager.account, isNull);
         expect(method, findsOneWidget);
         expect(find.byKey(const Key('data-api-account-status')), findsNothing);
-        expect(
-          tester
-              .widget<TextField>(
-                find.byKey(const Key('data-api-remote-password')),
-              )
-              .controller!
-              .text,
-          isEmpty,
-        );
+        if (platform == TargetPlatform.iOS) {
+          expect(
+            find.byKey(const Key('data-api-remote-password')),
+            findsNothing,
+          );
+          expect(find.byType(SignInWithAppleButton), findsOneWidget);
+        } else {
+          expect(
+            tester
+                .widget<TextField>(
+                  find.byKey(const Key('data-api-remote-password')),
+                )
+                .controller!
+                .text,
+            isEmpty,
+          );
+        }
         expect(tester.takeException(), isNull);
       },
       variant: TargetPlatformVariant.only(platform),
@@ -256,6 +266,8 @@ void main() {
       expect(find.text(missing), findsOneWidget);
       await tester.tap(entry);
       await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('ai-custom-connection')));
+      await tester.pumpAndSettle();
       await tester.ensureVisible(find.byKey(const Key('ai-use-mock')));
       await tester.tap(find.byKey(const Key('ai-use-mock')));
       await tester.tap(find.byKey(const Key('ai-save-settings')));
@@ -280,7 +292,7 @@ void main() {
       await tester.tap(entry);
       await tester.pumpAndSettle();
       store.fail = true;
-      await tester.tap(find.text('Disconnect'));
+      await tester.tap(find.text('Use official service'));
       await tester.pumpAndSettle();
       expect(settings.configuration!.model, 'trail-mock');
       expect(
