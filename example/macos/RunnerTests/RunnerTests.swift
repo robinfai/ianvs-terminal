@@ -540,6 +540,42 @@ class RunnerTests: XCTestCase {
     XCTAssertTrue(selected === keyCapableWindow)
   }
 
+  func testActivationPrioritizesQuitConfirmationOverTerminal() {
+    let mainWindow = MainFlutterWindow()
+    let confirmation = NSAlert().window
+    let selected = AppDelegate.preferredActivationWindow(
+      from: [mainWindow, confirmation], modalWindow: confirmation, keyWindow: mainWindow
+    )
+    XCTAssertTrue(selected === confirmation)
+    // Shutdown must still find Flutter, even with a native dialog present.
+    XCTAssertTrue(
+      AppDelegate.preferredForegroundWindow(from: [confirmation, mainWindow]) === mainWindow
+    )
+  }
+
+  func testActivationPreservesVisibleUpdateWindow() {
+    let mainWindow = MainFlutterWindow()
+    let updateWindow = NSWindow(
+      contentRect: NSRect(x: 100, y: 100, width: 400, height: 200),
+      styleMask: [.titled, .closable], backing: .buffered, defer: false
+    )
+    updateWindow.orderFront(nil)
+    defer { updateWindow.orderOut(nil) }
+    let selected = AppDelegate.preferredActivationWindow(
+      from: [mainWindow, updateWindow], modalWindow: nil, keyWindow: updateWindow
+    )
+    XCTAssertTrue(selected === updateWindow)
+  }
+
+  func testActivationFallsBackToTerminalWhenUtilityWindowIsHidden() {
+    let mainWindow = MainFlutterWindow()
+    let hiddenWindow = NSWindow()
+    let selected = AppDelegate.preferredActivationWindow(
+      from: [hiddenWindow, mainWindow], modalWindow: nil, keyWindow: hiddenWindow
+    )
+    XCTAssertTrue(selected === mainWindow)
+  }
+
   func testNativeWindowDragRegionCoversTitlebarExceptTrailingControls() {
     let contentSize = NSSize(width: 900, height: 600)
 

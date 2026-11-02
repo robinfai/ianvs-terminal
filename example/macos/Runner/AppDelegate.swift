@@ -256,7 +256,9 @@ class AppDelegate: FlutterAppDelegate {
   }
 
   static func foregroundMainWindow(in app: NSApplication) {
-    guard let window = preferredForegroundWindow(from: app.windows) else {
+    guard let window = preferredActivationWindow(
+      from: app.windows, modalWindow: app.modalWindow, keyWindow: app.keyWindow
+    ) else {
       return
     }
 
@@ -266,6 +268,21 @@ class AppDelegate: FlutterAppDelegate {
 
     app.activate(ignoringOtherApps: true)
     window.makeKeyAndOrderFront(nil)
+  }
+
+  static func preferredActivationWindow(
+    from windows: [NSWindow], modalWindow: NSWindow?, keyWindow: NSWindow?
+  ) -> NSWindow? {
+    // Reopening the app must not put the terminal over a quit confirmation
+    // or steal focus from Sparkle's update window. Keep the separate main-window
+    // lookup for the Dart shutdown handshake.
+    if let modalWindow {
+      return modalWindow
+    }
+    if let keyWindow, keyWindow.isVisible, !keyWindow.isMiniaturized {
+      return keyWindow
+    }
+    return preferredForegroundWindow(from: windows)
   }
 
   private func scheduleForegroundMainWindow(for app: NSApplication) {
