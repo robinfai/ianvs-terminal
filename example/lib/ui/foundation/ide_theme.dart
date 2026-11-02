@@ -396,11 +396,16 @@ ThemeData withIdePresentation(ThemeData base) {
       textStyle: typography.bodySmall?.copyWith(color: t.text),
     ),
     snackBarTheme: base.snackBarTheme.copyWith(
+      // Phone notices use a crisp surface boundary, not Material's default
+      // deep shadow, which produces a dark band against the bottom safe area.
+      elevation: touch ? 0 : base.snackBarTheme.elevation,
       backgroundColor: t.raised,
       contentTextStyle: typography.bodyMedium,
       actionTextColor: t.focus,
       closeIconColor: t.muted,
-      shape: shape.copyWith(side: BorderSide(color: t.border)),
+      shape: shape.copyWith(
+        side: BorderSide(color: touch ? t.separator : t.border),
+      ),
     ),
     bannerTheme: base.bannerTheme.copyWith(
       backgroundColor: t.selected,

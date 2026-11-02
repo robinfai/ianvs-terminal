@@ -893,22 +893,6 @@ class _DefaultsAndAppearanceDialogState
               : context.appTheme.spacing.sm,
         ),
         title: const Text('AI'),
-        subtitle: Text(
-          widget.aiSettings!.loading
-              ? context.l10n.aiConfigurationLoading
-              : widget.aiSettings!.error != null
-              ? context.l10n.aiConfigurationUnreadable
-              : widget.aiSettings!.configuration == null
-              ? (Localizations.localeOf(context).languageCode == 'zh'
-                    ? '官方服务'
-                    : 'Official service')
-              : (Localizations.localeOf(context).languageCode == 'zh'
-                    ? '已配置'
-                    : 'Configured'),
-          key: const Key('defaults-ai-connection-status'),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
         trailing: const Icon(Icons.chevron_right),
         selected: _selectedSection == _DefaultsSection.ai,
         onTap: () => _selectSection(_DefaultsSection.ai),

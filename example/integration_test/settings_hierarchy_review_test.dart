@@ -10,6 +10,7 @@ import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/shell/defaults_appearance_dialog.dart';
 import 'package:app/ui/foundation/app_theme.dart';
+import 'package:app/ui/components/app_notifications.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -37,6 +38,21 @@ void main() {
       );
       if (platform == TargetPlatform.iOS) {
         await binding.takeScreenshot('settings-${brightness.name}');
+        final notice = AppNotifications.show(
+          tester.element(find.byKey(const Key('defaults-ai-settings'))),
+          const SnackBar(
+            content: Text('AI 配置已保存'),
+            duration: Duration(seconds: 30),
+          ),
+          kind: AppNoticeKind.success,
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 350));
+        expect(find.text('AI 配置已保存'), findsOneWidget);
+        await binding.takeScreenshot('settings-notice-${brightness.name}');
+        notice.close();
+        await tester.pump(const Duration(milliseconds: 300));
+        await tester.pumpAndSettle();
       }
       await tester.tap(find.byKey(const Key('defaults-ai-settings')));
       await tester.pumpAndSettle();
