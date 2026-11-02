@@ -46,7 +46,7 @@ class AppConfigurationField extends StatelessWidget {
         builder: (context, constraints) {
           final stacked =
               stackedOnPhone ||
-              constraints.maxWidth < 320 ||
+              constraints.maxWidth < 260 ||
               label.length > 12 ||
               RegExp(r'[\u4e00-\u9fff]').allMatches(label).length > 5;
           return Container(
@@ -61,7 +61,7 @@ class AppConfigurationField extends StatelessWidget {
                 ),
               ),
             ),
-            padding: const EdgeInsets.only(bottom: 6),
+            padding: EdgeInsets.symmetric(vertical: stacked ? 8 : 0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [

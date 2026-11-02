@@ -22,7 +22,9 @@ class AppMobileHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Material(
-    color: context.appTheme.canvas,
+    color: context.usesAppleGroups
+        ? context.groupedBackground
+        : context.appTheme.canvas,
     shape: context.usesAppleGroups
         ? null
         : Border(bottom: BorderSide(color: context.appTheme.border)),

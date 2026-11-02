@@ -180,6 +180,7 @@ class _AiWorkspacePreviewState extends State<AiWorkspacePreview> {
             ],
           },
       ]);
+      task.selectTask('saved-preview-0');
       if (mounted) setState(() {});
       return;
     }
@@ -232,45 +233,50 @@ class _AiWorkspacePreviewState extends State<AiWorkspacePreview> {
         platform: widget.phone ? TargetPlatform.iOS : TargetPlatform.macOS,
       ),
     ),
-    home: Scaffold(
-      body: Builder(
-        builder: (context) => widget.historyList
-            ? AiMobileHistorySheet(controller: task)
-            : observing
-            ? AiObservationPreview(
-                blocks: blocks,
-                onReturn: () => setState(() => observing = false),
-                onPrepareDraft: (command) {
-                  task.setDraft(command);
-                  setState(() => observing = false);
-                },
-              )
-            : TerminalAiWorkspace(
-                controller: task,
-                compactMobile: widget.phone,
-                unifiedWorkspace: true,
-                targetLabel: 'Local Shell',
-                onClose: () => setState(() => observing = true),
-                onObserveTerminal: () => setState(() => observing = true),
-                onShowEvidence: (reference) => unawaited(
-                  showAiEvidenceReader(
-                    context,
-                    controller: blocks,
-                    reference: reference,
-                    sourceSessionId: reference.origins.first.sessionId,
-                  ),
-                ),
-                timelineBuilder: (items, scroll, follow) =>
-                    TerminalCommandBlocksView(
-                      controller: blocks,
-                      onReinput: task.setDraft,
-                      timeline: items,
-                      scrollController: scroll,
-                      followTail: follow,
-                      showToolbar: false,
-                      chinese: true,
+    home: Builder(
+      builder: (pageContext) => Scaffold(
+        backgroundColor: widget.phone ? pageContext.groupedBackground : null,
+        body: SafeArea(
+          child: Builder(
+            builder: (context) => widget.historyList
+                ? AiMobileHistorySheet(controller: task)
+                : observing
+                ? AiObservationPreview(
+                    blocks: blocks,
+                    onReturn: () => setState(() => observing = false),
+                    onPrepareDraft: (command) {
+                      task.setDraft(command);
+                      setState(() => observing = false);
+                    },
+                  )
+                : TerminalAiWorkspace(
+                    controller: task,
+                    compactMobile: widget.phone,
+                    unifiedWorkspace: true,
+                    targetLabel: 'Local Shell',
+                    onClose: () => setState(() => observing = true),
+                    onObserveTerminal: () => setState(() => observing = true),
+                    onShowEvidence: (reference) => unawaited(
+                      showAiEvidenceReader(
+                        context,
+                        controller: blocks,
+                        reference: reference,
+                        sourceSessionId: reference.origins.first.sessionId,
+                      ),
                     ),
-              ),
+                    timelineBuilder: (items, scroll, follow) =>
+                        TerminalCommandBlocksView(
+                          controller: blocks,
+                          onReinput: task.setDraft,
+                          timeline: items,
+                          scrollController: scroll,
+                          followTail: follow,
+                          showToolbar: false,
+                          chinese: true,
+                        ),
+                  ),
+          ),
+        ),
       ),
     ),
   );

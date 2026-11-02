@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:ianvs_agent_chat/ianvs_agent_chat.dart';
 import 'package:ianvs_agent_core/ianvs_agent_core.dart';
 
+import '../../ui/components/app_grouped_section.dart';
+
 /// Host identity and localized role, with the shared conversation surface.
 class TerminalAiMessageFrame extends StatelessWidget {
   const TerminalAiMessageFrame({
@@ -21,6 +23,25 @@ class TerminalAiMessageFrame extends StatelessWidget {
     final platform = Theme.of(context).platform;
     final mobile =
         platform == TargetPlatform.iOS || platform == TargetPlatform.android;
+    if (context.usesAppleGroups) {
+      return Padding(
+        key: ValueKey('ai-message-frame-$entryId'),
+        padding: EdgeInsets.fromLTRB(isUser ? 30 : 6, 8, 6, 8),
+        child: Semantics(
+          label: isUser ? (zh ? '你' : 'You') : 'AI',
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isUser
+                  ? Theme.of(context).colorScheme.primary.withValues(alpha: .08)
+                  : context.groupedSurface,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: child,
+          ),
+        ),
+      );
+    }
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: mobile ? 4 : 0, vertical: 8),
       child: Align(

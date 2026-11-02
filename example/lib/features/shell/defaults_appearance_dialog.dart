@@ -238,6 +238,7 @@ class _DefaultsAndAppearanceDialogState
   bool _remoteDataApiUrlEdited = false;
   bool _remoteDataApiUsernameEdited = false;
   bool _remoteDataApiPasswordEdited = false;
+  bool _obscureRemotePassword = true;
   bool _showShortcutEditor = false;
   bool _showReportVariableManagement = false;
   String _terminalPresetFilter = '';
@@ -1822,11 +1823,10 @@ class _DefaultsAndAppearanceDialogState
                         ),
                       const ApiSyncPanel(),
                       SizedBox(height: theme.spacing.sm),
-                      if (!mobileNavigation)
-                        _DataServiceStatusBanner(
-                          deployment: _sourceDataApiDeployment,
-                          localSessionsEnabled: widget.localSessionsEnabled,
-                        ),
+                      _DataServiceStatusBanner(
+                        deployment: _sourceDataApiDeployment,
+                        localSessionsEnabled: widget.localSessionsEnabled,
+                      ),
                       SizedBox(height: theme.spacing.sm),
                       Theme(
                         data: appConfigurationFormTheme(context),
@@ -1837,6 +1837,14 @@ class _DefaultsAndAppearanceDialogState
                             children: [
                               if (_account == null)
                                 AppGroupedSection(
+                                  title: mobileNavigation
+                                      ? (Localizations.localeOf(
+                                                  context,
+                                                ).languageCode ==
+                                                'zh'
+                                            ? '同步方式'
+                                            : 'Sync mode')
+                                      : null,
                                   padding: const EdgeInsets.all(8),
                                   children: [
                                     RadioGroup<DataApiDeployment>(
@@ -1930,9 +1938,16 @@ class _DefaultsAndAppearanceDialogState
                                 ),
                               if (_selectedDataApiDeployment ==
                                   DataApiDeployment.remote) ...[
-                                SizedBox(height: theme.spacing.md),
-                                SizedBox(height: theme.spacing.xl),
+                                const SizedBox(height: 24),
                                 AppSettingsSection(
+                                  title: mobileNavigation
+                                      ? (Localizations.localeOf(
+                                                  context,
+                                                ).languageCode ==
+                                                'zh'
+                                            ? '账户'
+                                            : 'Account')
+                                      : null,
                                   children: [
                                     if (_accountBusy)
                                       const LinearProgressIndicator(),
@@ -2018,6 +2033,7 @@ class _DefaultsAndAppearanceDialogState
                                       AppConfigurationField(
                                         subtleLabel: true,
                                         label: context.l10n.remoteApiBaseUrl,
+                                        stackedOnPhone: true,
                                         child: TextField(
                                           key: const Key('data-api-remote-url'),
                                           controller:
@@ -2167,7 +2183,7 @@ class _DefaultsAndAppearanceDialogState
                                             ),
                                             textInputAction:
                                                 TextInputAction.done,
-                                            obscureText: true,
+                                            obscureText: _obscureRemotePassword,
                                             autocorrect: false,
                                             enableSuggestions: false,
                                             autofillHints: const <String>[
@@ -2178,6 +2194,34 @@ class _DefaultsAndAppearanceDialogState
                                                   context,
                                                   errorText:
                                                       _remotePasswordError,
+                                                ).copyWith(
+                                                  suffixIcon: IconButton(
+                                                    key: const Key(
+                                                      'data-api-password-visibility',
+                                                    ),
+                                                    tooltip:
+                                                        Localizations.localeOf(
+                                                              context,
+                                                            ).languageCode ==
+                                                            'zh'
+                                                        ? (_obscureRemotePassword
+                                                              ? '显示密码'
+                                                              : '隐藏密码')
+                                                        : (_obscureRemotePassword
+                                                              ? 'Show password'
+                                                              : 'Hide password'),
+                                                    onPressed: () => setState(
+                                                      () => _obscureRemotePassword =
+                                                          !_obscureRemotePassword,
+                                                    ),
+                                                    icon: Icon(
+                                                      _obscureRemotePassword
+                                                          ? Icons
+                                                                .visibility_outlined
+                                                          : Icons
+                                                                .visibility_off_outlined,
+                                                    ),
+                                                  ),
                                                 ),
                                             onSubmitted: (_) => FocusManager
                                                 .instance
@@ -3799,6 +3843,33 @@ class _DataServiceModeChoice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = context.appTheme;
+    final apple = context.usesAppleGroups;
+    if (apple) {
+      return AppCompactRadioTile<DataApiDeployment>(
+        tileKey: tileKey,
+        value: value,
+        title: Text(
+          title,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            fontSize: 17,
+            fontWeight: FontWeight.w400,
+          ),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(description, style: Theme.of(context).textTheme.bodySmall),
+            if (selected && !active)
+              Text(
+                context.l10n.settingsUnsavedChanges,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: theme.textMuted),
+              ),
+          ],
+        ),
+      );
+    }
     final titleWidget = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -3870,11 +3941,14 @@ class _DataServiceStatusBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = context.appTheme;
-    final serviceName = _dataServiceName(
-      context.l10n,
-      deployment,
-      localSessionsEnabled: localSessionsEnabled,
-    );
+    final serviceName =
+        context.usesMobileNavigation && deployment == DataApiDeployment.disabled
+        ? context.l10n.mobileThisDevice
+        : _dataServiceName(
+            context.l10n,
+            deployment,
+            localSessionsEnabled: localSessionsEnabled,
+          );
     final icon = switch (deployment) {
       DataApiDeployment.disabled => Icons.computer_rounded,
       DataApiDeployment.local => AppIcons.server,

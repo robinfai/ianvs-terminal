@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 
 /// Semantic Apple grouped surfaces. Keep platform color values out of pages.
 extension AppGroupedSurfaces on BuildContext {
+  Color get groupedPendingColor =>
+      CupertinoDynamicColor.resolve(CupertinoColors.systemOrange, this);
   bool get usesAppleGroups => Theme.of(this).platform == TargetPlatform.iOS;
   Color get groupedBackground => usesAppleGroups
       ? (Theme.of(this).brightness == Brightness.dark
@@ -94,6 +96,7 @@ class AppFormGroup extends StatelessWidget {
             filled: false,
             border: InputBorder.none,
             enabledBorder: InputBorder.none,
+            disabledBorder: InputBorder.none,
             contentPadding: const EdgeInsets.symmetric(vertical: 10),
             focusedBorder: UnderlineInputBorder(
               borderSide: BorderSide(color: theme.colorScheme.primary),
@@ -102,8 +105,13 @@ class AppFormGroup extends StatelessWidget {
         ),
         child: AppGroupedSection(
           title: title,
-          padding: const EdgeInsets.all(16),
-          children: children,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          // Desktop callers supply inter-field gaps. In an Apple inset group,
+          // the 48-point rows own vertical rhythm; retain wrapped content.
+          children: [
+            for (final child in children)
+              if (child is! SizedBox || child.child != null) child,
+          ],
         ),
       ),
     );

@@ -865,21 +865,35 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
         validator: (value) => _boundedInteger(value, 1, 65535),
       ),
     );
-    Widget saveChoice() => CheckboxListTile(
-      key: const Key('ssh-save-profile'),
-      contentPadding: EdgeInsets.zero,
-      controlAffinity: ListTileControlAffinity.leading,
-      value: _saveProfile,
-      title: Text(context.l10n.saveThisSshSession),
-      subtitle: Text(
-        widget.saveProfileAvailable
-            ? context.l10n.secretsEncryptedDescription
-            : context.l10n.remoteServiceRequiredToSaveProfile,
-      ),
-      onChanged: widget.saveProfileAvailable
-          ? (value) => setState(() => _saveProfile = value ?? true)
-          : null,
-    );
+    Widget saveChoice() => mobile
+        ? SwitchListTile.adaptive(
+            key: const Key('ssh-save-profile'),
+            activeTrackColor: Theme.of(context).colorScheme.primary,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+            value: _saveProfile,
+            title: Text(context.l10n.saveThisSshSession),
+            subtitle: widget.saveProfileAvailable
+                ? null
+                : Text(context.l10n.remoteServiceRequiredToSaveProfile),
+            onChanged: widget.saveProfileAvailable
+                ? (value) => setState(() => _saveProfile = value)
+                : null,
+          )
+        : CheckboxListTile(
+            key: const Key('ssh-save-profile'),
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            value: _saveProfile,
+            title: Text(context.l10n.saveThisSshSession),
+            subtitle: Text(
+              widget.saveProfileAvailable
+                  ? context.l10n.secretsEncryptedDescription
+                  : context.l10n.remoteServiceRequiredToSaveProfile,
+            ),
+            onChanged: widget.saveProfileAvailable
+                ? (value) => setState(() => _saveProfile = value ?? true)
+                : null,
+          );
     Widget mobileSubmit() => SizedBox(
       width: double.infinity,
       height: 48,
@@ -1046,7 +1060,8 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                         Widget hostField() =>
                                             AppConfigurationField(
                                               subtleLabel: true,
-                                              stackedOnPhone: true,
+                                              stackedOnPhone:
+                                                  _host.text.length > 24,
                                               label: context.l10n.host,
                                               child: Semantics(
                                                 label: context.l10n.host,
@@ -1102,16 +1117,20 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                             children: [
                                               hostField(),
                                               SizedBox(
-                                                height: palette.spacing.md,
+                                                height: mobile
+                                                    ? 0
+                                                    : palette.spacing.md,
                                               ),
                                               AppConfigurationField(
                                                 subtleLabel: true,
                                                 label: context.l10n.user,
                                                 child: userControl(),
                                               ),
-                                              if (!mobile) ...[
+                                              ...[
                                                 SizedBox(
-                                                  height: palette.spacing.md,
+                                                  height: mobile
+                                                      ? 0
+                                                      : palette.spacing.md,
                                                 ),
                                                 AppConfigurationField(
                                                   subtleLabel: true,
@@ -1158,7 +1177,7 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                   ],
                                 ),
                                 SizedBox(
-                                  height: mobile ? 12 : palette.spacing.xl,
+                                  height: mobile ? 24 : palette.spacing.xl,
                                 ),
                                 if (!mobile) ...[
                                   AppSectionHeader(
@@ -1253,10 +1272,11 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                             ? context.l10n.password
                                             : context.l10n.passwordFallback,
                                         helper:
-                                            _auth ==
-                                                terminal
-                                                    .TerminalSshAuthMethod
-                                                    .auto
+                                            !mobile &&
+                                                _auth ==
+                                                    terminal
+                                                        .TerminalSshAuthMethod
+                                                        .auto
                                             ? context.l10n.passwordFallbackHelp
                                             : null,
                                         child: Semantics(
@@ -1353,8 +1373,11 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                         subtleLabel: true,
                                         stackedOnPhone: true,
                                         label: context.l10n.privateKey,
-                                        helper:
-                                            context.l10n.privateKeyDescription,
+                                        helper: mobile
+                                            ? null
+                                            : context
+                                                  .l10n
+                                                  .privateKeyDescription,
                                         child: FormField<List<String>>(
                                           key: _privateKeyFieldKey,
                                           initialValue: _privateKeyValues,
@@ -1546,9 +1569,11 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                         subtleLabel: true,
                                         label:
                                             context.l10n.privateKeyPassphrase,
-                                        helper: context
-                                            .l10n
-                                            .privateKeyPassphraseHelp,
+                                        helper: mobile
+                                            ? null
+                                            : context
+                                                  .l10n
+                                                  .privateKeyPassphraseHelp,
                                         child: Semantics(
                                           label:
                                               context.l10n.privateKeyPassphrase,
@@ -1656,13 +1681,16 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                 const SizedBox(height: 24),
                                 ExpansionTile(
                                   key: const Key('ssh-more-settings'),
+                                  backgroundColor: mobile
+                                      ? context.groupedSurface
+                                      : null,
+                                  collapsedBackgroundColor: mobile
+                                      ? context.groupedSurface
+                                      : null,
                                   shape: mobile
                                       ? RoundedRectangleBorder(
                                           borderRadius: BorderRadius.circular(
                                             palette.radius.md,
-                                          ),
-                                          side: BorderSide(
-                                            color: palette.border,
                                           ),
                                         )
                                       : null,
@@ -1670,9 +1698,6 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                       ? RoundedRectangleBorder(
                                           borderRadius: BorderRadius.circular(
                                             palette.radius.md,
-                                          ),
-                                          side: BorderSide(
-                                            color: palette.border,
                                           ),
                                         )
                                       : null,
@@ -1729,15 +1754,7 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                         if (mobile) ...[
                                           nameField(),
                                           const SizedBox(height: 12),
-                                          AppConfigurationField(
-                                            subtleLabel: true,
-                                            label: context.l10n.port,
-                                            child: portControl(),
-                                          ),
-                                          if (widget.allowSaveChoice) ...[
-                                            const SizedBox(height: 12),
-                                            saveChoice(),
-                                          ],
+
                                           const SizedBox(height: 20),
                                         ],
                                         AppConfigurationField(
@@ -2148,6 +2165,10 @@ class _SshProfileEditorDialogState extends State<SshProfileEditorDialog>
                                   saveChoice(),
                                 ],
                                 if (mobile) ...[
+                                  if (widget.allowSaveChoice) ...[
+                                    const SizedBox(height: 24),
+                                    AppGroupedSection(children: [saveChoice()]),
+                                  ],
                                   if (_name.text.trim().isEmpty) ...[
                                     const SizedBox(height: 4),
                                     Text(

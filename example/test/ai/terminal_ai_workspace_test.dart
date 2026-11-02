@@ -358,13 +358,20 @@ void main() {
       await controller.ask('哪些内容通常值得先检查？');
       await tester.pumpAndSettle();
       await _capture(tester, 'roles-${scene.name}-followup');
-      expect(find.byIcon(Icons.auto_awesome_outlined), findsWidgets);
+      final apple = scene.name.startsWith('phone');
+      Finder role(String label) => find.byWidgetPredicate(
+        (widget) => widget is Semantics && widget.properties.label == label,
+      );
+      expect(
+        apple ? role('AI') : find.byIcon(Icons.auto_awesome_outlined),
+        findsWidgets,
+      );
       // A short landscape viewport may contain only the latest reply. Inspect
       // the user turn by scrolling rather than requiring offscreen lazy rows.
       final bounds = tester.getRect(find.byType(CommandTimelineView));
       for (
         var attempt = 0;
-        attempt < 4 && find.text('你').evaluate().isEmpty;
+        attempt < 4 && (apple ? role('你') : find.text('你')).evaluate().isEmpty;
         attempt++
       ) {
         await tester.timedDragFrom(
@@ -374,7 +381,7 @@ void main() {
         );
         await tester.pumpAndSettle();
       }
-      expect(find.text('你'), findsWidgets);
+      expect(apple ? role('你') : find.text('你'), findsWidgets);
       await _capture(tester, 'roles-${scene.name}-history');
       expect(
         controller.transcript.where((e) => e.role == 'user'),

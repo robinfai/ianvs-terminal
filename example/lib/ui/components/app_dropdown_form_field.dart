@@ -335,7 +335,9 @@ class _AppDropdownFieldState<T> extends FormFieldState<T> {
                           ),
                           SizedBox(width: tokens.spacing.md),
                           Icon(
-                            Icons.unfold_more_rounded,
+                            Theme.of(context).platform == TargetPlatform.iOS
+                                ? Icons.chevron_right_rounded
+                                : Icons.unfold_more_rounded,
                             size: config.iconSize ?? theme.iconTheme.size ?? 24,
                             color: widget.enabled
                                 ? tokens.textMuted

@@ -1,0 +1,20 @@
+{
+  "reference": "../apple-rethink-20261101/full",
+  "actual": "iOS simulator 27.0, native Flutter production widgets, isolated in-memory fixtures",
+  "logicalSize": [
+    402,
+    874
+  ],
+  "terminalRendererChanged": false,
+  "scenes": [
+    "history",
+    "approval",
+    "ssh",
+    "sync"
+  ],
+  "regressionTests": 205,
+  "finalControlsTests": 43,
+  "staticAnalysis": "No issues found",
+  "nativeIntegration": "passed; light/dark, search, review, keyboard, auth choice and password visibility",
+  "linkedServiceVerification": false
+}

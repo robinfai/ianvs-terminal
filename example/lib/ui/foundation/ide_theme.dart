@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:ianvs_design/ianvs_design.dart';
 
 import 'app_icons.dart';
@@ -8,6 +9,7 @@ ThemeData withIdePresentation(ThemeData base) {
   final dark = base.brightness == Brightness.dark;
   final original = base.extension<IanvsTokens>()!;
   final touch = original.density == IanvsDensity.touch;
+  final apple = base.platform == TargetPlatform.iOS;
   final t = original.copyWith(
     canvas: dark ? const Color(0xFF1E1F22) : const Color(0xFFF7F8FA),
     chrome: dark ? const Color(0xFF2B2D30) : const Color(0xFFF0F1F3),
@@ -18,11 +20,19 @@ ThemeData withIdePresentation(ThemeData base) {
     text: dark ? const Color(0xFFDFE1E5) : const Color(0xFF1E1F22),
     muted: dark ? const Color(0xFFB4B8C0) : const Color(0xFF60646B),
     subtle: dark ? const Color(0xFFADB1BA) : const Color(0xFF656972),
-    accent: const Color(0xFF2457B8),
+    accent: apple
+        ? (dark
+              ? CupertinoColors.systemBlue.darkColor
+              : CupertinoColors.systemBlue.color)
+        : const Color(0xFF2457B8),
     focus: dark ? const Color(0xFF8BB4FF) : const Color(0xFF2F65CA),
     selected: dark ? const Color(0xFF25395D) : const Color(0xFFDCE8FC),
     onSelected: dark ? const Color(0xFFDFE1E5) : const Color(0xFF1E1F22),
-    controlRadius: touch ? 10 : 8,
+    controlRadius: apple
+        ? 12
+        : touch
+        ? 10
+        : 8,
     panelRadius: 12,
     dialogRadius: touch ? 20 : 16,
   );
@@ -146,6 +156,7 @@ ThemeData withIdePresentation(ThemeData base) {
     inputDecorationTheme: input,
     filledButtonTheme: FilledButtonThemeData(
       style: button(base.filledButtonTheme.style).copyWith(
+        side: apple ? const WidgetStatePropertyAll(BorderSide.none) : null,
         // Preserve distinct FilledButton and FilledButton.tonal color pairs.
         foregroundColor: WidgetStateProperty.resolveWith(
           (states) => states.contains(WidgetState.disabled) ? t.subtle : null,

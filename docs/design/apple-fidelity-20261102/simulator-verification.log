@@ -1,0 +1,29 @@
+The following plugins do not support Swift Package Manager for ios:
+  - irondash_engine_context
+  - super_native_extensions
+This will become an error in a future version of Flutter. Please contact the plugin maintainers to request Swift Package Manager adoption.
+Running Xcode build...                                          
+Xcode build done.                                           17.1s
+VMServiceFlutterDriver: Connecting to Flutter application at http://127.0.0.1:61762/k6QW3D_-RcQ=/
+VMServiceFlutterDriver: Isolate found with number: 7950998406468515
+VMServiceFlutterDriver: Waiting for isolate 7950998406468515 to be runnable.
+VMServiceFlutterDriver: Waiting for isolate 7950998406468515 to be runnable.
+VMServiceFlutterDriver: Isolate 7950998406468515 is runnable.
+VMServiceFlutterDriver: Isolate is paused at start.
+VMServiceFlutterDriver: Attempting to resume isolate
+VMServiceFlutterDriver: Connected to Flutter application.
+VMServiceFlutterDriver: request_data message is taking a long time to complete...
+-[WFIsolatedShortcutRunner init] Taking sandbox extensions for execution
+-[WFIsolatedShortcutRunner init]_block_invoke Sandbox extensions acquired
+Indexing for request: <WFToolKitIndexingRequest: 0x1054500c0>, changeset: .partial(updatedCount: 1 removedCount: 1 updated: ["work.ianvs.trail"], removed: ["com.apple.siri.SiriCrisisAppIntentsExtension"], provenance: [VoiceShortcutClient.ToolKitIndexingReason.Changeset.Provenance.launchServicesSnapshot(<LaunchServicesSnapshot uuid=67648762-9C3D-45D8-A993-39A00D47BB5E, v=896)> ["com.apple.siri", "com.apple.omniSearch.SearchToolExtension", "com.apple.SiriApp", "com.apple.Home.HomeWidgetIntentsExtension", "com.apple.SupportFlow", "com.apple.AXUIViewService", "com.apple.iCloudMailSettingsAppIntentsExtension", "com.apple.PASViewService", "com.apple.Preferences.DictionarySettingsExtension", "com.apple.HealthPrivacyService", "com.apple.TelephonyUtilities.IntelligenceIntents", "com.apple.mobiletimer.AlarmIntentsExtension", "com.apple.fullkeyboardaccess", "com.apple.Fitness.FitnessSettingsIntents", "com.apple.MTLReplayer", "com.apple.messages.RemoteAlerts", "com.apple.PhotosAppIntentsExtension", "com.apple.AdaptiveMusicApp", "com.apple.<…>, priority: <decode: missing data>
+Type indexing (params + content items) took 0.000104s
+Action indexing took 0.000191s
+Indexed: 0
+Errored: 0
+Skipped: [:]
+Bundle cache: 0 hits, 0 misses
+Finished in 0.184566s
+-[WFIsolatedShortcutRunner unaliveProcess] Releasing sandbox extensions
+flutter: 00:20 +1: (tearDownAll)
+flutter: 00:20 +2: All tests passed!
+All tests passed.

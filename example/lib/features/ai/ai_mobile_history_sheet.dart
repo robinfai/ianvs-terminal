@@ -227,7 +227,7 @@ class _AiMobileHistorySheetState extends State<AiMobileHistorySheet> {
         fillColor: theme.colorScheme.surfaceContainerHighest,
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
+          borderSide: BorderSide.none,
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(context.appTheme.radius.lg),
@@ -269,10 +269,7 @@ class _AiMobileHistorySheetState extends State<AiMobileHistorySheet> {
           onTap: () => Navigator.of(context).pop(task.id),
           child: Container(
             constraints: const BoxConstraints(minHeight: 52),
-            padding: EdgeInsets.symmetric(
-              horizontal: spacing.lg,
-              vertical: spacing.md,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -309,6 +306,7 @@ class _AiMobileHistorySheetState extends State<AiMobileHistorySheet> {
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodySmall?.copyWith(
                       fontSize: 15,
+                      fontWeight: FontWeight.w400,
                       color: colors.onSurfaceVariant,
                     ),
                   ),
@@ -344,15 +342,6 @@ class _HistoryCards extends StatelessWidget {
   final List<Widget> children;
   final bool separated;
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Text(title, style: Theme.of(context).textTheme.labelLarge),
-      ),
-      for (final child in children)
-        Padding(padding: const EdgeInsets.only(bottom: 12), child: child),
-    ],
-  );
+  Widget build(BuildContext context) =>
+      AppGroupedSection(title: title, separated: separated, children: children);
 }

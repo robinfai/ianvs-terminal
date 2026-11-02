@@ -1199,10 +1199,12 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
           borderRadius: BorderRadius.circular(
             context.usesAppleGroups ? 16 : 10,
           ),
-          border: Border.all(
-            color: Theme.of(context).colorScheme.outlineVariant,
-            width: context.usesAppleGroups ? .5 : 1,
-          ),
+          border: context.usesAppleGroups
+              ? null
+              : Border.all(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                  width: context.usesAppleGroups ? .5 : 1,
+                ),
         ),
         padding: const EdgeInsets.all(12),
         child: Padding(
@@ -1210,11 +1212,30 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                label,
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+              Row(
+                children: [
+                  if (context.usesAppleGroups &&
+                      entry.state == AiEntryState.proposed) ...[
+                    Icon(
+                      Icons.circle,
+                      size: 10,
+                      color: context.groupedPendingColor,
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  Flexible(
+                    child: Text(
+                      label,
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color:
+                            context.usesAppleGroups &&
+                                entry.state == AiEntryState.proposed
+                            ? context.groupedPendingColor
+                            : Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 8),
               Text.rich(
@@ -1226,6 +1247,8 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                               'Original purpose (verify after editing): ',
                               '原始目的（修改后请核对）：',
                             )
+                          : context.usesAppleGroups
+                          ? ''
                           : t('Purpose: ', '目的：'),
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -1252,7 +1275,9 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
               ],
               const SizedBox(height: 8),
               Text(
-                '${t('Target: ', '执行目标：')}${entry.target?.targetLabel.isNotEmpty == true ? entry.target!.targetLabel : entry.target?.sessionId ?? ''}\n${t('Directory: ', '目录：')}${entry.target?.cwd ?? ''}',
+                context.usesAppleGroups && !reviewPage
+                    ? '${entry.target?.targetLabel.isNotEmpty == true ? entry.target!.targetLabel : entry.target?.sessionId ?? ''} · ${entry.target?.cwd ?? ''}'
+                    : '${t('Target: ', '执行目标：')}${entry.target?.targetLabel.isNotEmpty == true ? entry.target!.targetLabel : entry.target?.sessionId ?? ''}\n${t('Directory: ', '目录：')}${entry.target?.cwd ?? ''}',
                 key: const Key('ai-action-target'),
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -1278,12 +1303,12 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                   action.preview,
                   key: active ? const Key('ai-action-preview') : null,
                   minLines: 1,
-                  maxLines: narrow && !reviewPage ? 3 : null,
-                  style: context.ianvsTypography.code.copyWith(fontSize: 14),
+                  maxLines: null,
+                  style: context.ianvsTypography.code.copyWith(fontSize: 15),
                 ),
               ),
               if (entry.approvalReview case final review?) ...[
-                const SizedBox(height: 8),
+                const Divider(height: 24),
                 AiApprovalNotice(
                   key: ValueKey('ai-approval-review-${entry.id}'),
                   review: review,
@@ -1351,6 +1376,14 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                       ),
                       FilledButton(
                         key: const Key('ai-review-action'),
+                        style: context.usesAppleGroups
+                            ? FilledButton.styleFrom(
+                                minimumSize: const Size(0, 44),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              )
+                            : null,
                         onPressed: () => _review(entry),
                         child: Text(t('Review full command', '审阅完整命令')),
                       ),
@@ -1542,7 +1575,16 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
       MaterialPageRoute(
         builder: (routeContext) => StatefulBuilder(
           builder: (routeContext, update) => Scaffold(
+            backgroundColor: routeContext.usesAppleGroups
+                ? routeContext.groupedBackground
+                : null,
             appBar: AppBar(
+              backgroundColor: routeContext.usesAppleGroups
+                  ? routeContext.groupedBackground
+                  : null,
+              surfaceTintColor: routeContext.usesAppleGroups
+                  ? Colors.transparent
+                  : null,
               title: Text(t('Review command', '审阅命令')),
               leading: IconButton(
                 key: const Key('ai-review-back'),
@@ -3234,7 +3276,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
           CommandBlockTimelineItem.content('error', (_) => _recovery()),
         );
       }
-      final timeline =
+      final rawTimeline =
           widget.timelineBuilder?.call(items, _scroll, _following) ??
           CommandTimelineView(
             controller: _scroll,
@@ -3243,9 +3285,26 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
             itemBuilder: (context, index) =>
                 items[index].builder?.call(context) ?? const SizedBox.shrink(),
           );
+      final timeline = context.usesAppleGroups
+          ? Theme(
+              data: Theme.of(context).copyWith(
+                extensions: [
+                  ...Theme.of(
+                    context,
+                  ).extensions.values.where((value) => value is! ComposerTheme),
+                  ComposerTheme.of(
+                    context,
+                  ).copyWith(surface: context.groupedBackground),
+                ],
+              ),
+              child: rawTimeline,
+            )
+          : rawTimeline;
       final workspace = Material(
         key: const Key('terminal-ai-workspace'),
-        color: context.appTheme.canvas,
+        color: context.usesAppleGroups
+            ? context.groupedBackground
+            : context.appTheme.canvas,
         child: ExcludeFocus(
           excluding: !widget.active,
           child: IgnorePointer(

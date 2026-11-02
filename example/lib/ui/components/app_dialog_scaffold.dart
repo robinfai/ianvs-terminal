@@ -250,7 +250,11 @@ class AppDialogScaffold extends StatelessWidget {
           policy: OrderedTraversalPolicy(),
           child: fullscreen
               ? Material(
-                  color: theme.panel,
+                  // Paint behind the notch and home indicator as well as the
+                  // panel; SafeArea only insets interactive content.
+                  color: context.usesAppleGroups
+                      ? context.groupedBackground
+                      : theme.panel,
                   child: SafeArea(child: positionedPanel),
                 )
               : SafeArea(child: positionedPanel),

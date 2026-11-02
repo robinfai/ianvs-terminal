@@ -1259,7 +1259,13 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       canRequestFocus: false,
       onKeyEvent: (_, event) => handleShellShortcut(event),
       child: Scaffold(
-        backgroundColor: palette.canvas,
+        backgroundColor:
+            mobileNavigation &&
+                context.usesAppleGroups &&
+                (activeSessionId == null ||
+                    _openAiSessions.contains(activeSessionId))
+            ? context.groupedBackground
+            : palette.canvas,
         resizeToAvoidBottomInset:
             instantReplaySession == null && _selectedRecording == null,
         body: ColoredBox(

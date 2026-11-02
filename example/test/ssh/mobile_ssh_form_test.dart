@@ -54,7 +54,8 @@ void main() {
       SshProfileEditorResult? result;
       await _open(tester, onClosed: (value) => result = value);
       expect(find.byKey(const Key('ssh-profile-name')), findsNothing);
-      expect(find.byKey(const Key('ssh-port')), findsNothing);
+      // The approved Apple form exposes the port beside host and user.
+      expect(find.byKey(const Key('ssh-port')), findsOneWidget);
       expect(find.byKey(const Key('ssh-private-keys')), findsNothing);
       expect(find.byKey(const Key('ssh-clear-password')), findsNothing);
       expect(tester.takeException(), isNull);
