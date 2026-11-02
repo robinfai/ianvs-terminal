@@ -92,6 +92,58 @@ String aiErrorText(String code, bool zh) {
       'Could not remove configuration. Your saved configuration is unchanged.',
       '无法移除配置。已保存的配置未改变。',
     ),
+    'ai_protocol_unsupported': (
+      'This model requires the Responses API for tools. Update the app or service, or choose another model.',
+      '此模型的工具调用需要 Responses API。请更新应用或服务，或切换其他模型。',
+    ),
+    'ai_provider_authentication': (
+      'The model provider rejected the service credentials. Contact the service administrator.',
+      '模型供应商拒绝了服务端凭据，请联系服务管理员检查 API Key 和权限。',
+    ),
+    'ai_provider_quota': (
+      'The model provider has insufficient credit. Contact the service administrator; buying Trail credits will not fix this.',
+      '模型供应商账户额度不足，请联系服务管理员。购买 Trail 额度不能解决此问题。',
+    ),
+    'ai_model_unavailable': (
+      'This model is unavailable or your provider account cannot access it. Choose another model.',
+      '模型不存在或供应商账户无权使用，请切换其他模型。',
+    ),
+    'invalid_model': (
+      'Choose an available model in AI settings.',
+      '请在 AI 设置中重新选择可用模型。',
+    ),
+    'ai_model_forbidden': (
+      'Your account cannot use this model.',
+      '当前账号无权使用此模型。',
+    ),
+    'context_too_large': (
+      'The conversation exceeds the model context limit. Start a new conversation.',
+      '对话已超过模型上下文限制，请新建对话。',
+    ),
+    'ai_provider_rate_limited': (
+      'The model provider is rate limiting requests. Try again later.',
+      '模型供应商正在限流，请稍后重试。',
+    ),
+    'ai_rate_limited': (
+      'Your request or token rate limit was reached. Try again later.',
+      '已达到请求次数或 Token 速率限制，请稍后重试。',
+    ),
+    'ai_request_rejected': (
+      'The model rejected the request parameters or tool schema. Choose another model or contact support.',
+      '模型拒绝了请求参数或工具定义，请切换模型或联系管理员检查接口适配。',
+    ),
+    'ai_upstream_error': (
+      'The model provider failed to process this request. Retry later or choose another model.',
+      '模型供应商处理请求失败，请稍后重试或切换模型。',
+    ),
+    'ai_upstream_unavailable': (
+      'Cannot reach the model provider. Check the service connection or proxy.',
+      '无法连接模型供应商，请检查服务连接或代理设置。',
+    ),
+    'ai_unavailable': (
+      'The AI service is not configured. Contact the administrator.',
+      'AI 服务尚未配置，请联系管理员。',
+    ),
     'authentication': (
       'API key was rejected. Check your AI settings.',
       'API Key 验证失败，请检查 AI 设置。',

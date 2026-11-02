@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'ai_errors.dart';
 import 'ai_models.dart';
 
 enum AiResponseStage { waitingForFirstToken, generating }
@@ -42,7 +43,9 @@ Future<Map<String, Object?>> readAiResponseStream(
       return;
     }
     final event = jsonDecode(data) as Map<String, Object?>;
-    if (event['error'] != null) throw const AiFailure('response_stream');
+    if (event['error'] != null) {
+      throw AiFailure(aiErrorCode(event) ?? 'response_stream');
+    }
     responseId = event['id'] as String? ?? responseId;
     model = event['model'] as String? ?? model;
     usage = (event['usage'] as Map?)?.cast<String, Object?>() ?? usage;

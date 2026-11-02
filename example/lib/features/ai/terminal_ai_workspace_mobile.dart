@@ -885,7 +885,9 @@ extension _TerminalAiMobilePresentation on _TerminalAiWorkspaceState {
                             )
                           : aiErrorText(c.error!, zh),
                       key: const Key('ai-mobile-recovery-message'),
-                      style: Theme.of(context).textTheme.bodySmall,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
                     ),
                     if (c.error == 'quota_exceeded' && c.settings.usesGateway)
                       TextButton(

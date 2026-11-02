@@ -178,8 +178,19 @@ func (a *API) aiCompletions(w http.ResponseWriter, r *http.Request, user model.U
 		}
 	}
 
+	useResponses := usesAIResponses(m.Provider, m.Endpoint)
+	path := "/chat/completions"
+	if useResponses {
+		var err error
+		payload, err = aiResponsesPayload(payload)
+		if err != nil {
+			writeError(w, 400, "invalid_request", "Invalid model input or tools")
+			return
+		}
+		path = "/responses"
+	}
 	encoded, _ := json.Marshal(payload)
-	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, strings.TrimRight(m.Endpoint, "/")+"/chat/completions", bytes.NewReader(encoded))
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, strings.TrimRight(m.Endpoint, "/")+path, bytes.NewReader(encoded))
 	if err != nil {
 		writeError(w, 503, "ai_unavailable", "Invalid gateway configuration")
 		return
@@ -262,8 +273,12 @@ func (a *API) aiCompletions(w http.ResponseWriter, r *http.Request, user model.U
 	defer response.Body.Close()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		settled = true // Explicit rejection: no generated usage.
-		writeError(w, 502, "ai_upstream_error", "AI provider rejected the request")
+		writeAIProviderError(w, response, entry.ID, m.Provider, m.Model)
 		return
+	}
+	if useResponses {
+		response.Body = aiResponsesBody(response.Body, stream)
+		defer response.Body.Close()
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	if stream {

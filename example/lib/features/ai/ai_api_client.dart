@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'ai_errors.dart';
 import 'ai_models.dart';
 import 'ai_response_stream.dart';
+import 'ai_responses.dart';
 
 export 'ai_response_stream.dart' show AiResponseStage, AiResponseUpdate;
 
@@ -58,7 +60,16 @@ class AiApiClient implements AiStreamingApi {
     void Function(AiResponseUpdate)? onUpdate,
   }) async {
     cancellation.check();
-    final uri = configuration.completionsUri;
+    final chatUri = configuration.completionsUri;
+    final responses = usesOpenAiResponses(chatUri);
+    final uri = responses
+        ? chatUri.replace(
+            path: chatUri.path.replaceFirst(
+              RegExp(r'/chat/completions$'),
+              '/responses',
+            ),
+          )
+        : chatUri;
     final client = HttpClient()..connectionTimeout = timeout;
     cancellation.onCancel(() => client.close(force: true));
     try {
@@ -70,18 +81,19 @@ class AiApiClient implements AiStreamingApi {
           HttpHeaders.authorizationHeader,
           'Bearer ${configuration.apiKey.trim()}',
         );
+        final chatPayload = <String, Object?>{
+          'model': configuration.model.trim(),
+          'messages': messages,
+          if (toolsEnabled) ...{
+            'tools': aiTerminalTools,
+            'tool_choice': 'auto',
+            'parallel_tool_calls': false,
+          },
+          'stream': onUpdate != null,
+          if (reasoningEffort != null) 'reasoning_effort': reasoningEffort,
+        };
         final payload = utf8.encode(
-          jsonEncode({
-            'model': configuration.model.trim(),
-            'messages': messages,
-            if (toolsEnabled) ...{
-              'tools': aiTerminalTools,
-              'tool_choice': 'auto',
-              'parallel_tool_calls': false,
-            },
-            'stream': onUpdate != null,
-            if (reasoningEffort != null) 'reasoning_effort': reasoningEffort,
-          }),
+          jsonEncode(responses ? toAiResponses(chatPayload) : chatPayload),
         );
         // Some OpenAI-compatible gateways do not accept chunked request bodies.
         // Count UTF-8 bytes, not Dart string units (prompts may contain CJK).
@@ -90,14 +102,14 @@ class AiApiClient implements AiStreamingApi {
         final response = await request.close().timeout(timeout);
         cancellation.check();
         if (response.statusCode < 200 || response.statusCode >= 300) {
-          throw AiFailure(switch (response.statusCode) {
-            401 || 403 => 'authentication',
-            429 =>
-              response.headers.value('x-ai-quota-exhausted') == 'true'
-                  ? 'quota_exceeded'
-                  : 'rate_limit',
-            _ => 'http_${response.statusCode}',
-          });
+          throw AiFailure(
+            await readAiHttpError(
+              response.timeout(timeout),
+              response.statusCode,
+              quotaExhausted:
+                  response.headers.value('x-ai-quota-exhausted') == 'true',
+            ),
+          );
         }
         Map<String, Object?> data;
         if (onUpdate != null) {
@@ -108,7 +120,9 @@ class AiApiClient implements AiStreamingApi {
         if (onUpdate != null &&
             response.headers.contentType?.mimeType == 'text/event-stream') {
           data = await readAiResponseStream(
-            response.timeout(timeout),
+            responses
+                ? aiResponsesStream(response.timeout(timeout))
+                : response.timeout(timeout),
             cancellation,
             onUpdate,
           );
@@ -127,7 +141,15 @@ class AiApiClient implements AiStreamingApi {
             return jsonDecode(utf8.decode(bytes)) as Map<String, Object?>;
           })().timeout(timeout);
         }
+        if (responses &&
+            !(onUpdate != null &&
+                response.headers.contentType?.mimeType ==
+                    'text/event-stream')) {
+          data = fromAiResponse(data);
+        }
         cancellation.check();
+        final responseError = aiErrorCode(data);
+        if (responseError != null) throw AiFailure(responseError);
         final choices = data['choices']! as List<Object?>;
         final choice = choices.first! as Map<String, Object?>;
         final message = choice['message']! as Map<String, Object?>;
