@@ -30,6 +30,8 @@ export function AppleSignIn({ config }: { config: AppleWebConfig }) {
   }
   useEffect(() => { void prepare(); return () => { ++generation.current } }, [session.baseUrl, config.client_id])
 
+  const [atCapacity, setAtCapacity] = useState(false)
+  const [replaceOldest, setReplaceOldest] = useState(false)
   const signIn = async () => {
     if (busy || !nonce) return
     setError(null)
@@ -42,21 +44,22 @@ export function AppleSignIn({ config }: { config: AppleWebConfig }) {
       const state = crypto.randomUUID()
       const result = await startAppleSignIn(config, nonce, state)
       const token = checkedAppleToken(result, state)
-      const prepared = await api().beginApple(token, nonce, link ? username.trim() : '', link ? password : '')
+      const prepared = await api().beginApple(token, nonce, link ? username.trim() : '', link ? password : '', replaceOldest)
       operation = prepared.operation_id
       const resultSession = await api().completeLogin(operation, 'Web · Apple')
-      await session.signIn(resultSession.token)
+      await session.signIn(resultSession.token, resultSession.expires_at)
       signedIn = true
       setPassword('')
     } catch (err) {
       let message = 'Apple 登录未完成，请重试。'
       if (err instanceof ApiError) {
+        setAtCapacity(err.code === 'auth_session_capacity')
         const messages: Record<string, string> = {
           invalid_credentials: '现有账号或密码不正确。',
           apple_link_conflict: '此 Apple 账号或现有账号已关联其他账号，无法再次关联。',
           apple_registration_disabled: '此服务未开放新账号注册，请关联已有账号登录。',
           invalid_apple_identity: 'Apple 身份验证失败，请重试。',
-          auth_session_capacity: '登录会话已满，请从已登录设备退出一个会话后重试。',
+          auth_session_capacity: '登录会话已满。可退出其他设备，或勾选下方选项后重新验证 Apple 身份登录。',
         }
         message = messages[err.code] ?? message
       } else if (err && typeof err === 'object' && 'error' in err) {
@@ -80,6 +83,7 @@ export function AppleSignIn({ config }: { config: AppleWebConfig }) {
     <p className="secondary">使用与 Trail App 相同的 Apple 账号，可访问同一账户。首次使用且未关联旧账号时，将创建新账户。</p>
     <label className="row"><input type="checkbox" checked={link} disabled={busy} onChange={e => { setLink(e.target.checked); setPassword('') }} />关联已有用户名账号</label>
     {link && <div className="stack"><TextField label="已有用户名" value={username} disabled={busy} onChange={e => setUsername(e.target.value)} autoComplete="username" /><TextField label="已有账号密码" type="password" value={password} disabled={busy} onChange={e => setPassword(e.target.value)} autoComplete="current-password" hint="验证账号归属后关联，保留已有配置、额度与使用记录。" /></div>}
+    {atCapacity && <label className="row"><input type="checkbox" checked={replaceOldest} disabled={busy} onChange={e => setReplaceOldest(e.target.checked)} />退出最早的一个会话并重新登录（该设备需要重新登录）</label>}
     {error && <Notice tone="error" role="alert">{error}</Notice>}
     {!nonce && !busy && <Button variant="ghost" onClick={() => { setError(null); void prepare() }}>重新准备 Apple 登录</Button>}
   </section>

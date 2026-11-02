@@ -1,3 +1,4 @@
+import { deviceIdentity } from '../state/deviceIdentity'
 import type {
   AuthSession,
   Health,
@@ -85,6 +86,9 @@ export class DataApiClient {
     }
 
     if (!response.ok) {
+      if (response.status === 401 && this.token) {
+        window.dispatchEvent(new CustomEvent('ianvs-session-expired', { detail: this.token }))
+      }
       const message = readErrorMessage(payload) ?? `Request failed with status ${response.status}.`
       const code = readErrorCode(payload) ?? 'unknown_error'
       throw new ApiError(response.status, code, message)
@@ -105,13 +109,13 @@ export class DataApiClient {
     return this.request('POST', '/v1/auth/apple/challenge', { body: {} })
   }
 
-  beginApple(identityToken: string, nonce: string, username = '', password = ''): Promise<PreparedAuthOperation> {
-    return this.request('POST', '/v1/auth/apple/begin', { body: { identity_token: identityToken, nonce, username, password } })
+  beginApple(identityToken: string, nonce: string, username = '', password = '', replaceOldest = false): Promise<PreparedAuthOperation> {
+    return this.request('POST', '/v1/auth/apple/begin', { body: { identity_token: identityToken, nonce, username, password, device_id: deviceIdentity(), replace_oldest: replaceOldest } })
   }
 
   beginRegister(username: string, password: string): Promise<PreparedAuthOperation> {
     return this.request('POST', '/v1/auth/register/begin', {
-      body: { username, password },
+      body: { username, password, device_id: deviceIdentity() },
     })
   }
 
@@ -120,7 +124,7 @@ export class DataApiClient {
   }
 
   beginLogin(username: string, password: string, replaceOldest = false): Promise<PreparedAuthOperation> {
-    return this.request('POST', '/v1/auth/login/begin', { body: { username, password, replace_oldest: replaceOldest } })
+    return this.request('POST', '/v1/auth/login/begin', { body: { username, password, replace_oldest: replaceOldest, device_id: deviceIdentity() } })
   }
 
   completeLogin(operationId: string, deviceName?: string): Promise<AuthSession> {

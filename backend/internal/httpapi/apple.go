@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"ianvs-terminal/backend/internal/auth"
 	"ianvs-terminal/backend/internal/config"
 	"net/http"
 )
@@ -33,6 +34,8 @@ func (a *API) beginAppleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	var request struct {
 		IdentityToken string `json:"identity_token"`
+		DeviceID      string `json:"device_id"`
+		ReplaceOldest bool   `json:"replace_oldest"`
 		Nonce         string `json:"nonce"`
 		Username      string `json:"username"`
 		Password      string `json:"password"`
@@ -46,7 +49,7 @@ func (a *API) beginAppleLogin(w http.ResponseWriter, r *http.Request) {
 		a.writeServiceError(w, err)
 		return
 	}
-	operation, err := a.auth.BeginAppleLogin(r.Context(), subject, request.Nonce, request.Username, request.Password, a.cfg.AllowRegistration)
+	operation, err := a.auth.BeginAppleLogin(auth.WithDeviceID(r.Context(), request.DeviceID), subject, request.Nonce, request.Username, request.Password, a.cfg.AllowRegistration, request.ReplaceOldest)
 	if err != nil {
 		a.writeServiceError(w, err)
 		return

@@ -46,7 +46,7 @@ func (s *Service) CreateAppleChallenge(ctx context.Context) (string, error) {
 
 // BeginAppleLogin binds only after proof of both identities. Binding never
 // moves resources, replaces another binding, or merges accounts by email.
-func (s *Service) BeginAppleLogin(ctx context.Context, subject, nonce, username, password string, allowRegistration bool) (PreparedOperation, error) {
+func (s *Service) BeginAppleLogin(ctx context.Context, subject, nonce, username, password string, allowRegistration bool, replaceOldest ...bool) (PreparedOperation, error) {
 	if subject == "" || ValidateOperationID(nonce) != nil {
 		return PreparedOperation{}, ErrAppleIdentity
 	}
@@ -124,7 +124,7 @@ func (s *Service) BeginAppleLogin(ctx context.Context, subject, nonce, username,
 			return err
 		}
 		scoped := &Service{db: tx, tokenTTL: s.tokenTTL}
-		prepared, err = scoped.beginLoginForUser(ctx, user, false)
+		prepared, err = scoped.beginLoginForUser(ctx, user, len(replaceOldest) > 0 && replaceOldest[0])
 		return err
 	})
 	return prepared, err

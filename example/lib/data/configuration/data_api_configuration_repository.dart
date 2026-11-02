@@ -13,6 +13,7 @@ import '../../platform/local_json_file.dart';
 import '../data_api_json.dart';
 import '../services/data_api_auth_contract.dart';
 import '../services/data_api_client.dart';
+import '../services/data_api_device_identity.dart';
 import '../services/data_api_migration_service.dart';
 import '../services/data_api_remote_session_store.dart';
 import '../services/data_api_runtime.dart';
@@ -435,6 +436,7 @@ final class DataApiClientRemoteAuthenticator
     );
     if (!request.useApple) {
       return client.beginLogin(
+        deviceId: await dataApiDeviceIdentity(request.baseUri),
         username: request.username,
         password: request.password,
       );
@@ -442,6 +444,7 @@ final class DataApiClientRemoteAuthenticator
     final nonce = await client.createAppleChallenge();
     final token = await appleIdentityProvider(nonce);
     return client.beginAppleLogin(
+      deviceId: await dataApiDeviceIdentity(request.baseUri),
       identityToken: token,
       nonce: nonce,
       username: request.username,

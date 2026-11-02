@@ -166,6 +166,7 @@ func (a *API) beginRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var request struct {
+		DeviceID string `json:"device_id"`
 		Username string `json:"username"`
 		Password string `json:"password"`
 	}
@@ -174,7 +175,7 @@ func (a *API) beginRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	prepared, err := a.auth.BeginRegister(
-		r.Context(),
+		auth.WithDeviceID(r.Context(), request.DeviceID),
 		request.Username,
 		request.Password,
 	)
@@ -229,12 +230,13 @@ func (a *API) beginLogin(w http.ResponseWriter, r *http.Request) {
 		Username      string `json:"username"`
 		Password      string `json:"password"`
 		ReplaceOldest bool   `json:"replace_oldest"`
+		DeviceID      string `json:"device_id"`
 	}
 	if err := decodeBody(w, r, maximumAuthenticationBodySize, &request); err != nil {
 		writeDecodeError(w, err)
 		return
 	}
-	prepared, err := a.auth.BeginLoginReplacingOldest(r.Context(), request.Username, request.Password, request.ReplaceOldest)
+	prepared, err := a.auth.BeginLoginReplacingOldest(auth.WithDeviceID(r.Context(), request.DeviceID), request.Username, request.Password, request.ReplaceOldest)
 	if err != nil {
 		a.writeServiceError(w, err)
 		return

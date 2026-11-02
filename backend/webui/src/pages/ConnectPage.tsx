@@ -98,7 +98,7 @@ function AccountForm({ baseUrl, register }: { baseUrl: string; register: boolean
       const prepared = register ? await anonymous.beginRegister(username.trim(), password) : await anonymous.beginLogin(username.trim(), password, replaceOldest)
       operationId = prepared.operation_id
       const result = register ? await anonymous.completeRegister(operationId, deviceName) : await anonymous.completeLogin(operationId, deviceName)
-      await session.signIn(result.token)
+      await session.signIn(result.token, result.expires_at)
     } catch (err) {
       let cleanupFailed = false
       if (operationId) {

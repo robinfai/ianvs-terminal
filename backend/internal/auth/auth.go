@@ -208,6 +208,11 @@ func (s *Service) BeginRegister(
 		}).Error; err != nil {
 			return fmt.Errorf("create prepared registration operation: %w", err)
 		}
+		if key := deviceSessionKey(ctx, user.ID); key != "" {
+			if err := tx.Create(&model.Setting{Key: key, Value: hashOperationID(operationID), CreatedAt: now, UpdatedAt: now}).Error; err != nil {
+				return err
+			}
+		}
 		prepared = PreparedOperation{
 			OperationID: operationID,
 			ExpiresAt:   expiresAt,
@@ -275,6 +280,22 @@ func (s *Service) beginLoginForUser(ctx context.Context, user model.User, replac
 		if err := cleanupExpiredAuthState(tx, now); err != nil {
 			return err
 		}
+		deviceKey := deviceSessionKey(ctx, user.ID)
+		if deviceKey != "" {
+			var previous model.Setting
+			if err := tx.Where(clause.Eq{Column: "key", Value: deviceKey}).First(&previous).Error; err == nil {
+				var old model.AuthOperation
+				if err := tx.Where("operation_hash = ? AND user_id = ?", previous.Value, user.ID).First(&old).Error; err == nil {
+					if err := revokeOperation(tx, old.OperationHash); err != nil {
+						return err
+					}
+				} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+					return err
+				}
+			} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
+		}
 		if err := ensureUserSessionCapacity(tx, user.ID, now); err != nil {
 			if !replaceOldest || !errors.Is(err, ErrSessionCapacity) {
 				return err
@@ -301,6 +322,11 @@ func (s *Service) beginLoginForUser(ctx context.Context, user model.User, replac
 			ExpiresAt:     expiresAt,
 		}).Error; err != nil {
 			return fmt.Errorf("create prepared login operation: %w", err)
+		}
+		if deviceKey != "" {
+			if err := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "key"}}, DoUpdates: clause.AssignmentColumns([]string{"value", "updated_at"})}).Create(&model.Setting{Key: deviceKey, Value: hashOperationID(operationID), CreatedAt: now, UpdatedAt: now}).Error; err != nil {
+				return err
+			}
 		}
 		prepared = PreparedOperation{
 			OperationID: operationID,
@@ -596,6 +622,10 @@ func ValidateOperationID(operationID string) error {
 }
 
 func cleanupExpiredAuthState(db *gorm.DB, now time.Time) error {
+	active := db.Model(&model.AuthOperation{}).Select("operation_hash").Where("expires_at > ? AND state IN ?", now, []string{authOperationStatePrepared, authOperationStateIssued})
+	if err := db.Where("`key` LIKE ? AND value NOT IN (?)", "auth.session.installation/%", active).Delete(&model.Setting{}).Error; err != nil {
+		return err
+	}
 	var expired []model.AuthOperation
 	if err := db.Select("operation_hash").Where("expires_at <= ?", now).Find(&expired).Error; err != nil {
 		return err

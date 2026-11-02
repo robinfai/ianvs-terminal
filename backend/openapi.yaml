@@ -347,6 +347,8 @@ paths:
               additionalProperties: false
               required: [identity_token, nonce]
               properties:
+                device_id: {type: string, minLength: 16, maxLength: 128, description: Random installation identity; never used as authentication proof.}
+                replace_oldest: {type: boolean, default: false, description: Explicit consent to replace the oldest session if capacity is full after Apple verification.}
                 identity_token: {type: string, maxLength: 16384}
                 nonce: {type: string, minLength: 43, maxLength: 43}
                 username: {type: string, minLength: 3, maxLength: 64}
@@ -419,6 +421,7 @@ paths:
               required: [username, password]
               additionalProperties: false
               properties:
+                device_id: {type: string, minLength: 16, maxLength: 128}
                 username: {type: string, minLength: 3, maxLength: 64}
                 password: {type: string, description: Must encode to 12-72 UTF-8 bytes., x-ianvs-min-utf8-bytes: 12, x-ianvs-max-utf8-bytes: 72}
       responses:
@@ -580,6 +583,7 @@ paths:
               properties:
                 username: {type: string}
                 password: {type: string, description: Must encode to 12-72 UTF-8 bytes., x-ianvs-min-utf8-bytes: 12, x-ianvs-max-utf8-bytes: 72}
+                device_id: {type: string, minLength: 16, maxLength: 128, description: Random installation identity; deduplicates only after credentials are verified.}
                 replace_oldest: {type: boolean, default: false, description: Explicit consent to revoke the oldest active operation only when full after password verification.}
       responses:
         '200':

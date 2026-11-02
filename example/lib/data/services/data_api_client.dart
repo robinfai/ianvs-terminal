@@ -441,12 +441,14 @@ final class DataApiClient
     required String nonce,
     String username = '',
     String password = '',
+    String? deviceId,
   }) async {
     final response = await _request(
       'POST',
       _resourceUri('v1/auth/apple/begin'),
       requireAuthentication: false,
       jsonBody: <String, String>{
+        'device_id': ?deviceId,
         'identity_token': identityToken,
         'nonce': validateDataApiAuthOperationId(nonce),
         if (username.isNotEmpty) 'username': normalizeDataApiUsername(username),
@@ -461,6 +463,7 @@ final class DataApiClient
   Future<DataApiPreparedAuthOperation> beginLogin({
     required String username,
     required String password,
+    String? deviceId,
   }) async {
     final normalizedUsername = normalizeDataApiUsername(username);
     final validatedPassword = validateDataApiPassword(password);
@@ -469,6 +472,7 @@ final class DataApiClient
       _resourceUri('v1/auth/login/begin'),
       requireAuthentication: false,
       jsonBody: <String, String>{
+        'device_id': ?deviceId,
         'username': normalizedUsername,
         'password': validatedPassword,
       },

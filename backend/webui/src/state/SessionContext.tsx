@@ -12,6 +12,7 @@ import { Button, Dialog, Notice, TextField } from '../components/ui'
 import type { Mode, User } from '../types'
 
 const TOKEN_KEY = 'ianvs.token'
+const EXPIRY_KEY = 'ianvs.session-expiry'
 
 const DEFAULT_BASE_URL = window.location.origin
 
@@ -33,7 +34,7 @@ interface SessionState {
 
 interface SessionContextValue extends SessionState {
   client: DataApiClient | null
-  signIn: (token: string) => Promise<User>
+  signIn: (token: string, expiresAt?: string) => Promise<User>
   clearKey: () => void
   refreshUser: () => Promise<void>
   signOut: () => void
@@ -48,7 +49,12 @@ interface SessionContextValue extends SessionState {
 const SessionContext = createContext<SessionContextValue | null>(null)
 
 function readStoredToken(): string | null {
-  return sessionStorage.getItem(TOKEN_KEY)
+  const token = localStorage.getItem(TOKEN_KEY) ?? sessionStorage.getItem(TOKEN_KEY)
+  const expiry = localStorage.getItem(EXPIRY_KEY)
+  if (expiry && Date.parse(expiry) <= Date.now()) return null
+  if (token) localStorage.setItem(TOKEN_KEY, token)
+  sessionStorage.removeItem(TOKEN_KEY)
+  return token
 }
 
 export function SessionProvider({ children }: { children: ReactNode }) {
@@ -69,14 +75,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const clearToken = useCallback(() => {
     sessionStorage.removeItem(TOKEN_KEY)
+    localStorage.removeItem(TOKEN_KEY)
+    localStorage.removeItem(EXPIRY_KEY)
     setToken(null)
   }, [])
 
   const signIn = useCallback(
-    async (newToken: string): Promise<User> => {
+    async (newToken: string, expiresAt?: string): Promise<User> => {
       const client = new DataApiClient({ baseUrl, token: newToken })
       const [health, response] = await Promise.all([client.health(), client.me()])
-      sessionStorage.setItem(TOKEN_KEY, newToken)
+      localStorage.setItem(TOKEN_KEY, newToken)
+      if (expiresAt) localStorage.setItem(EXPIRY_KEY, expiresAt)
+      else localStorage.removeItem(EXPIRY_KEY)
       setToken(newToken)
       clearKey()
       setMode(health.mode)
@@ -100,6 +110,40 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setUser(null); setIsAdmin(false)
     setMode(null)
   }, [clearKey, clearToken])
+
+  useEffect(() => {
+    const expire = (event: Event) => {
+      if ((event as CustomEvent<string>).detail === token && localStorage.getItem(TOKEN_KEY) === token) signOut()
+    }
+    const check = () => {
+      if (!token || document.visibilityState !== 'visible') return
+      const expiry = localStorage.getItem(EXPIRY_KEY)
+      if (expiry && Date.parse(expiry) <= Date.now()) { signOut(); return }
+      void refreshUser().catch(() => {}) // 401 is handled by the client event.
+    }
+    const changed = (event: StorageEvent) => {
+      if (event.key === TOKEN_KEY) {
+        setToken(readStoredToken()); clearKey(); setUser(null); setIsAdmin(false)
+      }
+    }
+    window.addEventListener('ianvs-session-expired', expire)
+    window.addEventListener('storage', changed)
+    window.addEventListener('focus', check)
+    document.addEventListener('visibilitychange', check)
+    const timer = window.setInterval(check, 30000)
+    const expiry = Date.parse(localStorage.getItem(EXPIRY_KEY) ?? '')
+    const expiryTimer = Number.isFinite(expiry)
+      ? window.setTimeout(check, Math.min(2147483647, Math.max(0, expiry - Date.now())))
+      : undefined
+    return () => {
+      window.removeEventListener('ianvs-session-expired', expire)
+      window.removeEventListener('storage', changed)
+      window.removeEventListener('focus', check)
+      document.removeEventListener('visibilitychange', check)
+      window.clearInterval(timer)
+      window.clearTimeout(expiryTimer)
+    }
+  }, [token, signOut, refreshUser, clearKey])
 
   const requestKey = useCallback(
     (reason: string): Promise<string | null> => {
@@ -164,7 +208,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [baseUrl, clearKey, clearToken])
+  }, [baseUrl, token, clearKey, clearToken])
 
   const client = useMemo(() => {
     if (!token) return null

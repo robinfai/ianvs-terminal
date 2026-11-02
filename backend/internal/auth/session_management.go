@@ -104,3 +104,21 @@ func sessionMetadataCondition(operationHash string) clause.Eq {
 		Value:  sessionMetadataKey(operationHash),
 	}
 }
+
+// A device ID only deduplicates sessions AFTER credentials have been verified.
+// It is installation-scoped random data, never an authentication credential.
+type deviceIDKey struct{}
+
+func WithDeviceID(ctx context.Context, id string) context.Context {
+	if len(id) < 16 || len(id) > 128 {
+		return ctx
+	}
+	return context.WithValue(ctx, deviceIDKey{}, hashToken(id))
+}
+func deviceSessionKey(ctx context.Context, userID string) string {
+	id, _ := ctx.Value(deviceIDKey{}).(string)
+	if id == "" {
+		return ""
+	}
+	return "auth.session.installation/" + userID + "/" + id
+}

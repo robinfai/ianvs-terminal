@@ -155,3 +155,54 @@ func TestDeviceNamePersistsAcrossServiceRestartAndCleansUp(t *testing.T) {
 		t.Fatal("device label survived logout")
 	}
 }
+
+func TestDeviceSessionReuseRequiresProofAndPreservesOtherDevices(t *testing.T) {
+	s, db := operationContractService(t)
+	createOperationContractUser(t, db, "device-user")
+	ctx := WithDeviceID(context.Background(), "installation-00000001")
+	p, err := s.BeginLogin(ctx, "device-user", operationContractPassword)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := s.CompleteLogin(ctx, p.OperationID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 7; i++ {
+		p, err := s.BeginLogin(context.Background(), "device-user", operationContractPassword)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = s.CompleteLogin(context.Background(), p.OperationID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err = s.BeginLogin(ctx, "device-user", "invalid-password"); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatal(err)
+	}
+	if _, err = s.AuthenticateToken(ctx, first.Token); err != nil {
+		t.Fatal("bad credentials revoked session", err)
+	}
+	p, err = s.BeginLogin(ctx, "device-user", operationContractPassword)
+	if err != nil {
+		t.Fatal("same device must work at capacity", err)
+	}
+	if _, err = s.AuthenticateToken(ctx, first.Token); err == nil {
+		t.Fatal("old device token still works")
+	}
+	current, err := s.CompleteLogin(ctx, p.OperationID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	user, err := s.AuthenticateToken(ctx, current.Token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessions, err := s.ListSessions(ctx, user.ID, current.Token)
+	if err != nil || len(sessions) != 8 {
+		t.Fatalf("sessions %d: %v", len(sessions), err)
+	}
+	if _, err = s.BeginLogin(WithDeviceID(ctx, "installation-00000002"), "device-user", operationContractPassword); !errors.Is(err, ErrSessionCapacity) {
+		t.Fatal("different device bypassed limit", err)
+	}
+}
