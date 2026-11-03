@@ -18,7 +18,12 @@ import 'terminal_mcp_server.dart';
 /// Pinned Codex ACP profile. No host shell, filesystem write, plugins or apps.
 /// Agent credentials are isolated from Trail's model API configuration.
 class CodexAcpBackend implements AgentBackend {
-  CodexAcpBackend(this.configuration, {this.reviewOnly = false});
+  CodexAcpBackend(
+    this.configuration, {
+    this.reviewOnly = false,
+    this.onConnectionStage,
+  });
+  final void Function(AiConnectionStage)? onConnectionStage;
   final AiConfiguration configuration;
   final bool reviewOnly;
   AcpRuntimeConnection? _rpc;
@@ -176,6 +181,7 @@ class CodexAcpBackend implements AgentBackend {
       ),
     );
     check();
+    onConnectionStage?.call(AiConnectionStage.handshake);
     if (initialized['protocolVersion'] != 1 ||
         (initialized['agentInfo'] as Map?)?['name'] !=
             '@agentclientprotocol/codex-acp' ||
@@ -183,6 +189,7 @@ class CodexAcpBackend implements AgentBackend {
       throw const AiFailure('acp_capability');
     }
     final reconnected = _session != null;
+    onConnectionStage?.call(AiConnectionStage.session);
     final session = await rpc.session(cwd: cwd.path, sessionId: _session);
     check();
     _session = session['sessionId']! as String;
@@ -192,6 +199,7 @@ class CodexAcpBackend implements AgentBackend {
         .where((o) => o['category'] == 'model' || o['id'] == 'model')
         .firstOrNull;
     if (model == null) throw const AiFailure('acp_model');
+    onConnectionStage?.call(AiConnectionStage.model);
     final configured = await rpc.configure(
       sessionId: _session!,
       configId: model['id']! as String,
@@ -267,10 +275,12 @@ class CodexAcpBackend implements AgentBackend {
       }
     });
     try {
+      onConnectionStage?.call(AiConnectionStage.launch);
       await _connect(turn.cancellation);
       turn.cancellation.check();
       _acceptUpdates = true;
       final rpc = _rpc!;
+      onConnectionStage?.call(AiConnectionStage.reply);
       final result = await rpc.prompt(_session!, prompt);
       turn.cancellation.check();
       final quota = (result['_meta'] as Map?)?['quota'] as Map?;

@@ -10,7 +10,9 @@ import '../../ui/components/app_grouped_section.dart';
 import '../../ui/components/app_notifications.dart';
 import 'acp/acp_installation.dart';
 import 'acp/codex_acp_backend.dart';
-import 'ai_api_client.dart';
+import 'ai_connection_test.dart';
+import 'ai_connection_test_panel.dart';
+import 'ai_connection_test_runner.dart';
 import 'ai_model_picker.dart';
 import 'ai_models.dart';
 import 'ai_settings.dart';
@@ -56,10 +58,12 @@ class AiSettingsDialog extends StatefulWidget {
   const AiSettingsDialog({
     required this.settings,
     this.discoverAcp,
+    this.connectionTestRunner,
     this.onDone,
     super.key,
   });
   final AiSettingsController settings;
+  final AiConnectionTestRunner? connectionTestRunner;
 
   /// When provided, render inside the existing settings navigation.
   final ValueChanged<bool?>? onDone;
@@ -87,19 +91,18 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
   String _officialModel = 'default';
   String? _apiModel;
   String? _acpModel;
-  bool _busy = false;
+  bool _working = false;
+  bool get _busy => _working || _connection.running;
+  late final AiConnectionTestController _connection;
   bool _customize = false;
   bool _loaded = false;
-  bool _tested = false;
   bool _showKey = false;
-  Timer? _successTimer;
   bool _detecting = false;
   bool _autoDetectionAttempted = false;
   bool _savedAcpUnsupported = false;
   int _detectionEpoch = 0;
   String? _discoveryNotice;
   String? _error;
-  AiCancellation? _test;
   bool get zh => Localizations.localeOf(context).languageCode == 'zh';
   String t(String en, String cn) => zh ? cn : en;
   bool get _supportsLocalAcp => switch (Theme.of(context).platform) {
@@ -110,7 +113,14 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
   @override
   void initState() {
     super.initState();
+    _connection = AiConnectionTestController(
+      runner: widget.connectionTestRunner ?? runAiConnectionTest,
+    )..addListener(_connectionChanged);
     unawaited(_load());
+  }
+
+  void _connectionChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _load() async {
@@ -147,7 +157,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
     } else {
       _apiModel = value.model;
     }
-    _tested = false;
+    _connection.invalidate();
   }
 
   AiConfiguration get _value {
@@ -176,7 +186,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
   }
 
   void _edited(String _) => setState(() {
-    _tested = false;
+    _connection.invalidate();
     _error = null;
     _discoveryNotice = null;
     _fieldErrors.clear();
@@ -199,7 +209,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
       _model.text = _backend == AiBackendKind.acp
           ? (_acpModel ?? 'gpt-5.6-sol')
           : (_apiModel ?? '');
-      _tested = false;
+      _connection.invalidate();
       _error = null;
       _discoveryNotice = null;
       _detecting = false;
@@ -227,7 +237,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
     final argumentsBefore = _agentArguments.text;
     setState(() {
       _detecting = true;
-      _tested = false;
+      _connection.invalidate();
       _error = null;
       _discoveryNotice = null;
     });
@@ -311,7 +321,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
   Future<void> _save({bool remove = false}) async {
     if (!remove && !_validateFields()) return;
     setState(() {
-      _busy = true;
+      _working = true;
       _error = null;
     });
     try {
@@ -341,64 +351,29 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
         });
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() => _working = false);
     }
   }
 
-  Future<void> _checkConnection() async {
+  void _checkConnection() {
     if (!_validateFields()) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-      _tested = false;
-    });
-    final cancellation = _test = AiCancellation();
     try {
-      if (_backend == AiBackendKind.acp) {
-        final agent = CodexAcpBackend(_value);
-        try {
-          await agent.prompt(
-            'Connection check. Reply with OK. Do not use tools.',
-            tools: (_, _) async => throw const AiFailure('read_only'),
-            events: (_) {},
-            cancellation: cancellation,
-          );
-        } finally {
-          await agent.dispose();
-        }
-      } else {
-        await const AiApiClient().complete(_value, [
-          {
-            'role': 'user',
-            'content':
-                'Trail connection check. Reply with a brief greeting without tool calls.',
-          },
-        ], cancellation);
-      }
-      if (mounted) {
-        setState(() => _tested = true);
-        _successTimer?.cancel();
-        _successTimer = Timer(const Duration(seconds: 2), () {
-          if (mounted) setState(() => _tested = false);
-        });
-      }
+      final configuration = _value;
+      setState(() => _error = null);
+      _connection.start(configuration);
     } on Object catch (failure) {
-      if (mounted) {
-        setState(
-          () => _error = failure is AiFailure ? failure.code : 'connection',
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
+      setState(
+        () => _error = failure is AiFailure ? failure.code : 'configuration',
+      );
     }
   }
 
   @override
   void dispose() {
     _detectionEpoch++;
-    _test?.cancel();
+    _connection.removeListener(_connectionChanged);
+    _connection.dispose();
     _endpointFocus.dispose();
-    _successTimer?.cancel();
     _keyFocus.dispose();
     _modelFocus.dispose();
     _endpoint.dispose();
@@ -563,7 +538,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
             onPressed: _busy
                 ? null
                 : () async {
-                    setState(() => _busy = true);
+                    setState(() => _working = true);
                     try {
                       await widget.settings.save(
                         AiConfiguration.official(
@@ -578,7 +553,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
                         setState(() => _error = 'configuration_save');
                       }
                     } finally {
-                      if (mounted) setState(() => _busy = false);
+                      if (mounted) setState(() => _working = false);
                     }
                   },
             child: Text(t('Save', '保存')),
@@ -771,51 +746,29 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
           const SizedBox(height: 24),
           _approvalSection(context),
           const SizedBox(height: 24),
-          AppSettingsSection(
-            title: t('Connection test', '连接测试'),
-            children: [
-              Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                children: [
-                  if (_backend == AiBackendKind.llm && !kReleaseMode)
-                    TextButton(
-                      key: const Key('ai-use-mock'),
-                      onPressed: _loaded && !_busy
-                          ? () => setState(
-                              () => _fill(const AiConfiguration.mock()),
-                            )
-                          : null,
-                      child: Text(t('Local mock', '本机 Mock')),
-                    ),
-                  TextButton(
-                    key: const Key('ai-test-connection'),
-                    onPressed: _loaded && !_busy && !_detecting
-                        ? _checkConnection
-                        : null,
-                    child: Text(t('Test connection', '测试连接')),
-                  ),
-                ],
+          if (_backend == AiBackendKind.llm && !kReleaseMode)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                key: const Key('ai-use-mock'),
+                onPressed: _loaded && !_busy
+                    ? () => setState(() => _fill(const AiConfiguration.mock()))
+                    : null,
+                child: Text(t('Local mock', '本机 Mock')),
               ),
-              if (_busy || !_loaded) const LinearProgressIndicator(),
-              if (!_loaded)
-                Text(t('Loading saved configuration…', '正在读取已保存的配置…')),
-              if (_tested)
-                Text(
-                  jsonEncode(widget.settings.configuration?.toJson()) ==
-                          jsonEncode(_value.toJson())
-                      ? t('Connection succeeded.', '连接成功。')
-                      : t('Connection succeeded. Not saved yet.', '连接成功，尚未保存。'),
-                  key: const Key('ai-connection-ok'),
-                ),
-              if (_error != null)
-                Text(
-                  aiErrorText(_error!, zh),
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-              const SizedBox(height: 8),
-            ],
+            ),
+          AiConnectionTestPanel(
+            controller: _connection,
+            onTest: _loaded && !_busy && !_detecting ? _checkConnection : null,
+            saved: !_connection.stale && _matchesSavedConfiguration,
           ),
+          if (_working || !_loaded) const LinearProgressIndicator(),
+          if (!_loaded) Text(t('Loading saved configuration…', '正在读取已保存的配置…')),
+          if (_error != null)
+            Text(
+              aiErrorText(_error!, zh),
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
         ],
       ),
     );
@@ -841,6 +794,15 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
       content: content,
       actions: actions,
     );
+  }
+
+  bool get _matchesSavedConfiguration {
+    try {
+      return jsonEncode(widget.settings.configuration?.toJson()) ==
+          jsonEncode(_value.toJson());
+    } on Object {
+      return false;
+    }
   }
 
   void _finish(bool? result) {
