@@ -122,7 +122,9 @@ Comparator thresholds and OS-specific routing are unchanged.
 
 The 44 corresponding macOS 27 fixtures were rendered and reviewed locally on
 macOS 27.0.1 with Flutter 3.44.2. They retain that OS's original PNG output;
-no image was copied between OS directories. Profile General needs its own
-macOS 26 capture because the earlier flat CI artifact reused 01-general.png
-for Settings General. The sync-service selector additionally uses the shared
-dropdown component. Those macOS 26 comparisons remain failure-blocking.
+no image was copied between OS directories. The final macOS 26 Profile General and shared sync-service dropdown captures
+were reviewed from run 41573476367, artifact 13203206442 (head b8da153e).
+Profile General restores the capture lost to the earlier 01-general.png name
+collision; the dropdown change is confined to that control and the next row's
+position. Exact master-image pixel hashes again identify their destinations.
+The original macOS 26 PNG bytes complete this update.
