@@ -108,6 +108,7 @@ PROFILE=debug "$ROOT_DIR/tools/build_core.sh"
     integration_test/macos_keychain_profile_secret_test.dart
   flutter build macos --debug
   debug_app="$EXAMPLE_DIR/build/macos/Build/Products/Debug/Trail Development.app"
+  test -d "$debug_app/Contents/Frameworks/Sparkle.framework"
   codesign --verify --deep --strict "$debug_app"
   if [ "$VERIFY_APPLE_FULL" = "1" ]; then
     # Flutter re-embeds signed frameworks during incremental builds. The outer
@@ -149,6 +150,7 @@ PROFILE=debug "$ROOT_DIR/tools/build_core.sh"
     -workspace macos/Runner.xcworkspace \
     -scheme Runner \
     -configuration Debug \
+    -derivedDataPath build/macos \
     -destination 'platform=macOS' \
     -resultBundlePath "$native_result_dir/RunnerTests.xcresult" \
     CODE_SIGNING_ALLOWED=NO || native_test_status=$?
