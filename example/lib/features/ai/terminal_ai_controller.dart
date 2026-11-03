@@ -15,6 +15,7 @@ import 'acp/agent_backend.dart';
 import 'acp/codex_acp_backend.dart';
 import 'ai_api_client.dart';
 import 'ai_approval.dart';
+import 'ai_context_compaction.dart';
 import 'ai_models.dart';
 import 'ai_settings.dart';
 import 'ai_task_preview.dart';
@@ -1332,10 +1333,11 @@ class TerminalAiController extends ChangeNotifier {
   Future<void> _infer(AiCancellation cancellation) async {
     var proposalRepairs = 0;
     String? correction;
+    var contextRecoveryAttempted = false;
     while (true) {
       cancellation.check();
       if (++_steps > maxSteps) throw const AiFailure('step_limit');
-      final requestHistory = _compactHistory();
+      final requestHistory = _compactHistory(force: contextRecoveryAttempted);
       phase = api is AiStreamingApi ? AiPhase.connecting : AiPhase.thinking;
       _emit();
       final configuration = settings.configuration;
@@ -1453,6 +1455,24 @@ class TerminalAiController extends ChangeNotifier {
             'The previous tool proposal was rejected before execution. '
             'No terminal input was sent from it. ${failure.detail} '
             'Return a corrected proposal using the supplied tool schema.';
+        continue;
+      } on AiFailure catch (failure) {
+        if (failure.code != 'context_too_large' || contextRecoveryAttempted) {
+          rethrow;
+        }
+        cancellation.check();
+        if (!identical(requestTask, _task)) return;
+        final reduced = _compactHistory(force: true);
+        if (utf8.encode(jsonEncode(reduced)).length >=
+            utf8.encode(jsonEncode(requestHistory)).length) {
+          rethrow;
+        }
+        // Only an explicit context rejection is retried, once. No response
+        // proposal has been accepted and no terminal action is repeated.
+        requestTask.transcript.removeWhere(
+          (entry) => entry.id == responseEntryId,
+        );
+        contextRecoveryAttempted = true;
         continue;
       }
       proposalRepairs = 0;
@@ -1784,7 +1804,7 @@ class TerminalAiController extends ChangeNotifier {
     }
   }
 
-  List<Map<String, Object?>> _compactHistory() {
+  List<Map<String, Object?>> _compactHistory({bool force = false}) {
     // Repeated unchanged observations add no new evidence. Keep their newest
     // copy, but retain distinct output and every writing action/result pair.
     final observations = <String>{};
@@ -1836,13 +1856,34 @@ class TerminalAiController extends ChangeNotifier {
       }
       compacted[i] = {...message, 'content': jsonEncode(content)};
     }
-    if (_messages.where((message) => message['role'] == 'user').length > 64 ||
-        jsonEncode(compacted).length > 192000) {
+    // Restore recent snapshots before pruning their older reference sources.
+    // Otherwise a recent "unchanged" reference could point at omitted output.
+    final needsCompaction =
+        force || utf8.encode(jsonEncode(compacted)).length > 128000;
+    if (needsCompaction) {
+      final keep = force ? 2 : 8;
+      for (
+        var i = (compacted.length - keep).clamp(0, compacted.length);
+        i < compacted.length;
+        i++
+      ) {
+        if (compacted[i]['role'] != 'user' && compacted[i]['role'] != 'tool') {
+          continue;
+        }
+        final original = jsonDecode(_messages[i]['content']! as String) as Map;
+        if (original.containsKey('terminal_context')) {
+          compacted[i] = {..._messages[i]};
+        }
+      }
+    }
+    final reduced = compactAiObservations(compacted, force: force);
+    if (jsonEncode(reduced).length > 192000 ||
+        utf8.encode(jsonEncode(reduced)).length > 512000) {
       // An explicit limit preserves the task for inspection. Silently deleting
       // old unique evidence could make the next proposal contradict its goal.
       throw const AiFailure('conversation_limit');
     }
-    return compacted;
+    return reduced;
   }
 
   Future<void> approve({int? revision, bool Function()? canSubmit}) async {

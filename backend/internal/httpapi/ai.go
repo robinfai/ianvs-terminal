@@ -85,11 +85,21 @@ func (a *API) aiCompletions(w http.ResponseWriter, r *http.Request, user model.U
 	var body map[string]json.RawMessage
 	dec := json.NewDecoder(r.Body)
 	if err := dec.Decode(&body); err != nil || body == nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			writeError(w, 413, "ai_request_too_large", "AI request exceeds the gateway byte limit")
+			return
+		}
 		writeError(w, 400, "invalid_request", "Invalid completion request")
 		return
 	}
 	var extra any
-	if dec.Decode(&extra) != io.EOF {
+	if err := dec.Decode(&extra); err != io.EOF {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			writeError(w, 413, "ai_request_too_large", "AI request exceeds the gateway byte limit")
+			return
+		}
 		writeError(w, 400, "invalid_request", "Expected one JSON object")
 		return
 	}
@@ -190,6 +200,12 @@ func (a *API) aiCompletions(w http.ResponseWriter, r *http.Request, user model.U
 		path = "/responses"
 	}
 	encoded, _ := json.Marshal(payload)
+	// Transport bytes are not model tokens. Match the incoming 1 MiB limit;
+	// actual model context limits are reported separately by the provider.
+	if len(encoded) > 1<<20 {
+		writeError(w, 413, "ai_request_too_large", "AI request exceeds the gateway byte limit")
+		return
+	}
 	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, strings.TrimRight(m.Endpoint, "/")+path, bytes.NewReader(encoded))
 	if err != nil {
 		writeError(w, 503, "ai_unavailable", "Invalid gateway configuration")
@@ -199,10 +215,6 @@ func (a *API) aiCompletions(w http.ResponseWriter, r *http.Request, user model.U
 	// the server output cap. This is an estimate, not a tokenizer guarantee.
 	// Exact upstream usage replaces it; missing usage remains visibly reserved.
 	inputBound := int64(len(encoded) + 4096 + len(messages)*32)
-	if inputBound > 100000 {
-		writeError(w, 400, "context_too_large", "Gateway text context limit exceeded")
-		return
-	}
 	event, retry := a.aiLimiter.reserve(user.ID, g.Users[user.ID].RateLimits(), inputBound+int64(m.MaxOutputTokens), time.Now())
 	if event == nil {
 		w.Header().Set("Retry-After", strconv.Itoa(int(retry.Seconds())+1))

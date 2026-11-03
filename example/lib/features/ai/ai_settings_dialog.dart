@@ -113,7 +113,12 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
     if (!mounted) return;
     _officialModel = widget.settings.officialModel;
     final value = widget.settings.customConfiguration;
-    if (value != null) _fill(value);
+    if (value != null) {
+      _fill(value);
+    } else {
+      _approvalMode = widget.settings.officialApprovalMode;
+      _approvalSensitivity = widget.settings.officialApprovalSensitivity;
+    }
     setState(() {
       _loaded = true;
       _error = widget.settings.error;
@@ -385,6 +390,103 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
     super.dispose();
   }
 
+  Widget _approvalSection(BuildContext context) => AppSettingsSection(
+    title: t('Command approval', '命令审批'),
+    children: [
+      AppConfigurationField(
+        label: t('Mode', '模式'),
+        child: AppDropdownFormField<AiApprovalMode>(
+          key: const Key('ai-approval-mode'),
+          initialValue: _approvalMode,
+          isExpanded: true,
+          decoration: const InputDecoration(),
+          items: [
+            DropdownMenuItem(
+              value: AiApprovalMode.smart,
+              child: Text(t('Smart review', '智能审核')),
+            ),
+            DropdownMenuItem(
+              value: AiApprovalMode.manual,
+              child: Text(t('Confirm every command', '每次确认')),
+            ),
+          ],
+          onChanged: !_loaded || _busy
+              ? null
+              : (value) {
+                  if (value != null) {
+                    setState(() => _approvalMode = value);
+                  }
+                },
+        ),
+      ),
+      if (_approvalMode == AiApprovalMode.smart) ...[
+        const SizedBox(height: 16),
+        AppConfigurationField(
+          label: t('Review sensitivity', '审核敏感性'),
+          child: AppDropdownFormField<AiApprovalSensitivity>(
+            key: const Key('ai-approval-sensitivity'),
+            initialValue: _approvalSensitivity,
+            isExpanded: true,
+            decoration: const InputDecoration(),
+            items: [
+              DropdownMenuItem(
+                value: AiApprovalSensitivity.cautious,
+                child: Text(t('Cautious', '谨慎')),
+              ),
+              DropdownMenuItem(
+                value: AiApprovalSensitivity.balanced,
+                child: Text(t('Standard', '标准')),
+              ),
+              DropdownMenuItem(
+                value: AiApprovalSensitivity.relaxed,
+                child: Text(t('Relaxed · confirm high risk', '宽松 · 高危确认')),
+              ),
+            ],
+            onChanged: !_loaded || _busy
+                ? null
+                : (value) {
+                    if (value != null) {
+                      setState(() => _approvalSensitivity = value);
+                    }
+                  },
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(switch (_approvalSensitivity) {
+          AiApprovalSensitivity.cautious => t(
+            'Automatically allow low-risk, read-only commands. Confirm changes.',
+            '自动放行低风险只读命令；修改操作需确认。',
+          ),
+          AiApprovalSensitivity.balanced => t(
+            'Automatically allow low-risk reads and recoverable changes. Confirm medium and high risk.',
+            '自动放行低风险查询和可恢复修改；中、高风险需确认。',
+          ),
+          AiApprovalSensitivity.relaxed => t(
+            'Automatically allow low- and medium-risk actions within your task. Confirm high-risk actions.',
+            '自动放行任务范围内的低、中风险操作；高危操作需确认。',
+          ),
+        }, style: Theme.of(context).textTheme.bodySmall),
+      ],
+      const SizedBox(height: 8),
+      ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        title: Text(
+          t('Review rules', '审核规则'),
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        children: [
+          Text(
+            t(
+              'Unclear risk or unavailable review always requires confirmation. Reviews use this connection and consume credits.',
+              '风险不明或审核不可用时始终需要确认。审核使用当前连接并消耗额度。',
+            ),
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
+    ],
+  );
+
   @override
   Widget build(BuildContext context) {
     if (_loaded && widget.settings.customConfiguration == null && !_customize) {
@@ -420,6 +522,8 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
                   ),
               ],
             ),
+            const SizedBox(height: 24),
+            _approvalSection(context),
             if (widget.settings.usage case final usage?) ...[
               const SizedBox(height: 24),
               AiUsageSummary(
@@ -443,7 +547,11 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
                     setState(() => _busy = true);
                     try {
                       await widget.settings.save(
-                        AiConfiguration.official(model: _officialModel),
+                        AiConfiguration.official(
+                          model: _officialModel,
+                          approvalMode: _approvalMode,
+                          approvalSensitivity: _approvalSensitivity,
+                        ),
                       );
                       if (context.mounted) _finish(true);
                     } on Object {
@@ -642,104 +750,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
             ],
           ),
           const SizedBox(height: 24),
-          AppSettingsSection(
-            title: t('Command approval', '命令审批'),
-            children: [
-              AppConfigurationField(
-                label: t('Mode', '模式'),
-                child: AppDropdownFormField<AiApprovalMode>(
-                  key: const Key('ai-approval-mode'),
-                  initialValue: _approvalMode,
-                  isExpanded: true,
-                  decoration: const InputDecoration(),
-                  items: [
-                    DropdownMenuItem(
-                      value: AiApprovalMode.smart,
-                      child: Text(t('Smart review', '智能审核')),
-                    ),
-                    DropdownMenuItem(
-                      value: AiApprovalMode.manual,
-                      child: Text(t('Confirm every command', '每次确认')),
-                    ),
-                  ],
-                  onChanged: !_loaded || _busy
-                      ? null
-                      : (value) {
-                          if (value != null) {
-                            setState(() => _approvalMode = value);
-                          }
-                        },
-                ),
-              ),
-              if (_approvalMode == AiApprovalMode.smart) ...[
-                const SizedBox(height: 16),
-                AppConfigurationField(
-                  label: t('Review sensitivity', '审核敏感性'),
-                  child: AppDropdownFormField<AiApprovalSensitivity>(
-                    key: const Key('ai-approval-sensitivity'),
-                    initialValue: _approvalSensitivity,
-                    isExpanded: true,
-                    decoration: const InputDecoration(),
-                    items: [
-                      DropdownMenuItem(
-                        value: AiApprovalSensitivity.cautious,
-                        child: Text(t('Cautious', '谨慎')),
-                      ),
-                      DropdownMenuItem(
-                        value: AiApprovalSensitivity.balanced,
-                        child: Text(t('Standard', '标准')),
-                      ),
-                      DropdownMenuItem(
-                        value: AiApprovalSensitivity.relaxed,
-                        child: Text(
-                          t('Relaxed · confirm high risk', '宽松 · 高危确认'),
-                        ),
-                      ),
-                    ],
-                    onChanged: !_loaded || _busy
-                        ? null
-                        : (value) {
-                            if (value != null) {
-                              setState(() => _approvalSensitivity = value);
-                            }
-                          },
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(switch (_approvalSensitivity) {
-                  AiApprovalSensitivity.cautious => t(
-                    'Automatically allow low-risk, read-only commands. Confirm changes.',
-                    '自动放行低风险只读命令；修改操作需确认。',
-                  ),
-                  AiApprovalSensitivity.balanced => t(
-                    'Automatically allow low-risk reads and recoverable changes. Confirm medium and high risk.',
-                    '自动放行低风险查询和可恢复修改；中、高风险需确认。',
-                  ),
-                  AiApprovalSensitivity.relaxed => t(
-                    'Automatically allow low- and medium-risk actions within your task. Confirm high-risk actions.',
-                    '自动放行任务范围内的低、中风险操作；高危操作需确认。',
-                  ),
-                }, style: Theme.of(context).textTheme.bodySmall),
-              ],
-              const SizedBox(height: 8),
-              ExpansionTile(
-                tilePadding: EdgeInsets.zero,
-                title: Text(
-                  t('Review rules', '审核规则'),
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                children: [
-                  Text(
-                    t(
-                      'Unclear risk or unavailable review always requires confirmation. Reviews use this connection and consume credits.',
-                      '风险不明或审核不可用时始终需要确认。审核使用当前连接并消耗额度。',
-                    ),
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-              ),
-            ],
-          ),
+          _approvalSection(context),
           const SizedBox(height: 24),
           AppSettingsSection(
             title: t('Connection test', '连接测试'),
