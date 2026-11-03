@@ -10,10 +10,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../support/desktop_test_platform.dart';
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_profile_repository.dart';
-import '../support/no_io_local_session_recording_repository.dart';
+import '../support/no_io_sampled_recording_library.dart';
 
 class _MemoryLayoutRepository extends LocalTerminalLayoutRepository {
   TerminalLayout? layout;
@@ -60,8 +61,8 @@ Future<ProviderContainer> _pumpShell(WidgetTester tester) async {
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _MemoryLayoutRepository(),
         ),
-        localSessionRecordingRepositoryProvider.overrideWithValue(
-          noIoLocalSessionRecordingRepository(),
+        sampledRecordingLibraryProvider.overrideWithValue(
+          noIoSampledRecordingLibrary(),
         ),
       ],
       child: MaterialApp(
@@ -91,60 +92,62 @@ Future<void> _invokeNativeWindowBridge(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('command palette omits the folder-specific new tab action', (
-    tester,
-  ) async {
-    final container = await _pumpShell(tester);
+  desktopTestWidgets(
+    'command palette omits the folder-specific new tab action',
+    (tester) async {
+      final container = await _pumpShell(tester);
 
-    expect(
-      find.byKey(const Key('shell-open-terminal-at-folder')),
-      findsNothing,
-    );
-    expect(find.text('Open Project…'), findsNothing);
-    expect(find.textContaining('Recent Layout'), findsNothing);
+      expect(
+        find.byKey(const Key('shell-open-terminal-at-folder')),
+        findsNothing,
+      );
+      expect(find.text('Open Project…'), findsNothing);
+      expect(find.textContaining('Recent Layout'), findsNothing);
 
-    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
-    await tester.pumpAndSettle();
-    await tester.enterText(
-      find.byKey(const Key('shell-command-search-field')),
-      'folder',
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('New tab at folder…'), findsNothing);
-    expect(find.byKey(const Key('shell-new-tab-at-folder')), findsNothing);
+      await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('shell-command-search-field')),
+        'folder',
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('New tab at folder…'), findsNothing);
+      expect(find.byKey(const Key('shell-new-tab-at-folder')), findsNothing);
 
-    final state = container.read(sessionControllerProvider);
-    expect(state.tabs, hasLength(1));
-  });
+      final state = container.read(sessionControllerProvider);
+      expect(state.tabs, hasLength(1));
+    },
+  );
 
-  testWidgets('native folder open handles selection and cancellation safely', (
-    tester,
-  ) async {
-    final selectedPaths = <String?>['/layout/native-folder', null];
-    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-      const MethodChannel('app/window_bridge'),
-      (call) async => call.method == 'chooseTerminalFolder'
-          ? selectedPaths.removeAt(0)
-          : null,
-    );
-    addTearDown(
-      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+  desktopTestWidgets(
+    'native folder open handles selection and cancellation safely',
+    (tester) async {
+      final selectedPaths = <String?>['/layout/native-folder', null];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
         const MethodChannel('app/window_bridge'),
-        null,
-      ),
-    );
-    final container = await _pumpShell(tester);
+        (call) async => call.method == 'chooseTerminalFolder'
+            ? selectedPaths.removeAt(0)
+            : null,
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          const MethodChannel('app/window_bridge'),
+          null,
+        ),
+      );
+      final container = await _pumpShell(tester);
 
-    await _invokeNativeWindowBridge(
-      tester,
-      const MethodCall('nativeOpenTerminalAtFolder'),
-    );
-    expect(container.read(sessionControllerProvider).tabs, hasLength(2));
+      await _invokeNativeWindowBridge(
+        tester,
+        const MethodCall('nativeOpenTerminalAtFolder'),
+      );
+      expect(container.read(sessionControllerProvider).tabs, hasLength(2));
 
-    await _invokeNativeWindowBridge(
-      tester,
-      const MethodCall('nativeOpenTerminalAtFolder'),
-    );
-    expect(container.read(sessionControllerProvider).tabs, hasLength(2));
-  });
+      await _invokeNativeWindowBridge(
+        tester,
+        const MethodCall('nativeOpenTerminalAtFolder'),
+      );
+      expect(container.read(sessionControllerProvider).tabs, hasLength(2));
+    },
+  );
 }

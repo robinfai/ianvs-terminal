@@ -9,6 +9,7 @@ rather than JSON Runtime Envelopes.
 | FFI symbol | Class | Payload / ownership | Current contract |
 |---|---|---|---|
 | `ianvs_ping` | control | integer health result | ABI v1 |
+| `ianvs_recording_file_request_v2_json` | Recording file request schema 2 | Owned JSON, freed with `ianvs_string_free` | Off-UI inspect/seek/timeline/asset; in-memory reserve/cancel/release |
 | `ianvs_runtime_capabilities_json` | control | owned Runtime Capabilities JSON | Runtime Capabilities v1 |
 | `ianvs_ssh_import_profiles_json` | import | borrowed OpenSSH config path, owned import JSON | bounded SSH profile import |
 | `ianvs_session_create_v1` | command/config | borrowed product-neutral SessionConfig JSON | SessionConfig v1 |

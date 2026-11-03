@@ -463,6 +463,27 @@ pub unsafe extern "C" fn ianvs_bytes_free(ptr: *mut u8, len: usize) {
     }
 }
 
+/// # Safety
+/// `request_json` must point to a NUL-terminated UTF-8 request. The result is
+/// released with `ianvs_string_free`. File operations must run off the UI thread;
+/// reserve/cancel/release only manipulate bounded in-memory job state.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn ianvs_recording_file_request_v2_json(
+    request_json: *const c_char,
+) -> *mut c_char {
+    if request_json.is_null() {
+        return std::ptr::null_mut();
+    }
+    let request = unsafe { CStr::from_ptr(request_json) };
+    request
+        .to_str()
+        .ok()
+        .map(crate::recording::file_service::request_json)
+        .and_then(|value| CString::new(value).ok())
+        .map(CString::into_raw)
+        .unwrap_or(std::ptr::null_mut())
+}
+
 #[cfg(test)]
 mod session_close_status_tests {
     use super::session_close_status;

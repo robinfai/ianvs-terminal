@@ -419,7 +419,7 @@ void main() {
               await tester.tap(remote);
               await tester.pumpAndSettle();
               expect(
-                find.byKey(const Key('data-api-remote-url')),
+                find.byKey(const Key('sync-service-choice')),
                 findsOneWidget,
               );
             }

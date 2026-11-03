@@ -4593,10 +4593,6 @@ class AppLocalizationsEn extends AppLocalizations {
       'The development master key is stored in a local file accessible only to your user account. It does not access Keychain, sync to iCloud, or share storage with the release app.';
 
   @override
-  String get acceptanceDeviceOnlyMasterKeyStorageDescription =>
-      'This acceptance build keeps its master key in this device\'s Keychain. It does not sync to iCloud or share the release app\'s key. Encrypted data cannot be restored on another device.';
-
-  @override
   String get syncLocalOnly => 'Saved on this device. API sync is optional.';
 
   @override
@@ -5337,6 +5333,178 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get mobileExternalKeyboardHelp =>
       'Use these shortcuts with an external keyboard. Tap a binding to edit it and choose its scope while recording.';
+
+  @override
+  String get sampledRecordingDisclosure =>
+      'Sampled screens and observed commands; brief output or commands without hooks may be missing.';
+
+  @override
+  String get sampledRecordingInterrupted => 'Recording interrupted';
+
+  @override
+  String get sampledTimelineFirst => 'First command page';
+
+  @override
+  String get sampledTimelinePrevious => 'Previous command page';
+
+  @override
+  String get sampledTimelineNext => 'Next command page';
+
+  @override
+  String get sampledTimelineEmpty =>
+      'No command events on this page. Screens remain available when shell hooks are missing.';
+
+  @override
+  String get sampledHookUnavailable => 'Command tracking unavailable';
+
+  @override
+  String get sampledHookAvailable => 'Command tracking available';
+
+  @override
+  String get sampledCommandStarted => 'Started';
+
+  @override
+  String sampledCommandExit(int code) {
+    return 'Exit $code';
+  }
+
+  @override
+  String get recordingSearchTitle => 'Search recordings';
+
+  @override
+  String get recordingSearchCoverage =>
+      'Search saved hook commands and sampled screen text. Active recordings and unsampled output are not included.';
+
+  @override
+  String get recordingSearchQuery => 'Command or screen text';
+
+  @override
+  String get recordingSearchHost => 'Host, including nested SSH';
+
+  @override
+  String get recordingSearchAll => 'Commands and screen text';
+
+  @override
+  String get recordingSearchCommands => 'Commands only';
+
+  @override
+  String get recordingSearchScreens => 'Screen text only';
+
+  @override
+  String get recordingSearchDates => 'Recording dates';
+
+  @override
+  String get recordingSearchClearFilters => 'Clear filters';
+
+  @override
+  String recordingSearchProgress(int scanned, int total) {
+    return 'Searching recordings: $scanned of $total';
+  }
+
+  @override
+  String recordingSearchSkipped(int count) {
+    return '$count recordings could not be searched';
+  }
+
+  @override
+  String get recordingSearchEmpty =>
+      'No matching saved text. Try another phrase or wider filters.';
+
+  @override
+  String get recordingSearchHint =>
+      'Enter text or choose a filter. Select a result to open its recorded moment.';
+
+  @override
+  String get recordingSearchUnknownHost => 'Unknown host';
+
+  @override
+  String get recordingSearchFirstPage => 'First search page';
+
+  @override
+  String get recordingSearchPreviousPage => 'Previous search page';
+
+  @override
+  String get recordingSearchNextPage => 'Next search page';
+
+  @override
+  String recordingSearchPage(int page) {
+    return 'Page $page';
+  }
+
+  @override
+  String get recordingRetentionTitle => 'Recording retention';
+
+  @override
+  String get recordingRetentionExplanation =>
+      'Ordinary recordings are cleaned up by both age and total storage. Kept, active and open recordings are protected. If protected files fill the budget, new recording cannot start.';
+
+  @override
+  String recordingRetentionUsage(String gib) {
+    return 'Library currently uses $gib GiB.';
+  }
+
+  @override
+  String get recordingRetentionDays => 'Retention days';
+
+  @override
+  String get recordingRetentionCapacity => 'Storage budget (GiB)';
+
+  @override
+  String get recordingRetentionDaysError =>
+      'Enter a whole number from 1 to 36500.';
+
+  @override
+  String get recordingRetentionCapacityError =>
+      'Enter a positive storage limit below 8388608 GiB.';
+
+  @override
+  String get recordingRetentionApplyWarning =>
+      'Saving applies cleanup immediately. Deleted recordings cannot be recovered. Existing NDJSON files are not managed by this policy.';
+
+  @override
+  String get recordingRetentionSave => 'Save and apply';
+
+  @override
+  String get recordingRetentionApplying => 'Applying…';
+
+  @override
+  String recordingRetentionLoadError(String detail) {
+    return 'Could not read settings or storage usage. Review the displayed values before saving to replace the settings. $detail';
+  }
+
+  @override
+  String recordingRetentionApplyError(String detail) {
+    return 'Could not finish applying cleanup. Settings may already be saved; retry after resolving this problem. $detail';
+  }
+
+  @override
+  String get recordingKeep => 'Keep recording';
+
+  @override
+  String get recordingUnkeep => 'Allow automatic cleanup';
+
+  @override
+  String get recordingKept => 'Kept';
+
+  @override
+  String get recordingDeleteTitle => 'Delete recording?';
+
+  @override
+  String recordingDeleteWarning(String name) {
+    return 'Permanently delete “$name”, including its recorded screens, commands and assets? This cannot be undone.';
+  }
+
+  @override
+  String get recordingDeleteInUse => 'Close replay before deleting';
+
+  @override
+  String recordingManageError(String detail) {
+    return 'Could not update the recording: $detail';
+  }
+
+  @override
+  String get acceptanceDeviceOnlyMasterKeyStorageDescription =>
+      'This acceptance build keeps its master key in this device\'s Keychain. It does not sync to iCloud or share the release app\'s key. Encrypted data cannot be restored on another device.';
 
   @override
   String get terminalModeNormal => 'Normal terminal';

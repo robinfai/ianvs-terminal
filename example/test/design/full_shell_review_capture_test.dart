@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/profiles/profile_models.dart';
-import 'package:app/features/recording/local_session_recording_repository.dart';
+import 'package:app/features/recording/sampled_recording_library.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/sessions/session_ports.dart';
 import 'package:app/features/shell/shell_acceptance.dart';
@@ -22,8 +22,8 @@ import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_local_terminal_config_repository.dart';
 import '../support/memory_paste_history_repository.dart';
 import '../support/memory_profile_repository.dart';
-import '../support/no_io_local_session_recording_repository.dart';
 import '../support/no_io_local_terminal_layout_repository.dart';
+import '../support/no_io_sampled_recording_library.dart';
 import 'configuration_capture_binding.dart';
 import 'ui_review_capture.dart';
 import 'visual_capture_fonts.dart';
@@ -40,31 +40,33 @@ class _ReviewBackend extends FakePtyBackend {
       });
 }
 
-class _ReviewRecordings extends LocalSessionRecordingRepository
-    with NoIoLocalSessionRecordingRecovery {
-  _ReviewRecordings(this.scene)
-    : super(
-        directoryResolver: () => throw StateError('No file I/O in UI fixture'),
-      );
+class _ReviewRecordings extends NoIoSampledRecordingLibrary {
+  _ReviewRecordings(this.scene);
   final String scene;
   @override
-  Future<List<LocalSessionRecordingEntry>> listRecordings() async {
+  Future<List<SampledRecordingEntry>> listRecordings() async {
     if (scene == 'recordings-empty') return [];
     if (scene == 'recordings-error') throw StateError('录屏目录暂时不可用');
     return [
-      LocalSessionRecordingEntry(
+      SampledRecordingEntry(
         path: '/review/deploy.trail',
         displayName: '生产部署 · production',
         createdAtUtc: DateTime.utc(2026, 10, 13, 8),
         duration: const Duration(minutes: 2),
-        fileSizeBytes: 32768,
+        id: 'deploy',
+        state: 'finished',
+        sessionId: null,
+        keep: false,
       ),
-      LocalSessionRecordingEntry(
+      SampledRecordingEntry(
         path: '/review/diagnostics.trail',
         displayName: '连接诊断',
         createdAtUtc: DateTime.utc(2026, 10, 12, 8),
         duration: const Duration(seconds: 48),
-        fileSizeBytes: 8192,
+        id: 'diagnostics',
+        state: 'finished',
+        sessionId: null,
+        keep: false,
       ),
     ];
   }
@@ -147,7 +149,7 @@ Future<_ReviewBackend> _pumpShell(
             ),
           ),
         ),
-        localSessionRecordingRepositoryProvider.overrideWithValue(
+        sampledRecordingLibraryProvider.overrideWithValue(
           _ReviewRecordings(scene),
         ),
         localTerminalLayoutRepositoryProvider.overrideWithValue(

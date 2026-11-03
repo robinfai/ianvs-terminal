@@ -9,6 +9,7 @@ import '../data/services/data_api_remote_session_store.dart';
 import '../data/services/data_api_runtime.dart';
 import '../data/services/portable_master_key.dart';
 import '../features/recording/local_session_recording_repository.dart';
+import '../features/recording/sampled_recording_library.dart';
 import '../persistence_repository_composition.dart';
 import '../platform/app_shutdown_coordinator.dart';
 
@@ -229,6 +230,11 @@ final class AppRuntimeGraph {
     this.applyApiSyncConfiguration,
   }) {
     shutdownCoordinator.registerTask(
+      'sampled-recording-reader',
+      () async => sampledRecordingFiles.dispose(),
+      phase: AppShutdownPhase.infrastructure,
+    );
+    shutdownCoordinator.registerTask(
       'data-api-runtime',
       persistenceRepositories.sync.close,
       phase: AppShutdownPhase.infrastructure,
@@ -245,6 +251,13 @@ final class AppRuntimeGraph {
   final PtySessionBackend ptySessionBackend;
   final PersistenceRepositoryComposition persistenceRepositories;
   final LocalSessionRecordingRepository recordingRepository;
+  final NativeRecordingFileApi sampledRecordingFiles = NativeRecordingFileApi();
+  late final SampledRecordingLibrary sampledRecordings =
+      SampledRecordingLibrary(
+        files: sampledRecordingFiles,
+        directoryResolver: () async =>
+            Directory('${paths.appSupportDirectory.path}/recordings-v2'),
+      );
   final AppShutdownCoordinator shutdownCoordinator;
   final DataApiLocalMigrationRuntimeStarter? localMigrationRuntimeStarter;
   final DataApiLocalMigrationRuntimeStarter?

@@ -35,8 +35,8 @@ import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_local_terminal_config_repository.dart';
 import '../support/memory_paste_history_repository.dart';
 import '../support/memory_profile_repository.dart';
-import '../support/no_io_local_session_recording_repository.dart';
 import '../support/no_io_local_terminal_layout_repository.dart';
+import '../support/no_io_sampled_recording_library.dart';
 
 const _evidence = String.fromEnvironment('MOBILE_BLOCKS_EVIDENCE_DIR');
 
@@ -381,8 +381,8 @@ Future<({ProviderContainer container, String id})> _pump(
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           noIoLocalTerminalLayoutRepository(),
         ),
-        localSessionRecordingRepositoryProvider.overrideWithValue(
-          noIoLocalSessionRecordingRepository(),
+        sampledRecordingLibraryProvider.overrideWithValue(
+          noIoSampledRecordingLibrary(),
         ),
       ],
       child: RepaintBoundary(
@@ -572,6 +572,10 @@ void main() {
         {
           'schema': 1,
           'id': 'saved-previous-task',
+          'profileId': tester
+              .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
+              .controller
+              .profileId,
           'title': 'Previous task',
           'transcript': [
             {
@@ -601,6 +605,9 @@ void main() {
       final workspace = tester.widget<TerminalAiWorkspace>(
         find.byType(TerminalAiWorkspace),
       );
+      expect(workspace.controller.restoredHistory, isFalse);
+      workspace.controller.selectTask('saved-previous-task');
+      await _settle(tester);
       expect(workspace.controller.restoredHistory, isTrue);
       expect(find.byType(TerminalAiRetainedTimeline), findsOneWidget);
       expect(find.text('Saved reply'), findsOneWidget);
@@ -1663,7 +1670,13 @@ void main() {
         for (var i = 0; i < 8; i++) {
           await tester.pump();
         }
-        final save = find.byKey(const Key('defaults-save'));
+        final save = find.byKey(
+          Key(
+            platform == TargetPlatform.iOS
+                ? 'defaults-mobile-back'
+                : 'defaults-cancel',
+          ),
+        );
         expect(save, findsOneWidget);
         if (platform == TargetPlatform.macOS) {
           expect(
@@ -2267,10 +2280,12 @@ void main() {
       final newTask = find.byKey(const Key('ai-new-task'));
       expect(newTask.hitTestable(), findsOneWidget);
       expect(tester.getSize(newTask).height, greaterThanOrEqualTo(44));
-      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.tap(find.byType(BackButton));
       await _settle(tester);
       expect(tester.takeException(), isNull);
       await _capture(tester, 'M06-${scene.name}-ai-keyboard');
+      await tester.showKeyboard(prompt);
+      await _settle(tester);
       await tester.tap(find.byKey(const Key('ai-dismiss-keyboard')));
       await _settle(tester);
       expect(promptFocus.hasFocus, isFalse);

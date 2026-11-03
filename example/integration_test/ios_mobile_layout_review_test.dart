@@ -13,6 +13,7 @@ import 'package:integration_test/integration_test.dart';
 import '../test/support/fake_pty_backend.dart';
 import '../test/support/memory_app_preferences_repository.dart';
 import '../test/support/memory_profile_repository.dart';
+import '../test/support/no_io_sampled_recording_library.dart';
 
 class _IosMobileReviewPtyBackend extends FakePtyBackend {
   @override
@@ -90,6 +91,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          sampledRecordingLibraryProvider.overrideWithValue(
+            noIoSampledRecordingLibrary(),
+          ),
           ptySessionBackendProvider.overrideWithValue(backend),
           profileRepositoryProvider.overrideWithValue(
             MemoryProfileRepository(

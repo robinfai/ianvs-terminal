@@ -146,6 +146,10 @@ void main() {
 
           Future<void> expectPaintedCentered(String key) async {
             final center = tester.getCenter(find.byKey(Key(key)));
+            final ink = Theme.of(
+              tester.element(find.byKey(Key(key))),
+            ).colorScheme.onPrimary;
+            final lightInk = ink.computeLuminance() > .5;
             await tester.runAsync(() async {
               final render =
                   boundary.currentContext!.findRenderObject()!
@@ -158,7 +162,7 @@ void main() {
               final cy = (center.dy * 3).round();
               final xs = <int>[];
               final ys = <int>[];
-              // Inspect white glyph ink inside the blue circle, excluding the
+              // Inspect the contrasting glyph ink inside the blue circle, excluding the
               // page outside its edge. Widget bounds alone miss font bearings.
               for (var y = cy - 40; y <= cy + 40; y++) {
                 for (var x = cx - 40; x <= cx + 40; x++) {
@@ -166,9 +170,13 @@ void main() {
                     continue;
                   }
                   final offset = (y * image.width + x) * 4;
-                  if (bytes.getUint8(offset) > 230 &&
-                      bytes.getUint8(offset + 1) > 230 &&
-                      bytes.getUint8(offset + 2) > 230) {
+                  if (lightInk
+                      ? bytes.getUint8(offset) > 230 &&
+                            bytes.getUint8(offset + 1) > 230 &&
+                            bytes.getUint8(offset + 2) > 230
+                      : bytes.getUint8(offset) < 25 &&
+                            bytes.getUint8(offset + 1) < 25 &&
+                            bytes.getUint8(offset + 2) < 25) {
                     xs.add(x);
                     ys.add(y);
                   }

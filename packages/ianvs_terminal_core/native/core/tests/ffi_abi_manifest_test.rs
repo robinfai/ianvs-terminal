@@ -10,6 +10,7 @@ const CURRENT_ABI: &[&str] = &[
     "ianvs_replay_session_create_v1",
     "ianvs_replay_session_exit",
     "ianvs_replay_session_output",
+    "ianvs_recording_file_request_v2_json",
     "ianvs_runtime_capabilities_json",
     "ianvs_session_close",
     "ianvs_session_create_v1",

@@ -14,7 +14,7 @@ The JSON object has this shape:
     "terminal-frame-diff-v1"
   ],
   "recording_schema_versions": [
-    1
+    2
   ],
   "features": [
     "completion-local.json.v1",
@@ -30,7 +30,7 @@ The JSON object has this shape:
     "replay-checkpoint.v1",
     "replay-session.v1",
     "session-config.json.v1",
-    "session-recording.v1",
+    "session-recording.v2",
     "session-request-envelope.json.v1",
     "ssh-session.v1",
     "ssh-sftp-directory-listing.v1",

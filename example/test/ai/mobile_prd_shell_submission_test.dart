@@ -25,8 +25,8 @@ import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_local_terminal_config_repository.dart';
 import '../support/memory_paste_history_repository.dart';
 import '../support/memory_profile_repository.dart';
-import '../support/no_io_local_session_recording_repository.dart';
 import '../support/no_io_local_terminal_layout_repository.dart';
+import '../support/no_io_sampled_recording_library.dart';
 import 'terminal_ai_test.dart' show FakeApi, FakeTerminal, MemoryAiStore;
 
 class _DeferredStore implements AiConfigurationStore {
@@ -158,8 +158,8 @@ class _Fixture {
           localTerminalLayoutRepositoryProvider.overrideWithValue(
             noIoLocalTerminalLayoutRepository(),
           ),
-          localSessionRecordingRepositoryProvider.overrideWithValue(
-            noIoLocalSessionRecordingRepository(),
+          sampledRecordingLibraryProvider.overrideWithValue(
+            noIoSampledRecordingLibrary(),
           ),
         ],
         child: app,
@@ -652,10 +652,10 @@ void main() {
       final save = find.byKey(const Key('ai-save-settings'));
       await tester.ensureVisible(save);
       await tester.tap(save);
-      await _settle(tester);
+      await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('ai-settings-dialog')), findsNothing);
       expect(fixture.store.saved, isNotNull);
+      expect(find.byKey(const Key('ai-settings-dialog')), findsNothing);
       expect(fixture.ai.transcript, isEmpty);
       expect(fixture.ai.draft, 'Retain this unsent request');
       expect(fixture.ai.attachments, [original]);

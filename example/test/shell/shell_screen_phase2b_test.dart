@@ -8,12 +8,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../support/desktop_test_platform.dart';
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_local_terminal_config_repository.dart';
 import '../support/memory_profile_repository.dart';
-import '../support/no_io_local_session_recording_repository.dart';
 import '../support/no_io_local_terminal_layout_repository.dart';
+import '../support/no_io_sampled_recording_library.dart';
 
 Future<void> pumpShellScreen(
   WidgetTester tester, {
@@ -34,8 +35,8 @@ Future<void> pumpShellScreen(
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           noIoLocalTerminalLayoutRepository(),
         ),
-        localSessionRecordingRepositoryProvider.overrideWithValue(
-          noIoLocalSessionRecordingRepository(),
+        sampledRecordingLibraryProvider.overrideWithValue(
+          noIoSampledRecordingLibrary(),
         ),
       ],
       child: MaterialApp(
@@ -82,29 +83,33 @@ Future<void> sendControlShortcut(
 }
 
 void main() {
-  testWidgets('Escape dismisses command palette and restores terminal focus', (
-    tester,
-  ) async {
-    await pumpShellScreen(
-      tester,
-      fakeBindings: FakePtyBackend(),
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
-    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('shell-command-menu-overlay')), findsOneWidget);
-    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('shell-command-menu-overlay')), findsNothing);
-    final viewport = tester.widget<TerminalViewport>(
-      find.byType(TerminalViewport),
-    );
-    expect(viewport.focusNode?.hasFocus, isTrue);
-  });
+  desktopTestWidgets(
+    'Escape dismisses command palette and restores terminal focus',
+    (tester) async {
+      await pumpShellScreen(
+        tester,
+        fakeBindings: FakePtyBackend(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+      await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('shell-command-menu-overlay')),
+        findsOneWidget,
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('shell-command-menu-overlay')), findsNothing);
+      final viewport = tester.widget<TerminalViewport>(
+        find.byType(TerminalViewport),
+      );
+      expect(viewport.focusNode?.hasFocus, isTrue);
+    },
+  );
 
-  testWidgets(
+  desktopTestWidgets(
     'command-shift-p opens the hyper command menu with secondary tools',
     (tester) async {
       await pumpShellScreen(
@@ -153,66 +158,68 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets('command menu groups top actions and sections by purpose', (
-    tester,
-  ) async {
-    await pumpShellScreen(
-      tester,
-      fakeBindings: FakePtyBackend(),
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
+  desktopTestWidgets(
+    'command menu groups top actions and sections by purpose',
+    (tester) async {
+      await pumpShellScreen(
+        tester,
+        fakeBindings: FakePtyBackend(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
 
-    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+      await tester.pumpAndSettle();
 
-    expect(
-      find.byKey(const Key('shell-search-scrollback-top')),
-      findsOneWidget,
-    );
-    expect(find.byKey(const Key('shell-top-paste-clipboard')), findsNothing);
-    expect(find.byKey(const Key('shell-top-new-tab')), findsOneWidget);
-    expect(find.byKey(const Key('shell-split-right')), findsNothing);
-    expect(find.text('Pane actions'), findsNothing);
+      expect(
+        find.byKey(const Key('shell-search-scrollback-top')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('shell-top-paste-clipboard')), findsNothing);
+      expect(find.byKey(const Key('shell-top-new-tab')), findsOneWidget);
+      expect(find.byKey(const Key('shell-split-right')), findsNothing);
+      expect(find.text('Pane actions'), findsNothing);
 
-    final appTop = tester.getTopLeft(find.text('App actions')).dy;
-    final sessionTop = tester.getTopLeft(find.text('Session actions')).dy;
-    final replayTop = tester.getTopLeft(find.text('Replay').first).dy;
-    expect(find.text('Shell tools'), findsNothing);
+      final appTop = tester.getTopLeft(find.text('App actions')).dy;
+      final sessionTop = tester.getTopLeft(find.text('Session actions')).dy;
+      final replayTop = tester.getTopLeft(find.text('Replay').first).dy;
+      expect(find.text('Shell tools'), findsNothing);
 
-    expect(appTop, lessThan(sessionTop));
-    expect(sessionTop, lessThan(replayTop));
-  });
+      expect(appTop, lessThan(sessionTop));
+      expect(sessionTop, lessThan(replayTop));
+    },
+  );
 
-  testWidgets('command menu does not repeat pinned top actions in sections', (
-    tester,
-  ) async {
-    await pumpShellScreen(
-      tester,
-      fakeBindings: FakePtyBackend(),
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
+  desktopTestWidgets(
+    'command menu does not repeat pinned top actions in sections',
+    (tester) async {
+      await pumpShellScreen(
+        tester,
+        fakeBindings: FakePtyBackend(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
 
-    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+      await tester.pumpAndSettle();
 
-    expect(
-      find.byKey(const Key('shell-search-scrollback-top')),
-      findsOneWidget,
-    );
-    expect(find.byKey(const Key('shell-top-paste-clipboard')), findsNothing);
-    expect(find.byKey(const Key('shell-top-new-tab')), findsOneWidget);
-    expect(find.byKey(const Key('shell-split-right')), findsNothing);
+      expect(
+        find.byKey(const Key('shell-search-scrollback-top')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('shell-top-paste-clipboard')), findsNothing);
+      expect(find.byKey(const Key('shell-top-new-tab')), findsOneWidget);
+      expect(find.byKey(const Key('shell-split-right')), findsNothing);
 
-    expect(find.text('Search terminal output'), findsOneWidget);
-    expect(find.byKey(const Key('shell-paste-clipboard')), findsNothing);
-    expect(find.byKey(const Key('shell-new-tab')), findsNothing);
-  });
+      expect(find.text('Search terminal output'), findsOneWidget);
+      expect(find.byKey(const Key('shell-paste-clipboard')), findsNothing);
+      expect(find.byKey(const Key('shell-new-tab')), findsNothing);
+    },
+  );
 
-  testWidgets('command menu hides deferred and tab-context actions', (
+  desktopTestWidgets('command menu hides deferred and tab-context actions', (
     tester,
   ) async {
     await pumpShellScreen(
@@ -240,7 +247,7 @@ void main() {
     }
   });
 
-  testWidgets('launcher close restores terminal viewport focus', (
+  desktopTestWidgets('launcher close restores terminal viewport focus', (
     tester,
   ) async {
     final fakeBindings = FakePtyBackend();
@@ -273,7 +280,7 @@ void main() {
     expect(fakeBindings.writes.last, 'v'.codeUnits);
   });
 
-  testWidgets(
+  desktopTestWidgets(
     'control-shift-p opens the launcher on non-macOS',
     (tester) async {
       await pumpShellScreen(

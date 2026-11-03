@@ -15,13 +15,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../design/visual_capture_fonts.dart';
+import '../support/desktop_test_platform.dart';
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_local_terminal_config_repository.dart';
 import '../support/memory_paste_history_repository.dart';
 import '../support/memory_profile_repository.dart';
-import '../support/no_io_local_session_recording_repository.dart';
 import '../support/no_io_local_terminal_layout_repository.dart';
+import '../support/no_io_sampled_recording_library.dart';
 
 Future<void> pumpShellScreen(
   WidgetTester tester, {
@@ -47,8 +48,8 @@ Future<void> pumpShellScreen(
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           noIoLocalTerminalLayoutRepository(),
         ),
-        localSessionRecordingRepositoryProvider.overrideWithValue(
-          noIoLocalSessionRecordingRepository(),
+        sampledRecordingLibraryProvider.overrideWithValue(
+          noIoSampledRecordingLibrary(),
         ),
         sessionDemoFixtureProvider.overrideWithValue(
           referenceDemoMode ? referenceDemoFixture : null,
@@ -121,7 +122,7 @@ Future<void> openNewShellTab(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets(
+  desktopTestWidgets(
     'tab accessibility actions activate and close the named tab',
     (tester) async {
       final semantics = tester.ensureSemantics();
@@ -179,34 +180,35 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets('shell screen exposes a selected tab in the hyper-style strip', (
-    tester,
-  ) async {
-    await pumpShellScreen(
-      tester,
-      fakeBindings: FakePtyBackend(),
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
+  desktopTestWidgets(
+    'shell screen exposes a selected tab in the hyper-style strip',
+    (tester) async {
+      await pumpShellScreen(
+        tester,
+        fakeBindings: FakePtyBackend(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
 
-    expect(find.byKey(const Key('shell-tab-strip')), findsOneWidget);
-    expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
-    expect(
-      tester.getSemantics(find.bySemanticsIdentifier('shell-tab-1')),
-      matchesSemantics(
-        label: 'Local Shell tab, Command 1',
-        hasSelectedState: true,
-        hasTapAction: true,
-        isButton: true,
-        isSelected: true,
-      ),
-    );
-    expect(find.bySemanticsLabel('New tab'), findsOneWidget);
-    expect(find.bySemanticsLabel('Open command palette'), findsOneWidget);
-  });
+      expect(find.byKey(const Key('shell-tab-strip')), findsOneWidget);
+      expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
+      expect(
+        tester.getSemantics(find.bySemanticsIdentifier('shell-tab-1')),
+        matchesSemantics(
+          label: 'Local Shell tab, Command 1',
+          hasSelectedState: true,
+          hasTapAction: true,
+          isButton: true,
+          isSelected: true,
+        ),
+      );
+      expect(find.bySemanticsLabel('New tab'), findsOneWidget);
+      expect(find.bySemanticsLabel('Open command palette'), findsOneWidget);
+    },
+  );
 
-  testWidgets(
+  desktopTestWidgets(
     'shell screen keeps tab hierarchy clear after opening a second tab',
     (tester) async {
       await pumpShellScreen(
@@ -241,7 +243,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'desktop tabs have equal capped widths with an adjacent new action',
     (tester) async {
       await pumpShellScreen(
@@ -306,7 +308,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets('shell chrome background follows the application theme', (
+  desktopTestWidgets('shell chrome background follows the application theme', (
     tester,
   ) async {
     await pumpShellScreen(
@@ -409,7 +411,7 @@ void main() {
     );
   });
 
-  testWidgets('shell tabs overflow into a selector at readable widths', (
+  desktopTestWidgets('shell tabs overflow into a selector at readable widths', (
     tester,
   ) async {
     await pumpShellScreen(
@@ -443,7 +445,7 @@ void main() {
     expect(find.byKey(const Key('shell-tab-overflow-item-12')), findsOneWidget);
   });
 
-  testWidgets(
+  desktopTestWidgets(
     'shell tabs keep compact overflow controls inside narrow chrome',
     (tester) async {
       tester.view.devicePixelRatio = 1.0;
@@ -487,7 +489,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets('inactive tabs mark and clear new output activity', (
+  desktopTestWidgets('inactive tabs mark and clear new output activity', (
     tester,
   ) async {
     final fakeBindings = FakePtyBackend();
@@ -519,7 +521,7 @@ void main() {
     expect(find.byKey(const Key('shell-tab-new-output-1')), findsNothing);
   });
 
-  testWidgets('active split tab marks new output from inactive panes', (
+  desktopTestWidgets('active split tab marks new output from inactive panes', (
     tester,
   ) async {
     final fakeBindings = FakePtyBackend();
@@ -598,7 +600,7 @@ void main() {
     );
   });
 
-  testWidgets(
+  desktopTestWidgets(
     'focusing one split pane only clears that pane new output marker',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -713,7 +715,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'visible split tab new output prioritizes inactive pane over active marker',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -813,7 +815,7 @@ void main() {
     },
   );
 
-  testWidgets('overflow menu only dots hidden tabs with new output', (
+  desktopTestWidgets('overflow menu only dots hidden tabs with new output', (
     tester,
   ) async {
     final fakeBindings = FakePtyBackend();
@@ -845,7 +847,7 @@ void main() {
     expect(find.byKey(const Key('shell-tab-new-output-11')), findsNothing);
   });
 
-  testWidgets(
+  desktopTestWidgets(
     'shell chrome leaves window drag dispatch to the native macOS event',
     (tester) async {
       const channel = MethodChannel('app/window_bridge');
@@ -892,7 +894,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'shell chrome titlebar uses the default cursor without drag tooltip',
     (tester) async {
       await pumpShellScreen(
@@ -933,7 +935,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'shell screen reorders tabs through a direct drag gesture',
     (tester) async {
       await pumpShellScreen(
@@ -994,7 +996,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'dragging a standalone tab onto a pane creates a split',
     (tester) async {
       await pumpShellScreen(
@@ -1043,7 +1045,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'dragging the active tab previews a sibling target without rebuilding tabs',
     (tester) async {
       await pumpShellScreen(
@@ -1113,7 +1115,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'a quick active tab pane drop disposes its feedback safely',
     (tester) async {
       await pumpShellScreen(
@@ -1152,7 +1154,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'cancelling an active tab pane drag keeps the source tab active',
     (tester) async {
       await pumpShellScreen(
@@ -1201,7 +1203,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'dragging a split pane header to the tab strip restores a tab',
     (tester) async {
       await pumpShellScreen(
@@ -1260,7 +1262,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'dragging a split pane header onto another pane repositions it',
     (tester) async {
       await pumpShellScreen(
@@ -1333,7 +1335,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'shell tab body is draggable with a left title and right hover close',
     (tester) async {
       await pumpShellScreen(
@@ -1391,72 +1393,74 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets('shell screen uses the same dark empty-state language everywhere', (
-    tester,
-  ) async {
-    await pumpShellScreen(
-      tester,
-      fakeBindings: FakePtyBackend(),
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
+  desktopTestWidgets(
+    'shell screen uses the same dark empty-state language everywhere',
+    (tester) async {
+      await pumpShellScreen(
+        tester,
+        fakeBindings: FakePtyBackend(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
 
-    await _hoverShellTab(tester, '1');
-    await tester.tap(find.byTooltip('Close Local Shell'));
-    await tester.pumpAndSettle();
+      await _hoverShellTab(tester, '1');
+      await tester.tap(find.byTooltip('Close Local Shell'));
+      await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('shell-empty-state')), findsOneWidget);
-    expect(find.text('Shell layout is idle'), findsOneWidget);
-    expect(
-      find.text(
-        'The last session has closed. Open a new tab to keep working in the shell layout.',
-      ),
-      findsOneWidget,
-    );
-  });
+      expect(find.byKey(const Key('shell-empty-state')), findsOneWidget);
+      expect(find.text('Shell layout is idle'), findsOneWidget);
+      expect(
+        find.text(
+          'The last session has closed. Open a new tab to keep working in the shell layout.',
+        ),
+        findsOneWidget,
+      );
+    },
+  );
 
-  testWidgets('reference demo mode keeps the middle Shell tab selected', (
-    tester,
-  ) async {
-    await pumpShellScreen(
-      tester,
-      fakeBindings: FakePtyBackend(),
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-      referenceDemoMode: true,
-    );
+  desktopTestWidgets(
+    'reference demo mode keeps the middle Shell tab selected',
+    (tester) async {
+      await pumpShellScreen(
+        tester,
+        fakeBindings: FakePtyBackend(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+        referenceDemoMode: true,
+      );
 
-    final tabStrip = find.byKey(const Key('shell-tab-strip'));
-    expect(
-      find.descendant(of: tabStrip, matching: find.text('⌘1')),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(of: tabStrip, matching: find.text('⌘2')),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(of: tabStrip, matching: find.text('⌘3')),
-      findsOneWidget,
-    );
-    expect(
-      tester.getSemantics(find.bySemanticsIdentifier('shell-tab-demo-2')),
-      matchesSemantics(
-        label: 'Shell tab, Command 2',
-        hasSelectedState: true,
-        isButton: true,
-        isSelected: true,
-      ),
-    );
-    expect(
-      tester.getSemantics(find.bySemanticsIdentifier('shell-tab-demo-1')),
-      matchesSemantics(hasSelectedState: true, isButton: true),
-    );
-  });
+      final tabStrip = find.byKey(const Key('shell-tab-strip'));
+      expect(
+        find.descendant(of: tabStrip, matching: find.text('⌘1')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: tabStrip, matching: find.text('⌘2')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: tabStrip, matching: find.text('⌘3')),
+        findsOneWidget,
+      );
+      expect(
+        tester.getSemantics(find.bySemanticsIdentifier('shell-tab-demo-2')),
+        matchesSemantics(
+          label: 'Shell tab, Command 2',
+          hasSelectedState: true,
+          isButton: true,
+          isSelected: true,
+        ),
+      );
+      expect(
+        tester.getSemantics(find.bySemanticsIdentifier('shell-tab-demo-1')),
+        matchesSemantics(hasSelectedState: true, isButton: true),
+      );
+    },
+  );
 
-  testWidgets(
+  desktopTestWidgets(
     'reference demo mode supports command-number tab selection',
     (tester) async {
       await pumpShellScreen(

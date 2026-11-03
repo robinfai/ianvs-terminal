@@ -15,7 +15,13 @@ import 'package:flutter_secure_storage/test/test_flutter_secure_storage_platform
 import 'package:flutter_secure_storage_platform_interface/flutter_secure_storage_platform_interface.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+class _NetworkBinding extends AutomatedTestWidgetsFlutterBinding {
+  @override
+  bool get overrideHttpClient => false;
+}
+
 void main() {
+  _NetworkBinding();
   late Directory temporaryDirectory;
   late FileDataApiConfigurationRepository repository;
 
@@ -23,12 +29,22 @@ void main() {
     temporaryDirectory = await Directory.systemTemp.createTemp(
       'ianvs-data-api-configuration-',
     );
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('plugins.flutter.io/path_provider'),
+          (call) async => temporaryDirectory.path,
+        );
     repository = FileDataApiConfigurationRepository(
       appSupportDirectory: temporaryDirectory,
     );
   });
 
   tearDown(() async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('plugins.flutter.io/path_provider'),
+          null,
+        );
     if (await temporaryDirectory.exists()) {
       await temporaryDirectory.delete(recursive: true);
     }

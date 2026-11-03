@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "calibrated_at": "2026-09-22",
+  "calibrated_at": "2026-11-03",
   "source_of_truth": "docs/ROADMAP.md",
   "current_target": "runtime-contract-stability",
   "lanes": [
@@ -226,14 +226,12 @@
           ]
         },
         {
-          "path": "example/lib/features/recording/local_session_recording_repository.dart",
+          "path": "example/lib/features/recording/sampled_recording_library.dart",
           "contains": [
-            "class LocalSessionRecordingRepository",
-            "_destinationSidecarBucketCount = 256",
-            "_maximumOrphanDestinationSidecarsPerPass = 32",
-            "ianvs_recordings",
-            "writeStringAtomically",
-            "TerminalRecordingCodec"
+            "class SampledRecordingLibrary",
+            "recordings-v2",
+            "SampledRecordingClaim",
+            "recover"
           ]
         },
         {
@@ -266,23 +264,43 @@
       "evidence": [
         {
           "path": "native/core/src/session/semantic_snapshot.rs",
-          "contains": ["MAX_ROWS", "MAX_BLOCKS", "MAX_BYTES", "owns_column"]
+          "contains": [
+            "MAX_ROWS",
+            "MAX_BLOCKS",
+            "MAX_BYTES",
+            "owns_column"
+          ]
         },
         {
           "path": "packages/ianvs_terminal/lib/src/runtime/terminal_runtime_controller.dart",
-          "contains": ["occurrenceForFrameRow", "semanticSnapshotToken", "_invalidatedSemanticSnapshotTokens"]
+          "contains": [
+            "occurrenceForFrameRow",
+            "semanticSnapshotToken",
+            "_invalidatedSemanticSnapshotTokens"
+          ]
         },
         {
           "path": "packages/ianvs_terminal/lib/src/terminal/command_occurrence.dart",
-          "contains": ["CommandOccurrence", "CommandOutputRetention", "sessionEpoch"]
+          "contains": [
+            "CommandOccurrence",
+            "CommandOutputRetention",
+            "sessionEpoch"
+          ]
         },
         {
           "path": "packages/ianvs_terminal/test/terminal_semantic_target_test.dart",
-          "contains": ["terminalSemanticTargetAt", "fileTarget"]
+          "contains": [
+            "terminalSemanticTargetAt",
+            "fileTarget"
+          ]
         },
         {
           "path": "example/test/shell/terminal_file_actions_test.dart",
-          "contains": ["historical cwd", "unknown nested host", "stale incarnation"]
+          "contains": [
+            "historical cwd",
+            "unknown nested host",
+            "stale incarnation"
+          ]
         },
         {
           "path": "native/core/src/session/command_blocks.rs",
@@ -331,7 +349,11 @@
         },
         {
           "path": "native/completion_core/src/lib.rs",
-          "contains": ["CompletionQuery", "deny_unknown_fields", "local_context"]
+          "contains": [
+            "CompletionQuery",
+            "deny_unknown_fields",
+            "local_context"
+          ]
         },
         {
           "path": "native/core/tests/composer_integration_test.rs",
@@ -342,7 +364,9 @@
         },
         {
           "path": "example/integration_test/composer_acceptance_test.dart",
-          "contains": ["Composer edits locally, accepts candidates, submits and recovers focus"]
+          "contains": [
+            "Composer edits locally, accepts candidates, submits and recovers focus"
+          ]
         },
         {
           "path": "native/core/src/runtime_contract.rs",
@@ -537,7 +561,7 @@
         "The public terminal facade exposes one ordered runtime signal stream and contextual callbacks only.",
         "The complete repository verification entrypoint passes after every cross-boundary slice."
       ],
-      "reason": "The active lane requires one current versioned ABI and Dart contracts, protected by architecture and protocol tests. Predecessor symbols and downgrade routes are unsupported."
+      "reason": "Dedicated protocol expansion is deferred while adaptive recording is implemented. Existing exact-current contracts and verification remain mandatory; this does not claim that all runtime/platform acceptance blockers are closed."
     },
     {
       "id": "frame-pipeline-modularity",
@@ -619,8 +643,8 @@
     },
     {
       "id": "recording-replay-mvp",
-      "status": "achieved",
-      "goal": "Create a deterministic, privacy-explicit session recording event stream and a ReplayBackend compatible with the current runtime boundary.",
+      "status": "deferred",
+      "goal": "Retain historical schema 1 codec and replay helpers as internal code while the product moves to sampled schema 2 recordings.",
       "evidence": [
         {
           "path": "packages/ianvs_terminal/lib/src/recording/terminal_recording.dart",
@@ -638,14 +662,6 @@
             "redacted input never serializes sensitive bytes",
             "reports truncated JSON with a structured error",
             "rejects missing sequence entries and decreasing timestamps"
-          ]
-        },
-        {
-          "path": "docs/recording/FORMAT_CURRENT.md",
-          "contains": [
-            "Terminal Recording Current Format",
-            "Input And Output Privacy",
-            "Single Current Schema"
           ]
         },
         {
@@ -747,15 +763,6 @@
           ]
         },
         {
-          "path": "docs/recording/FORMAT_CURRENT.md",
-          "contains": [
-            "Terminal Recording Current Format",
-            "checkpoint",
-            "32 MiB",
-            "schema_version: 1"
-          ]
-        },
-        {
           "path": "packages/ianvs_terminal/lib/src/recording/terminal_replay_backend.dart",
           "contains": [
             "class TerminalReplaySeekResult",
@@ -816,19 +823,7 @@
         "cd packages/ianvs_terminal && flutter test",
         "make verify"
       ],
-      "exit_criteria": [
-        "Recording metadata and events have an explicit schema version, session id, sequence and monotonic offset.",
-        "Session start, raw PTY output, user input, resize and exit are captured under a documented input privacy policy.",
-        "ReplayBackend implements the current backend abstraction and supports realtime and no-delay playback.",
-        "Realtime replay validates a bounded speed and scales absolute recording offsets without cumulative interval-rounding drift.",
-        "Bounded applied-viewport Frame hash comparison reports the first hash or frame-count divergence without changing current recording schema.",
-        "Current recording checkpoint markers materialize bounded native terminal snapshots only at safe control-sequence boundaries.",
-        "Replay seek restores the latest materialized checkpoint at or before an inclusive target, fast-forwards deterministically and preserves monotonic Runtime Event ordering.",
-        "The current recording schema stores bounded content-addressed graphic assets, rejects corrupt or missing blobs and lets ReplayBackend prefer exact bundled identities before native fallback.",
-        "Repeated fixture playback produces a stable event sequence.",
-        "Truncated, corrupt and unsupported recordings return structured errors.",
-        "The complete repository verification entrypoint passes after live recording and replay are connected."
-      ]
+      "reason": "The schema 1 product path is superseded by adaptive-session-recording. Existing NDJSON is preserved but is not read, migrated or deleted by the application. Internal helper coverage does not establish schema 2 delivery."
     },
     {
       "id": "cross-platform-host-evidence",
@@ -854,7 +849,7 @@
     {
       "id": "remote-plugin-renderer-expansion",
       "status": "deferred",
-      "goal": "Keep plugins, cloud/collaboration and renderer replacement outside the active runtime-contract lane and current terminal product surface.",
+      "goal": "Keep plugins, cloud/collaboration and renderer replacement outside the active recording lane and current terminal product surface.",
       "evidence": [
         {
           "path": "docs/KNOWN_ISSUES.md",
@@ -866,6 +861,331 @@
       ],
       "verification_commands": [],
       "reason": "SSH is delivered through the existing Profile/Session and tab/pane model; project/remote Workspace, plugin infrastructure, cloud collaboration and renderer replacement remain outside the current terminal product."
+    },
+    {
+      "id": "adaptive-session-recording",
+      "status": "deferred",
+      "goal": "Deliver manually started per-session adaptive structured screen recordings with independent hook timelines, bounded durable storage, cross-recording search, protected retention and user-approved two-hour real-duration acceptance.",
+      "evidence": [
+        {
+          "path": "docs/tasks/adaptive-session-recording.md",
+          "contains": [
+            "Scheme validation",
+            "Capture and replay",
+            "Library and search",
+            "Long-running acceptance"
+          ]
+        },
+        {
+          "path": "native/core/src/recording/sampler.rs",
+          "contains": [
+            "pub struct AdaptiveSampler",
+            "pub fn observe_semantic"
+          ]
+        },
+        {
+          "path": "native/core/tests/sampled_recording_test.rs",
+          "contains": [
+            "unsampled_deltas_are_included_in_the_next_stored_frame",
+            "sampled_scrolling_matches_snapshots_after_eight_thousand_line_eviction"
+          ]
+        },
+        {
+          "path": "native/core/src/session/sampled_recording.rs",
+          "contains": [
+            "pub fn start_sampled_recording",
+            "observe_sampled_hook"
+          ]
+        },
+        {
+          "path": "native/core/src/recording/storage.rs",
+          "contains": [
+            "pub struct ContainerWriter",
+            "pub struct ContainerReader"
+          ]
+        },
+        {
+          "path": "native/core/src/recording/index.rs",
+          "contains": [
+            "pub struct RecordingIndex",
+            "pub fn rebuild"
+          ]
+        },
+        {
+          "path": "native/core/tests/sampled_recording_session_test.rs",
+          "contains": [
+            "hidden_session_keeps_recording_without_consuming_ui_damage",
+            "real_pty_hook_bytes_reach_timeline_without_ui_event_polling"
+          ]
+        },
+        {
+          "path": "native/core/tests/sampled_recording_storage_test.rs",
+          "contains": [
+            "abrupt_process_kill_preserves_synced_records_as_interrupted",
+            "disk_index_cold_seek_matches_sequential_replay_during_dense_hook_bursts"
+          ]
+        },
+        {
+          "path": "docs/recording/FORMAT_CURRENT.md",
+          "contains": [
+            "schema 2",
+            ".trailrec",
+            "recordings-v2",
+            "session-recording.v2"
+          ]
+        },
+        {
+          "path": "native/core/src/recording/file_service.rs",
+          "contains": [
+            "pub fn",
+            "timeline",
+            "metadata"
+          ]
+        },
+        {
+          "path": "example/lib/features/recording/sampled_recording_library.dart",
+          "contains": [
+            "class SampledRecordingLibrary",
+            "activeClaims",
+            "applyRetention"
+          ]
+        },
+        {
+          "path": "example/lib/features/recording/sampled_recording_player.dart",
+          "contains": [
+            "class SampledRecordingPlayer",
+            "SampledReplayController"
+          ]
+        },
+        {
+          "path": "example/lib/features/recording/sampled_replay_controller.dart",
+          "contains": [
+            "class SampledReplayController",
+            "RecordingFileCancellation"
+          ]
+        },
+        {
+          "path": "example/test/recording/sampled_native_roundtrip_test.dart",
+          "contains": [
+            "SampledRecordingLibrary",
+            "SampledRecordingCaptureClient"
+          ]
+        },
+        {
+          "path": "native/core/src/recording/cache.rs",
+          "contains": [
+            "struct IncrementalIndexes",
+            "fn load_report",
+            "fn publish_report"
+          ]
+        },
+        {
+          "path": "native/core/tests/sampled_recording_file_service_test.rs",
+          "contains": [
+            "committed_interrupted_prefix_opens_fast_and_later_growth_forces_recovery",
+            "same_size_source_corruption_with_restored_mtime_invalidates_local_cache"
+          ]
+        },
+        {
+          "path": "native/core/tests/sampled_recording_search_test.rs",
+          "contains": [
+            "#[test]"
+          ]
+        },
+        {
+          "path": "example/lib/features/recording/sampled_recording_search_controller.dart",
+          "contains": [
+            "class RecordingSearchController",
+            "pageSize = 50"
+          ]
+        },
+        {
+          "path": "example/test/shell/shell_recording_library_test.dart",
+          "contains": [
+            "search hits seek to their time"
+          ]
+        },
+        {
+          "path": "example/lib/features/recording/recording_retention_policy.dart",
+          "contains": [
+            "class RecordingRetentionPolicy",
+            "maximum_age_days",
+            "maximum_bytes"
+          ]
+        },
+        {
+          "path": "example/lib/features/recording/recording_retention_maintenance.dart",
+          "contains": [
+            "class RecordingRetentionMaintenance",
+            "Future<void> stop()"
+          ]
+        },
+        {
+          "path": "example/test/shell/shell_recording_management_test.dart",
+          "contains": [
+            "Keep can change during replay",
+            "shutdown waits for pending periodic cleanup"
+          ]
+        },
+        {
+          "path": "native/core/tests/sampled_recording_file_service_test.rs",
+          "contains": [
+            "library_directory_sync_is_strict_and_never_treats_other_file_types_as_durable"
+          ]
+        },
+        {
+          "path": "example/test/sessions/recording_file_shutdown_test.dart",
+          "contains": [
+            "application persistence before closing workers"
+          ]
+        },
+        {
+          "path": "native/core/src/recording/bundle_copy.rs",
+          "contains": [
+            "CopyRequest",
+            "PublishRequest",
+            "copy_bundle",
+            "publish_bundle"
+          ]
+        },
+        {
+          "path": "example/lib/features/recording/sampled_recording_library_import.dart",
+          "contains": [
+            "_importRecording",
+            "_cleanImport",
+            "publishBundle"
+          ]
+        },
+        {
+          "path": "example/test/shell/shell_recording_import_test.dart",
+          "contains": [
+            "external picker copies and replays without PTY side effects"
+          ]
+        },
+        {
+          "path": "example/integration_test/sampled_recording_acceptance_test.dart",
+          "contains": [
+            "command tap seeks to its exact time",
+            "dark theme applied",
+            "TUI image must remain after deleting live image data"
+          ]
+        },
+        {
+          "path": "example/test/recording/installed_shell_recording_test.dart",
+          "contains": [
+            "hooks survive sampled recording and replay exactly",
+            "Shell is not installed on this host"
+          ]
+        },
+        {
+          "path": "example/integration_test/sampled_recording_soak_test.dart",
+          "contains": [
+            "real-duration full-application recording soak",
+            "qualifies_long_duration",
+            "maximum_heartbeat_gap_micros",
+            "process_kill_recovery",
+            "cross_recording_nested_host_search",
+            "reopen_only"
+          ]
+        },
+        {
+          "path": "tools/ssh_boundary_lab/recording_soak.py",
+          "contains": [
+            "--probe",
+            "source_sha256",
+            "fixture_cleanup_complete",
+            "--crash-probe",
+            "primary_files_unchanged"
+          ]
+        },
+        {
+          "path": "native/core/src/pty.rs",
+          "contains": [
+            "__ianvs_hostname"
+          ]
+        },
+        {
+          "path": "native/core/examples/sampled_recording_durability_probe.rs",
+          "contains": [
+            "BackgroundWriter",
+            "screen_and_asset_verified=true"
+          ]
+        },
+        {
+          "path": "tools/recording_bench/filesystem-acceptance.py",
+          "contains": [
+            "ENOSPC",
+            "recovery_attach"
+          ]
+        },
+        {
+          "path": "docs/recording/DURABILITY_ACCEPTANCE.md",
+          "contains": [
+            "Guest-system case",
+            "Linux/ext4",
+            "power-loss"
+          ]
+        },
+        {
+          "path": "example/integration_test/sampled_recording_failure_test.dart",
+          "contains": [
+            "real APFS full is visible",
+            "Retry saving recording",
+            "keyboard input remains live while disk is full"
+          ]
+        },
+        {
+          "path": "example/integration_test/sampled_recording_retention_test.dart",
+          "contains": [
+            "retention UI protects kept, playing and active recordings",
+            "protected budget rejects new recording",
+            "terminal still usable"
+          ]
+        },
+        {
+          "path": "tools/recording_bench/review-soak.py",
+          "contains": [
+            "duration_and_continuity_verified",
+            "continuous_metrics_cover_run",
+            "metrics_match_application_and_files",
+            "--require-duration"
+          ]
+        },
+        {
+          "path": "docs/recording/ACCEPTANCE_RESULT.md",
+          "contains": [
+            "Requirement audit",
+            "External test interference reproduced and removed",
+            "6c232b9b"
+          ]
+        }
+      ],
+      "verification_commands": [
+        "cd example && flutter test -d macos integration_test/sampled_recording_retention_test.dart",
+        "cd example && flutter test -d macos integration_test/sampled_recording_failure_test.dart",
+        "cargo test --manifest-path native/core/Cargo.toml --test sampled_recording_test --test sampled_recording_storage_test --test sampled_recording_timeline_test --test sampled_recording_session_test",
+        "flutter test example/test/sessions/session_recording_lifecycle_test.dart example/test/recording/sampled_native_roundtrip_test.dart example/test/sampled_recording_library_test.dart example/test/sampled_replay_controller_test.dart example/test/sampled_replay_surface_test.dart",
+        "flutter test example/test/recording/installed_shell_recording_test.dart",
+        "cd example && flutter test -d macos integration_test/sampled_recording_acceptance_test.dart",
+        "flutter test example/test/sampled_recording_import_test.dart example/test/shell/shell_recording_import_test.dart example/test/recording/sampled_native_roundtrip_test.dart",
+        "flutter test example/test/recording_retention_maintenance_test.dart example/test/recording_retention_surface_test.dart example/test/shell/shell_recording_management_test.dart",
+        "flutter test example/test/sampled_recording_library_test.dart example/test/sessions/recording_file_shutdown_test.dart",
+        "dart test test/docs_contract_test.dart",
+        "python3 tools/ssh_boundary_lab/recording_soak.py --probe --seconds 7200 --output build/recording_bench/adaptive/soak-2h-new",
+        "python3 tools/ssh_boundary_lab/recording_soak.py --probe --crash-probe --seconds 120 --output build/recording_bench/adaptive/crash-probe-new",
+        "make verify",
+        "python3 -B tools/tests/test_recording_resource_review.py",
+        "python3 -B tools/tests/test_recording_soak_interference.py"
+      ],
+      "exit_criteria": [
+        "All four delivery batches in docs/tasks/adaptive-session-recording.md are implemented and verified.",
+        "Actual macOS local/SSH capture, restart/replay, command navigation, cross-recording search and protected retention work in the product UI.",
+        "The user revised duration acceptance on 2026-09-27 to approximately two actual hours with bounded memory and the validated ten-second recovery target; logical-time tests alone do not satisfy it. Do not claim 24-hour stability.",
+        "Old NDJSON is not replayed, migrated, modified or deleted by the new library.",
+        "Full repository verification and generated package mirrors pass on the final implementation."
+      ],
+      "reason": "Historical branch delivery is being integrated with current main; fresh combined validation is required.",
+      "delivery_status": "accepted_2026-09-27"
     }
   ]
 }

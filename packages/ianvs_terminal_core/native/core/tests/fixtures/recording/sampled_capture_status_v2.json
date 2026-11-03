@@ -1,0 +1,13 @@
+{
+  "ok": true,
+  "schema_version": 2,
+  "capture_id": "abcdef0123456789abcdef0123456789",
+  "bundle_path": "/tmp/abcdef0123456789abcdef0123456789.trailrec",
+  "session_id": "42",
+  "phase": "starting",
+  "settled": false,
+  "stop_requested": false,
+  "written": {"record_count": 0, "visual_count": 0, "semantic_count": 0, "duration_micros": 0},
+  "committed": {"record_count": 0, "visual_count": 0, "semantic_count": 0, "duration_micros": 0},
+  "error": null
+}

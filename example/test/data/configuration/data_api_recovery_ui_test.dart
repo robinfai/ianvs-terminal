@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:app/data/configuration/data_api_configuration.dart';
 import 'package:app/data/configuration/data_api_configuration_providers.dart';
 import 'package:app/data/configuration/data_api_configuration_repository.dart';
+import 'package:app/data/configuration/oauth_sign_in_panel.dart';
 import 'package:app/data/services/data_api_client.dart';
 import 'package:app/data/services/data_api_remote_session_store.dart';
 import 'package:app/data/services/data_api_runtime.dart';
@@ -10,7 +11,6 @@ import 'package:app/data/sync/local_first_sync.dart';
 import 'package:app/data/sync/sync_repositories.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/profiles/profile_repository.dart';
-import 'package:app/features/recording/local_session_recording_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/persistence_repository_composition.dart';
@@ -23,6 +23,7 @@ import '../../support/fake_pty_backend.dart';
 import '../../support/memory_app_preferences_repository.dart';
 import '../../support/memory_local_terminal_config_repository.dart';
 import '../../support/memory_paste_history_repository.dart';
+import '../../support/no_io_sampled_recording_library.dart';
 import '../support/memory_data_api_resource_client.dart';
 
 void main() {
@@ -43,8 +44,8 @@ void main() {
           ProviderScope(
             overrides: [
               ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
-              localSessionRecordingRepositoryProvider.overrideWithValue(
-                _NoopRecordingRepository(),
+              sampledRecordingLibraryProvider.overrideWithValue(
+                noIoSampledRecordingLibrary(),
               ),
               profileRepositoryProvider.overrideWithValue(
                 const _UnavailableProfileRepository(),
@@ -131,8 +132,8 @@ void main() {
         ProviderScope(
           overrides: [
             ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
-            localSessionRecordingRepositoryProvider.overrideWithValue(
-              _NoopRecordingRepository(),
+            sampledRecordingLibraryProvider.overrideWithValue(
+              noIoSampledRecordingLibrary(),
             ),
             profileRepositoryProvider.overrideWithValue(
               const _UnavailableProfileRepository(),
@@ -189,16 +190,15 @@ void main() {
       await tester.ensureVisible(find.byKey(const Key('data-api-sign-out')));
       await tester.tap(find.byKey(const Key('data-api-sign-out')));
       await tester.pumpAndSettle();
-      await tester.enterText(
-        find.byKey(const Key('data-api-remote-username')),
-        'alice',
+      final panel = tester.widget<OAuthSignInPanel>(
+        find.byType(OAuthSignInPanel),
       );
-      await tester.enterText(
-        find.byKey(const Key('data-api-remote-password')),
-        'new-password',
+      await panel.onAuthenticated!(
+        DataApiRemoteLoginRequest.apple(
+          baseUri: baseUri,
+          encryptionKey: 'encryption-key-material',
+        ),
       );
-      await tester.pump();
-      await tester.tap(find.byKey(const Key('defaults-save')));
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('data-api-account-status')), findsOneWidget);
@@ -242,8 +242,8 @@ void main() {
         ProviderScope(
           overrides: [
             ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
-            localSessionRecordingRepositoryProvider.overrideWithValue(
-              _NoopRecordingRepository(),
+            sampledRecordingLibraryProvider.overrideWithValue(
+              noIoSampledRecordingLibrary(),
             ),
             profileRepositoryProvider.overrideWithValue(
               const _UnavailableProfileRepository(),
@@ -341,8 +341,8 @@ void main() {
         ProviderScope(
           overrides: [
             ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
-            localSessionRecordingRepositoryProvider.overrideWithValue(
-              _NoopRecordingRepository(),
+            sampledRecordingLibraryProvider.overrideWithValue(
+              noIoSampledRecordingLibrary(),
             ),
             profileRepositoryProvider.overrideWithValue(
               const _UnavailableProfileRepository(),
@@ -426,8 +426,8 @@ void main() {
         ProviderScope(
           overrides: [
             ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
-            localSessionRecordingRepositoryProvider.overrideWithValue(
-              _NoopRecordingRepository(),
+            sampledRecordingLibraryProvider.overrideWithValue(
+              noIoSampledRecordingLibrary(),
             ),
             profileRepositoryProvider.overrideWithValue(
               const _UnavailableProfileRepository(),
@@ -500,8 +500,8 @@ void main() {
       ProviderScope(
         overrides: [
           ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
-          localSessionRecordingRepositoryProvider.overrideWithValue(
-            _NoopRecordingRepository(),
+          sampledRecordingLibraryProvider.overrideWithValue(
+            noIoSampledRecordingLibrary(),
           ),
           profileRepositoryProvider.overrideWithValue(
             const _UnavailableProfileRepository(),
@@ -550,8 +550,8 @@ void main() {
         ProviderScope(
           overrides: [
             ptySessionBackendProvider.overrideWithValue(FakePtyBackend()),
-            localSessionRecordingRepositoryProvider.overrideWithValue(
-              _NoopRecordingRepository(),
+            sampledRecordingLibraryProvider.overrideWithValue(
+              noIoSampledRecordingLibrary(),
             ),
             profileRepositoryProvider.overrideWithValue(
               const _UnavailableProfileRepository(),
@@ -634,21 +634,6 @@ final class _UnavailableProfileRepository extends ProfileRepositoryPort {
   @override
   Future<void> save(TerminalProfilesDocument document) async {
     throw StateError('Profile repository is unavailable in this test.');
-  }
-}
-
-final class _NoopRecordingRepository extends LocalSessionRecordingRepository {
-  _NoopRecordingRepository()
-    : super(directoryResolver: () async => Directory.systemTemp);
-
-  @override
-  Future<LocalSessionRecordingRecoveryResult> recoverNativeRecordings() async {
-    return const LocalSessionRecordingRecoveryResult(
-      recoveredPaths: <String>[],
-      pendingJobIds: <String>[],
-      orphanPaths: <String>[],
-      failures: <LocalSessionRecordingRecoveryFailure>[],
-    );
   }
 }
 

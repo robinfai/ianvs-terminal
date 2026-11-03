@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:app/data/configuration/data_api_configuration.dart';
 import 'package:app/data/configuration/data_api_configuration_repository.dart';
+import 'package:app/data/configuration/oauth_sign_in_panel.dart';
 import 'package:app/data/services/portable_master_key.dart';
 import 'package:app/features/ai/ai_models.dart';
 import 'package:app/features/ai/ai_settings.dart';
@@ -84,15 +85,17 @@ void main() {
           accountManager: manager,
         );
         final method = find.byKey(const Key('data-api-auth-method'));
-        if (platform != TargetPlatform.iOS) {
-          await tester.ensureVisible(method);
-          await tester.tap(method);
-          await tester.pumpAndSettle();
-          await tester.tap(find.text('Sign in with Apple').last);
-          await tester.pumpAndSettle();
-        }
-        await tester.ensureVisible(find.byType(SignInWithAppleButton));
-        await tester.tap(find.byType(SignInWithAppleButton));
+        // The OAuth panel owns identity acquisition; exercise the settings
+        // handoff with the resulting ephemeral request rather than native UI.
+        final panel = tester.widget<OAuthSignInPanel>(
+          find.byType(OAuthSignInPanel),
+        );
+        await panel.onAuthenticated!(
+          DataApiRemoteLoginRequest.apple(
+            baseUri: Uri.parse('https://example.test'),
+            encryptionKey: 'encryption-key-material',
+          ),
+        );
         await tester.pumpAndSettle();
         expect(manager.lastRequest?.useApple, isTrue);
         expect(
@@ -125,25 +128,11 @@ void main() {
         await tester.tap(logout);
         await tester.pumpAndSettle();
         expect(manager.account, isNull);
-        expect(method, findsOneWidget);
+        expect(method, findsNothing);
         expect(find.byKey(const Key('data-api-account-status')), findsNothing);
-        if (platform == TargetPlatform.iOS) {
-          expect(
-            find.byKey(const Key('data-api-remote-password')),
-            findsNothing,
-          );
-          expect(find.byType(SignInWithAppleButton), findsOneWidget);
-        } else {
-          expect(
-            tester
-                .widget<TextField>(
-                  find.byKey(const Key('data-api-remote-password')),
-                )
-                .controller!
-                .text,
-            isEmpty,
-          );
-        }
+        expect(find.byKey(const Key('data-api-remote-password')), findsNothing);
+        expect(find.byType(OAuthSignInPanel), findsOneWidget);
+        expect(find.byType(SignInWithAppleButton), findsOneWidget);
         expect(tester.takeException(), isNull);
       },
       variant: TargetPlatformVariant.only(platform),
@@ -151,7 +140,7 @@ void main() {
   }
 
   testWidgets(
-    'Apple mode hides password fields and linking requires historical credentials',
+    'OAuth starts with provider choices before exposing account linking credentials',
     (tester) async {
       await _pumpDefaultsDialog(
         tester,
@@ -162,46 +151,12 @@ void main() {
           'https://example.test',
         ),
       );
-      final method = find.byKey(const Key('data-api-auth-method'));
-      await tester.ensureVisible(method);
-      await tester.tap(method);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Sign in with Apple').last);
-      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('data-api-auth-method')), findsNothing);
       expect(find.byKey(const Key('data-api-remote-password')), findsNothing);
-      expect(
-        tester
-            .widget<SignInWithAppleButton>(find.byType(SignInWithAppleButton))
-            .onPressed,
-        isNotNull,
-      );
-      await tester.ensureVisible(method);
-      await tester.tap(method);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Link Apple to an existing account').last);
-      await tester.pumpAndSettle();
-      expect(find.byKey(const Key('data-api-remote-password')), findsOneWidget);
-      expect(
-        tester
-            .widget<SignInWithAppleButton>(find.byType(SignInWithAppleButton))
-            .onPressed,
-        isNull,
-      );
-      await tester.enterText(
-        find.byKey(const Key('data-api-remote-username')),
-        'historical',
-      );
-      await tester.enterText(
-        find.byKey(const Key('data-api-remote-password')),
-        'historical-password',
-      );
-      await tester.pump();
-      expect(
-        tester
-            .widget<SignInWithAppleButton>(find.byType(SignInWithAppleButton))
-            .onPressed,
-        isNotNull,
-      );
+      expect(find.byType(OAuthSignInPanel), findsOneWidget);
+      expect(find.byType(SignInWithAppleButton), findsOneWidget);
+      expect(find.text('Sign in with Google'), findsOneWidget);
+      expect(find.text('Link with username and password'), findsNothing);
       expect(tester.takeException(), isNull);
     },
     variant: const TargetPlatformVariant({
@@ -262,7 +217,10 @@ void main() {
       onSelection: (_) {},
     );
     expect(find.byKey(const Key('defaults-ai-settings')), findsOneWidget);
-    expect(find.byKey(const Key('defaults-ai-connection-status')), findsNothing);
+    expect(
+      find.byKey(const Key('defaults-ai-connection-status')),
+      findsNothing,
+    );
     store.pending.completeError(StateError('unreadable fixture'));
     await tester.pumpAndSettle();
     expect(

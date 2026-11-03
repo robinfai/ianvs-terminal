@@ -20,7 +20,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Select affected checks
+    runs-on: ubuntu-24.04
+    outputs:
+      flutter: ${{ steps.paths.outputs.flutter }}
+      native: ${{ steps.paths.outputs.native }}
+      backend: ${{ steps.paths.outputs.backend }}
+      macos: ${{ steps.paths.outputs.macos }}
+      ios: ${{ steps.paths.outputs.ios }}
+    steps:
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: paths
+        run: python3 tools/ci/changed_jobs.py
+
   ssh-openssh:
+    needs: changes
+    if: needs.changes.outputs.native == 'true'
     name: Rust SSH authentication, jumps, and forwarding
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -38,6 +57,8 @@ jobs:
         run: ./tools/ssh_e2e/run.sh
 
   zmodem-openssh:
+    needs: changes
+    if: needs.changes.outputs.native == 'true'
     name: ZMODEM OpenSSH round trip (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
@@ -103,6 +124,8 @@ jobs:
               --ignored --exact "$test_name" --nocapture
 
   zmodem-unsupported-platform:
+    needs: changes
+    if: needs.changes.outputs.native == 'true'
     name: ZMODEM fail closed (Windows)
     runs-on: windows-latest
     timeout-minutes: 20
@@ -132,6 +155,8 @@ jobs:
             "$test_name" -- --exact
 
   backend-mysql-contract:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     name: Go API and store contracts (MySQL)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -153,7 +178,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
       - name: Set up Go
-        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: "1.23.x"
           cache-dependency-path: backend/go.sum
@@ -182,7 +207,7 @@ jobs:
         uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4.3.0
 
       - name: Set up Go
-        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: "1.23.x"
           cache-dependency-path: backend/go.sum
@@ -389,7 +414,7 @@ jobs:
       - name: Validate CI policy
         run: python3 -m unittest discover -s tools/ci -p 'test_*.py'
       - name: Set up Go
-        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: "1.23.x"
           cache-dependency-path: backend/go.sum
@@ -431,6 +456,8 @@ jobs:
           test "$EXAMPLE_RESULT" = success
 
   macos-app:
+    needs: changes
+    if: needs.changes.outputs.macos == 'true'
     name: macOS app integration and release (macos-26)
     runs-on: macos-26
     timeout-minutes: 60
@@ -452,7 +479,7 @@ jobs:
 
       - name: Set up Go
         if: steps.scope.outputs.run == 'true'
-        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: "1.23.x"
           cache-dependency-path: backend/go.sum
@@ -510,6 +537,8 @@ jobs:
           retention-days: 7
 
   ios-terminal:
+    needs: changes
+    if: needs.changes.outputs.ios == 'true'
     name: iOS simulator and device (macos-26)
     runs-on: macos-26
     timeout-minutes: 60

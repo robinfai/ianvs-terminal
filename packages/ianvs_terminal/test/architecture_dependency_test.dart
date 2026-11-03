@@ -427,6 +427,7 @@ import '../transport/wire.dart';
     () {
       const compositionAllowlist = <String>{
         'src/runtime/terminal_frame_transport_coordinator.dart',
+        'src/runtime/sampled_recording_file.dart',
       };
       final violations = _wireBoundaryViolations(
         graph,

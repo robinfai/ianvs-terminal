@@ -31,12 +31,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
 
 import 'data/support/memory_data_api_resource_client.dart';
+import 'support/desktop_test_platform.dart';
 import 'support/fake_pty_backend.dart';
 import 'support/memory_app_preferences_repository.dart';
 import 'support/memory_local_terminal_config_repository.dart';
 import 'support/memory_profile_repository.dart';
-import 'support/no_io_local_session_recording_repository.dart';
 import 'support/no_io_local_terminal_layout_repository.dart';
+import 'support/no_io_sampled_recording_library.dart';
 
 class _EventfulPtyBackend extends FakePtyBackend {
   final Map<String, List<PtyEvent>> _queuedEvents = <String, List<PtyEvent>>{};
@@ -256,8 +257,8 @@ Future<void> _pumpShellScreen(
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           noIoLocalTerminalLayoutRepository(),
         ),
-        localSessionRecordingRepositoryProvider.overrideWithValue(
-          noIoLocalSessionRecordingRepository(),
+        sampledRecordingLibraryProvider.overrideWithValue(
+          noIoSampledRecordingLibrary(),
         ),
         if (notificationSender != null)
           shellNotificationSenderProvider.overrideWithValue(notificationSender),
@@ -531,121 +532,126 @@ Future<void> _closePaneViaMenu(WidgetTester tester, String sessionId) async {
 }
 
 void main() {
-  testWidgets('split headers omit protocol modes without disabling them', (
-    tester,
-  ) async {
-    final backend = FakePtyBackend();
-    await _pumpShellScreen(
-      tester,
-      bindings: backend,
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ShellScreen)),
-    );
-    container
-        .read(sessionControllerProvider.notifier)
-        .splitSession(
-          '1',
-          defaultTerminalProfile(),
-          TerminalSplitAxis.horizontal,
-        );
-    await tester.pumpAndSettle();
-    backend.setFrame('1', {
-      ..._terminalFrameWithTitle('Running program'),
-      'modes': {
-        'alternate_screen': true,
-        'mouse_mode': 'normal',
-        'mouse_encoding': 'sgr',
-        'bracketed_paste': true,
-        'mime_paste': true,
-        'focus_tracking': true,
-        'kitty_keyboard_flags': 31,
-        'synchronized_output': false,
-      },
-    });
-    container.read(terminalRuntimeControllerProvider).refreshSession('1');
-    await tester.pump();
-    final viewport = tester.widget<TerminalViewport>(
-      find.descendant(
-        of: find.byKey(const Key('shell-pane-1')),
-        matching: find.byType(TerminalViewport),
-      ),
-    );
-    expect(viewport.controller.frame.modes.bracketedPaste, isTrue);
-    expect(viewport.controller.frame.modes.mouseMode, 'normal');
-    for (final kind in [
-      'alt',
-      'mouse',
-      'paste',
-      'mime-paste',
-      'focus',
-      'kitty-keyboard',
-      'sync',
-    ]) {
-      expect(
-        find.byKey(Key('shell-pane-header-indicator-$kind-1')),
-        findsNothing,
+  desktopTestWidgets(
+    'split headers omit protocol modes without disabling them',
+    (tester) async {
+      final backend = FakePtyBackend();
+      await _pumpShellScreen(
+        tester,
+        bindings: backend,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
       );
-    }
-    expect(find.byKey(const Key('shell-pane-dim-1')), findsOneWidget);
-    expect(find.byKey(const Key('shell-pane-header-number-1')), findsOneWidget);
-    expect(
-      tester
-          .widget<Text>(find.byKey(const Key('shell-pane-header-title-1')))
-          .data,
-      'Running program',
-    );
-    expect(find.byKey(const Key('shell-tab-pane-count-1')), findsOneWidget);
-  });
-
-  testWidgets('pane menu keeps its target when the active pane changes', (
-    tester,
-  ) async {
-    final backend = FakePtyBackend();
-    await _pumpShellScreen(
-      tester,
-      bindings: backend,
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ShellScreen)),
-    );
-    final controller = container.read(sessionControllerProvider.notifier);
-    controller.splitSession(
-      '1',
-      defaultTerminalProfile(),
-      TerminalSplitAxis.horizontal,
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('shell-pane-action-more-1')));
-    await tester.pumpAndSettle();
-    controller.activateSession('2');
-    await tester.pump();
-    await tester.ensureVisible(
-      find.byKey(const Key('shell-pane-menu-closePane-1')),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('shell-pane-menu-closePane-1')));
-    await tester.pumpAndSettle();
-    expect(backend.closedSessionIds, ['1']);
-    expect(
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
       container
-          .read(sessionControllerProvider)
-          .tabs
-          .single
-          .effectivePanes
-          .single
-          .sessionId,
-      '2',
-    );
-  });
+          .read(sessionControllerProvider.notifier)
+          .splitSession(
+            '1',
+            defaultTerminalProfile(),
+            TerminalSplitAxis.horizontal,
+          );
+      await tester.pumpAndSettle();
+      backend.setFrame('1', {
+        ..._terminalFrameWithTitle('Running program'),
+        'modes': {
+          'alternate_screen': true,
+          'mouse_mode': 'normal',
+          'mouse_encoding': 'sgr',
+          'bracketed_paste': true,
+          'mime_paste': true,
+          'focus_tracking': true,
+          'kitty_keyboard_flags': 31,
+          'synchronized_output': false,
+        },
+      });
+      container.read(terminalRuntimeControllerProvider).refreshSession('1');
+      await tester.pump();
+      final viewport = tester.widget<TerminalViewport>(
+        find.descendant(
+          of: find.byKey(const Key('shell-pane-1')),
+          matching: find.byType(TerminalViewport),
+        ),
+      );
+      expect(viewport.controller.frame.modes.bracketedPaste, isTrue);
+      expect(viewport.controller.frame.modes.mouseMode, 'normal');
+      for (final kind in [
+        'alt',
+        'mouse',
+        'paste',
+        'mime-paste',
+        'focus',
+        'kitty-keyboard',
+        'sync',
+      ]) {
+        expect(
+          find.byKey(Key('shell-pane-header-indicator-$kind-1')),
+          findsNothing,
+        );
+      }
+      expect(find.byKey(const Key('shell-pane-dim-1')), findsOneWidget);
+      expect(
+        find.byKey(const Key('shell-pane-header-number-1')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .widget<Text>(find.byKey(const Key('shell-pane-header-title-1')))
+            .data,
+        'Running program',
+      );
+      expect(find.byKey(const Key('shell-tab-pane-count-1')), findsOneWidget);
+    },
+  );
 
-  testWidgets(
+  desktopTestWidgets(
+    'pane menu keeps its target when the active pane changes',
+    (tester) async {
+      final backend = FakePtyBackend();
+      await _pumpShellScreen(
+        tester,
+        bindings: backend,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final controller = container.read(sessionControllerProvider.notifier);
+      controller.splitSession(
+        '1',
+        defaultTerminalProfile(),
+        TerminalSplitAxis.horizontal,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('shell-pane-action-more-1')));
+      await tester.pumpAndSettle();
+      controller.activateSession('2');
+      await tester.pump();
+      await tester.ensureVisible(
+        find.byKey(const Key('shell-pane-menu-closePane-1')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('shell-pane-menu-closePane-1')));
+      await tester.pumpAndSettle();
+      expect(backend.closedSessionIds, ['1']);
+      expect(
+        container
+            .read(sessionControllerProvider)
+            .tabs
+            .single
+            .effectivePanes
+            .single
+            .sessionId,
+        '2',
+      );
+    },
+  );
+
+  desktopTestWidgets(
     'narrow pane keeps split and zoom accessible through more',
     (tester) async {
       tester.view.devicePixelRatio = 1;
@@ -694,7 +700,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets('shell startup waits silently for bootstrap content', (
+  desktopTestWidgets('shell startup waits silently for bootstrap content', (
     tester,
   ) async {
     final ready = Completer<void>();
@@ -719,7 +725,9 @@ void main() {
     expect(find.byType(TerminalViewport), findsOneWidget);
   });
 
-  testWidgets('shell startup failure presents a retry action', (tester) async {
+  desktopTestWidgets('shell startup failure presents a retry action', (
+    tester,
+  ) async {
     final repository = _FailingOnceProfileRepository(
       TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
     );
@@ -749,7 +757,7 @@ void main() {
     expect(repository.loadAttempts, 2);
   });
 
-  testWidgets(
+  desktopTestWidgets(
     'remote startup failure can explicitly switch to the last local snapshot',
     (tester) async {
       final remoteBaseUri = Uri.parse('https://sync.example.com/');
@@ -821,7 +829,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'shell startup can explicitly repair a noncanonical current config',
     (tester) async {
       final client = MemoryDataApiResourceClient();
@@ -879,50 +887,52 @@ void main() {
     },
   );
 
-  testWidgets('shell screen keeps line timestamp overlays hidden by default', (
-    tester,
-  ) async {
-    await _pumpShellScreen(
-      tester,
-      bindings: FakePtyBackend(),
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
-    await tester.pump(const Duration(milliseconds: 40));
+  desktopTestWidgets(
+    'shell screen keeps line timestamp overlays hidden by default',
+    (tester) async {
+      await _pumpShellScreen(
+        tester,
+        bindings: FakePtyBackend(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
 
-    expect(find.byKey(const Key('terminal-line-timestamp-0')), findsNothing);
-  });
+      expect(find.byKey(const Key('terminal-line-timestamp-0')), findsNothing);
+    },
+  );
 
-  testWidgets('shell screen can open a second tab from the command menu', (
-    tester,
-  ) async {
-    await _pumpShellScreen(
-      tester,
-      bindings: FakePtyBackend(),
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
+  desktopTestWidgets(
+    'shell screen can open a second tab from the command menu',
+    (tester) async {
+      await _pumpShellScreen(
+        tester,
+        bindings: FakePtyBackend(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
 
-    expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
-    expect(
-      tester.getSize(find.byKey(const Key('shell-chrome-menu'))),
-      const Size.square(28),
-    );
-    expect(
-      tester.getSize(find.byKey(const Key('shell-chrome-new-tab'))),
-      const Size(28, 20),
-    );
-    await _openCommandMenu(tester);
-    await tester.tap(find.text('New tab'));
-    await _chooseDefaultLocalSession(tester);
+      expect(find.bySemanticsIdentifier('shell-tab-1'), findsOneWidget);
+      expect(
+        tester.getSize(find.byKey(const Key('shell-chrome-menu'))),
+        const Size.square(28),
+      );
+      expect(
+        tester.getSize(find.byKey(const Key('shell-chrome-new-tab'))),
+        const Size(28, 20),
+      );
+      await _openCommandMenu(tester);
+      await tester.tap(find.text('New tab'));
+      await _chooseDefaultLocalSession(tester);
 
-    expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
-    _expectSelectedTab(tester, '2');
-  });
+      expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
+      _expectSelectedTab(tester, '2');
+    },
+  );
 
-  testWidgets(
+  desktopTestWidgets(
     'tab strip uses compact tabs before overflowing',
     (tester) async {
       tester.view.devicePixelRatio = 1.0;
@@ -972,7 +982,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'profile tab color renders in the active tab and overflow selector',
     (tester) async {
       tester.view.devicePixelRatio = 1.0;
@@ -1031,7 +1041,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'OSC 6 tab color components render incrementally and restore the profile color',
     (tester) async {
       const profileColor = Color(0xFF102030);
@@ -1110,7 +1120,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'tab overflow menu activates hidden tabs',
     (tester) async {
       tester.view.devicePixelRatio = 1.0;
@@ -1154,7 +1164,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'tab overflow badge can focus an inactive split pane',
     (tester) async {
       tester.view.devicePixelRatio = 1.0;
@@ -1254,7 +1264,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets('new tab shows loading content until its first frame', (
+  desktopTestWidgets('new tab shows loading content until its first frame', (
     tester,
   ) async {
     final fakeBindings = _DelayedNewTabPtyBackend();
@@ -1296,47 +1306,51 @@ void main() {
     expect(find.byKey(const Key('shell-pane-2')), findsOneWidget);
   });
 
-  testWidgets('new tab ignores placeholder frames before terminal content', (
-    tester,
-  ) async {
-    final fakeBindings = _DelayedNewTabPtyBackend()
-      ..emitPlaceholderFrame = true;
+  desktopTestWidgets(
+    'new tab ignores placeholder frames before terminal content',
+    (tester) async {
+      final fakeBindings = _DelayedNewTabPtyBackend()
+        ..emitPlaceholderFrame = true;
 
-    await _pumpShellScreen(
-      tester,
-      bindings: fakeBindings,
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
 
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ShellScreen)),
-    );
-    container
-        .read(sessionControllerProvider.notifier)
-        .createSession(defaultTerminalProfile());
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 200));
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      container
+          .read(sessionControllerProvider.notifier)
+          .createSession(defaultTerminalProfile());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
 
-    expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
-    _expectSelectedTab(tester, '2');
-    expect(find.byKey(const Key('shell-pane-1')), findsNothing);
-    expect(find.byKey(const Key('shell-pane-2')), findsNothing);
-    expect(
-      find.bySemanticsIdentifier('shell-session-loading-2'),
-      findsOneWidget,
-    );
+      expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
+      _expectSelectedTab(tester, '2');
+      expect(find.byKey(const Key('shell-pane-1')), findsNothing);
+      expect(find.byKey(const Key('shell-pane-2')), findsNothing);
+      expect(
+        find.bySemanticsIdentifier('shell-session-loading-2'),
+        findsOneWidget,
+      );
 
-    fakeBindings.releaseNewTabFrame = true;
-    await tester.pump(const Duration(milliseconds: 40));
-    await tester.pumpAndSettle();
+      fakeBindings.releaseNewTabFrame = true;
+      await tester.pump(const Duration(milliseconds: 40));
+      await tester.pumpAndSettle();
 
-    expect(find.bySemanticsIdentifier('shell-session-loading-2'), findsNothing);
-    expect(find.byKey(const Key('shell-pane-2')), findsOneWidget);
-  });
+      expect(
+        find.bySemanticsIdentifier('shell-session-loading-2'),
+        findsNothing,
+      );
+      expect(find.byKey(const Key('shell-pane-2')), findsOneWidget);
+    },
+  );
 
-  testWidgets(
+  desktopTestWidgets(
     'tab context menu split right opens a second pane in the active tab',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -1369,42 +1383,43 @@ void main() {
     },
   );
 
-  testWidgets('tab context menu allows splitting down after splitting right', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
+  desktopTestWidgets(
+    'tab context menu allows splitting down after splitting right',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
 
-    await _pumpShellScreen(
-      tester,
-      bindings: fakeBindings,
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
 
-    await _openTabContextMenu(tester);
-    await tester.tap(find.text('Split right'));
-    await tester.pumpAndSettle();
+      await _openTabContextMenu(tester);
+      await tester.tap(find.text('Split right'));
+      await tester.pumpAndSettle();
 
-    expect(find.byType(TerminalViewport), findsNWidgets(2));
+      expect(find.byType(TerminalViewport), findsNWidgets(2));
 
-    await _openTabContextMenu(tester);
-    expect(find.text('Split down'), findsOneWidget);
-    expect(
-      find.textContaining('Mixed pane layouts are not supported yet.'),
-      findsNothing,
-    );
+      await _openTabContextMenu(tester);
+      expect(find.text('Split down'), findsOneWidget);
+      expect(
+        find.textContaining('Mixed pane layouts are not supported yet.'),
+        findsNothing,
+      );
 
-    await tester.tap(find.text('Split down'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('Split down'));
+      await tester.pumpAndSettle();
 
-    expect(find.byType(TerminalViewport), findsNWidgets(3));
-    expect(find.byKey(const Key('shell-pane-1')), findsOneWidget);
-    expect(find.byKey(const Key('shell-pane-2')), findsOneWidget);
-    expect(find.byKey(const Key('shell-pane-3')), findsOneWidget);
-  });
+      expect(find.byType(TerminalViewport), findsNWidgets(3));
+      expect(find.byKey(const Key('shell-pane-1')), findsOneWidget);
+      expect(find.byKey(const Key('shell-pane-2')), findsOneWidget);
+      expect(find.byKey(const Key('shell-pane-3')), findsOneWidget);
+    },
+  );
 
-  testWidgets(
+  desktopTestWidgets(
     'tab context menu explains unavailable split and layout actions',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -1453,7 +1468,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'tab context menu stops growing a pane before a sibling becomes too small',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -1488,7 +1503,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'tab context menu disables pane management actions while zoomed',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -1518,47 +1533,48 @@ void main() {
     },
   );
 
-  testWidgets('hovering a split pane does not activate it, but clicking does', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
+  desktopTestWidgets(
+    'hovering a split pane does not activate it, but clicking does',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
 
-    await _pumpShellScreen(
-      tester,
-      bindings: fakeBindings,
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
 
-    await _openTabContextMenu(tester);
-    await tester.tap(find.text('Split right'));
-    await tester.pumpAndSettle();
+      await _openTabContextMenu(tester);
+      await tester.tap(find.text('Split right'));
+      await tester.pumpAndSettle();
 
-    _expectActivePane(tester, '2');
-    expect(find.byKey(const Key('shell-pane-dim-1')), findsOneWidget);
-    expect(find.byKey(const Key('shell-pane-dim-2')), findsNothing);
+      _expectActivePane(tester, '2');
+      expect(find.byKey(const Key('shell-pane-dim-1')), findsOneWidget);
+      expect(find.byKey(const Key('shell-pane-dim-2')), findsNothing);
 
-    final pointer = TestPointer(7, PointerDeviceKind.mouse);
-    await tester.sendEventToBinding(
-      pointer.hover(tester.getCenter(find.byKey(const Key('shell-pane-1')))),
-    );
-    await tester.pump();
+      final pointer = TestPointer(7, PointerDeviceKind.mouse);
+      await tester.sendEventToBinding(
+        pointer.hover(tester.getCenter(find.byKey(const Key('shell-pane-1')))),
+      );
+      await tester.pump();
 
-    _expectActivePane(tester, '2');
-    expect(find.byKey(const Key('shell-pane-dim-1')), findsOneWidget);
-    expect(find.byKey(const Key('shell-pane-dim-2')), findsNothing);
+      _expectActivePane(tester, '2');
+      expect(find.byKey(const Key('shell-pane-dim-1')), findsOneWidget);
+      expect(find.byKey(const Key('shell-pane-dim-2')), findsNothing);
 
-    await tester.tap(find.byKey(const Key('shell-pane-1')));
-    await tester.pump();
+      await tester.tap(find.byKey(const Key('shell-pane-1')));
+      await tester.pump();
 
-    expect(find.byKey(const Key('shell-pane-dim-1')), findsNothing);
-    _expectActivePane(tester, '1');
-    expect(find.byKey(const Key('shell-pane-dim-2')), findsOneWidget);
-    expect(fakeBindings.writes, isEmpty);
-  });
+      expect(find.byKey(const Key('shell-pane-dim-1')), findsNothing);
+      _expectActivePane(tester, '1');
+      expect(find.byKey(const Key('shell-pane-dim-2')), findsOneWidget);
+      expect(fakeBindings.writes, isEmpty);
+    },
+  );
 
-  testWidgets(
+  desktopTestWidgets(
     'clicking an inactive split pane with mouse reporting activates and reports to that pane',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -1614,7 +1630,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'switching split panes routes focus reports to the pane gaining or losing focus',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -1673,7 +1689,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'terminal focus updates refresh policy without backgrounding it',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -1720,71 +1736,72 @@ void main() {
     },
   );
 
-  testWidgets('disabling focus tracking stops split pane focus reports', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
+  desktopTestWidgets(
+    'disabling focus tracking stops split pane focus reports',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
 
-    await _pumpShellScreen(
-      tester,
-      bindings: fakeBindings,
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
 
-    await _openTabContextMenu(tester);
-    await tester.tap(find.text('Split right'));
-    await tester.pumpAndSettle();
+      await _openTabContextMenu(tester);
+      await tester.tap(find.text('Split right'));
+      await tester.pumpAndSettle();
 
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ShellScreen)),
-    );
-    for (final sessionId in const ['1', '2']) {
-      fakeBindings.setFrame(sessionId, <String, Object?>{
-        ..._terminalFrameWithTitle('Focus Pane $sessionId'),
-        'modes': const <String, Object?>{'focus_tracking': true},
-      });
-      container
-          .read(terminalRuntimeControllerProvider)
-          .refreshSession(sessionId);
-    }
-    await tester.pump();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      for (final sessionId in const ['1', '2']) {
+        fakeBindings.setFrame(sessionId, <String, Object?>{
+          ..._terminalFrameWithTitle('Focus Pane $sessionId'),
+          'modes': const <String, Object?>{'focus_tracking': true},
+        });
+        container
+            .read(terminalRuntimeControllerProvider)
+            .refreshSession(sessionId);
+      }
+      await tester.pump();
 
-    await tester.tap(
-      find.descendant(
-        of: find.byKey(const Key('shell-pane-2')),
-        matching: find.byType(TerminalViewport),
-      ),
-    );
-    await tester.pump();
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const Key('shell-pane-2')),
+          matching: find.byType(TerminalViewport),
+        ),
+      );
+      await tester.pump();
 
-    for (final sessionId in const ['1', '2']) {
-      fakeBindings.setFrame(sessionId, <String, Object?>{
-        ..._terminalFrameWithTitle('Focus Pane $sessionId'),
-        'modes': const <String, Object?>{'focus_tracking': false},
-      });
-      container
-          .read(terminalRuntimeControllerProvider)
-          .refreshSession(sessionId);
-    }
-    await tester.pump();
-    fakeBindings.writes.clear();
-    fakeBindings.writesBySession.clear();
+      for (final sessionId in const ['1', '2']) {
+        fakeBindings.setFrame(sessionId, <String, Object?>{
+          ..._terminalFrameWithTitle('Focus Pane $sessionId'),
+          'modes': const <String, Object?>{'focus_tracking': false},
+        });
+        container
+            .read(terminalRuntimeControllerProvider)
+            .refreshSession(sessionId);
+      }
+      await tester.pump();
+      fakeBindings.writes.clear();
+      fakeBindings.writesBySession.clear();
 
-    await tester.tap(
-      find.descendant(
-        of: find.byKey(const Key('shell-pane-1')),
-        matching: find.byType(TerminalViewport),
-      ),
-    );
-    await tester.pump();
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const Key('shell-pane-1')),
+          matching: find.byType(TerminalViewport),
+        ),
+      );
+      await tester.pump();
 
-    expect(container.read(sessionControllerProvider).activeSessionId, '1');
-    expect(fakeBindings.writesBySession, isEmpty);
-  });
+      expect(container.read(sessionControllerProvider).activeSessionId, '1');
+      expect(fakeBindings.writesBySession, isEmpty);
+    },
+  );
 
-  testWidgets('active split pane header exposes split affordances', (
+  desktopTestWidgets('active split pane header exposes split affordances', (
     tester,
   ) async {
     final fakeBindings = FakePtyBackend();
@@ -1841,7 +1858,7 @@ void main() {
     expect(fakeBindings.writes, isEmpty);
   });
 
-  testWidgets(
+  desktopTestWidgets(
     'tab title follows active pane title when tab has multiple panes',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -1870,12 +1887,7 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(
-        tester
-            .widget<Text>(find.byKey(const Key('shell-chrome-window-title')))
-            .data,
-        'Trail',
-      );
+      expect(find.byKey(const Key('shell-chrome-window-title')), findsNothing);
 
       await tester.tap(find.byKey(const Key('shell-pane-1')));
       await tester.pumpAndSettle();
@@ -1887,17 +1899,12 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(
-        tester
-            .widget<Text>(find.byKey(const Key('shell-chrome-window-title')))
-            .data,
-        'Trail',
-      );
+      expect(find.byKey(const Key('shell-chrome-window-title')), findsNothing);
       expect(fakeBindings.writes, isEmpty);
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'collapsed split tab keeps remaining pane title and badge after closing root pane',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -1976,12 +1983,7 @@ void main() {
       expect(find.byKey(const Key('shell-pane-header-2')), findsNothing);
       expect(find.text('Left Pane Title'), findsNothing);
       expect(find.text('Right Pane Title'), findsOneWidget);
-      expect(
-        tester
-            .widget<Text>(find.byKey(const Key('shell-chrome-window-title')))
-            .data,
-        'Trail',
-      );
+      expect(find.byKey(const Key('shell-chrome-window-title')), findsNothing);
       expect(find.byKey(const Key('shell-status-badge')), findsNothing);
       expect(find.text('DEPLOY'), findsOneWidget);
       expect(container.read(sessionControllerProvider).activeSessionId, '2');
@@ -2009,7 +2011,7 @@ void main() {
     },
   );
 
-  testWidgets('active split pane header zooms and closes the pane', (
+  desktopTestWidgets('active split pane header zooms and closes the pane', (
     tester,
   ) async {
     final fakeBindings = FakePtyBackend();
@@ -2095,7 +2097,7 @@ void main() {
     expect(fakeBindings.writes, isEmpty);
   });
 
-  testWidgets('dragging a split pane divider resizes adjacent panes', (
+  desktopTestWidgets('dragging a split pane divider resizes adjacent panes', (
     tester,
   ) async {
     final fakeBindings = FakePtyBackend();
@@ -2128,43 +2130,44 @@ void main() {
     expect(fakeBindings.writes, isEmpty);
   });
 
-  testWidgets('dragging a split pane divider respects minimum pane width', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
+  desktopTestWidgets(
+    'dragging a split pane divider respects minimum pane width',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
 
-    await _pumpShellScreen(
-      tester,
-      bindings: fakeBindings,
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
 
-    await _openTabContextMenu(tester);
-    await tester.tap(find.text('Split right'));
-    await tester.pumpAndSettle();
-    await tester.pump(const Duration(milliseconds: 260));
-    await tester.pumpAndSettle();
+      await _openTabContextMenu(tester);
+      await tester.tap(find.text('Split right'));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 260));
+      await tester.pumpAndSettle();
 
-    final secondPane = find.byKey(const Key('shell-pane-2'));
-    final divider = find.byKey(const Key('shell-pane-divider-1-2'));
-    expect(divider, findsOneWidget);
+      final secondPane = find.byKey(const Key('shell-pane-2'));
+      final divider = find.byKey(const Key('shell-pane-divider-1-2'));
+      expect(divider, findsOneWidget);
 
-    final secondRenderObject = _terminalRenderObjectForPane(tester, '2');
-    final minimumPaneWidth = 24 * secondRenderObject.debugCellSize.width;
+      final secondRenderObject = _terminalRenderObjectForPane(tester, '2');
+      final minimumPaneWidth = 24 * secondRenderObject.debugCellSize.width;
 
-    await tester.drag(divider, const Offset(2000, 0));
-    await tester.pumpAndSettle();
+      await tester.drag(divider, const Offset(2000, 0));
+      await tester.pumpAndSettle();
 
-    expect(
-      tester.getSize(secondPane).width,
-      greaterThanOrEqualTo(minimumPaneWidth),
-    );
-    expect(fakeBindings.writes, isEmpty);
-  });
+      expect(
+        tester.getSize(secondPane).width,
+        greaterThanOrEqualTo(minimumPaneWidth),
+      );
+      expect(fakeBindings.writes, isEmpty);
+    },
+  );
 
-  testWidgets(
+  desktopTestWidgets(
     'native paste immediately after pane click uses the new pane before rebuild',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -2205,92 +2208,94 @@ void main() {
     },
   );
 
-  testWidgets('native paste sends clipboard text to the active session', (
-    tester,
-  ) async {
-    const clipboardText = '你好, 世界🌟';
-    final fakeBindings = FakePtyBackend();
+  desktopTestWidgets(
+    'native paste sends clipboard text to the active session',
+    (tester) async {
+      const clipboardText = '你好, 世界🌟';
+      final fakeBindings = FakePtyBackend();
 
-    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-      SystemChannels.platform,
-      (methodCall) async {
-        if (methodCall.method == 'Clipboard.getData') {
-          return <String, dynamic>{'text': clipboardText};
-        }
-        if (methodCall.method == 'Clipboard.setData') {
-          return null;
-        }
-        return null;
-      },
-    );
-    addTearDown(
-      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
         SystemChannels.platform,
-        null,
-      ),
-    );
-
-    await _pumpShellScreen(
-      tester,
-      bindings: fakeBindings,
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
-
-    await _invokeNativeWindowBridge(tester, const MethodCall('nativePaste'));
-    await tester.pumpAndSettle();
-
-    expect(fakeBindings.writes, isNotEmpty);
-    expect(fakeBindings.writes.last, utf8.encode(clipboardText));
-  });
-
-  testWidgets('middle click pastes the clipboard when mouse reporting is off', (
-    tester,
-  ) async {
-    const clipboardText = 'middle paste';
-    final fakeBindings = FakePtyBackend();
-
-    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-      SystemChannels.platform,
-      (methodCall) async {
-        if (methodCall.method == 'Clipboard.getData') {
-          return <String, dynamic>{'text': clipboardText};
-        }
-        if (methodCall.method == 'Clipboard.setData') {
+        (methodCall) async {
+          if (methodCall.method == 'Clipboard.getData') {
+            return <String, dynamic>{'text': clipboardText};
+          }
+          if (methodCall.method == 'Clipboard.setData') {
+            return null;
+          }
           return null;
-        }
-        return null;
-      },
-    );
-    addTearDown(
-      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _invokeNativeWindowBridge(tester, const MethodCall('nativePaste'));
+      await tester.pumpAndSettle();
+
+      expect(fakeBindings.writes, isNotEmpty);
+      expect(fakeBindings.writes.last, utf8.encode(clipboardText));
+    },
+  );
+
+  desktopTestWidgets(
+    'middle click pastes the clipboard when mouse reporting is off',
+    (tester) async {
+      const clipboardText = 'middle paste';
+      final fakeBindings = FakePtyBackend();
+
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
         SystemChannels.platform,
-        null,
-      ),
-    );
+        (methodCall) async {
+          if (methodCall.method == 'Clipboard.getData') {
+            return <String, dynamic>{'text': clipboardText};
+          }
+          if (methodCall.method == 'Clipboard.setData') {
+            return null;
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
 
-    await _pumpShellScreen(
-      tester,
-      bindings: fakeBindings,
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
 
-    final pointer = TestPointer(8, PointerDeviceKind.mouse);
-    final center = tester.getCenter(find.byType(TerminalViewport));
-    await tester.sendEventToBinding(
-      pointer.down(center, buttons: kMiddleMouseButton),
-    );
-    await tester.sendEventToBinding(pointer.up());
-    await tester.pumpAndSettle();
+      final pointer = TestPointer(8, PointerDeviceKind.mouse);
+      final center = tester.getCenter(find.byType(TerminalViewport));
+      await tester.sendEventToBinding(
+        pointer.down(center, buttons: kMiddleMouseButton),
+      );
+      await tester.sendEventToBinding(pointer.up());
+      await tester.pumpAndSettle();
 
-    expect(fakeBindings.writes, isNotEmpty);
-    expect(fakeBindings.writes.last, utf8.encode(clipboardText));
-  });
+      expect(fakeBindings.writes, isNotEmpty);
+      expect(fakeBindings.writes.last, utf8.encode(clipboardText));
+    },
+  );
 
-  testWidgets('native paste confirms carriage-return multiline text', (
+  desktopTestWidgets('native paste confirms carriage-return multiline text', (
     tester,
   ) async {
     const clipboardText = 'first command\rsecond command';
@@ -2353,7 +2358,7 @@ void main() {
     expect(fakeBindings.writes, isEmpty);
   });
 
-  testWidgets(
+  desktopTestWidgets(
     'command-option-b opens instant replay workspace backed by terminal viewport',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -2829,7 +2834,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'instant replay stays usable with touch-sized controls on iPhone',
     (tester) async {
       await tester.binding.setSurfaceSize(const Size(430, 932));
@@ -2970,7 +2975,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.iOS),
   );
 
-  testWidgets('copy shortcut writes the selection to the clipboard', (
+  desktopTestWidgets('copy shortcut writes the selection to the clipboard', (
     tester,
   ) async {
     final fakeBindings = FakePtyBackend();
@@ -3018,7 +3023,7 @@ void main() {
     expect(fakeBindings.writes, isEmpty);
   });
 
-  testWidgets(
+  desktopTestWidgets(
     'OSC 1337 inline buttons route custom activation and explicit copy through product bridges',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -3123,7 +3128,7 @@ void main() {
     },
   );
 
-  testWidgets('hidden OSC 1337 annotation adds a terminal badge', (
+  desktopTestWidgets('hidden OSC 1337 annotation adds a terminal badge', (
     tester,
   ) async {
     final fakeBindings = FakePtyBackend();
@@ -3167,7 +3172,7 @@ void main() {
     );
   });
 
-  testWidgets('visible OSC 1337 annotation shows its note and a badge', (
+  desktopTestWidgets('visible OSC 1337 annotation shows its note and a badge', (
     tester,
   ) async {
     final fakeBindings = FakePtyBackend();
@@ -3212,7 +3217,7 @@ void main() {
     );
   });
 
-  testWidgets(
+  desktopTestWidgets(
     'command-shift-p opens the command menu without leaking input',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -3255,7 +3260,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'command-t opens the default local profile at the active live directory',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -3319,7 +3324,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'command-t opens the selected default instead of the current profile',
     (tester) async {
       final fakeBindings = _SshEventfulPtyBackend();
@@ -3368,7 +3373,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'command-t opens the default SSH profile with shell integration enabled',
     (tester) async {
       final fakeBindings = _SshEventfulPtyBackend();
@@ -3402,7 +3407,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'command-t falls back to the local profile when no tab is open',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -3445,7 +3450,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'shortcut proof matrix covers retained mac shortcuts',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -3537,7 +3542,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'repeated command-t is swallowed by the shell shortcut handler',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -3574,7 +3579,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'control-t on macOS stays in terminal input instead of opening a new tab',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -3605,7 +3610,9 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets('command menu explains disabled actions inline', (tester) async {
+  desktopTestWidgets('command menu explains disabled actions inline', (
+    tester,
+  ) async {
     final fakeBindings = FakePtyBackend();
 
     await _pumpShellScreen(
@@ -3642,7 +3649,9 @@ void main() {
     );
   });
 
-  testWidgets('clear buffer reports its successful effect', (tester) async {
+  desktopTestWidgets('clear buffer reports its successful effect', (
+    tester,
+  ) async {
     final fakeBindings = FakePtyBackend();
 
     await _pumpShellScreen(
@@ -3672,63 +3681,65 @@ void main() {
     );
   });
 
-  testWidgets('export diagnostics explains when no bundle is available', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
+  desktopTestWidgets(
+    'export diagnostics explains when no bundle is available',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
 
-    await _pumpShellScreen(
-      tester,
-      bindings: fakeBindings,
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
 
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(
-      find.byKey(const Key('shell-export-diagnostics')),
-    );
-    await tester.pumpAndSettle();
+      await _openCommandMenu(tester);
+      await tester.ensureVisible(
+        find.byKey(const Key('shell-export-diagnostics')),
+      );
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('shell-export-diagnostics')));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('shell-export-diagnostics')));
+      await tester.pumpAndSettle();
 
-    expect(
-      find.text('Diagnostics export is unavailable for the active sessions.'),
-      findsOneWidget,
-    );
-  });
+      expect(
+        find.text('Diagnostics export is unavailable for the active sessions.'),
+        findsOneWidget,
+      );
+    },
+  );
 
-  testWidgets('command menu omits clipboard paste and folder-specific tabs', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
+  desktopTestWidgets(
+    'command menu omits clipboard paste and folder-specific tabs',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
 
-    await _pumpShellScreen(
-      tester,
-      bindings: fakeBindings,
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
 
-    await _openCommandMenu(tester);
-    expect(find.byKey(const Key('shell-top-paste-clipboard')), findsNothing);
-    expect(find.byKey(const Key('shell-new-tab-at-folder')), findsNothing);
+      await _openCommandMenu(tester);
+      expect(find.byKey(const Key('shell-top-paste-clipboard')), findsNothing);
+      expect(find.byKey(const Key('shell-new-tab-at-folder')), findsNothing);
 
-    await tester.enterText(
-      find.byKey(const Key('shell-command-search-field')),
-      'paste',
-    );
-    await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('shell-command-search-field')),
+        'paste',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
 
-    expect(find.text('No action matches "paste".'), findsOneWidget);
-    expect(fakeBindings.writes, isEmpty);
-  });
+      expect(find.text('No action matches "paste".'), findsOneWidget);
+      expect(fakeBindings.writes, isEmpty);
+    },
+  );
 
-  testWidgets(
+  desktopTestWidgets(
     'read-only mode blocks shortcut and native paste before clipboard read',
     (tester) async {
       const clipboardText = 'shortcut blocked paste';
@@ -3797,7 +3808,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets('command menu accepts hyphenated read-only query', (
+  desktopTestWidgets('command menu accepts hyphenated read-only query', (
     tester,
   ) async {
     final fakeBindings = FakePtyBackend();
@@ -3831,7 +3842,7 @@ void main() {
     expect(find.text('Disable read-only mode'), findsOneWidget);
   });
 
-  testWidgets(
+  desktopTestWidgets(
     'focused shell semantics expose command search and selected tab',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -3877,7 +3888,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'command menu supports keyboard-only focus traversal to actions',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -3911,43 +3922,44 @@ void main() {
     },
   );
 
-  testWidgets('tab strip supports keyboard-only focus traversal between tabs', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
+  desktopTestWidgets(
+    'tab strip supports keyboard-only focus traversal between tabs',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
 
-    await _pumpShellScreen(
-      tester,
-      bindings: fakeBindings,
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
 
-    await _sendMetaShortcut(tester, LogicalKeyboardKey.keyT);
-    expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
-    _expectSelectedTab(tester, '2');
+      await _sendMetaShortcut(tester, LogicalKeyboardKey.keyT);
+      expect(find.bySemanticsIdentifier('shell-tab-2'), findsOneWidget);
+      _expectSelectedTab(tester, '2');
 
-    await tester.tap(find.byKey(const Key('shell-tab-1')));
-    await tester.pumpAndSettle();
-    _expectSelectedTab(tester, '1');
+      await tester.tap(find.byKey(const Key('shell-tab-1')));
+      await tester.pumpAndSettle();
+      _expectSelectedTab(tester, '1');
 
-    tester
-        .widget<TextButton>(find.byKey(const Key('shell-tab-1')))
-        .focusNode!
-        .requestFocus();
-    await tester.pump();
+      tester
+          .widget<TextButton>(find.byKey(const Key('shell-tab-1')))
+          .focusNode!
+          .requestFocus();
+      await tester.pump();
 
-    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-    await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-    await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      await tester.pumpAndSettle();
 
-    _expectSelectedTab(tester, '2');
-    expect(fakeBindings.writes, isEmpty);
-  });
+      _expectSelectedTab(tester, '2');
+      expect(fakeBindings.writes, isEmpty);
+    },
+  );
 
-  testWidgets(
+  desktopTestWidgets(
     'control-t on non-macOS still opens another tab',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -3976,7 +3988,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.linux),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'command-number activates the matching tab without input leak',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -4002,7 +4014,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'native find menu opens search without leaking input',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -4030,7 +4042,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'command-q requests quit confirmation without leaking input',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -4072,122 +4084,128 @@ void main() {
   );
 
   for (final established in [false, true, null]) {
-    testWidgets('SSH exit notification uses native setup state $established', (
-      tester,
-    ) async {
-      final backend = _EventfulPtyBackend();
-      final titles = <String>[];
+    desktopTestWidgets(
+      'SSH exit notification uses native setup state $established',
+      (tester) async {
+        final backend = _EventfulPtyBackend();
+        final titles = <String>[];
+        await _pumpShellScreen(
+          tester,
+          bindings: backend,
+          repository: MemoryProfileRepository(
+            TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+          ),
+          notificationSender:
+              ({required title, body, identifier, expiresAfterMs}) async {
+                titles.add(title);
+              },
+        );
+        backend.enqueueExit('1', code: 255, sshSessionEstablished: established);
+        await tester.pump(const Duration(milliseconds: 80));
+        await tester.pumpAndSettle();
+        expect(
+          titles,
+          contains(switch (established) {
+            false => 'SSH connection failed',
+            true => 'SSH connection interrupted',
+            null => 'Session ended',
+          }),
+        );
+      },
+    );
+  }
+
+  desktopTestWidgets(
+    'command menu hides empty groups and shows no-match feedback',
+    (tester) async {
       await _pumpShellScreen(
         tester,
-        bindings: backend,
+        bindings: FakePtyBackend(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+      await _openCommandMenu(tester);
+      await tester.enterText(
+        find.byKey(const Key('shell-command-search-field')),
+        'zz_no_action_928317',
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('shell-command-no-results')), findsOneWidget);
+      for (final heading in [
+        'Quick actions',
+        'App actions',
+        'Session actions',
+        'Replay',
+        'Shell tools',
+      ]) {
+        expect(find.text(heading), findsNothing);
+      }
+      await tester.enterText(
+        find.byKey(const Key('shell-command-search-field')),
+        '',
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('shell-command-no-results')), findsNothing);
+      expect(find.byKey(const Key('shell-top-new-tab')), findsOneWidget);
+    },
+  );
+
+  desktopTestWidgets(
+    'shell posts notifications for command completion and bells',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      final notifications = <Map<String, String?>>[];
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
         repository: MemoryProfileRepository(
           TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
         ),
         notificationSender:
             ({required title, body, identifier, expiresAfterMs}) async {
-              titles.add(title);
+              notifications.add({
+                'title': title,
+                'body': body,
+                'identifier': identifier,
+              });
             },
       );
-      backend.enqueueExit('1', code: 255, sshSessionEstablished: established);
-      await tester.pump(const Duration(milliseconds: 80));
-      await tester.pumpAndSettle();
-      expect(
-        titles,
-        contains(switch (established) {
-          false => 'SSH connection failed',
-          true => 'SSH connection interrupted',
-          null => 'Session ended',
-        }),
-      );
-    });
-  }
 
-  testWidgets('command menu hides empty groups and shows no-match feedback', (
-    tester,
-  ) async {
-    await _pumpShellScreen(
-      tester,
-      bindings: FakePtyBackend(),
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
-    await _openCommandMenu(tester);
-    await tester.enterText(
-      find.byKey(const Key('shell-command-search-field')),
-      'zz_no_action_928317',
-    );
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('shell-command-no-results')), findsOneWidget);
-    for (final heading in [
-      'Quick actions',
-      'App actions',
-      'Session actions',
-      'Replay',
-      'Shell tools',
-    ]) {
-      expect(find.text(heading), findsNothing);
-    }
-    await tester.enterText(
-      find.byKey(const Key('shell-command-search-field')),
-      '',
-    );
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('shell-command-no-results')), findsNothing);
-    expect(find.byKey(const Key('shell-top-new-tab')), findsOneWidget);
-  });
-
-  testWidgets('shell posts notifications for command completion and bells', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
-    final notifications = <Map<String, String?>>[];
-
-    await _pumpShellScreen(
-      tester,
-      bindings: fakeBindings,
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-      notificationSender:
-          ({required title, body, identifier, expiresAfterMs}) async {
-            notifications.add({
-              'title': title,
-              'body': body,
-              'identifier': identifier,
-            });
+      fakeBindings.enqueueEvent(
+        1,
+        const PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'hook': 'command_finished',
+            'command': 'deploy --token super-secret',
+            'exit_code': 7,
           },
-    );
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        1,
+        const PtyEvent(kind: 'bell', sessionId: '1'),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
 
-    fakeBindings.enqueueEvent(
-      1,
-      const PtyEvent(
-        kind: 'shell_hook',
-        sessionId: '1',
-        payload: <String, Object?>{
-          'hook': 'command_finished',
-          'command': 'deploy --token super-secret',
-          'exit_code': 7,
-        },
-      ),
-    );
-    fakeBindings.enqueueEvent(1, const PtyEvent(kind: 'bell', sessionId: '1'));
-    await tester.pump(const Duration(milliseconds: 40));
+      expect(notifications, hasLength(2));
+      expect(notifications[0]['title'], 'Command finished');
+      expect(notifications[0]['body'], 'Exit code 7');
+      for (final field in const <String>['title', 'body', 'identifier']) {
+        final value = notifications[0][field] ?? '';
+        expect(value, isNot(contains('deploy --token super-secret')));
+        expect(value, isNot(contains('--token')));
+        expect(value, isNot(contains('super-secret')));
+      }
+      expect(notifications[1]['title'], startsWith('Bell in '));
+      expect(notifications[1]['body'], 'The terminal requested attention.');
+    },
+  );
 
-    expect(notifications, hasLength(2));
-    expect(notifications[0]['title'], 'Command finished');
-    expect(notifications[0]['body'], 'Exit code 7');
-    for (final field in const <String>['title', 'body', 'identifier']) {
-      final value = notifications[0][field] ?? '';
-      expect(value, isNot(contains('deploy --token super-secret')));
-      expect(value, isNot(contains('--token')));
-      expect(value, isNot(contains('super-secret')));
-    }
-    expect(notifications[1]['title'], startsWith('Bell in '));
-    expect(notifications[1]['body'], 'The terminal requested attention.');
-  });
-
-  testWidgets(
+  desktopTestWidgets(
     'activity ignores empty startup frames but not subsequent output',
     (tester) async {
       final backend = _DelayedNewTabPtyBackend()..emitPlaceholderFrame = true;
@@ -4223,7 +4241,9 @@ void main() {
     },
   );
 
-  testWidgets('inactive session activity posts a notification', (tester) async {
+  desktopTestWidgets('inactive session activity posts a notification', (
+    tester,
+  ) async {
     final fakeBindings = FakePtyBackend();
     final notifications = <Map<String, String?>>[];
     const sensitiveOutput = 'TOKEN=super-secret-output';
@@ -4281,7 +4301,7 @@ void main() {
     }
   });
 
-  testWidgets(
+  desktopTestWidgets(
     'activity notifications aggregate split panes without internal IDs',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -4383,7 +4403,7 @@ void main() {
     'notification_authorization_request_failed':
         'Trail could not check macOS notification permission right now. Try again later; the terminal remains available.',
   }.entries) {
-    testWidgets('${failure.key} surfaces accurate feedback once', (
+    desktopTestWidgets('${failure.key} surfaces accurate feedback once', (
       tester,
     ) async {
       final fakeBindings = FakePtyBackend();
@@ -4467,7 +4487,7 @@ void main() {
     });
   }
 
-  testWidgets(
+  desktopTestWidgets(
     'inactive session activity notifications redact immediate and trailing output',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -4587,97 +4607,98 @@ void main() {
     },
   );
 
-  testWidgets('profile triggers notify and send text for matching output', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
-    final notifications = <Map<String, String?>>[];
-    final profile = defaultTerminalProfile().copyWith(
-      triggers: const [
-        TerminalProfileTrigger(pattern: 'ERROR [0-9]+'),
-        TerminalProfileTrigger(
-          pattern: 'Password:',
-          action: TerminalProfileTriggerAction.sendText,
-          value: 'secret\n',
+  desktopTestWidgets(
+    'profile triggers notify and send text for matching output',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      final notifications = <Map<String, String?>>[];
+      final profile = defaultTerminalProfile().copyWith(
+        triggers: const [
+          TerminalProfileTrigger(pattern: 'ERROR [0-9]+'),
+          TerminalProfileTrigger(
+            pattern: 'Password:',
+            action: TerminalProfileTriggerAction.sendText,
+            value: 'secret\n',
+          ),
+        ],
+      );
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [profile]),
         ),
-      ],
-    );
+        notificationSender:
+            ({required title, body, identifier, expiresAfterMs}) async {
+              notifications.add({
+                'title': title,
+                'body': body,
+                'identifier': identifier,
+              });
+            },
+      );
 
-    await _pumpShellScreen(
-      tester,
-      bindings: fakeBindings,
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [profile]),
-      ),
-      notificationSender:
-          ({required title, body, identifier, expiresAfterMs}) async {
-            notifications.add({
-              'title': title,
-              'body': body,
-              'identifier': identifier,
-            });
+      fakeBindings.setFrame(1, {
+        'rows': [
+          {'index': 0, 'text': 'Password:', 'style_runs': const <Object?>[]},
+          {
+            'index': 1,
+            'text': 'ERROR 42 failed',
+            'style_runs': const <Object?>[],
           },
-    );
+        ],
+        'cursor': {'row': 1, 'col': 15, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 0, 'end': 2},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+      });
+      await tester.pump(const Duration(milliseconds: 40));
 
-    fakeBindings.setFrame(1, {
-      'rows': [
-        {'index': 0, 'text': 'Password:', 'style_runs': const <Object?>[]},
-        {
-          'index': 1,
-          'text': 'ERROR 42 failed',
-          'style_runs': const <Object?>[],
-        },
-      ],
-      'cursor': {'row': 1, 'col': 15, 'visible': true},
-      'selection': null,
-      'viewport_rows': 24,
-      'viewport_cols': 80,
-      'dirty_ranges': [
-        {'start': 0, 'end': 2},
-      ],
-      'scrollback_offset': 0,
-      'scrollback_max_offset': 0,
-    });
-    await tester.pump(const Duration(milliseconds: 40));
+      expect(fakeBindings.writes, isEmpty);
+      expect(notifications, isEmpty);
+      fakeBindings.enqueueEvent(1, _triggerOutput('0', 'Password:'));
+      fakeBindings.enqueueEvent(1, _triggerOutput('1', 'ERROR 42 failed'));
+      await tester.pump(const Duration(milliseconds: 40));
 
-    expect(fakeBindings.writes, isEmpty);
-    expect(notifications, isEmpty);
-    fakeBindings.enqueueEvent(1, _triggerOutput('0', 'Password:'));
-    fakeBindings.enqueueEvent(1, _triggerOutput('1', 'ERROR 42 failed'));
-    await tester.pump(const Duration(milliseconds: 40));
+      expect(fakeBindings.writes, hasLength(1));
+      expect(fakeBindings.writes.single, utf8.encode('secret\n'));
+      expect(notifications, hasLength(1));
+      expect(notifications.single['title'], startsWith('Trigger matched in '));
+      expect(notifications.single['body'], 'ERROR 42 failed');
 
-    expect(fakeBindings.writes, hasLength(1));
-    expect(fakeBindings.writes.single, utf8.encode('secret\n'));
-    expect(notifications, hasLength(1));
-    expect(notifications.single['title'], startsWith('Trigger matched in '));
-    expect(notifications.single['body'], 'ERROR 42 failed');
+      fakeBindings.setFrame(1, {
+        'rows': [
+          {'index': 0, 'text': 'Password:', 'style_runs': const <Object?>[]},
+          {
+            'index': 1,
+            'text': 'ERROR 42 failed',
+            'style_runs': const <Object?>[],
+          },
+        ],
+        'cursor': {'row': 1, 'col': 15, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 0, 'end': 2},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+      });
+      await tester.pump(const Duration(milliseconds: 40));
 
-    fakeBindings.setFrame(1, {
-      'rows': [
-        {'index': 0, 'text': 'Password:', 'style_runs': const <Object?>[]},
-        {
-          'index': 1,
-          'text': 'ERROR 42 failed',
-          'style_runs': const <Object?>[],
-        },
-      ],
-      'cursor': {'row': 1, 'col': 15, 'visible': true},
-      'selection': null,
-      'viewport_rows': 24,
-      'viewport_cols': 80,
-      'dirty_ranges': [
-        {'start': 0, 'end': 2},
-      ],
-      'scrollback_offset': 0,
-      'scrollback_max_offset': 0,
-    });
-    await tester.pump(const Duration(milliseconds: 40));
+      expect(fakeBindings.writes, hasLength(1));
+      expect(notifications, hasLength(1));
+    },
+  );
 
-    expect(fakeBindings.writes, hasLength(1));
-    expect(notifications, hasLength(1));
-  });
-
-  testWidgets(
+  desktopTestWidgets(
     'profile triggers ignore repeated delta frames and fire once per output line',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -4738,7 +4759,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'profile triggers consume logical output independently of wrapped display rows',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -4816,7 +4837,7 @@ void main() {
     },
   );
 
-  testWidgets('switching panes does not show the return-to-shell cue', (
+  desktopTestWidgets('switching panes does not show the return-to-shell cue', (
     tester,
   ) async {
     final fakeBindings = FakePtyBackend();
@@ -4841,37 +4862,40 @@ void main() {
     expect(find.text('Back in shell'), findsNothing);
   });
 
-  testWidgets('clicking another pane updates focus without a legacy cue', (
+  desktopTestWidgets(
+    'clicking another pane updates focus without a legacy cue',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+
+      await _openTabContextMenu(tester);
+      await tester.tap(find.text('Split right'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('shell-pane-2')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('shell-pane-1')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('shell-pane-dim-1')), findsNothing);
+      _expectActivePane(tester, '1');
+      expect(find.byKey(const Key('shell-pane-dim-2')), findsOneWidget);
+      expect(find.text('Pane 1 of 2'), findsNothing);
+      expect(find.text('Back in shell'), findsNothing);
+    },
+  );
+
+  desktopTestWidgets('command menu keeps pane focus traversal hidden', (
     tester,
   ) async {
-    final fakeBindings = FakePtyBackend();
-
-    await _pumpShellScreen(
-      tester,
-      bindings: fakeBindings,
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
-
-    await _openTabContextMenu(tester);
-    await tester.tap(find.text('Split right'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const Key('shell-pane-2')));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const Key('shell-pane-1')));
-    await tester.pumpAndSettle();
-
-    expect(find.byKey(const Key('shell-pane-dim-1')), findsNothing);
-    _expectActivePane(tester, '1');
-    expect(find.byKey(const Key('shell-pane-dim-2')), findsOneWidget);
-    expect(find.text('Pane 1 of 2'), findsNothing);
-    expect(find.text('Back in shell'), findsNothing);
-  });
-
-  testWidgets('command menu keeps pane focus traversal hidden', (tester) async {
     final fakeBindings = FakePtyBackend();
 
     await _pumpShellScreen(
@@ -4901,7 +4925,7 @@ void main() {
     expect(fakeBindings.writes, isEmpty);
   });
 
-  testWidgets(
+  desktopTestWidgets(
     'shift-command arrows track global prompt marks through new output and caps',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -4996,7 +5020,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'global row zero prompt mark jumps in a one-row terminal',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -5042,7 +5066,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'command-w closes the active tab without leaking input',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -5067,7 +5091,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'partial split-tab close cleans removed pane state and focuses survivor',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -5122,7 +5146,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'command-comma opens defaults and returns keyboard to terminal',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -5164,7 +5188,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets('native Settings menu opens defaults', (tester) async {
+  desktopTestWidgets('native Settings menu opens defaults', (tester) async {
     await _pumpShellScreen(
       tester,
       bindings: FakePtyBackend(),
@@ -5190,7 +5214,7 @@ void main() {
     semantics.dispose();
   });
 
-  testWidgets(
+  desktopTestWidgets(
     'command-shift-t opens the SSH session launcher',
     (tester) async {
       await _pumpShellScreen(
@@ -5211,7 +5235,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets('native terminal menu actions choose the requested type', (
+  desktopTestWidgets('native terminal menu actions choose the requested type', (
     tester,
   ) async {
     await _pumpShellScreen(
@@ -5244,7 +5268,7 @@ void main() {
     expect(find.byKey(const Key('new-custom-ssh-session')), findsOneWidget);
   });
 
-  testWidgets('closing the last tab can recover from the empty state', (
+  desktopTestWidgets('closing the last tab can recover from the empty state', (
     tester,
   ) async {
     await _pumpShellScreen(
@@ -5278,7 +5302,7 @@ void main() {
     expect(find.text('Back in shell'), findsOneWidget);
   });
 
-  testWidgets('closing the last tab can recover via Reopen closed tab', (
+  desktopTestWidgets('closing the last tab can recover via Reopen closed tab', (
     tester,
   ) async {
     await _pumpShellScreen(
@@ -5306,7 +5330,7 @@ void main() {
     expect(find.byKey(const Key('shell-status-bar')), findsNothing);
   });
 
-  testWidgets('terminal exit returns the shell to the empty state', (
+  desktopTestWidgets('terminal exit returns the shell to the empty state', (
     tester,
   ) async {
     final eventfulBindings = _EventfulPtyBackend();
@@ -5360,7 +5384,7 @@ void main() {
     );
   });
 
-  testWidgets(
+  desktopTestWidgets(
     'SSH failure before its first frame leaves loading and exposes reconnect',
     (tester) async {
       final backend = _InitiallyFailedSshBackend();
@@ -5407,149 +5431,156 @@ void main() {
     },
   );
 
-  testWidgets('SSH transport failure keeps history until its tab is closed', (
-    tester,
-  ) async {
-    final eventfulBindings = _SshEventfulPtyBackend();
-    final sshProfile = TerminalProfile(
-      id: 'ssh-client',
-      name: 'client',
-      shell: '/usr/bin/ssh',
-      connection: const terminal.TerminalConnectionConfig.ssh(
-        host: 'client.example.test',
-        user: 'root',
-        port: 36000,
-      ),
-    );
+  desktopTestWidgets(
+    'SSH transport failure keeps history until its tab is closed',
+    (tester) async {
+      final eventfulBindings = _SshEventfulPtyBackend();
+      final sshProfile = TerminalProfile(
+        id: 'ssh-client',
+        name: 'client',
+        shell: '/usr/bin/ssh',
+        connection: const terminal.TerminalConnectionConfig.ssh(
+          host: 'client.example.test',
+          user: 'root',
+          port: 36000,
+        ),
+      );
 
-    await _pumpShellScreen(
-      tester,
-      bindings: eventfulBindings,
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [sshProfile]),
-      ),
-    );
+      await _pumpShellScreen(
+        tester,
+        bindings: eventfulBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [sshProfile]),
+        ),
+      );
 
-    eventfulBindings.setFrame(1, {
-      'rows': [
-        {
-          'index': 0,
-          'text': 'Ianvs SSH: ProxyCommand connection refused',
-          'style_runs': const <Object?>[],
-        },
-      ],
-      'cursor': {'row': 0, 'col': 43, 'visible': true},
-      'selection': null,
-      'viewport_rows': 24,
-      'viewport_cols': 80,
-      'dirty_ranges': [
-        {'start': 0, 'end': 1},
-      ],
-      'scrollback_offset': 0,
-      'scrollback_max_offset': 0,
-    });
-    eventfulBindings.enqueueExit('1', code: 255);
-    await tester.pump(const Duration(milliseconds: 40));
-    await tester.pumpAndSettle();
+      eventfulBindings.setFrame(1, {
+        'rows': [
+          {
+            'index': 0,
+            'text': 'Ianvs SSH: ProxyCommand connection refused',
+            'style_runs': const <Object?>[],
+          },
+        ],
+        'cursor': {'row': 0, 'col': 43, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 0, 'end': 1},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+      });
+      eventfulBindings.enqueueExit('1', code: 255);
+      await tester.pump(const Duration(milliseconds: 40));
+      await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('shell-empty-state')), findsNothing);
-    expect(find.byType(TerminalViewport), findsOneWidget);
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ShellScreen)),
-    );
-    expect(
-      container.read(sessionControllerProvider).tabs.single.activePane.isExited,
-      isTrue,
-    );
-    expect(
-      find.byKey(const Key('mobile-disconnected-reconnect-1')),
-      findsOneWidget,
-    );
-    expect(eventfulBindings.closedSessionIds, isEmpty);
-    expect(find.byKey(const Key('shell-runtime-error')), findsOneWidget);
-    expect(find.textContaining('SSH connection “client”'), findsNothing);
-    await tester.tap(find.byKey(const Key('shell-runtime-error-details')));
-    await tester.pumpAndSettle();
-    expect(
-      find.textContaining(
-        'SSH connection “client” to root@client.example.test:36000 failed',
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.textContaining('ProxyCommand connection refused'),
-      findsOneWidget,
-    );
+      expect(find.byKey(const Key('shell-empty-state')), findsNothing);
+      expect(find.byType(TerminalViewport), findsOneWidget);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      expect(
+        container
+            .read(sessionControllerProvider)
+            .tabs
+            .single
+            .activePane
+            .isExited,
+        isTrue,
+      );
+      expect(
+        find.byKey(const Key('mobile-disconnected-reconnect-1')),
+        findsOneWidget,
+      );
+      expect(eventfulBindings.closedSessionIds, isEmpty);
+      expect(find.byKey(const Key('shell-runtime-error')), findsOneWidget);
+      expect(find.textContaining('SSH connection “client”'), findsNothing);
+      await tester.tap(find.byKey(const Key('shell-runtime-error-details')));
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining(
+          'SSH connection “client” to root@client.example.test:36000 failed',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('ProxyCommand connection refused'),
+        findsOneWidget,
+      );
 
-    await tester.tap(
-      find.descendant(
-        of: find.byType(AlertDialog),
-        matching: find.byType(TextButton),
-      ),
-    );
-    await tester.pumpAndSettle();
-    final semantics = tester.ensureSemantics();
-    expect(
-      find.bySemanticsLabel(RegExp(r'^Terminal runtime error\.')),
-      findsOneWidget,
-    );
-    semantics.dispose();
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.byType(TextButton),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final semantics = tester.ensureSemantics();
+      expect(
+        find.bySemanticsLabel(RegExp(r'^Terminal runtime error\.')),
+        findsOneWidget,
+      );
+      semantics.dispose();
 
-    await _hoverShellTab(tester, '1');
-    await tester.tap(find.byKey(const Key('shell-tab-close-1')));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('shell-empty-state')), findsOneWidget);
-    expect(find.byType(TerminalViewport), findsNothing);
-    expect(eventfulBindings.closedSessionIds, ['1']);
-  });
+      await _hoverShellTab(tester, '1');
+      await tester.tap(find.byKey(const Key('shell-tab-close-1')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('shell-empty-state')), findsOneWidget);
+      expect(find.byType(TerminalViewport), findsNothing);
+      expect(eventfulBindings.closedSessionIds, ['1']);
+    },
+  );
 
-  testWidgets('shell terminal scrollbar drag sends absolute scroll requests', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
+  desktopTestWidgets(
+    'shell terminal scrollbar drag sends absolute scroll requests',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
 
-    await _pumpShellScreen(
-      tester,
-      bindings: fakeBindings,
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
+      await _pumpShellScreen(
+        tester,
+        bindings: fakeBindings,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
 
-    fakeBindings.setFrame(1, {
-      'rows': [
-        {
-          'index': 0,
-          'text': 'ianvs terminal ready',
-          'style_runs': const <Object?>[],
-        },
-      ],
-      'cursor': {'row': 0, 'col': 4, 'visible': true},
-      'selection': null,
-      'viewport_rows': 24,
-      'viewport_cols': 80,
-      'dirty_ranges': [
-        {'start': 0, 'end': 1},
-      ],
-      'scrollback_offset': 0,
-      'scrollback_max_offset': 120,
-    });
-    await tester.pump(const Duration(milliseconds: 40));
+      fakeBindings.setFrame(1, {
+        'rows': [
+          {
+            'index': 0,
+            'text': 'ianvs terminal ready',
+            'style_runs': const <Object?>[],
+          },
+        ],
+        'cursor': {'row': 0, 'col': 4, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': [
+          {'start': 0, 'end': 1},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 120,
+      });
+      await tester.pump(const Duration(milliseconds: 40));
 
-    expect(find.byKey(terminalScrollbarThumbKey), findsOneWidget);
+      expect(find.byKey(terminalScrollbarThumbKey), findsOneWidget);
 
-    await tester.drag(
-      find.byKey(terminalScrollbarThumbKey),
-      const Offset(0, -60),
-    );
-    await tester.pump();
+      await tester.drag(
+        find.byKey(terminalScrollbarThumbKey),
+        const Offset(0, -60),
+      );
+      await tester.pump();
 
-    expect(fakeBindings.scrollToCalls, isNotEmpty);
-    expect(fakeBindings.scrollToCalls.last.first, 1);
-    expect(fakeBindings.scrollToCalls.last.last, greaterThan(0));
-  });
+      expect(fakeBindings.scrollToCalls, isNotEmpty);
+      expect(fakeBindings.scrollToCalls.last.first, 1);
+      expect(fakeBindings.scrollToCalls.last.last, greaterThan(0));
+    },
+  );
 
-  testWidgets(
+  desktopTestWidgets(
     'shell search opens and scrolls to matches',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -5631,7 +5662,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'shell search closes on Escape without terminal input',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -5668,7 +5699,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'shell search keeps vertical padding balanced',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -5725,7 +5756,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'shell search compacts inside a narrow terminal pane',
     (tester) async {
       tester.view.devicePixelRatio = 1.0;
@@ -5773,7 +5804,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'cmd-f opens shell search without writing to terminal',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -5810,7 +5841,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'shell search opening and clearing keeps input focused',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -5857,7 +5888,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'shell search mode and navigation do not force input focus',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -5911,7 +5942,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'shell search scope searches current tab panes and jumps between panes',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -5989,7 +6020,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'shell search overlay stays inside active split pane',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -6021,7 +6052,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'shell search jump clears inactive pane new output marker',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -6133,7 +6164,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'shell search drops closed split pane matches',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -6193,7 +6224,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'shell search pane scope refreshes after activating another pane',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -6273,7 +6304,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'shell search scope searches all tabs and jumps across tabs',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -6348,7 +6379,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'shell search highlights visible matches',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -6439,7 +6470,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'shell search recomputes selected highlight geometry after resize',
     (tester) async {
       tester.view.devicePixelRatio = 1.0;
@@ -6577,7 +6608,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'shell search recomputes selected highlight geometry after output updates',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -6725,7 +6756,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'shell search regex mode matches visible terminal output',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -6816,7 +6847,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'shell search regex mode keeps text editable and reports errors',
     (tester) async {
       final fakeBindings = FakePtyBackend();

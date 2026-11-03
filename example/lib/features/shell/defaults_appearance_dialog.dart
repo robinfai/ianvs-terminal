@@ -2083,7 +2083,7 @@ class _DefaultsAndAppearanceDialogState
                                                           true,
                                                 ),
                                         ),
-                                      DropdownButtonFormField<bool>(
+                                      AppDropdownFormField<bool>(
                                         key: const Key('sync-service-choice'),
                                         initialValue: _customSyncService,
                                         decoration: InputDecoration(

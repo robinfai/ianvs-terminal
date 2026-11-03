@@ -40,7 +40,7 @@ func (a *API) desktopApple(w http.ResponseWriter, r *http.Request) {
 		writeDecodeError(w, err)
 		return
 	}
-	flows := &a.desktopAppleFlows
+	flows := a.desktopAppleFlows
 	flows.Lock()
 	defer flows.Unlock()
 	now := time.Now()
@@ -127,7 +127,7 @@ func (a *API) desktopAppleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PostForm.Get("state")
-	flows := &a.desktopAppleFlows
+	flows := a.desktopAppleFlows
 	flows.Lock()
 	flow, ok := flows.pending[id]
 	flows.Unlock()

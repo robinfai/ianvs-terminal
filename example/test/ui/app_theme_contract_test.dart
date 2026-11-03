@@ -108,7 +108,7 @@ void main() {
             ),
             greaterThanOrEqualTo(4.5),
           );
-          expect(design.controlRadius, platform == TargetPlatform.iOS ? 10 : 8);
+          expect(design.controlRadius, platform == TargetPlatform.iOS ? 12 : 8);
           expect(design.dialogRadius, platform == TargetPlatform.iOS ? 20 : 16);
           expect(theme.inputDecorationTheme.fillColor, design.field);
           expect(tokens.canvas, design.canvas);

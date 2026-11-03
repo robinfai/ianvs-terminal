@@ -16,6 +16,12 @@
 
 #define MAX_SCROLLBACK_LINES 100000
 
+#define MAX_ASSET_BYTES ((32 * 1024) * 1024)
+
+#define MAX_FRAME_ASSETS 256
+
+#define MAX_RECORD_BYTES ((17 * 1024) * 1024)
+
 #define RUNTIME_CAPABILITIES_SCHEMA_VERSION 1
 
 #define RUNTIME_ENVELOPE_SCHEMA_VERSION 1
@@ -217,5 +223,13 @@ void ianvs_string_free(char *value);
  * Frame byte entrypoints with the same `len`.
  */
 void ianvs_bytes_free(uint8_t *ptr, uintptr_t len);
+
+/**
+ * # Safety
+ * `request_json` must point to a NUL-terminated UTF-8 request. The result is
+ * released with `ianvs_string_free`. File operations must run off the UI thread;
+ * reserve/cancel/release only manipulate bounded in-memory job state.
+ */
+char *ianvs_recording_file_request_v2_json(const char *request_json);
 
 #endif  /* IANVS_CORE_H */

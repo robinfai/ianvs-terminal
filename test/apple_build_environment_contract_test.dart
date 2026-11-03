@@ -333,14 +333,31 @@ exit 73
     );
   });
 
-  test('iOS ABI verification ignores the Xcode debug stub executable', () {
-    final source = File('tools/verify_ios_simulator.sh').readAsStringSync();
-
-    expect(source, contains(r'link_images=("$executable")'));
+  test('iOS run scheme supports simulators while archives remain Release', () {
+    final scheme = File(
+      'example/ios/Runner.xcodeproj/xcshareddata/xcschemes/Runner.xcscheme',
+    ).readAsStringSync();
     expect(
-      source,
-      contains(r'link_images=("$ios_app/$executable_name.debug.dylib")'),
+      scheme,
+      matches(RegExp(r'<LaunchAction\s+buildConfiguration = "Debug"')),
+      reason:
+          'Xcode resolves simulator destinations from the run configuration; '
+          'Release is device-only in Flutter.',
     );
+    expect(
+      scheme,
+      matches(RegExp(r'<ArchiveAction\s+buildConfiguration = "Release"')),
+    );
+  });
+
+  test('iOS ABI verification ignores the Xcode debug stub executable', () {
+    final caller = File('tools/verify_ios_simulator.sh').readAsStringSync();
+    final source = File(
+      'tools/verify_ios_native_exports.sh',
+    ).readAsStringSync();
+    expect(caller, contains('tools/verify_ios_native_exports.sh'));
+    expect(source, contains(r'if [[ -f "$app/$name.debug.dylib" ]]'));
+    expect(source, contains(r'image="$app/$name.debug.dylib"'));
   });
 
   test('iOS Rust build separates host and target Apple SDK roots', () {

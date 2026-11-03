@@ -1,10 +1,10 @@
 import 'package:app/data/configuration/data_api_configuration.dart';
+import 'package:app/data/configuration/oauth_sign_in_panel.dart';
 import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/shell/defaults_appearance_dialog.dart';
 import 'package:app/ui/components/app_configuration_field.dart';
 import 'package:app/ui/foundation/app_theme.dart';
-import 'package:app/ui/foundation/app_theme_tokens.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -57,24 +57,23 @@ Future<void> _selectDataSectionWhenTabbed(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
-Future<void> _selectPasswordLogin(WidgetTester tester) async {
-  final method = find.byKey(const Key('data-api-auth-method'));
-  if (method.evaluate().isEmpty) return;
-  await tester.ensureVisible(method);
-  await tester.tap(method);
+Future<void> _selectCustomService(WidgetTester tester) async {
+  final service = find.byKey(const Key('sync-service-choice'));
+  await tester.ensureVisible(service);
+  await tester.tap(service);
   await tester.pumpAndSettle();
-  await tester.tap(find.text('Username and password').last);
+  await tester.tap(find.text('Another sync service').last);
   await tester.pumpAndSettle();
 }
 
-Future<Finder> _openRemoteUsername(WidgetTester tester) async {
+Future<Finder> _openRemoteUrl(WidgetTester tester) async {
   await _selectDataSectionWhenTabbed(tester);
   final remote = find.byKey(const Key('data-api-remote'));
   await tester.ensureVisible(remote);
   await tester.tap(remote);
   await tester.pumpAndSettle();
-  await _selectPasswordLogin(tester);
-  return find.byKey(const Key('data-api-remote-username'));
+  await _selectCustomService(tester);
+  return find.byKey(const Key('data-api-remote-url'));
 }
 
 void main() {
@@ -89,7 +88,7 @@ void main() {
 
       await _pumpIosDefaultsDialog(tester);
 
-      final username = await _openRemoteUsername(tester);
+      final username = await _openRemoteUrl(tester);
       await tester.ensureVisible(username);
       await tester.tap(username);
       tester.view.viewInsets = FakeViewPadding(
@@ -128,7 +127,7 @@ void main() {
 
       await _pumpIosDefaultsDialog(tester);
 
-      final username = await _openRemoteUsername(tester);
+      final username = await _openRemoteUrl(tester);
       await tester.ensureVisible(username);
       await tester.tap(username);
       tester.view.viewInsets = FakeViewPadding(
@@ -146,79 +145,27 @@ void main() {
   );
 
   testWidgets(
-    'defaults remote login uses readable errors and mobile keyboard progression',
+    'custom sync service validates its URL before presenting OAuth sign-in',
     (tester) async {
-      const surfaceSize = Size(844, 390);
-      const keyboardHeight = 216.0;
-      await tester.binding.setSurfaceSize(surfaceSize);
-      addTearDown(() => tester.binding.setSurfaceSize(null));
-      addTearDown(tester.view.reset);
-
       await _pumpIosDefaultsDialog(tester);
-      await _selectDataSectionWhenTabbed(tester);
-      final remote = find.byKey(const Key('data-api-remote'));
-      await tester.scrollUntilVisible(
-        remote,
-        500,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.tap(remote);
-      await tester.pumpAndSettle();
-
-      await _selectPasswordLogin(tester);
-      final url = find.byKey(const Key('data-api-remote-url'));
-      final username = find.byKey(const Key('data-api-remote-username'));
-      final password = find.byKey(const Key('data-api-remote-password'));
-      final urlField = tester.widget<TextField>(url);
-      final usernameField = tester.widget<TextField>(username);
-      final passwordField = tester.widget<TextField>(password);
-      expect(urlField.textInputAction, TextInputAction.next);
-      expect(usernameField.textInputAction, TextInputAction.next);
-      expect(passwordField.textInputAction, TextInputAction.done);
-      expect(passwordField.onSubmitted, isNotNull);
-      for (final field in [urlField, usernameField, passwordField]) {
-        expect(field.decoration?.labelText, isNull);
-      }
-      for (final finder in [url, username, password]) {
-        expect(
-          find.ancestor(
-            of: finder,
-            matching: find.byType(AppConfigurationField),
-          ),
-          findsOneWidget,
-        );
-      }
-      expect(urlField.decoration?.errorMaxLines, 2);
-      expect(usernameField.decoration?.errorMaxLines, 2);
-      expect(passwordField.decoration?.errorMaxLines, 2);
-      expect(urlField.scrollPadding.bottom, greaterThanOrEqualTo(40));
-      expect(usernameField.scrollPadding.bottom, greaterThanOrEqualTo(40));
-      expect(passwordField.scrollPadding.bottom, greaterThanOrEqualTo(40));
+      final url = await _openRemoteUrl(tester);
+      final field = tester.widget<TextField>(url);
+      expect(field.keyboardType, TextInputType.url);
+      expect(field.scrollPadding.bottom, greaterThanOrEqualTo(40));
       expect(
-        find.text('Use 3–64 lowercase letters, numbers, . _ or -.'),
-        findsNothing,
-      );
-      expect(find.text('Use 12–72 UTF-8 bytes.'), findsNothing);
-
-      await tester.enterText(username, 'a');
-      await tester.enterText(password, 'a');
-      await tester.pump();
-      expect(
-        find.text('Use 3–64 lowercase letters, numbers, . _ or -.'),
+        find.ancestor(of: url, matching: find.byType(AppConfigurationField)),
         findsOneWidget,
       );
-      expect(find.text('Use 12–72 UTF-8 bytes.'), findsOneWidget);
-
-      await tester.ensureVisible(username);
-      await tester.tap(username);
-      tester.view.viewInsets = FakeViewPadding(
-        bottom: keyboardHeight * tester.view.devicePixelRatio,
+      await tester.enterText(
+        url,
+        'https://user:secret@example.com?unsafe=true',
       );
       await tester.pumpAndSettle();
-
-      final keyboardTop = surfaceSize.height - keyboardHeight;
-      expect(tester.getRect(username).bottom, lessThanOrEqualTo(keyboardTop));
-      expect(find.text('Data sync'), findsOneWidget);
+      expect(find.textContaining('without credentials'), findsOneWidget);
+      await tester.enterText(url, 'https://sync.example.com');
+      await tester.pumpAndSettle();
+      expect(find.byType(OAuthSignInPanel), findsOneWidget);
+      expect(find.byKey(const Key('data-api-remote-password')), findsNothing);
       expect(tester.takeException(), isNull);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.iOS),
@@ -268,108 +215,93 @@ void main() {
     expect(find.byKey(const Key('data-api-local')), findsNothing);
   });
 
-  testWidgets('remote selection requires ephemeral login credentials', (
-    tester,
-  ) async {
-    await tester.binding.setSurfaceSize(const Size(1000, 820));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: buildIanvsTerminalTheme(Brightness.dark),
-        home: const Scaffold(
-          body: DefaultsAndAppearanceDialog(
-            profiles: [],
-            configuredDefaultProfileId: null,
-            effectiveDefaultProfileId: null,
-            themeMode: TerminalThemeMode.system,
-            terminalViewportPadding:
-                TerminalAppAppearance.defaultTerminalViewportPadding,
-            restoreLayout: false,
-            osc52Policy: LocalTerminalOsc52Policy.ask,
-            openUrlPolicy: LocalTerminalOpenUrlPolicy.ask,
-            requestAttentionPolicy:
-                LocalTerminalRequestAttentionPolicy.disabled,
-            reportVariableDecisions: {},
-            dataApiConfiguration: DataApiConfiguration.disabled(),
-            localDataApiAvailable: true,
+  testWidgets(
+    'remote selection requires OAuth before saving a sync connection',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1000, 820));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildIanvsTerminalTheme(Brightness.dark),
+          home: const Scaffold(
+            body: DefaultsAndAppearanceDialog(
+              profiles: [],
+              configuredDefaultProfileId: null,
+              effectiveDefaultProfileId: null,
+              themeMode: TerminalThemeMode.system,
+              terminalViewportPadding:
+                  TerminalAppAppearance.defaultTerminalViewportPadding,
+              restoreLayout: false,
+              osc52Policy: LocalTerminalOsc52Policy.ask,
+              openUrlPolicy: LocalTerminalOpenUrlPolicy.ask,
+              requestAttentionPolicy:
+                  LocalTerminalRequestAttentionPolicy.disabled,
+              reportVariableDecisions: {},
+              dataApiConfiguration: DataApiConfiguration.disabled(),
+              localDataApiAvailable: true,
+            ),
           ),
         ),
-      ),
-    );
-    await tester.pump();
-    await _selectDataSectionWhenTabbed(tester);
+      );
+      await tester.pump();
+      await _selectDataSectionWhenTabbed(tester);
 
-    await tester.scrollUntilVisible(
-      find.byKey(const Key('defaults-data-api-panel')),
-      500,
-      scrollable: find.byType(Scrollable).first,
-    );
-    expect(find.byKey(const Key('data-api-local')), findsOneWidget);
-    await tester.tap(find.byKey(const Key('data-api-remote')));
-    await tester.pump();
-    expect(
-      tester
-          .widget<TextField>(find.byKey(const Key('data-api-remote-url')))
-          .controller
-          ?.text,
-      defaultRemoteDataApiBaseUrl,
-    );
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('defaults-data-api-panel')),
+        500,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.byKey(const Key('data-api-local')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('data-api-remote')));
+      await tester.pump();
+      await _selectCustomService(tester);
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('data-api-remote-url')))
+            .controller
+            ?.text,
+        isEmpty,
+      );
 
-    await tester.enterText(
-      find.byKey(const Key('data-api-remote-url')),
-      'https://user:secret@example.com?unsafe=true',
-    );
-    await tester.pump();
-    expect(find.textContaining('without credentials'), findsOneWidget);
-    expect(
-      tester
-          .widget<FilledButton>(find.byKey(const Key('defaults-save')))
-          .onPressed,
-      isNull,
-    );
+      await tester.enterText(
+        find.byKey(const Key('data-api-remote-url')),
+        'https://user:secret@example.com?unsafe=true',
+      );
+      await tester.pump();
+      expect(find.textContaining('without credentials'), findsOneWidget);
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const Key('defaults-save')))
+            .onPressed,
+        isNull,
+      );
 
-    await tester.enterText(
-      find.byKey(const Key('data-api-remote-url')),
-      'http://api.example.com/v1',
-    );
-    await tester.pump();
-    expect(find.textContaining('requires HTTPS'), findsOneWidget);
+      await tester.enterText(
+        find.byKey(const Key('data-api-remote-url')),
+        'http://api.example.com/v1',
+      );
+      await tester.pump();
+      expect(find.textContaining('requires HTTPS'), findsOneWidget);
 
-    await tester.enterText(
-      find.byKey(const Key('data-api-remote-url')),
-      'https://api.example.com/v1',
-    );
-    await tester.pump();
-    expect(
-      tester
-          .widget<FilledButton>(find.byKey(const Key('defaults-save')))
-          .onPressed,
-      isNull,
-    );
+      await tester.enterText(
+        find.byKey(const Key('data-api-remote-url')),
+        'https://api.example.com/v1',
+      );
+      await tester.pump();
+      expect(find.byKey(const Key('defaults-save')), findsNothing);
 
-    await tester.enterText(
-      find.byKey(const Key('data-api-remote-username')),
-      'alice',
-    );
-    await tester.enterText(
-      find.byKey(const Key('data-api-remote-password')),
-      'correct horse battery staple',
-    );
-    await tester.pump();
-    expect(
-      tester
-          .widget<FilledButton>(find.byKey(const Key('defaults-save')))
-          .onPressed,
-      isNotNull,
-    );
-    expect(
-      find.text(
-        'Local data remains available. Sync connection changes are applied '
-        'when you save.',
-      ),
-      findsNothing,
-    );
-  });
+      expect(find.byType(OAuthSignInPanel), findsOneWidget);
+      expect(find.byKey(const Key('data-api-remote-username')), findsNothing);
+      expect(find.byKey(const Key('data-api-remote-password')), findsNothing);
+      expect(
+        find.text(
+          'Local data remains available. Sync connection changes are applied '
+          'when you save.',
+        ),
+        findsNothing,
+      );
+    },
+  );
 
   testWidgets('configured loopback remote is presented as a mode', (
     tester,
@@ -476,43 +408,10 @@ void main() {
       find.byKey(const Key('data-api-remote-encryption-key')),
       findsNothing,
     );
-    expect(
-      tester
-          .widget<FilledButton>(find.byKey(const Key('defaults-save')))
-          .onPressed,
-      isNull,
-    );
-    final expectedFieldSize = Theme.of(
-      tester.element(find.byKey(const Key('data-api-remote-url'))),
-    ).textTheme.bodyMedium?.fontSize;
-    for (final key in <Key>[
-      const Key('data-api-remote-url'),
-      const Key('data-api-remote-username'),
-      const Key('data-api-remote-password'),
-    ]) {
-      final field = tester.widget<TextField>(find.byKey(key));
-      expect(field.style?.fontSize, expectedFieldSize);
-      expect(
-        field.decoration?.constraints?.minHeight,
-        tester.element(find.byKey(key)).appTheme.controls.regular,
-      );
-    }
-    await tester.enterText(
-      find.byKey(const Key('data-api-remote-username')),
-      'alice',
-    );
-    await tester.enterText(
-      find.byKey(const Key('data-api-remote-password')),
-      'new-password',
-    );
-    await tester.pump();
-
-    expect(
-      tester
-          .widget<FilledButton>(find.byKey(const Key('defaults-save')))
-          .onPressed,
-      isNotNull,
-    );
+    expect(find.byKey(const Key('defaults-save')), findsNothing);
+    expect(find.byType(OAuthSignInPanel), findsOneWidget);
+    expect(find.byKey(const Key('data-api-remote-username')), findsNothing);
+    expect(find.byKey(const Key('data-api-remote-password')), findsNothing);
   });
 
   testWidgets('enabling remote sync from local does not require migration', (
@@ -553,12 +452,18 @@ void main() {
 
     await tester.tap(find.byKey(const Key('data-api-remote')));
     await tester.pump();
+    await _selectCustomService(tester);
 
     expect(
       find.byKey(const Key('data-api-local-to-remote-migration')),
       findsNothing,
     );
-    expect(find.text('Save changes'), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const Key('defaults-save')))
+          .onPressed,
+      isNull,
+    );
 
     await tester.enterText(
       find.byKey(const Key('data-api-remote-url')),
@@ -570,7 +475,7 @@ void main() {
       find.byKey(const Key('data-api-local-to-remote-migration')),
       findsNothing,
     );
-    expect(find.text('Save changes'), findsOneWidget);
+    expect(find.byKey(const Key('defaults-save')), findsNothing);
   });
 
   testWidgets('active local runtime allows remote sync without migration', (
@@ -612,12 +517,18 @@ void main() {
 
     await tester.tap(find.byKey(const Key('data-api-remote')));
     await tester.pump();
+    await _selectCustomService(tester);
 
     expect(
       find.byKey(const Key('data-api-local-to-remote-migration')),
       findsNothing,
     );
-    expect(find.text('Save changes'), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const Key('defaults-save')))
+          .onPressed,
+      isNull,
+    );
 
     await tester.enterText(
       find.byKey(const Key('data-api-remote-url')),
@@ -629,7 +540,7 @@ void main() {
       find.byKey(const Key('data-api-local-to-remote-migration')),
       findsNothing,
     );
-    expect(find.text('Save changes'), findsOneWidget);
+    expect(find.byKey(const Key('defaults-save')), findsNothing);
     expect(
       tester
           .getSemantics(find.byKey(const Key('data-api-active-deployment')))
@@ -698,7 +609,12 @@ void main() {
       find.byKey(const Key('data-api-remote-to-local-migration')),
       findsNothing,
     );
-    expect(find.text('Save changes'), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const Key('defaults-save')))
+          .onPressed,
+      isNotNull,
+    );
     expect(
       tester
           .widget<FilledButton>(find.byKey(const Key('defaults-save')))

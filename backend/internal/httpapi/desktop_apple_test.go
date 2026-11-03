@@ -14,7 +14,7 @@ func TestDesktopAppleRetrievalIsSecretBoundSingleUseAndExpiring(t *testing.T) {
 	a := &API{
 		cfg:                  config.Config{Mode: config.ModeRemote, AllowInsecureSensitiveTransport: true, AppleWeb: &config.AppleWeb{ClientID: "test.web"}},
 		anonymousAuthLimiter: newAnonymousAuthRateLimiter(),
-		desktopAppleFlows: desktopAppleFlows{pending: map[string]desktopAppleFlow{
+		desktopAppleFlows: &desktopAppleFlows{pending: map[string]desktopAppleFlow{
 			"flow":    {secret: sha256.Sum256([]byte(secret)), nonce: "nonce", token: "verified-token", expires: time.Now().Add(time.Minute)},
 			"expired": {secret: sha256.Sum256([]byte(secret)), token: "expired-token", expires: time.Now().Add(-time.Second)},
 		}},

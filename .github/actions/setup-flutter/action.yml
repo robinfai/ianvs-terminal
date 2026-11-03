@@ -1,0 +1,33 @@
+name: Pinned Flutter with SDK and pub caches
+description: Cache the baseline SDK without mutable cache actions.
+inputs:
+  cache:
+    description: Cache dependencies and the shared Apple SDK for recurring jobs.
+    default: 'true'
+runs:
+  using: composite
+  steps:
+    - name: Cache Flutter SDK
+      # Apple jobs share one SDK; Flutter fetches any missing engine artifacts.
+      # Linux setup takes under a minute; reserve capacity for native builds.
+      if: inputs.cache == 'true' && runner.os == 'macOS'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.tool_cache }}/ianvs-flutter
+        key: flutter-3.44.2-${{ runner.os }}-${{ runner.arch }}-macos-v1
+    - name: Cache pub dependencies
+      if: inputs.cache == 'true'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.tool_cache }}/ianvs-pub
+        key: pub-3.44.2-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pubspec.lock') }}
+        restore-keys: pub-3.44.2-${{ runner.os }}-${{ runner.arch }}-
+    - name: Set up Flutter
+      uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+      with:
+        flutter-version: '3.44.2'
+        channel: stable
+        cache: false
+        pub-cache: false
+        cache-path: ${{ runner.tool_cache }}/ianvs-flutter
+        pub-cache-path: ${{ runner.tool_cache }}/ianvs-pub

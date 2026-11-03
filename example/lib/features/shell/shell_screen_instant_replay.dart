@@ -967,9 +967,6 @@ class _InstantReplayControlHeader extends StatelessWidget {
 
 class _InstantReplayPlaybackControls extends StatelessWidget {
   const _InstantReplayPlaybackControls({
-    this.toggleKey,
-    this.speedKey = const Key('instant-replay-speed'),
-    this.timeModeKey = const Key('instant-replay-time-mode'),
     required this.isPlaying,
     required this.speed,
     required this.timeMode,
@@ -981,9 +978,8 @@ class _InstantReplayPlaybackControls extends StatelessWidget {
     required this.palette,
   });
 
-  final Key? toggleKey;
-  final Key speedKey;
-  final Key timeModeKey;
+  Key get speedKey => const Key('instant-replay-speed');
+  Key get timeModeKey => const Key('instant-replay-time-mode');
   final bool isPlaying;
   final double speed;
   final terminal.TerminalReplayTimeMode timeMode;
@@ -1007,7 +1003,6 @@ class _InstantReplayPlaybackControls extends StatelessWidget {
         ),
         const SizedBox(width: 4),
         _InstantReplayControlButton(
-          key: toggleKey,
           tooltip: isPlaying
               ? context.l10n.pauseReplay
               : context.l10n.playReplay,
@@ -1242,9 +1237,6 @@ class _InstantReplayActionControls extends StatelessWidget {
 
 class _InstantReplaySearchControls extends StatelessWidget {
   const _InstantReplaySearchControls({
-    this.searchKey = const Key('instant-replay-search'),
-    this.previousKey = const Key('instant-replay-search-previous'),
-    this.nextKey = const Key('instant-replay-search-next'),
     required this.enabled,
     required this.searchSummary,
     required this.onSearchChanged,
@@ -1253,9 +1245,9 @@ class _InstantReplaySearchControls extends StatelessWidget {
     required this.palette,
   });
 
-  final Key searchKey;
-  final Key previousKey;
-  final Key nextKey;
+  Key get searchKey => const Key('instant-replay-search');
+  Key get previousKey => const Key('instant-replay-search-previous');
+  Key get nextKey => const Key('instant-replay-search-next');
   final bool enabled;
   final String? searchSummary;
   final ValueChanged<String> onSearchChanged;

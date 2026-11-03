@@ -19,7 +19,8 @@ class ScriptTests(unittest.TestCase):
                           "native/vendor/par-term-emu-core-rust", "native/vendor/zmodem2",
                           "packages/ianvs_pty", "packages/ianvs_terminal",
                           "packages/ianvs_terminal_core/native/core", "backend", "example/test",
-                          "example/lib/features/shell"):
+                          "example/lib/features/shell",
+                          "example/build/macos/Build/Products/Debug/Trail Development.app/Contents/Frameworks/Sparkle.framework"):
             (root / directory).mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / "tools" / script, root / "tools" / script)
         for helper in ("build_core.sh", "verify_generated_contracts.sh"):
@@ -134,7 +135,7 @@ exit 0
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(log.count("flutter | build macos --debug"), 2)
         self.assertEqual(log.count("flutter | build macos --release"), 2)
-        self.assertEqual(log.count("flutter | test -d macos"), 6)
+        self.assertEqual(log.count("flutter | test -d macos"), 9)
         self.assertIn("xcodebuild | test", log)
 
     def test_debug_macos_mode_keeps_all_functional_and_native_tests(self):
@@ -142,7 +143,7 @@ exit 0
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(log.count("flutter | build macos --debug"), 1)
         self.assertNotIn("flutter | build macos --release", log)
-        self.assertEqual(log.count("flutter | test -d macos"), 6)
+        self.assertEqual(log.count("flutter | test -d macos"), 9)
         self.assertIn("codesign | --verify --deep --strict", log)
         self.assertIn("xcodebuild | test", log)
 

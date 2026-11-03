@@ -27,6 +27,23 @@ class _AiMobileHistorySheetState extends State<AiMobileHistorySheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    Widget actions() => PopupMenuButton<String>(
+      key: const Key('ai-history-actions'),
+      tooltip: t('More actions', '更多操作'),
+      onSelected: (action) => Navigator.of(context).pop(action),
+      itemBuilder: (_) => [
+        PopupMenuItem(
+          value: 'mobile:details',
+          child: Text(t('Details and controls', '详情与控制')),
+        ),
+        PopupMenuItem(
+          value: 'mobile:observe',
+          key: const Key('ai-observe-terminal'),
+          child: Text(t('View terminal (read-only)', '只读查看终端')),
+        ),
+      ],
+      icon: const Icon(Icons.more_horiz),
+    );
     return ListenableBuilder(
       listenable: widget.controller,
       builder: (context, _) {
@@ -77,25 +94,7 @@ class _AiMobileHistorySheetState extends State<AiMobileHistorySheet> {
                           leading: BackButton(
                             onPressed: () => Navigator.of(context).pop(),
                           ),
-                          trailing: PopupMenuButton<String>(
-                            tooltip: t('More actions', '更多操作'),
-                            onSelected: (action) =>
-                                Navigator.of(context).pop(action),
-                            itemBuilder: (_) => [
-                              PopupMenuItem(
-                                value: 'mobile:details',
-                                child: Text(t('Details and controls', '详情与控制')),
-                              ),
-                              PopupMenuItem(
-                                value: 'mobile:observe',
-                                key: const Key('ai-observe-terminal'),
-                                child: Text(
-                                  t('View terminal (read-only)', '只读查看终端'),
-                                ),
-                              ),
-                            ],
-                            icon: const Icon(Icons.more_horiz),
-                          ),
+                          trailing: actions(),
                           middle: Text(
                             t('Conversations', '历史会话'),
                             style: theme.textTheme.titleMedium?.copyWith(
@@ -111,6 +110,23 @@ class _AiMobileHistorySheetState extends State<AiMobileHistorySheet> {
                       child: Row(
                         children: [
                           Expanded(child: _searchField()),
+                          if (compact)
+                            IconButton(
+                              key: const Key('ai-new-task'),
+                              tooltip: t('New conversation', '新建会话'),
+                              constraints: const BoxConstraints.tightFor(
+                                width: 44,
+                                height: 44,
+                              ),
+                              onPressed:
+                                  !controller.hasUnresolvedSubmission ||
+                                      controller.followUpEnded
+                                  ? () =>
+                                        Navigator.of(context).pop('mobile:new')
+                                  : null,
+                              icon: const Icon(Icons.edit_square),
+                            ),
+                          if (compact) actions(),
                           if (compact)
                             BackButton(
                               onPressed: () => Navigator.of(context).pop(),

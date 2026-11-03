@@ -48,7 +48,7 @@ pub fn decode_frame_packet_v1_for_test(
     pb::TerminalFramePacketV1::decode(bytes)
 }
 
-fn to_proto_frame(frame: &TerminalFrameDiff) -> pb::TerminalFrameDiff {
+pub(crate) fn to_proto_frame(frame: &TerminalFrameDiff) -> pb::TerminalFrameDiff {
     pb::TerminalFrameDiff {
         semantic_snapshot_token: frame.semantic_snapshot_token.clone(),
         semantic_blocks: frame

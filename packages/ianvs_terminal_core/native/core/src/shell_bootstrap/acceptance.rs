@@ -167,7 +167,8 @@ impl Terminal {
                     .iter()
                     .any(|e| e["hook"] == "precmd.pwd"
                         && e["context_id"] == context
-                        && e["pwd"].as_str().is_some_and(|pwd| pwd.starts_with('/')))
+                        && e["pwd"].as_str().is_some_and(|pwd| pwd.starts_with('/'))
+                        && e["hostname"].as_str().is_some_and(|host| !host.is_empty()))
             );
             observations.push(json!({"command": command, "exit_code": code,
                 "event_order": ["preexec", "command_finished", "precmd", "precmd.pwd"]}));

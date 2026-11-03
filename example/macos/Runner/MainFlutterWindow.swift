@@ -546,13 +546,12 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, ASWebAuthenticationPresenta
         }
       case "chooseRecordingFile":
         let panel = NSOpenPanel()
-        panel.title = "Import Terminal Recording"
-        panel.prompt = "Import"
-        panel.canChooseFiles = true
-        panel.canChooseDirectories = false
+        panel.title = "Open Terminal Recording"
+        panel.prompt = "Open"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         panel.resolvesAliases = true
-        panel.allowedFileTypes = ["ndjson"]
         if
           let arguments = call.arguments as? [String: Any],
           let rawInitialDirectory = arguments["initialDirectory"] as? String

@@ -23,8 +23,8 @@ import 'package:integration_test/integration_test.dart';
 import '../test/support/macos_integration_test_lifecycle.dart';
 import '../test/support/memory_local_terminal_config_repository.dart';
 import '../test/support/memory_profile_repository.dart';
-import '../test/support/no_io_local_session_recording_repository.dart';
 import '../test/support/no_io_local_terminal_layout_repository.dart';
+import '../test/support/no_io_sampled_recording_library.dart';
 import 'terminal_ai_model_gateway.dart';
 
 class _MemoryStore implements AiConfigurationStore {
@@ -127,8 +127,8 @@ awk 'BEGIN {
           localTerminalLayoutRepositoryProvider.overrideWithValue(
             noIoLocalTerminalLayoutRepository(),
           ),
-          localSessionRecordingRepositoryProvider.overrideWithValue(
-            noIoLocalSessionRecordingRepository(),
+          sampledRecordingLibraryProvider.overrideWithValue(
+            noIoSampledRecordingLibrary(),
           ),
           shellAnimationsEnabledProvider.overrideWithValue(false),
           shellNotificationSenderProvider.overrideWithValue(

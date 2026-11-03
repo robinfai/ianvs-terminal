@@ -30,7 +30,7 @@ import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_local_terminal_config_repository.dart';
 import '../support/memory_paste_history_repository.dart';
 import '../support/memory_profile_repository.dart';
-import '../support/no_io_local_session_recording_repository.dart';
+import '../support/no_io_sampled_recording_library.dart';
 
 void main() {
   test(
@@ -173,6 +173,7 @@ void main() {
       tester.view.viewInsets = const FakeViewPadding(bottom: 300);
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('ios-terminal-input-bar')), findsOne);
+      expect(find.byKey(const Key('mobile-show-keyboard')), findsNothing);
       expect(find.byKey(const Key('ios-terminal-text-size')), findsNothing);
       nativeBackend.writes.clear();
       await tester.tap(find.byKey(const Key('ios-terminal-key-Control C')));
@@ -359,7 +360,7 @@ void main() {
       );
       await tester.tap(find.byKey(const Key('ssh-more-settings-toggle')));
       await tester.pumpAndSettle();
-      final saveProfile = tester.widget<CheckboxListTile>(
+      final saveProfile = tester.widget<SwitchListTile>(
         find.byKey(const Key('ssh-save-profile')),
       );
       expect(saveProfile.value, isFalse);
@@ -377,6 +378,7 @@ void main() {
         'demo-password',
       );
       await tester.ensureVisible(find.byKey(const Key('ssh-connect')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('ssh-connect')));
       await tester.pumpAndSettle();
 
@@ -470,8 +472,8 @@ Widget _buildIosApp({
       localTerminalLayoutRepositoryProvider.overrideWithValue(
         _NoLayoutRepository(),
       ),
-      localSessionRecordingRepositoryProvider.overrideWithValue(
-        noIoLocalSessionRecordingRepository(),
+      sampledRecordingLibraryProvider.overrideWithValue(
+        noIoSampledRecordingLibrary(),
       ),
       sessionPollingEnabledProvider.overrideWithValue(false),
       sessionDemoFixtureProvider.overrideWithValue(null),

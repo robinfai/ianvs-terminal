@@ -768,6 +768,7 @@ __ianvs_install_shell_hooks() {
   typeset -g __IANVS_SHELL_INTEGRATION_LOADED=1
   typeset -g __ianvs_command_active=0
   typeset -g __ianvs_last_command=""
+  typeset -g __ianvs_hostname="$(command hostname 2>/dev/null || true)"
   typeset -g __ianvs_prompt_sp_suppressed=0
   typeset -g __ianvs_prompt_sp_was_set=0
   typeset -g __ianvs_startup_prompt_sp_checked=0
@@ -948,6 +949,7 @@ __ianvs_install_shell_hooks() {
   __IANVS_SHELL_INTEGRATION_LOADED=1
   __ianvs_command_active=0
   __ianvs_last_command=""
+  __ianvs_hostname="$(command hostname 2>/dev/null || true)"
   __ianvs_inside_prompt=0
 
   if [[ "$(declare -p PROMPT_COMMAND 2>/dev/null)" == declare\ -a* ]]; then
@@ -1079,6 +1081,7 @@ if test -n "$IANVS_SHELL_INTEGRATION"; and not set -q __IANVS_SHELL_INTEGRATION_
   set -g __IANVS_SHELL_INTEGRATION_LOADED 1
   set -g __ianvs_command_active 0
   set -g __ianvs_last_command ''
+  set -g __ianvs_hostname (command hostname 2>/dev/null)
 
   function __ianvs_json_escape
     set -l __ianvs_value ''

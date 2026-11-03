@@ -1,5 +1,6 @@
 _ianvs_bytes_free
 _ianvs_ping
+_ianvs_recording_file_request_v2_json
 _ianvs_replay_session_checkpoint_capture
 _ianvs_replay_session_checkpoint_restore
 _ianvs_replay_session_create_v1

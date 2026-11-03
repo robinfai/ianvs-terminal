@@ -36,17 +36,21 @@ ThemeData withIdePresentation(ThemeData base) {
     panelRadius: 12,
     dialogRadius: touch ? 20 : 16,
   );
+  // Choose the foreground against the resolved accent, including iOS blue.
+  final onAccent = t.accent.computeLuminance() > 0.179
+      ? Colors.black
+      : Colors.white;
   final scheme = base.colorScheme.copyWith(
     primary: t.accent,
-    onPrimary: Colors.white,
+    onPrimary: onAccent,
     primaryContainer: t.selected,
     onPrimaryContainer: t.onSelected,
     secondary: t.accent,
-    onSecondary: Colors.white,
+    onSecondary: onAccent,
     secondaryContainer: t.selected,
     onSecondaryContainer: t.onSelected,
     tertiary: t.accent,
-    onTertiary: Colors.white,
+    onTertiary: onAccent,
     surface: t.canvas,
     onSurface: t.text,
     onSurfaceVariant: t.muted,

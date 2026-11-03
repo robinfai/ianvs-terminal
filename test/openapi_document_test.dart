@@ -9,6 +9,7 @@ const _schemaTypes = <String>{
   'boolean',
   'integer',
   'number',
+  'null',
   'object',
   'string',
 };
@@ -296,13 +297,18 @@ void _visit(Object? value, String location, YamlMap document) {
     }
     final type = value['type'];
     if (type != null) {
-      expect(type, isA<String>(), reason: '$location.type');
-      expect(
-        {..._schemaTypes, ..._securitySchemeTypes},
-        contains(type),
-        reason: '$location.type',
-      );
-      if (type == 'array') {
+      final types = type is YamlList ? type.toList() : [type];
+      expect(types, isNotEmpty, reason: '$location.type');
+      expect(types.toSet().length, types.length, reason: '$location.type');
+      for (final schemaType in types) {
+        expect(schemaType, isA<String>(), reason: '$location.type');
+        expect(
+          {..._schemaTypes, ..._securitySchemeTypes},
+          contains(schemaType),
+          reason: '$location.type',
+        );
+      }
+      if (types.contains('array')) {
         expect(value['items'], isNotNull, reason: '$location.items');
       }
     }

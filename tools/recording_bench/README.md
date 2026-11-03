@@ -2,8 +2,9 @@
 
 These are reusable measurement tools for the
 [storage proposal](../../docs/recording/STORAGE_PROPOSAL.md), not production
-readers/writers or correctness fixtures. The current recording contract remains
-[schema 1 NDJSON](../../docs/recording/FORMAT_CURRENT.md).
+readers/writers or correctness fixtures. The current product contract is
+[sampled schema 2](../../docs/recording/FORMAT_CURRENT.md). Older Python experiments
+use committed legacy fixtures only; they are not product import/migration paths.
 
 Run from the repository root. Default outputs are under ignored
 `build/recording_bench/`; `--output` selects another local destination. Repeated
@@ -60,3 +61,53 @@ Limitations:
 The scripts read committed contract fixtures but never replace or remove them.
 Results include local environment/library metadata where relevant; comparisons
 must use the same source stream, fidelity, and compression settings.
+
+## Adaptive structured-screen prototype
+
+The selected new recording direction has an independent native sampler and
+side-effect-free keyframe/delta replay model. Run its real-VT comparison before
+changing sampling or frame materialization:
+
+```bash
+cargo test --manifest-path native/core/Cargo.toml --test sampled_recording_test
+cargo run --release --manifest-path native/core/Cargo.toml \
+  --example sampled_recording_bench -- build/recording_bench/adaptive/results.json
+```
+
+The report compares seven deterministic workloads with independently forced
+snapshots, including 8,000-line eviction, resize, TUI, metadata and idle. It
+reports sampled frame payload bytes, equivalent sampled snapshot bytes, hook
+fixture counts, sampler timings and retained-model encoded sizes. Encoded sizes
+are not heap/RSS; payload bytes exclude the implemented container, indexes, compression
+and image blobs. Semantic fixtures do not prove real hook delivery. This is
+accelerated logical time and never substitutes for 24-hour wall-clock acceptance.
+
+
+## Structured file open, seek and search
+
+```bash
+cargo build --release --manifest-path native/core/Cargo.toml --example sampled_recording_file_bench
+native/core/target/release/examples/sampled_recording_file_bench build/recording_bench/adaptive/file-results.json
+```
+
+This writes real containers and incremental indexes for 10,000 and 100,000
+structured samples, verifies 25 cached opens without index replacement and 100
+random seeks, then forces a recovery scan. It reports primary/index byte sizes,
+creation/finish times and open/seek percentiles. It also measures first text-index
+construction, 25 dense cached search pages, and complete rare/no-match scans,
+checking hit counts, forward cursors and cache reuse. Search index bytes and both
+per-page and whole-query latency are reported. Filesystem caches are warm and
+timestamps are accelerated logical time. It excludes Flutter cross-file queries,
+live PTY, images, input latency and power loss, and never establishes >24-hour
+endurance.
+
+
+## Real filesystem failure acceptance
+
+Unlike the earlier storage experiments, `filesystem-acceptance.py` exercises the
+production native writer/reader with real APFS ENOSPC or disconnection. It requires
+macOS, a built `sampled_recording_durability_probe` example and an explicit **new**
+output directory; it never replaces an existing output directory. It does not
+require libzstd or Python protobuf. See the [reproduction commands and evidence
+limits](../../docs/recording/DURABILITY_ACCEPTANCE.md). Only the newly created
+128 MiB test image is filled or disconnected; reports and recovered files remain.

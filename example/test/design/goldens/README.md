@@ -107,3 +107,24 @@ artifact names collided for SSH dark and Profile general; those two captures
 were then reviewed from run 41176466420, artifact 13033533996, which contained
 only those two failures. Their original macOS 26 captures complete the update;
 no macOS 27 output was copied across OS directories.
+
+## Worktree integration (2026-11-03)
+
+Reviewed 43 macOS 26 failure-image pairs from CI run 41565414225, artifact
+13199598820 (head e3c74e8915db29a945fb01d7d66e2db00cced081). The changes
+reflect the current mainline UI: help tooltips replace persistent field prose,
+settings use compact section controls, SSH forms use the shared field styling,
+and Profiles uses selection plus an explicit Open action in a two-column view.
+The terminal-layout changes are confined to tab/chrome controls. The reviewed
+original CI testImage bytes were matched to each existing baseline by basename
+and the exact decoded master-image pixel hash, then copied without alteration.
+Comparator thresholds and OS-specific routing are unchanged.
+
+The 44 corresponding macOS 27 fixtures were rendered and reviewed locally on
+macOS 27.0.1 with Flutter 3.44.2. They retain that OS's original PNG output;
+no image was copied between OS directories. The final macOS 26 Profile General and shared sync-service dropdown captures
+were reviewed from run 41573476367, artifact 13203206442 (head b8da153e).
+Profile General restores the capture lost to the earlier 01-general.png name
+collision; the dropdown change is confined to that control and the next row's
+position. Exact master-image pixel hashes again identify their destinations.
+The original macOS 26 PNG bytes complete this update.

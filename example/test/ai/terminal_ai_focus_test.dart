@@ -83,8 +83,11 @@ void main() {
     }
   });
 
-  FocusNode inputFocus(WidgetTester tester) =>
-      tester.widget<TextField>(find.byKey(const Key('ai-prompt'))).focusNode!;
+  FocusNode inputFocus(WidgetTester tester) => tester
+      .widget<TextField>(
+        find.byKey(const Key('ai-prompt'), skipOffstage: false),
+      )
+      .focusNode!;
 
   bool controlHasFocus(WidgetTester tester, Key key) {
     final control = tester.element(find.byKey(key));
@@ -207,8 +210,15 @@ void main() {
     await tester.tap(find.byKey(const Key('ai-open-settings')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 350));
+    if (find.byKey(const Key('ai-custom-connection')).evaluate().isNotEmpty) {
+      await tester.tap(find.byKey(const Key('ai-custom-connection')));
+    }
+    await tester.pumpAndSettle();
     final editor = find
-        .descendant(of: find.byType(Dialog), matching: find.byType(TextField))
+        .descendant(
+          of: find.byKey(const Key('ai-settings-dialog')),
+          matching: find.byType(TextField),
+        )
         .first;
     await tester.tap(editor);
     await tester.pump();
@@ -251,7 +261,10 @@ void main() {
     await prepare();
     await mount(tester);
     api.respond = (_) => reply.future;
-    await tester.enterText(find.byKey(const Key('ai-prompt')), 'Explain this');
+    await tester.enterText(
+      find.byKey(const Key('ai-prompt'), skipOffstage: false),
+      'Explain this',
+    );
     await focusControl(tester, const Key('ai-send'));
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pump();
@@ -266,7 +279,9 @@ void main() {
       (tester) async {
         await prepare();
         await startApproval(tester, phone: phone);
-        await tester.tap(find.byKey(const Key('ai-prompt')));
+        await tester.tap(
+          find.byKey(const Key('ai-prompt'), skipOffstage: false),
+        );
         const editing = TextEditingValue(
           text: '检查证据',
           selection: TextSelection(baseOffset: 2, extentOffset: 4),
@@ -278,7 +293,9 @@ void main() {
         expect(inputFocus(tester).hasFocus, true);
         expect(
           tester
-              .widget<TextField>(find.byKey(const Key('ai-prompt')))
+              .widget<TextField>(
+                find.byKey(const Key('ai-prompt'), skipOffstage: false),
+              )
               .controller!
               .value,
           editing,

@@ -22,14 +22,19 @@ Future<void> showAiSettings(
   AiSettingsController settings, {
   ValueChanged<bool>? onSaved,
 }) async {
-  final result = await Navigator.of(context).push<bool>(
-    MaterialPageRoute(
-      builder: (_) => ListenableBuilder(
-        listenable: settings,
-        builder: (_, _) => AiSettingsDialog(settings: settings),
-      ),
-    ),
+  Widget buildSettings(BuildContext context) => ListenableBuilder(
+    listenable: settings,
+    builder: (_, _) => AiSettingsDialog(settings: settings),
   );
+  final route = MediaQuery.disableAnimationsOf(context)
+      ? PageRouteBuilder<bool>(
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              buildSettings(context),
+          transitionDuration: Duration.zero,
+          reverseTransitionDuration: Duration.zero,
+        )
+      : MaterialPageRoute<bool>(builder: buildSettings);
+  final result = await Navigator.of(context).push<bool>(route);
   if (!context.mounted || result == null) return;
   if (onSaved != null) {
     onSaved(result);

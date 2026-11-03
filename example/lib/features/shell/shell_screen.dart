@@ -46,11 +46,12 @@ import '../preferences/app_preferences_models.dart' show TerminalViewMode;
 import '../profiles/profile_editor.dart';
 import '../profiles/profile_models.dart';
 import '../profiles/profiles_sheet.dart';
-import '../recording/local_session_recording_repository.dart';
 import '../recording/mobile_replay_player.dart';
-import '../recording/recording_replay_navigation.dart';
-import '../recording/recording_replay_search_index.dart';
+import '../recording/recording_retention_dialog.dart';
 import '../recording/replay_viewport_layout.dart';
+import '../recording/sampled_recording_library.dart';
+import '../recording/sampled_recording_player.dart';
+import '../recording/sampled_recording_search_dialog.dart';
 import '../sessions/session_controller.dart';
 import '../sessions/session_state.dart';
 import '../sessions/shell_capabilities_dialog.dart';
@@ -395,7 +396,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   bool _recordingLibraryLoading = false;
   bool _recordingSelectionLoading = false;
   String? _recordingLibraryError;
-  List<LocalSessionRecordingEntry> _recordingEntries = const [];
+  List<SampledRecordingEntry> _recordingEntries = const [];
+  final Set<String> _recordingMutationPaths = {};
   bool _recordingShelfOpen = false;
   bool _mobileConnectionsOpen = false;
   bool _mobileSessionsOpen = false;
@@ -405,8 +407,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   int _recordingPlaybackGeneration = 0;
   FocusNode? _recordingReturnFocus;
   bool _recordingLibraryReloadRequested = false;
-  LocalSessionRecordingEntry? _selectedRecordingEntry;
-  terminal.TerminalRecording? _selectedRecording;
+  SampledRecordingEntry? _selectedRecordingEntry;
+  terminal.SampledRecordingFile? _selectedRecording;
+  Duration _selectedRecordingInitialPosition = Duration.zero;
+  SampledOpenedRecording? _selectedRecordingOwner;
+  terminal.RecordingFileCancellation? _recordingOpenCancellation;
 
   int _nextAnnotationId = 0;
 
@@ -497,6 +502,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       _historyShutdown.unregisterTask(_historyShutdownTask);
     }
     _modeAiSettings.removeListener(_handleLlmConfigurationChanged);
+    _recordingOpenCancellation?.cancel();
+    _releaseSelectedRecording();
     WindowBridge.setNativeMenuHandlers();
     _appLifecycleListener.dispose();
     unawaited(_osc72DragDropController.dispose());
@@ -1229,6 +1236,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       }
     }
 
+    // Scaffold removes viewInsets from its resized body. Read keyboard state
+    // here so the input toolbar still sees the original window obstruction.
     final mobileNavigation = context.usesMobileNavigation && !referenceDemoMode;
     final mobileHome =
         mobileNavigation && (_mobileConnectionsOpen || activeSessionId == null);
@@ -1510,20 +1519,15 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                               child:
                                   _selectedRecordingEntry != null &&
                                       _selectedRecording != null
-                                  ? _RecordingReplayLayout(
-                                      mobile: mobileNavigation,
+                                  ? SampledRecordingPlayer(
                                       key: ValueKey((
                                         _selectedRecordingEntry!.path,
                                         _recordingPlaybackGeneration,
                                       )),
-                                      palette: palette,
-                                      entry: _selectedRecordingEntry!,
                                       recording: _selectedRecording!,
-                                      delegate: ref.read(
-                                        ptySessionBackendProvider,
-                                      ),
-                                      sessionConfig: recordingReplayConfig,
-                                      terminalColors: instantReplayColors,
+                                      initialPosition:
+                                          _selectedRecordingInitialPosition,
+                                      colors: instantReplayColors,
                                       font: recordingReplayConfig.display.font,
                                       cursor:
                                           recordingReplayConfig.display.cursor,
@@ -1652,41 +1656,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                                       ),
                                     ),
                             ),
-                            shelf: _SavedRecordingsShelf(
+                            shelf: _buildRecordingShelf(
                               palette: palette,
-                              entries: _recordingEntries,
-                              selectedPath: _selectedRecordingEntry?.path,
-                              loading: _recordingLibraryLoading,
-                              selectionLoading: _recordingSelectionLoading,
-                              error: _recordingLibraryError,
-                              onRefresh: () =>
-                                  unawaited(_loadRecordingLibrary()),
-                              onOpenFile: () =>
-                                  unawaited(_openRecordingFromPicker()),
-                              onRecent: activeSessionId == null
-                                  ? null
-                                  : () => unawaited(
-                                      _openInstantReplay(_sessionState),
-                                    ),
-                              onToggleRecording:
-                                  activeSessionId == null ||
-                                      _sessionState.recordingBusySessionIds
-                                          .contains(activeSessionId)
-                                  ? null
-                                  : () => unawaited(
-                                      _toggleActiveSessionRecording(
-                                        sessionController,
-                                        activeSessionId,
-                                      ),
-                                    ),
-                              recording: _sessionState.recordingSessionIds
-                                  .contains(activeSessionId),
-                              pendingSave: _sessionState
-                                  .recordingPendingSaveSessionIds
-                                  .contains(activeSessionId),
-                              onSelect: (entry) =>
-                                  unawaited(_selectRecording(entry)),
-                              onClose: _closeRecordingLibrary,
+                              sessionController: sessionController,
+                              activeSessionId: activeSessionId,
                             ),
                           ),
                         ),

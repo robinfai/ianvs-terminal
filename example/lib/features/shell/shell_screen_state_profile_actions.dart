@@ -489,13 +489,19 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
       );
     }
 
-    final defaultsRoute = MaterialPageRoute<DefaultsAndAppearanceSelection>(
-      builder: (context) => Scaffold(
-        resizeToAvoidBottomInset: false,
-        backgroundColor: context.appTheme.panel,
-        body: buildDefaults(context),
-      ),
+    Widget buildPage(BuildContext context) => Scaffold(
+      resizeToAvoidBottomInset: false,
+      backgroundColor: context.appTheme.panel,
+      body: buildDefaults(context),
     );
+    final defaultsRoute = MediaQuery.disableAnimationsOf(context)
+        ? PageRouteBuilder<DefaultsAndAppearanceSelection>(
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                buildPage(context),
+            transitionDuration: Duration.zero,
+            reverseTransitionDuration: Duration.zero,
+          )
+        : MaterialPageRoute<DefaultsAndAppearanceSelection>(builder: buildPage);
     final selection = await Navigator.of(
       context,
       rootNavigator: true,

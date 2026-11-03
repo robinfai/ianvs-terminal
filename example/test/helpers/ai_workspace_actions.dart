@@ -5,8 +5,7 @@ Future<void> openAiMobileTaskMenu(WidgetTester tester) async {
   final menu = find.byKey(const Key('ai-mobile-task-menu'));
   expect(menu.hitTestable(), findsOneWidget);
   await tester.tap(menu);
-  await tester.pump();
-  await tester.pump(const Duration(milliseconds: 300));
+  await tester.pumpAndSettle();
 }
 
 Future<void> observeAiTerminal(
@@ -14,8 +13,9 @@ Future<void> observeAiTerminal(
   bool compactMobile = true,
 }) async {
   if (compactMobile) await openAiMobileTaskMenu(tester);
-  if (compactMobile && find.byTooltip('More actions').evaluate().isNotEmpty) {
-    await tester.tap(find.byTooltip('More actions'));
+  if (compactMobile &&
+      find.byKey(const Key('ai-history-actions')).evaluate().isNotEmpty) {
+    await tester.tap(find.byKey(const Key('ai-history-actions')));
     await tester.pumpAndSettle();
   }
   final action = find.byKey(

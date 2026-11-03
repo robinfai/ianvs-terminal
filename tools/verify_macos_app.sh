@@ -104,10 +104,20 @@ PROFILE=debug "$ROOT_DIR/tools/build_core.sh"
   flutter test -d macos integration_test/composer_acceptance_test.dart
   flutter test -d macos integration_test/desktop_unified_workspace_test.dart
   flutter test -d macos integration_test/ai_streaming_acceptance_test.dart
+  IANVS_CORE_LIB="$CORE_DIR/target/debug/libianvs_core.dylib" \
+    flutter test -d macos integration_test/sampled_recording_acceptance_test.dart \
+      "--dart-define=IANVS_RECORDING_ACCEPTANCE_OUTPUT=$ROOT_DIR/build/recording_bench/adaptive/macos-ui"
+  IANVS_CORE_LIB="$CORE_DIR/target/debug/libianvs_core.dylib" \
+    flutter test -d macos integration_test/sampled_recording_failure_test.dart \
+      "--dart-define=IANVS_RECORDING_FAILURE_OUTPUT=$ROOT_DIR/build/recording_bench/adaptive/macos-disk-full"
+  IANVS_CORE_LIB="$CORE_DIR/target/debug/libianvs_core.dylib" \
+    flutter test -d macos integration_test/sampled_recording_retention_test.dart \
+      "--dart-define=IANVS_RECORDING_RETENTION_OUTPUT=$ROOT_DIR/build/recording_bench/adaptive/macos-retention"
   flutter test -d macos \
     integration_test/macos_keychain_profile_secret_test.dart
   flutter build macos --debug
   debug_app="$EXAMPLE_DIR/build/macos/Build/Products/Debug/Trail Development.app"
+  test -d "$debug_app/Contents/Frameworks/Sparkle.framework"
   codesign --verify --deep --strict "$debug_app"
   if [ "$VERIFY_APPLE_FULL" = "1" ]; then
     # Flutter re-embeds signed frameworks during incremental builds. The outer
@@ -149,6 +159,7 @@ PROFILE=debug "$ROOT_DIR/tools/build_core.sh"
     -workspace macos/Runner.xcworkspace \
     -scheme Runner \
     -configuration Debug \
+    -derivedDataPath build/macos \
     -destination 'platform=macOS' \
     -resultBundlePath "$native_result_dir/RunnerTests.xcresult" \
     CODE_SIGNING_ALLOWED=NO || native_test_status=$?
