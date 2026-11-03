@@ -127,6 +127,8 @@ void main() {
             ),
           );
           await tester.tap(find.byType(SignInWithAppleButton));
+          await tester.pump();
+          expect(find.byType(LinearProgressIndicator), findsOneWidget);
           Future<void> waitFor(bool Function() ready) async {
             for (var i = 0; i < 200 && !ready(); i++) {
               await tester.runAsync(

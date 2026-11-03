@@ -100,6 +100,12 @@ void main() {
           final panel = tester.widget<OAuthSignInPanel>(
             find.byType(OAuthSignInPanel),
           );
+          panel.onBusyChanged!(true);
+          await tester.pump();
+          // The OAuth panel owns its progress bar; the host must not add one.
+          expect(find.byType(LinearProgressIndicator), findsNothing);
+          panel.onBusyChanged!(false);
+          await tester.pump();
           await panel.onAuthenticated!(
             DataApiRemoteLoginRequest.apple(baseUri: panel.baseUri),
           );
@@ -108,7 +114,10 @@ void main() {
           expect(harness.settings.reconnectCount, 1);
           expect(tester.takeException(), isNull);
         },
-        variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+        variant: const TargetPlatformVariant({
+          TargetPlatform.iOS,
+          TargetPlatform.macOS,
+        }),
       );
     }
   }

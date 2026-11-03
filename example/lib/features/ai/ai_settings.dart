@@ -215,15 +215,26 @@ AiConfiguration? _gatewayConfiguration(DataApiRuntime? runtime) =>
 final aiSettingsProvider = Provider<AiSettingsController>((ref) {
   // Existing SSH/AI sessions retain this controller. Runtime refreshes must
   // update it in place instead of leaving those sessions with a disposed copy.
+  final source = ref.watch(dataApiRuntimeSourceProvider);
   final controller = AiSettingsController(
     ref.read(aiConfigurationStoreProvider),
     gatewayConfiguration: _gatewayConfiguration(
-      ref.read(dataApiRuntimeProvider),
+      source == null ? ref.read(dataApiRuntimeProvider) : source.value,
     ),
   );
-  ref.listen<DataApiRuntime?>(dataApiRuntimeProvider, (_, runtime) {
-    controller.updateGatewayConfiguration(_gatewayConfiguration(runtime));
-  });
+  if (source != null) {
+    // Settings and live AI sessions retain the controller via ref.read. Keep
+    // credentials fresh even while Riverpod has no active UI subscribers.
+    void refresh() => controller.updateGatewayConfiguration(
+      _gatewayConfiguration(source.value),
+    );
+    source.addListener(refresh);
+    ref.onDispose(() => source.removeListener(refresh));
+  } else {
+    ref.listen<DataApiRuntime?>(dataApiRuntimeProvider, (_, runtime) {
+      controller.updateGatewayConfiguration(_gatewayConfiguration(runtime));
+    });
+  }
   ref.onDispose(controller.dispose);
   return controller;
 });

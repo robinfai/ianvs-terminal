@@ -165,6 +165,7 @@ final class _AppStartupDataSetupViewState
       defaultTargetPlatform == TargetPlatform.iOS ||
       defaultTargetPlatform == TargetPlatform.android;
   bool _runningAction = false;
+  bool _oauthBusy = false;
   bool _showMobileSyncSetup = false;
   String? _actionError;
 
@@ -291,7 +292,12 @@ final class _AppStartupDataSetupViewState
                   Uri.tryParse(_urlController.text.trim()) ??
                   Uri.parse(defaultRemoteDataApiBaseUrl),
               onBusyChanged: (busy) {
-                if (mounted) setState(() => _runningAction = busy);
+                if (mounted) {
+                  setState(() {
+                    _runningAction = busy;
+                    _oauthBusy = busy;
+                  });
+                }
               },
               onAuthenticated: _connectOAuth,
             );
@@ -355,7 +361,12 @@ final class _AppStartupDataSetupViewState
                 OAuthSignInPanel(
                   baseUri: Uri.parse(defaultRemoteDataApiBaseUrl),
                   onBusyChanged: (busy) {
-                    if (mounted) setState(() => _runningAction = busy);
+                    if (mounted) {
+                      setState(() {
+                        _runningAction = busy;
+                        _oauthBusy = busy;
+                      });
+                    }
                   },
                   onAuthenticated: (request) async {
                     try {
@@ -395,7 +406,8 @@ final class _AppStartupDataSetupViewState
                 onPressed: _runningAction ? null : _skip,
                 child: Text(context.l10n.mobileStartLocally),
               ),
-              if (_runningAction) const LinearProgressIndicator(),
+              if (_runningAction && !_oauthBusy)
+                const LinearProgressIndicator(),
               if (_actionError != null)
                 Text(
                   _actionError!,
@@ -564,7 +576,7 @@ final class _AppStartupDataSetupViewState
                                   ),
                                 ),
                               ],
-                              if (_runningAction) ...[
+                              if (_runningAction && !_oauthBusy) ...[
                                 const SizedBox(height: 18),
                                 const LinearProgressIndicator(),
                               ],
@@ -761,6 +773,7 @@ final class _AppStartupDataSettingsDialogState
   String? _saveError;
   bool _loading = true;
   bool _saving = false;
+  bool _oauthBusy = false;
   @override
   void initState() {
     super.initState();
@@ -890,7 +903,12 @@ final class _AppStartupDataSettingsDialogState
                         baseUri: remoteUri,
                         onAuthenticated: _reconnectOAuth,
                         onBusyChanged: (busy) {
-                          if (mounted) setState(() => _saving = busy);
+                          if (mounted) {
+                            setState(() {
+                              _saving = busy;
+                              _oauthBusy = busy;
+                            });
+                          }
                         },
                       ),
                       if (usesAutomaticallySynchronizedAppleKeychain)
@@ -924,7 +942,7 @@ final class _AppStartupDataSettingsDialogState
                         ),
                       ),
                     ],
-                    if (_saving) ...[
+                    if (_saving && !_oauthBusy) ...[
                       const SizedBox(height: 16),
                       const LinearProgressIndicator(),
                     ],

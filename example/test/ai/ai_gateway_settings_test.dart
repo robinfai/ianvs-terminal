@@ -1,8 +1,14 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:app/data/services/data_api_runtime.dart';
+import 'package:app/data/services/portable_master_key.dart';
 import 'package:app/features/ai/ai_api_client.dart';
+import 'package:app/features/ai/ai_model_catalog.dart';
 import 'package:app/features/ai/ai_models.dart';
 import 'package:app/features/ai/ai_settings.dart';
 import 'package:app/features/ai/terminal_ai_controller.dart';
+import 'package:app/persistence_repository_composition.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -22,6 +28,83 @@ class _RecordingApi implements AiApi {
 }
 
 void main() {
+  test('sync re-login refreshes official models without restarting', () async {
+    final directory = await Directory.systemTemp.createTemp('ai-relogin-');
+    addTearDown(() => directory.delete(recursive: true));
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    final modelTokens = <String?>[];
+    server.listen((request) async {
+      await request.drain<void>();
+      Object response = {'resources': <Object>[], 'next_cursor': ''};
+      if (request.uri.path == '/v1/ai/models') {
+        final token = request.headers.value(HttpHeaders.authorizationHeader);
+        modelTokens.add(token);
+        if (token != 'Bearer new-session') {
+          request.response.statusCode = HttpStatus.unauthorized;
+        } else {
+          response = {
+            'data': [
+              {'id': 'available-model'},
+            ],
+          };
+        }
+      }
+      request.response.headers.contentType = ContentType.json;
+      request.response.write(jsonEncode(response));
+      await request.response.close();
+    });
+    DataApiRuntime runtime(String token) => DataApiRuntime.remote(
+      baseUri: Uri.parse('http://127.0.0.1:${server.port}/'),
+      remoteAccessToken: token,
+    );
+    final composition = PersistenceRepositoryComposition.forRuntime(
+      runtime('expired-session'),
+      profileExportDirectoryResolver: () async => directory,
+      masterKeyRepository: PortableMasterKeyRepository(
+        storage: _MasterKeyStorage(),
+        allowLegacyMigration: false,
+      ),
+    );
+    addTearDown(composition.sync.close);
+    final container = ProviderContainer(
+      overrides: [
+        dataApiRuntimeSourceProvider.overrideWithValue(
+          composition.runtimeSource,
+        ),
+        aiConfigurationStoreProvider.overrideWithValue(MemoryAiStore()),
+      ],
+    );
+    addTearDown(container.dispose);
+    final settings = container.read(aiSettingsProvider);
+    await settings.loaded;
+    await settings.save(const AiConfiguration.official(model: 'preferred'));
+    final oldUsage = settings.usage;
+    const catalog = AiModelCatalog();
+    await expectLater(
+      catalog.fetch(settings.gatewayConfiguration!),
+      throwsA(isA<AiFailure>().having((e) => e.code, 'code', 'models_auth')),
+    );
+
+    await composition.configureSyncRuntime(runtime('new-session'));
+    expect(settings.gatewayConfiguration!.apiKey, 'new-session');
+    await container.pump();
+    expect(container.read(aiSettingsProvider), same(settings));
+    expect(settings.usage, isNot(same(oldUsage)));
+    expect(settings.gatewayConfiguration!.model, 'preferred');
+    expect(await catalog.fetch(settings.gatewayConfiguration!), [
+      'available-model',
+    ]);
+    expect(modelTokens, ['Bearer expired-session', 'Bearer new-session']);
+
+    await composition.configureSyncRuntime(null);
+    expect(settings.gatewayConfiguration, isNull);
+    await container.pump();
+    expect(container.read(dataApiRuntimeProvider), isNull);
+    expect(settings.gatewayConfiguration, isNull);
+    expect(settings.usage, isNull);
+  });
+
   test(
     'live session follows custom and gateway switches after runtime refresh',
     () async {
@@ -119,4 +202,12 @@ void main() {
       expect(store.value, isNull);
     },
   );
+}
+
+class _MasterKeyStorage implements PortableMasterKeyStorage {
+  String? value;
+  @override
+  Future<String?> read() async => value;
+  @override
+  Future<void> write(String portableValue) async => value = portableValue;
 }

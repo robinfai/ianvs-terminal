@@ -107,7 +107,9 @@ Widget buildIanvsTerminalRoot({
           ),
         ),
       sessionPollingEnabledProvider.overrideWithValue(enableSessionPolling),
-      dataApiRuntimeProvider.overrideWithValue(effectiveDataApiRuntime),
+      dataApiRuntimeSourceProvider.overrideWithValue(
+        persistenceRepositories.runtimeSource,
+      ),
       dataApiStartupWarningProvider.overrideWithValue(
         effectiveDataApiStartupWarning,
       ),

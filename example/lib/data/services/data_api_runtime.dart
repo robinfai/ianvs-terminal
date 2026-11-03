@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../configuration/data_api_configuration.dart';
@@ -80,7 +81,16 @@ class DataApiRuntime {
   }
 }
 
-final dataApiRuntimeProvider = Provider<DataApiRuntime?>((ref) => null);
+final dataApiRuntimeSourceProvider =
+    Provider<ValueListenable<DataApiRuntime?>?>((ref) => null);
+
+final dataApiRuntimeProvider = Provider<DataApiRuntime?>((ref) {
+  final source = ref.watch(dataApiRuntimeSourceProvider);
+  if (source == null) return null;
+  source.addListener(ref.invalidateSelf);
+  ref.onDispose(() => source.removeListener(ref.invalidateSelf));
+  return source.value;
+});
 
 enum DataApiStartupWarningKind { generic, remoteCleanupPending }
 

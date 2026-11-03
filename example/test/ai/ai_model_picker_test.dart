@@ -37,6 +37,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('ai-endpoint')), findsOneWidget);
       expect(find.byKey(const Key('ai-load-models')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('ai-remove-settings')));
+      await tester.pumpAndSettle();
+      expect(find.text('Official AI service'), findsOneWidget);
+      expect(find.byKey(const Key('ai-endpoint')), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );
