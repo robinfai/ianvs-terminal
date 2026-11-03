@@ -10,6 +10,7 @@ String? aiErrorCode(Object? data) {
     'ai_provider_quota',
     'ai_model_unavailable',
     'context_too_large',
+    'ai_request_too_large',
     'ai_protocol_unsupported',
     'ai_provider_authentication',
     'ai_provider_rate_limited',
@@ -54,6 +55,7 @@ Future<String> readAiHttpError(
   return switch (status) {
     401 || 403 => 'authentication',
     429 => 'rate_limit',
+    413 => 'ai_request_too_large',
     400 || 422 => 'ai_request_rejected',
     502 || 503 || 504 => 'ai_upstream_unavailable',
     _ => 'http_$status',

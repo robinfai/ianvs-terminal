@@ -112,6 +112,16 @@ class AiSettingsController extends ChangeNotifier {
   String get officialModel => _customConfiguration?.officialService == true
       ? _customConfiguration!.model
       : 'default';
+  AiApprovalMode get officialApprovalMode =>
+      _customConfiguration?.officialService == true
+      ? _customConfiguration!.approvalMode
+      : _gatewayConfiguration?.approvalMode ?? AiApprovalMode.manual;
+  AiApprovalSensitivity get officialApprovalSensitivity =>
+      _customConfiguration?.officialService == true
+      ? _customConfiguration!.approvalSensitivity
+      : _gatewayConfiguration?.approvalSensitivity ??
+            AiApprovalSensitivity.balanced;
+
   AiUsageController? _usage;
   AiUsageController? get usage => _usage ??= gatewayConfiguration == null
       ? null

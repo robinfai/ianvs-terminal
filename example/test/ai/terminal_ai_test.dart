@@ -534,7 +534,7 @@ void main() {
   );
 
   test(
-    'full request history stops explicitly and a new conversation recovers',
+    'many small follow-ups remain usable and a new conversation is independent',
     () async {
       api.respond = (_) async => const AiReply(text: 'Acknowledged');
       for (var i = 0; i < 64; i++) {
@@ -543,8 +543,8 @@ void main() {
       }
       final requestsBeforeLimit = api.requests.length;
       await controller.ask('One more constraint');
-      expect(controller.error, 'conversation_limit');
-      expect(api.requests, hasLength(requestsBeforeLimit));
+      expect(controller.error, isNull);
+      expect(api.requests, hasLength(requestsBeforeLimit + 1));
       expect(terminal.writes, isEmpty);
       controller.clear();
       await controller.ask('A new independent goal');
@@ -573,6 +573,63 @@ void main() {
           lessThanOrEqualTo(192000),
         );
       }
+      expect(terminal.writes, isEmpty);
+    },
+  );
+
+  test(
+    'large unique observations compress and preserve full task history',
+    () async {
+      api.respond = (_) async => const AiReply(text: 'Observed');
+      for (var i = 0; i < 20; i++) {
+        terminal.context = AiTerminalContext(
+          sessionId: 'one',
+          contextId: 'root',
+          guard: 'root:1',
+          screen: 'screen $i: ${'x' * 14000}',
+        );
+        await controller.ask('Keep original constraint $i');
+        expect(controller.error, isNull);
+      }
+      expect(jsonEncode(api.requests.last), contains('observation_compacted'));
+      expect(
+        jsonEncode(api.requests.last),
+        contains('Keep original constraint 0'),
+      );
+      expect(jsonEncode(api.requests.last), contains('screen 19:'));
+      expect(
+        controller.transcript.where((e) => e.role == 'user'),
+        hasLength(20),
+      );
+      expect(terminal.writes, isEmpty);
+    },
+  );
+
+  test(
+    'model context rejection retries once with smaller observations and no writes',
+    () async {
+      api.respond = (_) async => const AiReply(text: 'Observed');
+      for (var i = 0; i < 12; i++) {
+        terminal.context = AiTerminalContext(
+          sessionId: 'one',
+          contextId: 'root',
+          guard: 'root:1',
+          screen: 'screen $i: ${'x' * 3000}',
+        );
+        await controller.ask('Keep constraint $i');
+      }
+      var failures = 0;
+      api.respond = (_) async {
+        failures++;
+        throw const AiFailure('context_too_large');
+      };
+      await controller.ask('Continue');
+      expect(failures, 2);
+      expect(controller.error, 'context_too_large');
+      expect(
+        jsonEncode(api.requests.last).length,
+        lessThan(jsonEncode(api.requests[api.requests.length - 2]).length),
+      );
       expect(terminal.writes, isEmpty);
     },
   );

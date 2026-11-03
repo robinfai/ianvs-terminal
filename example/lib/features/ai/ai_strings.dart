@@ -116,6 +116,10 @@ String aiErrorText(String code, bool zh) {
       'Your account cannot use this model.',
       '当前账号无权使用此模型。',
     ),
+    'ai_request_too_large': (
+      'The request exceeds the service size limit. Start a new conversation with the relevant context. Your history is preserved.',
+      '请求内容超过服务大小限制，请新建对话并附上相关上下文。原对话记录已保留。',
+    ),
     'context_too_large': (
       'The conversation exceeds the model context limit. Start a new conversation.',
       '对话已超过模型上下文限制，请新建对话。',
