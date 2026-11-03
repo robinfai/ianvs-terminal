@@ -18,6 +18,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
+import '../support/desktop_test_platform.dart';
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_local_terminal_config_repository.dart';
@@ -99,7 +100,7 @@ class _MemoryLayoutRepository extends LocalTerminalLayoutRepository {
 }
 
 void main() {
-  testWidgets(
+  desktopTestWidgets(
     'command menu opens the active session capability view and restores focus on close',
     (tester) async {
       await _pumpShellScreen(
@@ -126,7 +127,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'session backend failures use a transient notice and persistent tab error',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -179,7 +180,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'defaults remain hidden from the shell layout until the user opens tools',
     (tester) async {
       final profileRepository = MemoryProfileRepository(
@@ -204,7 +205,7 @@ void main() {
     },
   );
 
-  testWidgets('configuration warnings are shown and can open Profiles', (
+  desktopTestWidgets('configuration warnings are shown and can open Profiles', (
     tester,
   ) async {
     const warning = TerminalProfileLoadWarning(
@@ -251,7 +252,7 @@ void main() {
     expect(shellAcceptanceProbe.current.profilesOpen, isTrue);
   });
 
-  testWidgets(
+  desktopTestWidgets(
     'configuration warnings can be dismissed without affecting tabs',
     (tester) async {
       await _pumpShellScreen(
@@ -293,7 +294,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'terminal layout relaunch failures stay visible and can be dismissed',
     (tester) async {
       await _pumpShellScreen(
@@ -349,7 +350,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'defaults dialog shows the current new-tab profile when no default is configured',
     (tester) async {
       final profileRepository = MemoryProfileRepository(
@@ -382,7 +383,7 @@ void main() {
       expect(shellAcceptanceProbe.current.terminalHasVisibleContent, isTrue);
       expect(shellAcceptanceProbe.current.terminalPreview, isNotNull);
       expect(
-        find.text(
+        find.byTooltip(
           'New tabs use Local Shell automatically until you choose a fixed default.',
         ),
         findsOneWidget,
@@ -466,7 +467,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'defaults and appearance modal is the only place that mutates default profile and theme',
     (tester) async {
       final preferencesRepository = MemoryAppPreferencesRepository(null);
@@ -604,7 +605,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'closing defaults and appearance restores terminal viewport focus',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -640,7 +641,7 @@ void main() {
     },
   );
 
-  testWidgets('defaults dialog can hand off to the profiles editor', (
+  desktopTestWidgets('defaults dialog can hand off to the profiles editor', (
     tester,
   ) async {
     await _pumpShellScreen(
@@ -672,77 +673,80 @@ void main() {
     expect(shellAcceptanceProbe.current.visibleOverlay, 'profiles');
   });
 
-  testWidgets('profiles sheet opens from the command menu and lists profiles', (
-    tester,
-  ) async {
-    final localProfile = defaultTerminalProfile().copyWith(
-      tags: const ['local', 'login'],
-    );
-    final sshProfile = TerminalProfile(
-      id: 'ssh',
-      name: 'SSH',
-      shell: '/usr/bin/ssh',
-      terminalEmulation: TerminalEmulation.vt220,
-      scrollbackLines: 4096,
-      tags: const ['remote', 'ops'],
-    );
-    final profileRepository = MemoryProfileRepository(
-      TerminalProfilesDocument(profiles: [localProfile, sshProfile]),
-    );
+  desktopTestWidgets(
+    'profiles sheet opens from the command menu and lists profiles',
+    (tester) async {
+      final localProfile = defaultTerminalProfile().copyWith(
+        tags: const ['local', 'login'],
+      );
+      final sshProfile = TerminalProfile(
+        id: 'ssh',
+        name: 'SSH',
+        shell: '/usr/bin/ssh',
+        terminalEmulation: TerminalEmulation.vt220,
+        scrollbackLines: 4096,
+        tags: const ['remote', 'ops'],
+      );
+      final profileRepository = MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [localProfile, sshProfile]),
+      );
 
-    await _pumpShellScreen(
-      tester,
-      fakeBindings: FakePtyBackend(),
-      profileRepository: profileRepository,
-      preferencesRepository: MemoryAppPreferencesRepository(null),
-    );
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: FakePtyBackend(),
+        profileRepository: profileRepository,
+        preferencesRepository: MemoryAppPreferencesRepository(null),
+      );
 
-    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Profiles…'));
-    await tester.tap(find.text('Profiles…'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Profiles…'));
+      await tester.tap(find.text('Profiles…'));
+      await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('profiles-sheet')), findsOneWidget);
-    expect(shellAcceptanceProbe.current.profilesOpen, isTrue);
-    expect(shellAcceptanceProbe.current.commandMenuOpen, isFalse);
-    expect(shellAcceptanceProbe.current.visibleOverlay, 'profiles');
-    expect(find.text('Profiles'), findsOneWidget);
-    expect(find.byKey(const Key('profile-entry-default')), findsOneWidget);
-    expect(find.byKey(const Key('profile-entry-ssh')), findsOneWidget);
-    expect(find.byKey(const Key('profiles-search-field')), findsOneWidget);
-    expect(find.text('Local Shell'), findsWidgets);
-    expect(find.text('SSH'), findsOneWidget);
-    expect(find.byKey(const Key('profile-tag-local')), findsOneWidget);
-    expect(find.byKey(const Key('profile-tag-remote')), findsOneWidget);
-    expect(
-      find.text(
-        '${localProfile.shell} • xterm-256color • ${localProfile.scrollbackLines} lines • Default profile',
-      ),
-      findsOneWidget,
-    );
-    expect(find.text('/usr/bin/ssh • VT220 • 4096 lines'), findsOneWidget);
+      expect(find.byKey(const Key('profiles-sheet')), findsOneWidget);
+      expect(shellAcceptanceProbe.current.profilesOpen, isTrue);
+      expect(shellAcceptanceProbe.current.commandMenuOpen, isFalse);
+      expect(shellAcceptanceProbe.current.visibleOverlay, 'profiles');
+      expect(find.text('Profiles'), findsOneWidget);
+      expect(find.byKey(const Key('profile-entry-default')), findsOneWidget);
+      expect(find.byKey(const Key('profile-entry-ssh')), findsOneWidget);
+      expect(find.byKey(const Key('profiles-search-field')), findsOneWidget);
+      expect(find.text('Local Shell'), findsWidgets);
+      expect(find.text('SSH'), findsOneWidget);
+      expect(find.byKey(const Key('profile-tag-local')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('profile-entry-ssh')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('profile-tag-remote')), findsOneWidget);
+      expect(
+        find.text(
+          '${localProfile.shell} • xterm-256color • ${localProfile.scrollbackLines} lines • Default profile',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('/usr/bin/ssh • VT220 • 4096 lines'), findsNWidgets(2));
 
-    await tester.enterText(
-      find.byKey(const Key('profiles-search-field')),
-      'remote',
-    );
-    await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('profiles-search-field')),
+        'remote',
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('profile-entry-default')), findsNothing);
-    expect(find.byKey(const Key('profile-entry-ssh')), findsOneWidget);
+      expect(find.byKey(const Key('profile-entry-default')), findsNothing);
+      expect(find.byKey(const Key('profile-entry-ssh')), findsOneWidget);
 
-    await tester.enterText(
-      find.byKey(const Key('profiles-search-field')),
-      'missing',
-    );
-    await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('profiles-search-field')),
+        'missing',
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('profile-entry-ssh')), findsNothing);
-    expect(find.text('No matching profiles'), findsOneWidget);
-  });
+      expect(find.byKey(const Key('profile-entry-ssh')), findsNothing);
+      expect(find.text('No matching profiles'), findsOneWidget);
+    },
+  );
 
-  testWidgets('profiles sheet can create a new profile', (tester) async {
+  desktopTestWidgets('profiles sheet can create a new profile', (tester) async {
     final profileRepository = MemoryProfileRepository(
       TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
     );
@@ -790,7 +794,7 @@ void main() {
     expect(find.byKey(const Key('profiles-sheet')), findsNothing);
   });
 
-  testWidgets('editing a profile in the GUI only affects new sessions', (
+  desktopTestWidgets('editing a profile in the GUI only affects new sessions', (
     tester,
   ) async {
     final fakeBindings = FakePtyBackend();
@@ -884,6 +888,8 @@ void main() {
     await tester.ensureVisible(find.byKey(const Key('profile-entry-default')));
     await tester.tap(find.byKey(const Key('profile-entry-default')));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('profiles-open-selected')));
+    await tester.pumpAndSettle();
 
     expect(shellAcceptanceProbe.current.activeTabCount, 2);
     expect(fakeBindings.lastCreatedSessionPayload, isNotNull);
@@ -943,50 +949,54 @@ void main() {
     });
   });
 
-  testWidgets('saving defaults still only changes default profile and theme', (
-    tester,
-  ) async {
-    final preferencesRepository = MemoryAppPreferencesRepository(null);
-    final localConfigRepository = MemoryLocalTerminalConfigRepository(null);
-    final profileRepository = MemoryProfileRepository(
-      TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-    );
+  desktopTestWidgets(
+    'saving defaults still only changes default profile and theme',
+    (tester) async {
+      final preferencesRepository = MemoryAppPreferencesRepository(null);
+      final localConfigRepository = MemoryLocalTerminalConfigRepository(null);
+      final profileRepository = MemoryProfileRepository(
+        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+      );
 
-    await _pumpShellScreen(
-      tester,
-      fakeBindings: FakePtyBackend(),
-      profileRepository: profileRepository,
-      preferencesRepository: preferencesRepository,
-      localConfigRepository: localConfigRepository,
-    );
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: FakePtyBackend(),
+        profileRepository: profileRepository,
+        preferencesRepository: preferencesRepository,
+        localConfigRepository: localConfigRepository,
+      );
 
-    await tester.tap(find.byKey(const Key('shell-chrome-menu')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Defaults & appearance'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('defaults-section-appearance')));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.byKey(const Key('defaults-save')));
-    await tester.ensureVisible(
-      find.byKey(const Key('default-theme-option-dark')),
-    );
-    await tester.tap(find.byKey(const Key('default-theme-option-dark')));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.byKey(const Key('defaults-save')));
-    await tester.tap(find.byKey(const Key('defaults-save')));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Defaults & appearance'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('defaults-section-appearance')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const Key('defaults-save')));
+      await tester.ensureVisible(
+        find.byKey(const Key('default-theme-option-dark')),
+      );
+      await tester.tap(find.byKey(const Key('default-theme-option-dark')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const Key('defaults-save')));
+      await tester.tap(find.byKey(const Key('defaults-save')));
+      await tester.pumpAndSettle();
 
-    final savedConfig = await localConfigRepository.load();
-    expect(savedConfig, isNotNull);
-    expect(savedConfig!.defaultProfileId, isNull);
-    expect(savedConfig.appearance.themeMode, TerminalThemeMode.dark);
+      final savedConfig = await localConfigRepository.load();
+      expect(savedConfig, isNotNull);
+      expect(savedConfig!.defaultProfileId, isNull);
+      expect(savedConfig.appearance.themeMode, TerminalThemeMode.dark);
 
-    final savedProfiles = await profileRepository.load();
-    expect(savedProfiles.profiles.single.appearance.colors.foreground, isNull);
-    expect(savedProfiles.profiles.single.scrollbackLines, 8000);
-  });
+      final savedProfiles = await profileRepository.load();
+      expect(
+        savedProfiles.profiles.single.appearance.colors.foreground,
+        isNull,
+      );
+      expect(savedProfiles.profiles.single.scrollbackLines, 8000);
+    },
+  );
 
-  testWidgets(
+  desktopTestWidgets(
     'defaults dialog can apply a terminal preset to the new-tab profile',
     (tester) async {
       final preferencesRepository = MemoryAppPreferencesRepository(null);

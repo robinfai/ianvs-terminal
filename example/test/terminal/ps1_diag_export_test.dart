@@ -13,6 +13,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../support/desktop_test_platform.dart';
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_local_terminal_config_repository.dart';
@@ -34,7 +35,9 @@ const String _configuredReference = String.fromEnvironment(
 );
 
 void main() {
-  testWidgets('ps1 diag export writes configured artifacts', (tester) async {
+  desktopTestWidgets('ps1 diag export writes configured artifacts', (
+    tester,
+  ) async {
     final directory = _configuredOutDir.isEmpty
         ? Directory.systemTemp.createTempSync('ps1_diag_export_config_')
         : Directory(_configuredOutDir);
@@ -63,7 +66,7 @@ void main() {
     }
   });
 
-  testWidgets('codex box diag export writes configured artifacts', (
+  desktopTestWidgets('codex box diag export writes configured artifacts', (
     tester,
   ) async {
     final directory = _configuredCodexBoxOutDir.isEmpty
@@ -89,7 +92,9 @@ void main() {
     );
   });
 
-  testWidgets('ps1 diag export writes png and metrics json', (tester) async {
+  desktopTestWidgets('ps1 diag export writes png and metrics json', (
+    tester,
+  ) async {
     final directory = Directory.systemTemp.createTempSync(
       'ps1_diag_export_basic_',
     );
@@ -126,66 +131,67 @@ void main() {
     expect(metrics['backgroundSpans'] as List<dynamic>, isNotEmpty);
   });
 
-  testWidgets('ps1 diag export keeps prompt inset and dark shell surface', (
-    tester,
-  ) async {
-    _configureDiagnosticView(tester);
-    final shellExport = await _captureFixtureShellExport(tester);
+  desktopTestWidgets(
+    'ps1 diag export keeps prompt inset and dark shell surface',
+    (tester) async {
+      _configureDiagnosticView(tester);
+      final shellExport = await _captureFixtureShellExport(tester);
 
-    try {
-      final innerCanvasColor =
-          ThemeData.dark().colorScheme.surfaceContainerLowest;
-      final devicePixelRatio =
-          shellExport.metrics['devicePixelRatio'] as double;
-      int scale(double logicalValue) =>
-          (logicalValue * devicePixelRatio).round();
+      try {
+        final innerCanvasColor =
+            ThemeData.dark().colorScheme.surfaceContainerLowest;
+        final devicePixelRatio =
+            shellExport.metrics['devicePixelRatio'] as double;
+        int scale(double logicalValue) =>
+            (logicalValue * devicePixelRatio).round();
 
-      final innerCanvasPixel = await _readPixelColor(
-        tester,
-        shellExport.shellSurfaceImage,
-        x: shellExport.shellSurfaceImage.width - scale(44),
-        y: shellExport.shellSurfaceImage.height ~/ 2,
-      );
-      expect(innerCanvasPixel.toARGB32(), innerCanvasColor.toARGB32());
+        final innerCanvasPixel = await _readPixelColor(
+          tester,
+          shellExport.shellSurfaceImage,
+          x: shellExport.shellSurfaceImage.width - scale(44),
+          y: shellExport.shellSurfaceImage.height ~/ 2,
+        );
+        expect(innerCanvasPixel.toARGB32(), innerCanvasColor.toARGB32());
 
-      final leftInsetPixel = await _readPixelColor(
-        tester,
-        shellExport.shellSurfaceImage,
-        x: scale(3),
-        y: scale(28),
-      );
-      expect(leftInsetPixel.toARGB32(), innerCanvasColor.toARGB32());
+        final leftInsetPixel = await _readPixelColor(
+          tester,
+          shellExport.shellSurfaceImage,
+          x: scale(3),
+          y: scale(28),
+        );
+        expect(leftInsetPixel.toARGB32(), innerCanvasColor.toARGB32());
 
-      final topInsetPixel = await _readPixelColor(
-        tester,
-        shellExport.shellSurfaceImage,
-        x: scale(120),
-        y: scale(5),
-      );
-      expect(topInsetPixel.toARGB32(), innerCanvasColor.toARGB32());
+        final topInsetPixel = await _readPixelColor(
+          tester,
+          shellExport.shellSurfaceImage,
+          x: scale(120),
+          y: scale(5),
+        );
+        expect(topInsetPixel.toARGB32(), innerCanvasColor.toARGB32());
 
-      final outerRightPixel = await _readPixelColor(
-        tester,
-        shellExport.shellSurfaceImage,
-        x: shellExport.shellSurfaceImage.width - scale(10),
-        y: shellExport.shellSurfaceImage.height ~/ 2,
-      );
-      expect(outerRightPixel.toARGB32(), innerCanvasColor.toARGB32());
+        final outerRightPixel = await _readPixelColor(
+          tester,
+          shellExport.shellSurfaceImage,
+          x: shellExport.shellSurfaceImage.width - scale(10),
+          y: shellExport.shellSurfaceImage.height ~/ 2,
+        );
+        expect(outerRightPixel.toARGB32(), innerCanvasColor.toARGB32());
 
-      final promptPixel = await _readPixelColor(
-        tester,
-        shellExport.shellSurfaceImage,
-        x: scale(120),
-        y: scale(28),
-      );
-      expect(promptPixel.toARGB32(), isNot(innerCanvasColor.toARGB32()));
-    } finally {
-      shellExport.promptImage.dispose();
-      shellExport.shellSurfaceImage.dispose();
-    }
-  });
+        final promptPixel = await _readPixelColor(
+          tester,
+          shellExport.shellSurfaceImage,
+          x: scale(120),
+          y: scale(28),
+        );
+        expect(promptPixel.toARGB32(), isNot(innerCanvasColor.toARGB32()));
+      } finally {
+        shellExport.promptImage.dispose();
+        shellExport.shellSurfaceImage.dispose();
+      }
+    },
+  );
 
-  testWidgets('ps1 diag export keeps light terminal canvas consistent', (
+  desktopTestWidgets('ps1 diag export keeps light terminal canvas consistent', (
     tester,
   ) async {
     _configureDiagnosticView(tester);
@@ -223,74 +229,83 @@ void main() {
     }
   });
 
-  testWidgets('ps1 diag export writes diff when reference size matches', (
-    tester,
-  ) async {
-    final directory = Directory.systemTemp.createTempSync(
-      'ps1_diag_export_diff_',
-    );
+  desktopTestWidgets(
+    'ps1 diag export writes diff when reference size matches',
+    (tester) async {
+      final directory = Directory.systemTemp.createTempSync(
+        'ps1_diag_export_diff_',
+      );
 
-    _configureDiagnosticView(tester);
-    await _exportPs1Diagnostics(tester, outDir: directory);
+      _configureDiagnosticView(tester);
+      await _exportPs1Diagnostics(tester, outDir: directory);
 
-    final referenceFile = File('${directory.path}/reference.png');
-    referenceFile.writeAsBytesSync(
-      File('${directory.path}/ps1-current.png').readAsBytesSync(),
-    );
+      final referenceFile = File('${directory.path}/reference.png');
+      referenceFile.writeAsBytesSync(
+        File('${directory.path}/ps1-current.png').readAsBytesSync(),
+      );
 
-    await _exportPs1Diagnostics(
-      tester,
-      outDir: directory,
-      reference: referenceFile,
-    );
-
-    final comparison =
-        jsonDecode(
-              File('${directory.path}/ps1-comparison.json').readAsStringSync(),
-            )
-            as Map<String, dynamic>;
-    expect(comparison['status'], 'ok');
-    expect(File('${directory.path}/ps1-diff.png').existsSync(), isTrue);
-    expect(
-      File('${directory.path}/ps1-side-by-side.png').existsSync(),
-      isFalse,
-    );
-  });
-
-  testWidgets('ps1 diag export reports size mismatch without rescaling', (
-    tester,
-  ) async {
-    final directory = Directory.systemTemp.createTempSync(
-      'ps1_diag_export_mismatch_',
-    );
-    final referenceFile = File('${directory.path}/reference-small.png');
-
-    _configureDiagnosticView(tester);
-    await _writeImage(
-      tester,
-      await _solidColorImage(
+      await _exportPs1Diagnostics(
         tester,
-        width: 16,
-        height: 16,
-        color: const Color(0xFF111827),
-      ),
-      referenceFile,
-    );
-    await _exportPs1Diagnostics(
-      tester,
-      outDir: directory,
-      reference: referenceFile,
-    );
+        outDir: directory,
+        reference: referenceFile,
+      );
 
-    final comparison =
-        jsonDecode(
-              File('${directory.path}/ps1-comparison.json').readAsStringSync(),
-            )
-            as Map<String, dynamic>;
-    expect(comparison['status'], 'size_mismatch');
-    expect(File('${directory.path}/ps1-diff.png').existsSync(), isFalse);
-    expect(File('${directory.path}/ps1-side-by-side.png').existsSync(), isTrue);
-  });
+      final comparison =
+          jsonDecode(
+                File(
+                  '${directory.path}/ps1-comparison.json',
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      expect(comparison['status'], 'ok');
+      expect(File('${directory.path}/ps1-diff.png').existsSync(), isTrue);
+      expect(
+        File('${directory.path}/ps1-side-by-side.png').existsSync(),
+        isFalse,
+      );
+    },
+  );
+
+  desktopTestWidgets(
+    'ps1 diag export reports size mismatch without rescaling',
+    (tester) async {
+      final directory = Directory.systemTemp.createTempSync(
+        'ps1_diag_export_mismatch_',
+      );
+      final referenceFile = File('${directory.path}/reference-small.png');
+
+      _configureDiagnosticView(tester);
+      await _writeImage(
+        tester,
+        await _solidColorImage(
+          tester,
+          width: 16,
+          height: 16,
+          color: const Color(0xFF111827),
+        ),
+        referenceFile,
+      );
+      await _exportPs1Diagnostics(
+        tester,
+        outDir: directory,
+        reference: referenceFile,
+      );
+
+      final comparison =
+          jsonDecode(
+                File(
+                  '${directory.path}/ps1-comparison.json',
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      expect(comparison['status'], 'size_mismatch');
+      expect(File('${directory.path}/ps1-diff.png').existsSync(), isFalse);
+      expect(
+        File('${directory.path}/ps1-side-by-side.png').existsSync(),
+        isTrue,
+      );
+    },
+  );
 }
 
 void _configureDiagnosticView(WidgetTester tester) {

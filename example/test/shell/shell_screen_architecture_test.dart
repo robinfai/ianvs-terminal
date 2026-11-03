@@ -380,6 +380,7 @@ void _writeFixture(Directory root, String relativePath, String source) {
 
 Iterable<File> _allowedShellExternalDependencies(Directory libDirectory) {
   const paths = <String>[
+    'data/configuration/oauth_sign_in_panel.dart',
     'data/configuration/data_api_configuration.dart',
     'data/configuration/data_api_configuration_providers.dart',
     'data/configuration/data_api_configuration_repository.dart',

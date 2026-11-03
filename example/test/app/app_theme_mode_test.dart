@@ -3,6 +3,7 @@ import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
+import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/features/terminal/terminal_viewport_colors.dart';
 import 'package:app/ui/app_ui.dart';
 import 'package:flutter/material.dart';
@@ -10,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart' show TerminalSessionConfig;
 
+import '../support/desktop_test_platform.dart';
 import '../support/fake_pty_backend.dart';
 import '../support/memory_local_terminal_config_repository.dart';
 import '../support/memory_profile_repository.dart';
@@ -49,7 +51,7 @@ Future<void> _pumpApp(
 void main() {
   for (final mode in TerminalThemeMode.values) {
     for (final systemBrightness in Brightness.values) {
-      testWidgets(
+      desktopTestWidgets(
         'new sessions report viewport colors for $mode / $systemBrightness',
         (tester) async {
           tester.binding.platformDispatcher.platformBrightnessTestValue =
@@ -67,7 +69,7 @@ void main() {
           );
 
           void expectViewportDefaults() {
-            final context = tester.element(find.text('Trail'));
+            final context = tester.element(find.byType(ShellScreen));
             final viewport = resolveTerminalColors(context).viewport;
             final special = TerminalSessionConfig.fromJson(
               backend.lastCreatedSessionPayload!,
@@ -84,7 +86,7 @@ void main() {
 
           expectViewportDefaults();
           final controller = ProviderScope.containerOf(
-            tester.element(find.text('Trail')),
+            tester.element(find.byType(ShellScreen)),
           ).read(sessionControllerProvider.notifier);
           await controller.setThemeMode(
             systemBrightness == Brightness.dark
@@ -101,7 +103,7 @@ void main() {
   }
 
   for (final mode in [TerminalThemeMode.light, TerminalThemeMode.dark]) {
-    testWidgets(
+    desktopTestWidgets(
       'system high contrast changes $mode without replacing the session',
       (tester) async {
         addTearDown(
@@ -113,7 +115,7 @@ void main() {
             appearance: TerminalAppAppearance(themeMode: mode),
           ),
         );
-        final context = tester.element(find.text('Trail'));
+        final context = tester.element(find.byType(ShellScreen));
         final normal = Theme.of(context);
         final container = ProviderScope.containerOf(context);
         final session = container.read(sessionControllerProvider);
@@ -121,7 +123,7 @@ void main() {
           tester.binding.platformDispatcher.accessibilityFeaturesTestValue =
               FakeAccessibilityFeatures(highContrast: enabled);
           await tester.pumpAndSettle();
-          final theme = Theme.of(tester.element(find.text('Trail')));
+          final theme = Theme.of(tester.element(find.byType(ShellScreen)));
           final tokens = theme.extension<AppThemeTokens>()!;
           expect(theme.brightness, normal.brightness);
           expect(
@@ -161,7 +163,7 @@ void main() {
     );
   });
 
-  testWidgets('ianvs terminal app follows the system Chinese locale', (
+  desktopTestWidgets('ianvs terminal app follows the system Chinese locale', (
     tester,
   ) async {
     tester.binding.platformDispatcher.localesTestValue = const <Locale>[
@@ -175,14 +177,14 @@ void main() {
 
     await _pumpApp(tester);
 
-    expect(find.text('Trail'), findsOneWidget);
+    expect(find.byType(ShellScreen), findsOneWidget);
     expect(
-      Localizations.localeOf(tester.element(find.text('Trail'))),
+      Localizations.localeOf(tester.element(find.byType(ShellScreen))),
       const Locale('zh'),
     );
   });
 
-  testWidgets('persisted English overrides the system Chinese locale', (
+  desktopTestWidgets('persisted English overrides the system Chinese locale', (
     tester,
   ) async {
     tester.binding.platformDispatcher.localesTestValue = const <Locale>[
@@ -199,14 +201,14 @@ void main() {
       ),
     );
 
-    expect(find.text('Trail'), findsOneWidget);
+    expect(find.byType(ShellScreen), findsOneWidget);
     expect(
-      Localizations.localeOf(tester.element(find.text('Trail'))),
+      Localizations.localeOf(tester.element(find.byType(ShellScreen))),
       const Locale('en'),
     );
   });
 
-  testWidgets('language changes apply immediately and persist locally', (
+  desktopTestWidgets('language changes apply immediately and persist locally', (
     tester,
   ) async {
     final repository = MemoryLocalTerminalConfigRepository(
@@ -222,37 +224,39 @@ void main() {
         .setLanguageMode(TerminalLanguageMode.simplifiedChinese);
     await tester.pumpAndSettle();
 
-    expect(find.text('Trail'), findsOneWidget);
+    expect(find.byType(ShellScreen), findsOneWidget);
     expect(
       repository.savedDocuments.last.appearance.languageMode,
       TerminalLanguageMode.simplifiedChinese,
     );
   });
 
-  testWidgets('ianvs terminal app consumes the persisted dark theme mode', (
-    tester,
-  ) async {
-    await _pumpApp(
-      tester,
-      config: const LocalTerminalConfigDocument(
-        appearance: TerminalAppAppearance(themeMode: TerminalThemeMode.dark),
-      ),
-    );
+  desktopTestWidgets(
+    'ianvs terminal app consumes the persisted dark theme mode',
+    (tester) async {
+      await _pumpApp(
+        tester,
+        config: const LocalTerminalConfigDocument(
+          appearance: TerminalAppAppearance(themeMode: TerminalThemeMode.dark),
+        ),
+      );
 
-    expect(
-      tester.widget<MaterialApp>(find.byType(MaterialApp)).themeMode,
-      ThemeMode.dark,
-    );
-  });
+      expect(
+        tester.widget<MaterialApp>(find.byType(MaterialApp)).themeMode,
+        ThemeMode.dark,
+      );
+    },
+  );
 
-  testWidgets('ianvs terminal app defaults to system theme mode when unset', (
-    tester,
-  ) async {
-    await _pumpApp(tester);
+  desktopTestWidgets(
+    'ianvs terminal app defaults to system theme mode when unset',
+    (tester) async {
+      await _pumpApp(tester);
 
-    expect(
-      tester.widget<MaterialApp>(find.byType(MaterialApp)).themeMode,
-      ThemeMode.system,
-    );
-  });
+      expect(
+        tester.widget<MaterialApp>(find.byType(MaterialApp)).themeMode,
+        ThemeMode.system,
+      );
+    },
+  );
 }

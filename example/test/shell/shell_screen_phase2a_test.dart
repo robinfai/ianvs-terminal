@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../support/desktop_test_platform.dart';
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_local_terminal_config_repository.dart';
@@ -57,7 +58,7 @@ bool isTabSelected(WidgetTester tester, String label) {
 }
 
 void main() {
-  testWidgets('shell screen opens and closes the hyper command menu', (
+  desktopTestWidgets('shell screen opens and closes the hyper command menu', (
     tester,
   ) async {
     await pumpShellScreen(
@@ -109,7 +110,7 @@ void main() {
     );
   });
 
-  testWidgets('shell screen command menu filters actions while typing', (
+  desktopTestWidgets('shell screen command menu filters actions while typing', (
     tester,
   ) async {
     await pumpShellScreen(
@@ -162,7 +163,7 @@ void main() {
     );
   });
 
-  testWidgets('shell screen command menu can create another tab', (
+  desktopTestWidgets('shell screen command menu can create another tab', (
     tester,
   ) async {
     await pumpShellScreen(

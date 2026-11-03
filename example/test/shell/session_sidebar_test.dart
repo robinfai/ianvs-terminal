@@ -7,12 +7,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
 
+import '../support/desktop_test_platform.dart';
 import '../support/fake_pty_backend.dart';
 import '../support/memory_profile_repository.dart';
 import 'shell_screen_phase1a_test.dart' show pumpShellScreen;
 
 void main() {
-  testWidgets(
+  desktopTestWidgets(
     'sidebar replaces tabs and preserves the live terminal and grouping',
     (tester) async {
       final backend = FakePtyBackend();
@@ -122,96 +123,98 @@ void main() {
     },
   );
 
-  testWidgets('directory branches select and close the correct session', (
-    tester,
-  ) async {
-    final backend = FakePtyBackend();
-    await pumpShellScreen(
-      tester,
-      fakeBindings: backend,
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ShellScreen)),
-    );
-    final controller = container.read(sessionControllerProvider.notifier);
-    final first = container.read(sessionControllerProvider).activeSessionId!;
-    controller.createSession(defaultTerminalProfile());
-    await tester.pumpAndSettle();
-    final second = container.read(sessionControllerProvider).activeSessionId!;
-    for (final entry in {first: '/work/api', second: '/work/web'}.entries) {
-      backend.enqueueEvent(
-        entry.key,
-        PtyEvent(
-          sessionId: entry.key,
-          kind: 'shell_context',
-          payload: {'source': 'osc7', 'cwd': entry.value},
+  desktopTestWidgets(
+    'directory branches select and close the correct session',
+    (tester) async {
+      final backend = FakePtyBackend();
+      await pumpShellScreen(
+        tester,
+        fakeBindings: backend,
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
         ),
       );
-      container
-          .read(terminalRuntimeControllerProvider)
-          .refreshSession(entry.key);
-    }
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('shell-toggle-sidebar')));
-    await tester.pumpAndSettle();
-    expect(find.text('/work'), findsOneWidget);
-    expect(find.text('api'), findsOneWidget);
-    expect(find.text('web'), findsOneWidget);
-    final firstRow = find.byKey(ValueKey('sidebar-session-$first'));
-    await tester.tap(firstRow);
-    await tester.pumpAndSettle();
-    expect(container.read(sessionControllerProvider).activeSessionId, first);
-    final close = find.byKey(ValueKey('sidebar-close-$first'));
-    expect(close.hitTestable(), findsNothing);
-    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
-    await mouse.addPointer(location: Offset.zero);
-    await mouse.moveTo(tester.getCenter(firstRow));
-    await tester.pumpAndSettle();
-    expect(close.hitTestable(), findsOneWidget);
-    expect(tester.getSize(close), const Size.square(24));
-    expect(tester.getCenter(close).dy, tester.getCenter(firstRow).dy);
-    expect(
-      tester.getCenter(find.byKey(ValueKey('sidebar-close-glyph-$first'))),
-      tester.getCenter(close),
-    );
-    await mouse.moveTo(Offset.zero);
-    await tester.pumpAndSettle();
-    expect(close.hitTestable(), findsNothing);
-    await mouse.moveTo(tester.getCenter(firstRow));
-    await tester.pumpAndSettle();
-    await tester.tap(close);
-    await mouse.removePointer();
-    await tester.pumpAndSettle();
-    expect(backend.closedSessionIds, contains(first));
-    expect(find.byKey(ValueKey('sidebar-session-$second')), findsOneWidget);
-    expect(container.read(sessionControllerProvider).activeSessionId, second);
-    expect(tester.takeException(), isNull);
-  });
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final controller = container.read(sessionControllerProvider.notifier);
+      final first = container.read(sessionControllerProvider).activeSessionId!;
+      controller.createSession(defaultTerminalProfile());
+      await tester.pumpAndSettle();
+      final second = container.read(sessionControllerProvider).activeSessionId!;
+      for (final entry in {first: '/work/api', second: '/work/web'}.entries) {
+        backend.enqueueEvent(
+          entry.key,
+          PtyEvent(
+            sessionId: entry.key,
+            kind: 'shell_context',
+            payload: {'source': 'osc7', 'cwd': entry.value},
+          ),
+        );
+        container
+            .read(terminalRuntimeControllerProvider)
+            .refreshSession(entry.key);
+      }
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('shell-toggle-sidebar')));
+      await tester.pumpAndSettle();
+      expect(find.text('/work'), findsOneWidget);
+      expect(find.text('api'), findsOneWidget);
+      expect(find.text('web'), findsOneWidget);
+      final firstRow = find.byKey(ValueKey('sidebar-session-$first'));
+      await tester.tap(firstRow);
+      await tester.pumpAndSettle();
+      expect(container.read(sessionControllerProvider).activeSessionId, first);
+      final close = find.byKey(ValueKey('sidebar-close-$first'));
+      expect(close.hitTestable(), findsNothing);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      await mouse.moveTo(tester.getCenter(firstRow));
+      await tester.pumpAndSettle();
+      expect(close.hitTestable(), findsOneWidget);
+      expect(tester.getSize(close), const Size.square(24));
+      expect(tester.getCenter(close).dy, tester.getCenter(firstRow).dy);
+      expect(
+        tester.getCenter(find.byKey(ValueKey('sidebar-close-glyph-$first'))),
+        tester.getCenter(close),
+      );
+      await mouse.moveTo(Offset.zero);
+      await tester.pumpAndSettle();
+      expect(close.hitTestable(), findsNothing);
+      await mouse.moveTo(tester.getCenter(firstRow));
+      await tester.pumpAndSettle();
+      await tester.tap(close);
+      await mouse.removePointer();
+      await tester.pumpAndSettle();
+      expect(backend.closedSessionIds, contains(first));
+      expect(find.byKey(ValueKey('sidebar-session-$second')), findsOneWidget);
+      expect(container.read(sessionControllerProvider).activeSessionId, second);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
-  testWidgets('sidebar supports dark theme, larger text and narrow windows', (
-    tester,
-  ) async {
-    tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
-    tester.platformDispatcher.textScaleFactorTestValue = 1.5;
-    addTearDown(tester.platformDispatcher.clearAllTestValues);
-    await tester.binding.setSurfaceSize(const Size(640, 600));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
-    await pumpShellScreen(
-      tester,
-      fakeBindings: FakePtyBackend(),
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
-    await tester.tap(find.byKey(const Key('shell-toggle-sidebar')));
-    await tester.pumpAndSettle();
-    expect(find.text('Sessions'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
-  testWidgets(
+  desktopTestWidgets(
+    'sidebar supports dark theme, larger text and narrow windows',
+    (tester) async {
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      tester.platformDispatcher.textScaleFactorTestValue = 1.5;
+      addTearDown(tester.platformDispatcher.clearAllTestValues);
+      await tester.binding.setSurfaceSize(const Size(640, 600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await pumpShellScreen(
+        tester,
+        fakeBindings: FakePtyBackend(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+      await tester.tap(find.byKey(const Key('shell-toggle-sidebar')));
+      await tester.pumpAndSettle();
+      expect(find.text('Sessions'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+  desktopTestWidgets(
     'same command groups directories and follows execution and buffer state',
     (tester) async {
       var now = DateTime(2026, 9, 15, 12);

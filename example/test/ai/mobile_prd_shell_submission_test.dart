@@ -652,10 +652,10 @@ void main() {
       final save = find.byKey(const Key('ai-save-settings'));
       await tester.ensureVisible(save);
       await tester.tap(save);
-      await _settle(tester);
+      await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('ai-settings-dialog')), findsNothing);
       expect(fixture.store.saved, isNotNull);
+      expect(find.byKey(const Key('ai-settings-dialog')), findsNothing);
       expect(fixture.ai.transcript, isEmpty);
       expect(fixture.ai.draft, 'Retain this unsent request');
       expect(fixture.ai.attachments, [original]);

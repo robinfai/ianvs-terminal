@@ -132,7 +132,7 @@ func TestResponsesGatewaySettlesUsage(t *testing.T) {
 		t.Fatal(w.Code, w.Body.String())
 	}
 	var row model.Setting
-	if err := db.Where("key LIKE ?", "ai.ledger.responses-user.%").First(&row).Error; err != nil {
+	if err := db.Where("`key` LIKE ?", "ai.ledger.responses-user.%").First(&row).Error; err != nil {
 		t.Fatal(err)
 	}
 	var entry aiLedgerEntry

@@ -15,6 +15,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
 
+import '../support/desktop_test_platform.dart';
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_local_terminal_config_repository.dart';
@@ -168,7 +169,7 @@ Future<void> _submitSavedSshSession(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('importing an OpenSSH profile saves without connecting', (
+  desktopTestWidgets('importing an OpenSSH profile saves without connecting', (
     tester,
   ) async {
     final importedProfile = defaultTerminalProfile().copyWith(
@@ -224,7 +225,7 @@ void main() {
     expect(find.textContaining('this device'), findsOneWidget);
   });
 
-  testWidgets(
+  desktopTestWidgets(
     'a failed SSH profile save requires an explicit one-time connection',
     (tester) async {
       final repository = _FailingRemoteProfileRepository();
@@ -277,7 +278,7 @@ void main() {
     },
   );
 
-  testWidgets('cancelling a failed SSH profile save does not connect', (
+  desktopTestWidgets('cancelling a failed SSH profile save does not connect', (
     tester,
   ) async {
     final repository = _FailingRemoteProfileRepository();

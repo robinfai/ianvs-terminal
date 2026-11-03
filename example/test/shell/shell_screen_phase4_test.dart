@@ -22,6 +22,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
 
+import '../support/desktop_test_platform.dart';
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_profile_repository.dart';
@@ -291,7 +292,7 @@ void main() {
     );
   });
 
-  testWidgets('opening the new-tab sheet releases terminal text input', (
+  desktopTestWidgets('opening the new-tab sheet releases terminal text input', (
     tester,
   ) async {
     final textInputMethods = <String>[];
@@ -325,42 +326,43 @@ void main() {
     );
   });
 
-  testWidgets('shell resizes the session from the padded terminal viewport', (
-    tester,
-  ) async {
-    tester.view.devicePixelRatio = 2.0;
-    tester.view.physicalSize = const Size(1600, 1200);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    addTearDown(tester.view.resetPhysicalSize);
+  desktopTestWidgets(
+    'shell resizes the session from the padded terminal viewport',
+    (tester) async {
+      tester.view.devicePixelRatio = 2.0;
+      tester.view.physicalSize = const Size(1600, 1200);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
 
-    final fakeBindings = FakePtyBackend();
-    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      final fakeBindings = FakePtyBackend();
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
 
-    final renderObject = tester.allRenderObjects
-        .whereType<RenderTerminalViewport>()
-        .last;
-    final viewportSize = renderObject.size;
-    final resizeCall = fakeBindings.resizeCalls.last;
+      final renderObject = tester.allRenderObjects
+          .whereType<RenderTerminalViewport>()
+          .last;
+      final viewportSize = renderObject.size;
+      final resizeCall = fakeBindings.resizeCalls.last;
 
-    expect(
-      resizeCall[1],
-      (viewportSize.width / renderObject.debugCellSize.width).floor(),
-    );
-    expect(
-      resizeCall[2],
-      (viewportSize.height / renderObject.debugCellSize.height).floor(),
-    );
-    expect(
-      resizeCall[3],
-      (viewportSize.width * tester.view.devicePixelRatio).round(),
-    );
-    expect(
-      resizeCall[4],
-      (viewportSize.height * tester.view.devicePixelRatio).round(),
-    );
-  });
+      expect(
+        resizeCall[1],
+        (viewportSize.width / renderObject.debugCellSize.width).floor(),
+      );
+      expect(
+        resizeCall[2],
+        (viewportSize.height / renderObject.debugCellSize.height).floor(),
+      );
+      expect(
+        resizeCall[3],
+        (viewportSize.width * tester.view.devicePixelRatio).round(),
+      );
+      expect(
+        resizeCall[4],
+        (viewportSize.height * tester.view.devicePixelRatio).round(),
+      );
+    },
+  );
 
-  testWidgets('shell applies configured terminal viewport padding', (
+  desktopTestWidgets('shell applies configured terminal viewport padding', (
     tester,
   ) async {
     final fakeBindings = FakePtyBackend();
@@ -382,7 +384,9 @@ void main() {
     expect(viewport.contentPadding, const EdgeInsets.all(20));
   });
 
-  testWidgets('local clipboard config enables copy on select', (tester) async {
+  desktopTestWidgets('local clipboard config enables copy on select', (
+    tester,
+  ) async {
     final fakeBindings = FakePtyBackend();
 
     await _pumpShellScreen(
@@ -402,7 +406,7 @@ void main() {
     expect(viewport.copyOnSelect, isTrue);
   });
 
-  testWidgets('defaults dialog saves OSC 52 ask policy', (tester) async {
+  desktopTestWidgets('defaults dialog saves OSC 52 ask policy', (tester) async {
     final fakeBindings = FakePtyBackend();
     final localConfigRepository = _MemoryLocalTerminalConfigRepository(
       const LocalTerminalConfigDocument(),
@@ -421,6 +425,11 @@ void main() {
     await tester.tap(find.byKey(const Key('defaults-section-security')));
     await tester.pumpAndSettle();
     await tester.ensureVisible(
+      find.byKey(const Key('defaults-osc52-policy-dropdown')),
+    );
+    await tester.tap(find.byKey(const Key('defaults-osc52-policy-dropdown')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(
       find.byKey(const Key('default-osc52-policy-ask')),
     );
     await tester.tap(find.byKey(const Key('default-osc52-policy-ask')));
@@ -435,7 +444,7 @@ void main() {
     );
   });
 
-  testWidgets(
+  desktopTestWidgets(
     'defaults dialog enables layout restore with clear process copy',
     (tester) async {
       final localConfigRepository = _MemoryLocalTerminalConfigRepository(
@@ -459,9 +468,11 @@ void main() {
       final restoreToggle = find.byKey(const Key('default-restore-layout'));
       await tester.ensureVisible(restoreToggle);
 
-      expect(find.text('Restore sessions'), findsOneWidget);
+      expect(find.text('Restore tabs and panes on launch'), findsOneWidget);
       expect(
-        find.text('Reopen your previous connections when Trail starts.'),
+        find.text(
+          'Starts new shell processes and restores their folders. Running processes are not resumed.',
+        ),
         findsOneWidget,
       );
       expect(tester.widget<SwitchListTile>(restoreToggle).value, isFalse);
@@ -479,7 +490,7 @@ void main() {
     },
   );
 
-  testWidgets('defaults dialog saves OSC 1337 OpenURL deny policy', (
+  desktopTestWidgets('defaults dialog saves OSC 1337 OpenURL deny policy', (
     tester,
   ) async {
     final fakeBindings = FakePtyBackend();
@@ -497,6 +508,13 @@ void main() {
     await tester.tap(find.text('Defaults & appearance'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('defaults-section-security')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const Key('defaults-open-url-policy-dropdown')),
+    );
+    await tester.tap(
+      find.byKey(const Key('defaults-open-url-policy-dropdown')),
+    );
     await tester.pumpAndSettle();
     final deny = find.byKey(
       const Key('default-osc1337-open-url-policy-disabled'),
@@ -513,7 +531,7 @@ void main() {
     );
   });
 
-  testWidgets('defaults dialog explicitly enables OSC 1337 attention', (
+  desktopTestWidgets('defaults dialog explicitly enables OSC 1337 attention', (
     tester,
   ) async {
     final fakeBindings = FakePtyBackend();
@@ -531,6 +549,13 @@ void main() {
     await tester.tap(find.text('Defaults & appearance'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('defaults-section-security')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const Key('defaults-request-attention-policy-dropdown')),
+    );
+    await tester.tap(
+      find.byKey(const Key('defaults-request-attention-policy-dropdown')),
+    );
     await tester.pumpAndSettle();
     final allow = find.byKey(
       const Key('default-osc1337-request-attention-policy-allow'),
@@ -551,102 +576,129 @@ void main() {
     );
   });
 
-  testWidgets('defaults dialog forgets OSC 1337 variable decisions on save', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
-    final localConfigRepository = _MemoryLocalTerminalConfigRepository(
-      const LocalTerminalConfigDocument(
-        hostActions: LocalTerminalHostActionsConfig(
-          osc1337ReportVariables: <String, LocalTerminalReportVariablePolicy>{
-            'session.path': LocalTerminalReportVariablePolicy.allow,
-            'user.gitBranch': LocalTerminalReportVariablePolicy.deny,
-          },
-        ),
-      ),
-    );
-
-    await _pumpShellScreen(
-      tester,
-      fakeBindings: fakeBindings,
-      localConfigRepository: localConfigRepository,
-    );
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.text('Defaults & appearance'));
-    await tester.tap(find.text('Defaults & appearance'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('defaults-section-security')));
-    await tester.pumpAndSettle();
-    final forget = find.byKey(
-      const Key('default-osc1337-report-variable-forget-all'),
-    );
-    await tester.ensureVisible(forget);
-    expect(find.text('2 remembered · 1 allowed · 1 denied'), findsOneWidget);
-    expect(find.text('session.path'), findsOneWidget);
-    expect(find.text('user.gitBranch'), findsOneWidget);
-    expect(
-      find.byKey(
-        const ValueKey<String>(
-          'default-osc1337-report-variable-policy-session.path',
-        ),
-      ),
-      findsOneWidget,
-    );
-    final forgetUser = find.byKey(
-      const ValueKey<String>(
-        'default-osc1337-report-variable-forget-user.gitBranch',
-      ),
-    );
-    await tester.ensureVisible(forgetUser);
-    await tester.tap(forgetUser);
-    await tester.pump();
-    expect(find.text('1 remembered · 1 allowed · 0 denied'), findsOneWidget);
-    expect(find.text('user.gitBranch'), findsNothing);
-    await tester.ensureVisible(forget);
-    await tester.tap(forget);
-    await tester.pumpAndSettle();
-    expect(find.text('No remembered decisions'), findsOneWidget);
-    await tester.tap(find.byKey(const Key('defaults-save')));
-    await tester.pumpAndSettle();
-
-    expect(
-      localConfigRepository
-          .savedDocuments
-          .last
-          .hostActions
-          .osc1337ReportVariables,
-      isEmpty,
-    );
-  });
-
-  testWidgets('OSC 1337 attention defaults to deny without host effects', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
-    final attention = _RecordingUserAttentionBridge();
-    await _pumpShellScreen(
-      tester,
-      fakeBindings: fakeBindings,
-      userAttentionBridge: attention,
-    );
-    for (final action in <String>['yes', 'once', 'fireworks']) {
-      fakeBindings.enqueueEvent(
-        1,
-        PtyEvent(
-          kind: 'attention_request',
-          sessionId: '1',
-          payload: <String, Object?>{'source': 'iterm1337', 'action': action},
+  desktopTestWidgets(
+    'defaults dialog forgets OSC 1337 variable decisions on save',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      final localConfigRepository = _MemoryLocalTerminalConfigRepository(
+        const LocalTerminalConfigDocument(
+          hostActions: LocalTerminalHostActionsConfig(
+            osc1337ReportVariables: <String, LocalTerminalReportVariablePolicy>{
+              'session.path': LocalTerminalReportVariablePolicy.allow,
+              'user.gitBranch': LocalTerminalReportVariablePolicy.deny,
+            },
+          ),
         ),
       );
-    }
-    await tester.pump(const Duration(milliseconds: 40));
 
-    expect(attention.requests, isEmpty);
-    expect(attention.cancellations, isEmpty);
-    expect(find.byKey(const Key('osc1337-fireworks-1')), findsNothing);
-  });
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        localConfigRepository: localConfigRepository,
+      );
+      await _openCommandMenu(tester);
+      await tester.ensureVisible(find.text('Defaults & appearance'));
+      await tester.tap(find.text('Defaults & appearance'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('defaults-section-security')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.byKey(const Key('defaults-manage-report-variables')),
+      );
+      await tester.tap(
+        find.byKey(const Key('defaults-manage-report-variables')),
+      );
+      await tester.pumpAndSettle();
+      final forget = find.byKey(
+        const Key('default-osc1337-report-variable-forget-all'),
+      );
+      await tester.ensureVisible(forget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('defaults-report-variable-management')),
+          matching: find.text('2 remembered · 1 allowed · 1 denied'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('session.path'), findsOneWidget);
+      expect(find.text('user.gitBranch'), findsOneWidget);
+      expect(
+        find.byKey(
+          const ValueKey<String>(
+            'default-osc1337-report-variable-policy-session.path',
+          ),
+        ),
+        findsOneWidget,
+      );
+      final forgetUser = find.byKey(
+        const ValueKey<String>(
+          'default-osc1337-report-variable-forget-user.gitBranch',
+        ),
+      );
+      await tester.ensureVisible(forgetUser);
+      await tester.tap(forgetUser);
+      await tester.pump();
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('defaults-report-variable-management')),
+          matching: find.text('1 remembered · 1 allowed · 0 denied'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('user.gitBranch'), findsNothing);
+      await tester.ensureVisible(forget);
+      await tester.tap(forget);
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('defaults-report-variable-management')),
+          matching: find.text('No remembered decisions'),
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const Key('defaults-save')));
+      await tester.pumpAndSettle();
 
-  testWidgets('OSC 1337 once yes and no map to owned AppKit requests', (
+      expect(
+        localConfigRepository
+            .savedDocuments
+            .last
+            .hostActions
+            .osc1337ReportVariables,
+        isEmpty,
+      );
+    },
+  );
+
+  desktopTestWidgets(
+    'OSC 1337 attention defaults to deny without host effects',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      final attention = _RecordingUserAttentionBridge();
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        userAttentionBridge: attention,
+      );
+      for (final action in <String>['yes', 'once', 'fireworks']) {
+        fakeBindings.enqueueEvent(
+          1,
+          PtyEvent(
+            kind: 'attention_request',
+            sessionId: '1',
+            payload: <String, Object?>{'source': 'iterm1337', 'action': action},
+          ),
+        );
+      }
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(attention.requests, isEmpty);
+      expect(attention.cancellations, isEmpty);
+      expect(find.byKey(const Key('osc1337-fireworks-1')), findsNothing);
+    },
+  );
+
+  desktopTestWidgets('OSC 1337 once yes and no map to owned AppKit requests', (
     tester,
   ) async {
     final fakeBindings = FakePtyBackend();
@@ -744,192 +796,204 @@ void main() {
     expect(attention.cancellations, <int>[100, 101]);
   });
 
-  testWidgets('OSC 1337 pending requests reserve the global attention cap', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
-    final attention = _PendingUserAttentionBridge();
-    var now = DateTime.utc(2026, 7, 13, 12);
-    await _pumpShellScreen(
-      tester,
-      fakeBindings: fakeBindings,
-      localConfigRepository: _MemoryLocalTerminalConfigRepository(
+  desktopTestWidgets(
+    'OSC 1337 pending requests reserve the global attention cap',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      final attention = _PendingUserAttentionBridge();
+      var now = DateTime.utc(2026, 7, 13, 12);
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        localConfigRepository: _MemoryLocalTerminalConfigRepository(
+          const LocalTerminalConfigDocument(
+            hostActions: LocalTerminalHostActionsConfig(
+              osc1337RequestAttention:
+                  LocalTerminalRequestAttentionPolicy.allow,
+            ),
+          ),
+        ),
+        userAttentionBridge: attention,
+        clock: () => now,
+      );
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final controller = container.read(sessionControllerProvider.notifier);
+      final profile = defaultTerminalProfile();
+      for (var index = 0; index < 8; index += 1) {
+        controller.createSession(profile);
+      }
+      await tester.pumpAndSettle();
+
+      final sessionIds = container
+          .read(sessionControllerProvider)
+          .tabs
+          .map((tab) => tab.sessionId)
+          .toList(growable: false);
+      expect(sessionIds, hasLength(9));
+      final runtime = container.read(terminalRuntimeControllerProvider);
+      for (final sessionId in sessionIds) {
+        fakeBindings.enqueueEvent(
+          sessionId,
+          PtyEvent(
+            kind: 'attention_request',
+            sessionId: sessionId,
+            payload: const <String, Object?>{
+              'source': 'iterm1337',
+              'action': 'once',
+            },
+          ),
+        );
+        runtime.refreshSession(sessionId);
+        await tester.pump(const Duration(milliseconds: 40));
+        now = now.add(const Duration(seconds: 1));
+      }
+
+      expect(attention.requests, hasLength(8));
+      expect(attention.pendingRequests, hasLength(8));
+    },
+  );
+
+  desktopTestWidgets(
+    'OSC 1337 policy disable cancels owned attention immediately',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      final attention = _RecordingUserAttentionBridge();
+      final localConfigRepository = _MemoryLocalTerminalConfigRepository(
         const LocalTerminalConfigDocument(
           hostActions: LocalTerminalHostActionsConfig(
             osc1337RequestAttention: LocalTerminalRequestAttentionPolicy.allow,
           ),
         ),
-      ),
-      userAttentionBridge: attention,
-      clock: () => now,
-    );
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ShellScreen)),
-    );
-    final controller = container.read(sessionControllerProvider.notifier);
-    final profile = defaultTerminalProfile();
-    for (var index = 0; index < 8; index += 1) {
-      controller.createSession(profile);
-    }
-    await tester.pumpAndSettle();
+      );
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        localConfigRepository: localConfigRepository,
+        userAttentionBridge: attention,
+      );
 
-    final sessionIds = container
-        .read(sessionControllerProvider)
-        .tabs
-        .map((tab) => tab.sessionId)
-        .toList(growable: false);
-    expect(sessionIds, hasLength(9));
-    final runtime = container.read(terminalRuntimeControllerProvider);
-    for (final sessionId in sessionIds) {
       fakeBindings.enqueueEvent(
-        sessionId,
-        PtyEvent(
+        1,
+        const PtyEvent(
           kind: 'attention_request',
-          sessionId: sessionId,
-          payload: const <String, Object?>{
+          sessionId: '1',
+          payload: <String, Object?>{'source': 'iterm1337', 'action': 'once'},
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(attention.requests, <NativeUserAttentionType>[
+        NativeUserAttentionType.informational,
+      ]);
+
+      await _openCommandMenu(tester);
+      await tester.ensureVisible(find.text('Defaults & appearance'));
+      await tester.tap(find.text('Defaults & appearance'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('defaults-section-security')));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.byKey(const Key('defaults-request-attention-policy-dropdown')),
+      );
+      await tester.tap(
+        find.byKey(const Key('defaults-request-attention-policy-dropdown')),
+      );
+      await tester.pumpAndSettle();
+      final deny = find.byKey(
+        const Key('default-osc1337-request-attention-policy-disabled'),
+      );
+      await tester.ensureVisible(deny);
+      await tester.tap(deny);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('defaults-save')));
+      await tester.pumpAndSettle();
+
+      expect(attention.cancellations, <int>[100]);
+      expect(
+        localConfigRepository
+            .savedDocuments
+            .last
+            .hostActions
+            .osc1337RequestAttention,
+        LocalTerminalRequestAttentionPolicy.disabled,
+      );
+    },
+  );
+
+  desktopTestWidgets(
+    'OSC 1337 fireworks is cursor-local and Reduce Motion safe',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      final attention = _RecordingUserAttentionBridge();
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        localConfigRepository: _MemoryLocalTerminalConfigRepository(
+          const LocalTerminalConfigDocument(
+            hostActions: LocalTerminalHostActionsConfig(
+              osc1337RequestAttention:
+                  LocalTerminalRequestAttentionPolicy.allow,
+            ),
+          ),
+        ),
+        userAttentionBridge: attention,
+        shellAnimationsEnabled: false,
+      );
+      fakeBindings.setFrame(1, const <String, Object?>{
+        'rows': <Object?>[
+          <String, Object?>{
+            'index': 10,
+            'text': 'attention target',
+            'style_runs': <Object?>[],
+          },
+        ],
+        'cursor': <String, Object?>{'row': 10, 'col': 20, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': <Object?>[
+          <String, Object?>{'start': 10, 'end': 11},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+      });
+      await tester.pump(const Duration(milliseconds: 40));
+      fakeBindings.enqueueEvent(
+        1,
+        const PtyEvent(
+          kind: 'attention_request',
+          sessionId: '1',
+          payload: <String, Object?>{
             'source': 'iterm1337',
-            'action': 'once',
+            'action': 'fireworks',
           },
         ),
       );
-      runtime.refreshSession(sessionId);
       await tester.pump(const Duration(milliseconds: 40));
-      now = now.add(const Duration(seconds: 1));
-    }
 
-    expect(attention.requests, hasLength(8));
-    expect(attention.pendingRequests, hasLength(8));
-  });
+      final burst = find.byKey(const Key('osc1337-fireworks-1'));
+      expect(burst, findsOneWidget);
+      expect(
+        find.bySemanticsLabel('Terminal requested attention'),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: burst, matching: find.byType(AnimatedBuilder)),
+        findsNothing,
+        reason: 'Reduce Motion must use the static fallback',
+      );
+      final burstRect = tester.getRect(burst);
+      final viewportRect = tester.getRect(find.byType(TerminalViewport));
+      expect(viewportRect.contains(burstRect.center), isTrue);
+      expect(attention.requests, isEmpty);
 
-  testWidgets('OSC 1337 policy disable cancels owned attention immediately', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
-    final attention = _RecordingUserAttentionBridge();
-    final localConfigRepository = _MemoryLocalTerminalConfigRepository(
-      const LocalTerminalConfigDocument(
-        hostActions: LocalTerminalHostActionsConfig(
-          osc1337RequestAttention: LocalTerminalRequestAttentionPolicy.allow,
-        ),
-      ),
-    );
-    await _pumpShellScreen(
-      tester,
-      fakeBindings: fakeBindings,
-      localConfigRepository: localConfigRepository,
-      userAttentionBridge: attention,
-    );
+      await tester.pump(const Duration(milliseconds: 450));
+      expect(burst, findsNothing);
+    },
+  );
 
-    fakeBindings.enqueueEvent(
-      1,
-      const PtyEvent(
-        kind: 'attention_request',
-        sessionId: '1',
-        payload: <String, Object?>{'source': 'iterm1337', 'action': 'once'},
-      ),
-    );
-    await tester.pump(const Duration(milliseconds: 40));
-    expect(attention.requests, <NativeUserAttentionType>[
-      NativeUserAttentionType.informational,
-    ]);
-
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.text('Defaults & appearance'));
-    await tester.tap(find.text('Defaults & appearance'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('defaults-section-security')));
-    await tester.pumpAndSettle();
-    final deny = find.byKey(
-      const Key('default-osc1337-request-attention-policy-disabled'),
-    );
-    await tester.ensureVisible(deny);
-    await tester.tap(deny);
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('defaults-save')));
-    await tester.pumpAndSettle();
-
-    expect(attention.cancellations, <int>[100]);
-    expect(
-      localConfigRepository
-          .savedDocuments
-          .last
-          .hostActions
-          .osc1337RequestAttention,
-      LocalTerminalRequestAttentionPolicy.disabled,
-    );
-  });
-
-  testWidgets('OSC 1337 fireworks is cursor-local and Reduce Motion safe', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
-    final attention = _RecordingUserAttentionBridge();
-    await _pumpShellScreen(
-      tester,
-      fakeBindings: fakeBindings,
-      localConfigRepository: _MemoryLocalTerminalConfigRepository(
-        const LocalTerminalConfigDocument(
-          hostActions: LocalTerminalHostActionsConfig(
-            osc1337RequestAttention: LocalTerminalRequestAttentionPolicy.allow,
-          ),
-        ),
-      ),
-      userAttentionBridge: attention,
-      shellAnimationsEnabled: false,
-    );
-    fakeBindings.setFrame(1, const <String, Object?>{
-      'rows': <Object?>[
-        <String, Object?>{
-          'index': 10,
-          'text': 'attention target',
-          'style_runs': <Object?>[],
-        },
-      ],
-      'cursor': <String, Object?>{'row': 10, 'col': 20, 'visible': true},
-      'selection': null,
-      'viewport_rows': 24,
-      'viewport_cols': 80,
-      'dirty_ranges': <Object?>[
-        <String, Object?>{'start': 10, 'end': 11},
-      ],
-      'scrollback_offset': 0,
-      'scrollback_max_offset': 0,
-    });
-    await tester.pump(const Duration(milliseconds: 40));
-    fakeBindings.enqueueEvent(
-      1,
-      const PtyEvent(
-        kind: 'attention_request',
-        sessionId: '1',
-        payload: <String, Object?>{
-          'source': 'iterm1337',
-          'action': 'fireworks',
-        },
-      ),
-    );
-    await tester.pump(const Duration(milliseconds: 40));
-
-    final burst = find.byKey(const Key('osc1337-fireworks-1'));
-    expect(burst, findsOneWidget);
-    expect(
-      find.bySemanticsLabel('Terminal requested attention'),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(of: burst, matching: find.byType(AnimatedBuilder)),
-      findsNothing,
-      reason: 'Reduce Motion must use the static fallback',
-    );
-    final burstRect = tester.getRect(burst);
-    final viewportRect = tester.getRect(find.byType(TerminalViewport));
-    expect(viewportRect.contains(burstRect.center), isTrue);
-    expect(attention.requests, isEmpty);
-
-    await tester.pump(const Duration(milliseconds: 450));
-    expect(burst, findsNothing);
-  });
-
-  testWidgets('external URL failure is visible after approved open', (
+  desktopTestWidgets('external URL failure is visible after approved open', (
     tester,
   ) async {
     final backend = FakePtyBackend();
@@ -953,47 +1017,48 @@ void main() {
     expect(find.text('Could not open link'), findsOneWidget);
   });
 
-  testWidgets('OSC 1337 OpenURL requires active confirmation before opening', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
-    final opened = <String>[];
-    await _pumpShellScreen(
-      tester,
-      fakeBindings: fakeBindings,
-      externalUrlOpener: (url) async => opened.add(url),
-    );
-    fakeBindings.enqueueEvent(
-      1,
-      const PtyEvent(
-        kind: 'open_url_request',
-        sessionId: '1',
-        payload: <String, Object?>{
-          'source': 'iterm1337',
-          'url': 'https://example.test/phase29?prompt=visible',
-        },
-      ),
-    );
-    await tester.pump(const Duration(milliseconds: 40));
+  desktopTestWidgets(
+    'OSC 1337 OpenURL requires active confirmation before opening',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      final opened = <String>[];
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        externalUrlOpener: (url) async => opened.add(url),
+      );
+      fakeBindings.enqueueEvent(
+        1,
+        const PtyEvent(
+          kind: 'open_url_request',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'iterm1337',
+            'url': 'https://example.test/phase29?prompt=visible',
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
 
-    expect(find.byKey(const Key('osc1337-open-url-dialog')), findsOneWidget);
-    expect(find.text('Open terminal-requested URL?'), findsOneWidget);
-    expect(
-      find.textContaining('https://example.test/phase29?prompt=visible'),
-      findsOneWidget,
-    );
-    expect(
-      opened,
-      isEmpty,
-      reason: 'terminal output must never auto-open a URL',
-    );
+      expect(find.byKey(const Key('osc1337-open-url-dialog')), findsOneWidget);
+      expect(find.text('Open terminal-requested URL?'), findsOneWidget);
+      expect(
+        find.textContaining('https://example.test/phase29?prompt=visible'),
+        findsOneWidget,
+      );
+      expect(
+        opened,
+        isEmpty,
+        reason: 'terminal output must never auto-open a URL',
+      );
 
-    await tester.tap(find.byKey(const Key('osc1337-open-url-approve')));
-    await tester.pumpAndSettle();
-    expect(opened, <String>['https://example.test/phase29?prompt=visible']);
-  });
+      await tester.tap(find.byKey(const Key('osc1337-open-url-approve')));
+      await tester.pumpAndSettle();
+      expect(opened, <String>['https://example.test/phase29?prompt=visible']);
+    },
+  );
 
-  testWidgets(
+  desktopTestWidgets(
     'OSC 1337 ReportVariable denies first and remembers future allow',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -1078,7 +1143,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'OSC 1337 ReportVariable remembered deny and unknown names stay silent',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -1125,98 +1190,102 @@ void main() {
     },
   );
 
-  testWidgets('OSC 1337 ReportVariable prompt cooldown prevents modal spam', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
-    var now = DateTime.utc(2026, 7, 13, 12);
-    await _pumpShellScreen(
-      tester,
-      fakeBindings: fakeBindings,
-      clock: () => now,
-    );
-
-    void request(String name) {
-      fakeBindings.enqueueEvent(
-        1,
-        PtyEvent(
-          kind: 'report_variable_request',
-          sessionId: '1',
-          payload: <String, Object?>{
-            'source': 'iterm1337',
-            'name': name,
-            'value': 'private-value',
-          },
-        ),
+  desktopTestWidgets(
+    'OSC 1337 ReportVariable prompt cooldown prevents modal spam',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      var now = DateTime.utc(2026, 7, 13, 12);
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        clock: () => now,
       );
-    }
 
-    request('session.path');
-    await tester.pump(const Duration(milliseconds: 40));
-    expect(
-      find.byKey(const Key('osc1337-report-variable-dialog')),
-      findsOneWidget,
-    );
-    final denyButton = tester.widget<FilledButton>(
-      find.byKey(const Key('osc1337-report-variable-deny')),
-    );
-    expect(denyButton.autofocus, isTrue);
-    await tester.tap(find.byKey(const Key('osc1337-report-variable-not-now')));
-    await tester.pumpAndSettle();
+      void request(String name) {
+        fakeBindings.enqueueEvent(
+          1,
+          PtyEvent(
+            kind: 'report_variable_request',
+            sessionId: '1',
+            payload: <String, Object?>{
+              'source': 'iterm1337',
+              'name': name,
+              'value': 'private-value',
+            },
+          ),
+        );
+      }
 
-    request('session.hostname');
-    await tester.pump(const Duration(milliseconds: 40));
-    expect(
-      find.byKey(const Key('osc1337-report-variable-dialog')),
-      findsNothing,
-    );
-    expect(
-      ascii.decode(fakeBindings.writes.last),
-      '\x1b]1337;ReportVariable=\x07',
-    );
-
-    now = now.add(const Duration(seconds: 31));
-    request('session.hostname');
-    await tester.pump(const Duration(milliseconds: 40));
-    expect(
-      find.byKey(const Key('osc1337-report-variable-dialog')),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets('OSC 1337 OpenURL denial and bursts never invoke the opener', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
-    final opened = <String>[];
-    await _pumpShellScreen(
-      tester,
-      fakeBindings: fakeBindings,
-      externalUrlOpener: (url) async => opened.add(url),
-    );
-    for (final suffix in <String>['first', 'second']) {
-      fakeBindings.enqueueEvent(
-        1,
-        PtyEvent(
-          kind: 'open_url_request',
-          sessionId: '1',
-          payload: <String, Object?>{
-            'source': 'iterm1337',
-            'url': 'https://example.test/$suffix',
-          },
-        ),
+      request('session.path');
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(
+        find.byKey(const Key('osc1337-report-variable-dialog')),
+        findsOneWidget,
       );
-    }
-    await tester.pump(const Duration(milliseconds: 40));
+      final denyButton = tester.widget<FilledButton>(
+        find.byKey(const Key('osc1337-report-variable-deny')),
+      );
+      expect(denyButton.autofocus, isTrue);
+      await tester.tap(
+        find.byKey(const Key('osc1337-report-variable-not-now')),
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('osc1337-open-url-dialog')), findsOneWidget);
-    await tester.tap(find.byKey(const Key('osc1337-open-url-deny')));
-    await tester.pumpAndSettle();
-    expect(opened, isEmpty);
-    expect(find.text('OSC 1337 Open URL blocked'), findsOneWidget);
-  });
+      request('session.hostname');
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(
+        find.byKey(const Key('osc1337-report-variable-dialog')),
+        findsNothing,
+      );
+      expect(
+        ascii.decode(fakeBindings.writes.last),
+        '\x1b]1337;ReportVariable=\x07',
+      );
 
-  testWidgets('OSC 1337 OpenURL deny policy blocks without a dialog', (
+      now = now.add(const Duration(seconds: 31));
+      request('session.hostname');
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(
+        find.byKey(const Key('osc1337-report-variable-dialog')),
+        findsOneWidget,
+      );
+    },
+  );
+
+  desktopTestWidgets(
+    'OSC 1337 OpenURL denial and bursts never invoke the opener',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      final opened = <String>[];
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        externalUrlOpener: (url) async => opened.add(url),
+      );
+      for (final suffix in <String>['first', 'second']) {
+        fakeBindings.enqueueEvent(
+          1,
+          PtyEvent(
+            kind: 'open_url_request',
+            sessionId: '1',
+            payload: <String, Object?>{
+              'source': 'iterm1337',
+              'url': 'https://example.test/$suffix',
+            },
+          ),
+        );
+      }
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(find.byKey(const Key('osc1337-open-url-dialog')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('osc1337-open-url-deny')));
+      await tester.pumpAndSettle();
+      expect(opened, isEmpty);
+      expect(find.text('OSC 1337 Open URL blocked'), findsOneWidget);
+    },
+  );
+
+  desktopTestWidgets('OSC 1337 OpenURL deny policy blocks without a dialog', (
     tester,
   ) async {
     final fakeBindings = FakePtyBackend();
@@ -1251,7 +1320,7 @@ void main() {
     expect(find.text('OSC 1337 Open URL blocked by policy'), findsOneWidget);
   });
 
-  testWidgets('OSC 1337 OpenURL ignores inactive and unsafe requests', (
+  desktopTestWidgets('OSC 1337 OpenURL ignores inactive and unsafe requests', (
     tester,
   ) async {
     final fakeBindings = FakePtyBackend();
@@ -1317,60 +1386,61 @@ void main() {
     expect(opened, isEmpty);
   });
 
-  testWidgets('OSC 8 file links without occurrence provenance are blocked', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
+  desktopTestWidgets(
+    'OSC 8 file links without occurrence provenance are blocked',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
 
-    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
-    fakeBindings.setFrame(1, const <String, Object?>{
-      'rows': <Object?>[
-        <String, Object?>{
-          'index': 0,
-          'text': 'open file',
-          'style_runs': <Object?>[],
-        },
-      ],
-      'cursor': <String, Object?>{'row': 0, 'col': 0, 'visible': true},
-      'selection': null,
-      'viewport_rows': 24,
-      'viewport_cols': 80,
-      'dirty_ranges': <Object?>[
-        <String, Object?>{'start': 0, 'end': 1},
-      ],
-      'scrollback_offset': 0,
-      'scrollback_max_offset': 0,
-      'hyperlinks': <Object?>[
-        <String, Object?>{
-          'row': 0,
-          'start_col': 5,
-          'end_col': 9,
-          'uri': 'file:///tmp/secret.txt',
-        },
-      ],
-    });
-    await tester.pump(const Duration(milliseconds: 40));
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      fakeBindings.setFrame(1, const <String, Object?>{
+        'rows': <Object?>[
+          <String, Object?>{
+            'index': 0,
+            'text': 'open file',
+            'style_runs': <Object?>[],
+          },
+        ],
+        'cursor': <String, Object?>{'row': 0, 'col': 0, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': <Object?>[
+          <String, Object?>{'start': 0, 'end': 1},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+        'hyperlinks': <Object?>[
+          <String, Object?>{
+            'row': 0,
+            'start_col': 5,
+            'end_col': 9,
+            'uri': 'file:///tmp/secret.txt',
+          },
+        ],
+      });
+      await tester.pump(const Duration(milliseconds: 40));
 
-    final renderObject = tester.allRenderObjects
-        .whereType<RenderTerminalViewport>()
-        .last;
-    final cellSize = renderObject.debugCellSize;
-    final linkPosition = renderObject.localToGlobal(
-      Offset(cellSize.width * 6, cellSize.height / 2),
-    );
-    final pointer = TestPointer(45, PointerDeviceKind.mouse);
-    await tester.sendEventToBinding(pointer.down(linkPosition));
-    await tester.pump();
-    await tester.sendEventToBinding(pointer.up());
-    await tester.pump(kDoubleTapTimeout);
-    await tester.pumpAndSettle();
+      final renderObject = tester.allRenderObjects
+          .whereType<RenderTerminalViewport>()
+          .last;
+      final cellSize = renderObject.debugCellSize;
+      final linkPosition = renderObject.localToGlobal(
+        Offset(cellSize.width * 6, cellSize.height / 2),
+      );
+      final pointer = TestPointer(45, PointerDeviceKind.mouse);
+      await tester.sendEventToBinding(pointer.down(linkPosition));
+      await tester.pump();
+      await tester.sendEventToBinding(pointer.up());
+      await tester.pump(kDoubleTapTimeout);
+      await tester.pumpAndSettle();
 
-    expect(find.text('Open local file link?'), findsNothing);
+      expect(find.text('Open local file link?'), findsNothing);
 
-    expect(find.text('Blocked file link'), findsOneWidget);
-  });
+      expect(find.text('Blocked file link'), findsOneWidget);
+    },
+  );
 
-  testWidgets(
+  desktopTestWidgets(
     'OSC 8 file links without provenance remain blocked in split panes',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -1439,7 +1509,7 @@ void main() {
     },
   );
 
-  testWidgets('OSC 1337 download requires Save before writing bytes', (
+  desktopTestWidgets('OSC 1337 download requires Save before writing bytes', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -1511,164 +1581,168 @@ void main() {
     expect(find.text('Saved report.txt'), findsOneWidget);
   });
 
-  testWidgets('ZMODEM receive requires a folder and exposes progress/cancel', (
-    tester,
-  ) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(1200, 900);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    addTearDown(tester.view.resetPhysicalSize);
-    final fakeBindings = FakePtyBackend();
-    const channel = MethodChannel('app/window_bridge');
-    final bridgeCalls = <MethodCall>[];
-    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
-      call,
-    ) async {
-      bridgeCalls.add(call);
-      return call.method == 'chooseZmodemReceiveDirectory'
-          ? '/chosen/downloads'
-          : null;
-    });
-    addTearDown(
-      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-        channel,
-        null,
-      ),
-    );
+  desktopTestWidgets(
+    'ZMODEM receive requires a folder and exposes progress/cancel',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final fakeBindings = FakePtyBackend();
+      const channel = MethodChannel('app/window_bridge');
+      final bridgeCalls = <MethodCall>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+        call,
+      ) async {
+        bridgeCalls.add(call);
+        return call.method == 'chooseZmodemReceiveDirectory'
+            ? '/chosen/downloads'
+            : null;
+      });
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        ),
+      );
 
-    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ShellScreen)),
-    );
-    final runtime = container.read(terminalRuntimeControllerProvider);
-    fakeBindings.enqueueEvent(
-      '1',
-      const PtyEvent(
-        kind: 'zmodem_detected',
-        sessionId: '1',
-        payload: <String, Object?>{
-          'source': 'zmodem',
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final runtime = container.read(terminalRuntimeControllerProvider);
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '41',
+            'direction': 'receive',
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_file_offer',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '41',
+            'direction': 'receive',
+            'filename': 'report.bin',
+            'size': null,
+          },
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(
+        bridgeCalls.where(
+          (call) => call.method == 'chooseZmodemReceiveDirectory',
+        ),
+        hasLength(1),
+      );
+      expect(
+        fakeBindings.jsonRequests.lastWhere(
+          (request) => request['kind'] == 'terminal.zmodem.accept_receive',
+        ),
+        <String, Object?>{
+          'kind': 'terminal.zmodem.accept_receive',
           'transferId': '41',
-          'direction': 'receive',
+          'destination': '/chosen/downloads',
         },
-      ),
-    );
-    fakeBindings.enqueueEvent(
-      '1',
-      const PtyEvent(
-        kind: 'zmodem_file_offer',
-        sessionId: '1',
-        payload: <String, Object?>{
-          'source': 'zmodem',
-          'transferId': '41',
-          'direction': 'receive',
-          'filename': 'report.bin',
-          'size': null,
-        },
-      ),
-    );
-    runtime.refreshSession('1');
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
+      );
+      expect(
+        find.byKey(const Key('shell-zmodem-transfer-detail')),
+        findsOneWidget,
+      );
+      expect(find.textContaining('unknown size'), findsOneWidget);
+      final writesBeforeBlockedInput = fakeBindings.writes.length;
+      runtime.sendInput('1', Uint8List.fromList(const <int>[0x41]));
+      expect(fakeBindings.writes, hasLength(writesBeforeBlockedInput));
 
-    expect(
-      bridgeCalls.where(
-        (call) => call.method == 'chooseZmodemReceiveDirectory',
-      ),
-      hasLength(1),
-    );
-    expect(
-      fakeBindings.jsonRequests.lastWhere(
-        (request) => request['kind'] == 'terminal.zmodem.accept_receive',
-      ),
-      <String, Object?>{
-        'kind': 'terminal.zmodem.accept_receive',
-        'transferId': '41',
-        'destination': '/chosen/downloads',
-      },
-    );
-    expect(
-      find.byKey(const Key('shell-zmodem-transfer-detail')),
-      findsOneWidget,
-    );
-    expect(find.textContaining('unknown size'), findsOneWidget);
-    final writesBeforeBlockedInput = fakeBindings.writes.length;
-    runtime.sendInput('1', Uint8List.fromList(const <int>[0x41]));
-    expect(fakeBindings.writes, hasLength(writesBeforeBlockedInput));
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_progress',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '41',
+            'direction': 'receive',
+            'bytesTransferred': 512,
+            'totalBytes': 1024,
+          },
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump(const Duration(milliseconds: 100));
 
-    fakeBindings.enqueueEvent(
-      '1',
-      const PtyEvent(
-        kind: 'zmodem_progress',
-        sessionId: '1',
-        payload: <String, Object?>{
-          'source': 'zmodem',
-          'transferId': '41',
-          'direction': 'receive',
-          'bytesTransferred': 512,
-          'totalBytes': 1024,
-        },
-      ),
-    );
-    runtime.refreshSession('1');
-    await tester.pump(const Duration(milliseconds: 100));
+      expect(find.textContaining('512 B / 1.0 KB'), findsOneWidget);
+      expect(
+        tester
+            .widget<LinearProgressIndicator>(
+              find.byKey(const Key('shell-zmodem-transfer-progress')),
+            )
+            .value,
+        0.5,
+      );
+      final progressSemantics = tester.getSemantics(
+        find.byKey(const Key('shell-zmodem-transfer-progress')),
+      );
+      expect(progressSemantics.label, 'ZMODEM progress');
+      expect(progressSemantics.value, '50 percent');
+      expect(progressSemantics.flagsCollection.isLiveRegion, isFalse);
 
-    expect(find.textContaining('512 B / 1.0 KB'), findsOneWidget);
-    expect(
-      tester
-          .widget<LinearProgressIndicator>(
-            find.byKey(const Key('shell-zmodem-transfer-progress')),
-          )
-          .value,
-      0.5,
-    );
-    final progressSemantics = tester.getSemantics(
-      find.byKey(const Key('shell-zmodem-transfer-progress')),
-    );
-    expect(progressSemantics.label, 'ZMODEM progress');
-    expect(progressSemantics.value, '50 percent');
-    expect(progressSemantics.flagsCollection.isLiveRegion, isFalse);
+      await tester.tap(find.byKey(const Key('shell-zmodem-transfer-cancel')));
+      await tester.pump();
+      expect(
+        fakeBindings.jsonRequests.lastWhere(
+          (request) => request['kind'] == 'terminal.zmodem.cancel',
+        ),
+        <String, Object?>{'kind': 'terminal.zmodem.cancel', 'transferId': '41'},
+      );
+      expect(find.text('Cancelling…'), findsOneWidget);
+      expect(
+        tester
+            .widget<TextButton>(
+              find.byKey(const Key('shell-zmodem-transfer-cancel')),
+            )
+            .onPressed,
+        isNull,
+      );
+      final requestsAfterFirstCancel = fakeBindings.jsonRequests.length;
+      await tester.tap(
+        find.byKey(const Key('shell-zmodem-transfer-cancel')),
+        warnIfMissed: false,
+      );
+      await tester.pump();
+      expect(fakeBindings.jsonRequests, hasLength(requestsAfterFirstCancel));
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_cancelled',
+          sessionId: '1',
+          payload: <String, Object?>{'source': 'zmodem', 'transferId': '41'},
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump(const Duration(milliseconds: 100));
 
-    await tester.tap(find.byKey(const Key('shell-zmodem-transfer-cancel')));
-    await tester.pump();
-    expect(
-      fakeBindings.jsonRequests.lastWhere(
-        (request) => request['kind'] == 'terminal.zmodem.cancel',
-      ),
-      <String, Object?>{'kind': 'terminal.zmodem.cancel', 'transferId': '41'},
-    );
-    expect(find.text('Cancelling…'), findsOneWidget);
-    expect(
-      tester
-          .widget<TextButton>(
-            find.byKey(const Key('shell-zmodem-transfer-cancel')),
-          )
-          .onPressed,
-      isNull,
-    );
-    final requestsAfterFirstCancel = fakeBindings.jsonRequests.length;
-    await tester.tap(
-      find.byKey(const Key('shell-zmodem-transfer-cancel')),
-      warnIfMissed: false,
-    );
-    await tester.pump();
-    expect(fakeBindings.jsonRequests, hasLength(requestsAfterFirstCancel));
-    fakeBindings.enqueueEvent(
-      '1',
-      const PtyEvent(
-        kind: 'zmodem_cancelled',
-        sessionId: '1',
-        payload: <String, Object?>{'source': 'zmodem', 'transferId': '41'},
-      ),
-    );
-    runtime.refreshSession('1');
-    await tester.pump(const Duration(milliseconds: 100));
+      expect(
+        find.byKey(const Key('shell-zmodem-transfer-detail')),
+        findsNothing,
+      );
+      expect(find.text('ZMODEM transfer cancelled'), findsOneWidget);
+    },
+  );
 
-    expect(find.byKey(const Key('shell-zmodem-transfer-detail')), findsNothing);
-    expect(find.text('ZMODEM transfer cancelled'), findsOneWidget);
-  });
-
-  testWidgets(
+  desktopTestWidgets(
     'ZMODEM does not open a picker for a transfer ended in the same poll',
     (tester) async {
       tester.view.devicePixelRatio = 1;
@@ -1746,7 +1820,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'ZMODEM deferred write failure persists and suppresses same-poll success',
     (tester) async {
       tester.view.devicePixelRatio = 1;
@@ -1820,7 +1894,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'ZMODEM ignores an ended picker request before authorizing a new transfer',
     (tester) async {
       tester.view.devicePixelRatio = 1;
@@ -1946,7 +2020,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'ZMODEM rejects bidi filenames before display or receive authorization',
     (tester) async {
       tester.view.devicePixelRatio = 1;
@@ -2057,7 +2131,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'ZMODEM rejects 257 selected files without authorizing a truncated batch',
     (tester) async {
       tester.view.devicePixelRatio = 1;
@@ -2119,7 +2193,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'ZMODEM gap survivor exposes recovery without prior transfer UI state',
     (tester) async {
       tester.view.devicePixelRatio = 1;
@@ -2171,7 +2245,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'Old publish recovery does not hide the current gap reconciliation UI',
     (tester) async {
       tester.view.devicePixelRatio = 1;
@@ -2258,7 +2332,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'Old terminal does not hide a successor drain reconciliation UI',
     (tester) async {
       tester.view.devicePixelRatio = 1;
@@ -2350,7 +2424,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'First-batch ZMODEM gap survivor exposes transfer UI and pauses input',
     (tester) async {
       tester.view.devicePixelRatio = 1;
@@ -2408,7 +2482,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'First-batch ZMODEM gap without survivors exposes cancellation recovery',
     (tester) async {
       tester.view.devicePixelRatio = 1;
@@ -2470,199 +2544,202 @@ void main() {
     },
   );
 
-  testWidgets('Cancel during native drain preserves the completed result', (
-    tester,
-  ) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(1200, 900);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    addTearDown(tester.view.resetPhysicalSize);
-    final fakeBindings = FakePtyBackend()
-      ..zmodemResponses['terminal.zmodem.cancel'] = false
-      ..zmodemCancelActiveOutcome = 'draining';
-    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ShellScreen)),
-    );
-    final runtime = container.read(terminalRuntimeControllerProvider);
+  desktopTestWidgets(
+    'Cancel during native drain preserves the completed result',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final fakeBindings = FakePtyBackend()
+        ..zmodemResponses['terminal.zmodem.cancel'] = false
+        ..zmodemCancelActiveOutcome = 'draining';
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final runtime = container.read(terminalRuntimeControllerProvider);
 
-    fakeBindings.enqueueEvent(
-      '1',
-      const PtyEvent(
-        kind: 'zmodem_started',
-        sessionId: '1',
-        payload: <String, Object?>{
-          'source': 'zmodem',
-          'transferId': '62',
-          'direction': 'receive',
-          'fileCount': 1,
-          'totalBytes': 3,
-        },
-      ),
-    );
-    runtime.refreshSession('1');
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
-    await tester.tap(find.byKey(const Key('shell-zmodem-transfer-cancel')));
-    await tester.pump();
-
-    fakeBindings.enqueueEvent(
-      '1',
-      const PtyEvent(
-        kind: 'zmodem_completed',
-        sessionId: '1',
-        payload: <String, Object?>{
-          'source': 'zmodem',
-          'transferId': '62',
-          'direction': 'receive',
-        },
-      ),
-    );
-    runtime.refreshSession('1');
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
-
-    expect(find.text('ZMODEM receive completed'), findsOneWidget);
-    expect(find.text('ZMODEM transfer cancelled'), findsNothing);
-  });
-
-  testWidgets('Inactive ZMODEM result is shown when its session is activated', (
-    tester,
-  ) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(1200, 900);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    addTearDown(tester.view.resetPhysicalSize);
-    final fakeBindings = FakePtyBackend();
-    final notifications = <Map<String, String?>>[];
-    await _pumpShellScreen(
-      tester,
-      fakeBindings: fakeBindings,
-      notificationSender:
-          ({required title, body, identifier, expiresAfterMs}) async {
-            notifications.add({
-              'title': title,
-              'body': body,
-              'identifier': identifier,
-            });
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_started',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '62',
+            'direction': 'receive',
+            'fileCount': 1,
+            'totalBytes': 3,
           },
-    );
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ShellScreen)),
-    );
-    final runtime = container.read(terminalRuntimeControllerProvider);
-    final sessions = container.read(sessionControllerProvider.notifier);
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.tap(find.byKey(const Key('shell-zmodem-transfer-cancel')));
+      await tester.pump();
 
-    fakeBindings.enqueueEvent(
-      '1',
-      const PtyEvent(
-        kind: 'zmodem_started',
-        sessionId: '1',
-        payload: <String, Object?>{
-          'source': 'zmodem',
-          'transferId': '63',
-          'direction': 'receive',
-        },
-      ),
-    );
-    runtime.refreshSession('1');
-    await tester.pump();
-    sessions.createSession(defaultTerminalProfile());
-    await tester.pump();
-
-    fakeBindings.enqueueEvent(
-      '1',
-      const PtyEvent(
-        kind: 'zmodem_completed',
-        sessionId: '1',
-        payload: <String, Object?>{
-          'source': 'zmodem',
-          'transferId': '63',
-          'direction': 'receive',
-        },
-      ),
-    );
-    runtime.refreshSession('1');
-    await tester.pump();
-    expect(find.text('ZMODEM receive completed'), findsNothing);
-    expect(
-      notifications.where(
-        (notification) =>
-            notification['identifier'] == 'ianvs-terminal.zmodem.1' &&
-            notification['body'] == 'ZMODEM receive completed',
-      ),
-      hasLength(1),
-    );
-
-    sessions.activateSession('1');
-    await tester.pump();
-    await tester.pump();
-    expect(find.text('ZMODEM receive completed'), findsOneWidget);
-  });
-
-  testWidgets('Inactive ZMODEM authorization is cancelled and notified', (
-    tester,
-  ) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(1200, 900);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    addTearDown(tester.view.resetPhysicalSize);
-    final fakeBindings = FakePtyBackend();
-    final notifications = <Map<String, String?>>[];
-    await _pumpShellScreen(
-      tester,
-      fakeBindings: fakeBindings,
-      notificationSender:
-          ({required title, body, identifier, expiresAfterMs}) async {
-            notifications.add({
-              'title': title,
-              'body': body,
-              'identifier': identifier,
-            });
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_completed',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '62',
+            'direction': 'receive',
           },
-    );
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ShellScreen)),
-    );
-    final runtime = container.read(terminalRuntimeControllerProvider);
-    container
-        .read(sessionControllerProvider.notifier)
-        .createSession(defaultTerminalProfile());
-    await tester.pump();
-    fakeBindings.jsonRequests.clear();
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
 
-    fakeBindings.enqueueEvent(
-      '1',
-      const PtyEvent(
-        kind: 'zmodem_detected',
-        sessionId: '1',
-        payload: <String, Object?>{
-          'source': 'zmodem',
-          'transferId': '64',
-          'direction': 'send',
-        },
-      ),
-    );
-    runtime.refreshSession('1');
-    await tester.pump();
-    await tester.pump();
+      expect(find.text('ZMODEM receive completed'), findsOneWidget);
+      expect(find.text('ZMODEM transfer cancelled'), findsNothing);
+    },
+  );
 
-    expect(fakeBindings.jsonRequests.single, <String, Object?>{
-      'kind': 'terminal.zmodem.cancel',
-      'transferId': '64',
-    });
-    expect(
-      notifications.where(
-        (notification) =>
-            notification['identifier'] == 'ianvs-terminal.zmodem.1' &&
-            notification['title']!.startsWith('ZMODEM request cancelled') &&
-            notification['body']!.contains('pane is inactive'),
-      ),
-      hasLength(1),
-    );
-  });
+  desktopTestWidgets(
+    'Inactive ZMODEM result is shown when its session is activated',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final fakeBindings = FakePtyBackend();
+      final notifications = <Map<String, String?>>[];
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        notificationSender:
+            ({required title, body, identifier, expiresAfterMs}) async {
+              notifications.add({
+                'title': title,
+                'body': body,
+                'identifier': identifier,
+              });
+            },
+      );
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final runtime = container.read(terminalRuntimeControllerProvider);
+      final sessions = container.read(sessionControllerProvider.notifier);
 
-  testWidgets(
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_started',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '63',
+            'direction': 'receive',
+          },
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+      sessions.createSession(defaultTerminalProfile());
+      await tester.pump();
+
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_completed',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '63',
+            'direction': 'receive',
+          },
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+      expect(find.text('ZMODEM receive completed'), findsNothing);
+      expect(
+        notifications.where(
+          (notification) =>
+              notification['identifier'] == 'ianvs-terminal.zmodem.1' &&
+              notification['body'] == 'ZMODEM receive completed',
+        ),
+        hasLength(1),
+      );
+
+      sessions.activateSession('1');
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('ZMODEM receive completed'), findsOneWidget);
+    },
+  );
+
+  desktopTestWidgets(
+    'Inactive ZMODEM authorization is cancelled and notified',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final fakeBindings = FakePtyBackend();
+      final notifications = <Map<String, String?>>[];
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        notificationSender:
+            ({required title, body, identifier, expiresAfterMs}) async {
+              notifications.add({
+                'title': title,
+                'body': body,
+                'identifier': identifier,
+              });
+            },
+      );
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final runtime = container.read(terminalRuntimeControllerProvider);
+      container
+          .read(sessionControllerProvider.notifier)
+          .createSession(defaultTerminalProfile());
+      await tester.pump();
+      fakeBindings.jsonRequests.clear();
+
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_detected',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '64',
+            'direction': 'send',
+          },
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+      await tester.pump();
+
+      expect(fakeBindings.jsonRequests.single, <String, Object?>{
+        'kind': 'terminal.zmodem.cancel',
+        'transferId': '64',
+      });
+      expect(
+        notifications.where(
+          (notification) =>
+              notification['identifier'] == 'ianvs-terminal.zmodem.1' &&
+              notification['title']!.startsWith('ZMODEM request cancelled') &&
+              notification['body']!.contains('pane is inactive'),
+        ),
+        hasLength(1),
+      );
+    },
+  );
+
+  desktopTestWidgets(
     'Inactive ZMODEM reconciliation marks output and notifies attention',
     (tester) async {
       tester.view.devicePixelRatio = 1;
@@ -2722,7 +2799,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'Inactive preserved ZMODEM receive marks output and notifies attention',
     (tester) async {
       tester.view.devicePixelRatio = 1;
@@ -2785,7 +2862,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'Fallback ZMODEM recovery identifies its inactive source session',
     (tester) async {
       tester.view.devicePixelRatio = 1;
@@ -2832,7 +2909,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'ZMODEM recovery survives session close and is consumed after Reveal',
     (tester) async {
       tester.view.devicePixelRatio = 1;
@@ -2979,7 +3056,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'ZMODEM recovery retains transient Reveal failures and dismisses stale tokens',
     (tester) async {
       tester.view.devicePixelRatio = 1;
@@ -3130,7 +3207,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'ZMODEM Reveal consumes native authority safely after ShellScreen unmounts',
     (tester) async {
       tester.view.devicePixelRatio = 1;
@@ -3219,7 +3296,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'ZMODEM multi-file send keeps batch progress and clears finished names',
     (tester) async {
       tester.view.devicePixelRatio = 1;
@@ -3347,7 +3424,7 @@ void main() {
     },
   );
 
-  testWidgets('ZMODEM picker cancel keeps a recoverable retry state', (
+  desktopTestWidgets('ZMODEM picker cancel keeps a recoverable retry state', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -3433,64 +3510,65 @@ void main() {
     expect(find.textContaining('unknown size'), findsOneWidget);
   });
 
-  testWidgets('Active ZMODEM transfer blocks pane close without losing state', (
-    tester,
-  ) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(1200, 900);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    addTearDown(tester.view.resetPhysicalSize);
-    final fakeBindings = FakePtyBackend();
-    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ShellScreen)),
-    );
-    final runtime = container.read(terminalRuntimeControllerProvider);
-    final sessions = container.read(sessionControllerProvider.notifier);
-    fakeBindings.enqueueEvent(
-      '1',
-      const PtyEvent(
-        kind: 'zmodem_started',
-        sessionId: '1',
-        payload: <String, Object?>{
-          'source': 'zmodem',
-          'transferId': '520',
-          'direction': 'receive',
-          'fileCount': 1,
-          'totalBytes': 3,
-        },
-      ),
-    );
-    runtime.refreshSession('1');
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
+  desktopTestWidgets(
+    'Active ZMODEM transfer blocks pane close without losing state',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final fakeBindings = FakePtyBackend();
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final runtime = container.read(terminalRuntimeControllerProvider);
+      final sessions = container.read(sessionControllerProvider.notifier);
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_started',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '520',
+            'direction': 'receive',
+            'fileCount': 1,
+            'totalBytes': 3,
+          },
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
 
-    expect(await sessions.closeSession('1'), isFalse);
-    await tester.pump();
+      expect(await sessions.closeSession('1'), isFalse);
+      await tester.pump();
 
-    expect(runtime.hasSession('1'), isTrue);
-    expect(fakeBindings.closedSessionIds, isNot(contains('1')));
-    expect(
-      container.read(sessionControllerProvider).lastError,
-      contains('Cancel the active ZMODEM transfer'),
-    );
-    fakeBindings.enqueueEvent(
-      '1',
-      const PtyEvent(
-        kind: 'zmodem_cancelled',
-        sessionId: '1',
-        payload: <String, Object?>{
-          'source': 'zmodem',
-          'transferId': '520',
-          'direction': 'receive',
-        },
-      ),
-    );
-    runtime.refreshSession('1');
-    await tester.pump();
-  });
+      expect(runtime.hasSession('1'), isTrue);
+      expect(fakeBindings.closedSessionIds, isNot(contains('1')));
+      expect(
+        container.read(sessionControllerProvider).lastError,
+        contains('Cancel the active ZMODEM transfer'),
+      );
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_cancelled',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '520',
+            'direction': 'receive',
+          },
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
+    },
+  );
 
-  testWidgets(
+  desktopTestWidgets(
     'Native ZMODEM close busy protects an event not yet polled by Dart',
     (tester) async {
       tester.view.devicePixelRatio = 1;
@@ -3550,7 +3628,9 @@ void main() {
     },
   );
 
-  testWidgets('ZMODEM authorization failure remains retryable', (tester) async {
+  desktopTestWidgets('ZMODEM authorization failure remains retryable', (
+    tester,
+  ) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(1200, 900);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -3616,7 +3696,7 @@ void main() {
     expect(find.byKey(const Key('shell-zmodem-transfer-retry')), findsNothing);
   });
 
-  testWidgets(
+  desktopTestWidgets(
     'ZMODEM native start clears a lost authorization response error',
     (tester) async {
       tester.view.devicePixelRatio = 1;
@@ -3738,197 +3818,202 @@ void main() {
     },
   );
 
-  testWidgets('ZMODEM session-switch cancel failure is visible and retryable', (
-    tester,
-  ) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(1200, 900);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    addTearDown(tester.view.resetPhysicalSize);
-    final fakeBindings = FakePtyBackend()
-      ..zmodemResponses['terminal.zmodem.cancel'] = false
-      ..zmodemResponses['terminal.zmodem.cancel_active'] = false;
-    final notifications = <Map<String, String?>>[];
-    const channel = MethodChannel('app/window_bridge');
-    final picker = Completer<String?>();
-    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-      channel,
-      (call) => call.method == 'chooseZmodemReceiveDirectory'
-          ? picker.future
-          : Future<Object?>.value(),
-    );
-    addTearDown(
-      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+  desktopTestWidgets(
+    'ZMODEM session-switch cancel failure is visible and retryable',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final fakeBindings = FakePtyBackend()
+        ..zmodemResponses['terminal.zmodem.cancel'] = false
+        ..zmodemResponses['terminal.zmodem.cancel_active'] = false;
+      final notifications = <Map<String, String?>>[];
+      const channel = MethodChannel('app/window_bridge');
+      final picker = Completer<String?>();
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
         channel,
-        null,
-      ),
-    );
+        (call) => call.method == 'chooseZmodemReceiveDirectory'
+            ? picker.future
+            : Future<Object?>.value(),
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        ),
+      );
 
-    await _pumpShellScreen(
-      tester,
-      fakeBindings: fakeBindings,
-      notificationSender:
-          ({required title, body, identifier, expiresAfterMs}) async {
-            notifications.add({
-              'title': title,
-              'body': body,
-              'identifier': identifier,
-            });
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        notificationSender:
+            ({required title, body, identifier, expiresAfterMs}) async {
+              notifications.add({
+                'title': title,
+                'body': body,
+                'identifier': identifier,
+              });
+            },
+      );
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final runtime = container.read(terminalRuntimeControllerProvider);
+      final sessions = container.read(sessionControllerProvider.notifier);
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'zmodem_file_offer',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'zmodem',
+            'transferId': '54',
+            'direction': 'receive',
+            'filename': 'switch.bin',
+            'size': null,
           },
-    );
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ShellScreen)),
-    );
-    final runtime = container.read(terminalRuntimeControllerProvider);
-    final sessions = container.read(sessionControllerProvider.notifier);
-    fakeBindings.enqueueEvent(
-      '1',
-      const PtyEvent(
-        kind: 'zmodem_file_offer',
-        sessionId: '1',
-        payload: <String, Object?>{
-          'source': 'zmodem',
-          'transferId': '54',
-          'direction': 'receive',
-          'filename': 'switch.bin',
-          'size': null,
-        },
-      ),
-    );
-    runtime.refreshSession('1');
-    await tester.pump();
+        ),
+      );
+      runtime.refreshSession('1');
+      await tester.pump();
 
-    sessions.createSession(defaultTerminalProfile());
-    await tester.pump();
-    picker.complete('/chosen/downloads');
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
+      sessions.createSession(defaultTerminalProfile());
+      await tester.pump();
+      picker.complete('/chosen/downloads');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
 
-    expect(find.byKey(const Key('shell-tab-new-output-1')), findsOneWidget);
-    expect(
-      notifications.where(
-        (notification) =>
-            notification['identifier'] == 'ianvs-terminal.zmodem.1' &&
-            notification['title']!.startsWith(
-              'ZMODEM transfer needs attention',
-            ) &&
-            notification['body']!.contains('cancellation failed'),
-      ),
-      hasLength(1),
-    );
+      expect(find.byKey(const Key('shell-tab-new-output-1')), findsOneWidget);
+      expect(
+        notifications.where(
+          (notification) =>
+              notification['identifier'] == 'ianvs-terminal.zmodem.1' &&
+              notification['title']!.startsWith(
+                'ZMODEM transfer needs attention',
+              ) &&
+              notification['body']!.contains('cancellation failed'),
+        ),
+        hasLength(1),
+      );
 
-    sessions.activateSession('1');
-    await tester.pump();
+      sessions.activateSession('1');
+      await tester.pump();
 
-    expect(find.textContaining('cancellation failed'), findsWidgets);
-    expect(
-      find.byKey(const Key('shell-zmodem-transfer-retry')),
-      findsOneWidget,
-    );
-    expect(
-      fakeBindings.jsonRequests
-          .where((request) => request['kind'] != 'terminal.command_blocks')
-          .toList()
-          .reversed
-          .take(2)
-          .toList()
-          .reversed
-          .map((request) => request['kind']),
-      <Object?>['terminal.zmodem.cancel', 'terminal.zmodem.cancel_active'],
-    );
+      expect(find.textContaining('cancellation failed'), findsWidgets);
+      expect(
+        find.byKey(const Key('shell-zmodem-transfer-retry')),
+        findsOneWidget,
+      );
+      expect(
+        fakeBindings.jsonRequests
+            .where((request) => request['kind'] != 'terminal.command_blocks')
+            .toList()
+            .reversed
+            .take(2)
+            .toList()
+            .reversed
+            .map((request) => request['kind']),
+        <Object?>['terminal.zmodem.cancel', 'terminal.zmodem.cancel_active'],
+      );
 
-    fakeBindings.zmodemResponses['terminal.zmodem.cancel'] = true;
-    await tester.tap(find.byKey(const Key('shell-zmodem-transfer-retry')));
-    await tester.pump();
-    expect(find.byKey(const Key('shell-zmodem-transfer-retry')), findsNothing);
-  });
+      fakeBindings.zmodemResponses['terminal.zmodem.cancel'] = true;
+      await tester.tap(find.byKey(const Key('shell-zmodem-transfer-retry')));
+      await tester.pump();
+      expect(
+        find.byKey(const Key('shell-zmodem-transfer-retry')),
+        findsNothing,
+      );
+    },
+  );
 
-  testWidgets('OSC 1337 download cancel and inactive pane release bytes', (
-    tester,
-  ) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(1200, 900);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    addTearDown(tester.view.resetPhysicalSize);
-    final fakeBindings = FakePtyBackend();
-    const channel = MethodChannel('app/window_bridge');
-    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-      channel,
-      (call) async => null,
-    );
-    addTearDown(
-      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+  desktopTestWidgets(
+    'OSC 1337 download cancel and inactive pane release bytes',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final fakeBindings = FakePtyBackend();
+      const channel = MethodChannel('app/window_bridge');
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
         channel,
-        null,
-      ),
-    );
+        (call) async => null,
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          channel,
+          null,
+        ),
+      );
 
-    await _pumpShellScreen(
-      tester,
-      fakeBindings: fakeBindings,
-      desktopNotifications: true,
-    );
-    fakeBindings.fileDownloads[('1', 8)] = Uint8List.fromList(const <int>[1]);
-    fakeBindings.enqueueEvent(
-      1,
-      const PtyEvent(
-        kind: 'file_download',
-        sessionId: '1',
-        payload: <String, Object?>{
-          'source': 'iterm1337',
-          'transferId': '8',
-          'filename': 'cancel.bin',
-          'size': 1,
-        },
-      ),
-    );
-    await tester.pump(const Duration(milliseconds: 40));
-    await tester.pump(const Duration(milliseconds: 300));
-    await tester.tap(find.byKey(const Key('osc1337-file-download-save-8')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 20));
-    await tester.pump(const Duration(milliseconds: 300));
-    expect(fakeBindings.discardedFileDownloads, <(String, int)>[('1', 8)]);
-    expect(find.text('Received file discarded'), findsOneWidget);
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        desktopNotifications: true,
+      );
+      fakeBindings.fileDownloads[('1', 8)] = Uint8List.fromList(const <int>[1]);
+      fakeBindings.enqueueEvent(
+        1,
+        const PtyEvent(
+          kind: 'file_download',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'iterm1337',
+            'transferId': '8',
+            'filename': 'cancel.bin',
+            'size': 1,
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.byKey(const Key('osc1337-file-download-save-8')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 20));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(fakeBindings.discardedFileDownloads, <(String, int)>[('1', 8)]);
+      expect(find.text('Received file discarded'), findsOneWidget);
 
-    await _tapTabContextMenuAction(tester, 'Split right');
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ShellScreen)),
-    );
-    final splitState = container.read(sessionControllerProvider);
-    final activeSessionId = splitState.activeSessionId!;
-    final inactiveSessionId = splitState.tabs.single.effectivePanes
-        .firstWhere((pane) => pane.sessionId != activeSessionId)
-        .sessionId;
-    fakeBindings.fileDownloads[(inactiveSessionId, 9)] = Uint8List.fromList(
-      const <int>[2],
-    );
-    fakeBindings.enqueueEvent(
-      inactiveSessionId,
-      PtyEvent(
-        kind: 'file_download',
-        sessionId: inactiveSessionId,
-        payload: const <String, Object?>{
-          'source': 'iterm1337',
-          'transferId': '9',
-          'filename': 'background.bin',
-          'size': 1,
-        },
-      ),
-    );
-    container
-        .read(terminalRuntimeControllerProvider)
-        .refreshSession(inactiveSessionId);
-    await tester.pump();
+      await _tapTabContextMenuAction(tester, 'Split right');
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final splitState = container.read(sessionControllerProvider);
+      final activeSessionId = splitState.activeSessionId!;
+      final inactiveSessionId = splitState.tabs.single.effectivePanes
+          .firstWhere((pane) => pane.sessionId != activeSessionId)
+          .sessionId;
+      fakeBindings.fileDownloads[(inactiveSessionId, 9)] = Uint8List.fromList(
+        const <int>[2],
+      );
+      fakeBindings.enqueueEvent(
+        inactiveSessionId,
+        PtyEvent(
+          kind: 'file_download',
+          sessionId: inactiveSessionId,
+          payload: const <String, Object?>{
+            'source': 'iterm1337',
+            'transferId': '9',
+            'filename': 'background.bin',
+            'size': 1,
+          },
+        ),
+      );
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(inactiveSessionId);
+      await tester.pump();
 
-    expect(find.textContaining('Received background.bin'), findsNothing);
-    expect(fakeBindings.discardedFileDownloads, <(String, int)>[
-      ('1', 8),
-      (inactiveSessionId, 9),
-    ]);
-  });
+      expect(find.textContaining('Received background.bin'), findsNothing);
+      expect(fakeBindings.discardedFileDownloads, <(String, int)>[
+        ('1', 8),
+        (inactiveSessionId, 9),
+      ]);
+    },
+  );
 
-  testWidgets(
+  desktopTestWidgets(
     'OSC 5522 prompt can remember an exact application password for the session',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -3999,7 +4084,9 @@ void main() {
     },
   );
 
-  testWidgets('OSC 52 prompt identifies inactive split pane', (tester) async {
+  desktopTestWidgets('OSC 52 prompt identifies inactive split pane', (
+    tester,
+  ) async {
     final fakeBindings = FakePtyBackend();
 
     await _pumpShellScreen(
@@ -4046,64 +4133,67 @@ void main() {
     expect(find.text('pane preview'), findsOneWidget);
   });
 
-  testWidgets('tab badge from inactive split pane focuses originating pane', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
+  desktopTestWidgets(
+    'tab badge from inactive split pane focuses originating pane',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
 
-    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
-    await _tapTabContextMenuAction(tester, 'Split right');
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      await _tapTabContextMenuAction(tester, 'Split right');
 
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ShellScreen)),
-    );
-    final splitState = container.read(sessionControllerProvider);
-    final activeSessionId = splitState.activeSessionId!;
-    final inactiveSessionId = splitState.tabs.single.effectivePanes
-        .firstWhere((pane) => pane.sessionId != activeSessionId)
-        .sessionId;
-    final tabSessionId = splitState.tabs.single.sessionId;
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final splitState = container.read(sessionControllerProvider);
+      final activeSessionId = splitState.activeSessionId!;
+      final inactiveSessionId = splitState.tabs.single.effectivePanes
+          .firstWhere((pane) => pane.sessionId != activeSessionId)
+          .sessionId;
+      final tabSessionId = splitState.tabs.single.sessionId;
 
-    fakeBindings.enqueueEvent(
-      inactiveSessionId,
-      PtyEvent(
-        kind: 'session_badge',
-        sessionId: inactiveSessionId,
-        payload: const <String, Object?>{'text': 'Deploy'},
-      ),
-    );
-    container
-        .read(terminalRuntimeControllerProvider)
-        .refreshSession(inactiveSessionId);
-    await tester.pump(const Duration(milliseconds: 40));
+      fakeBindings.enqueueEvent(
+        inactiveSessionId,
+        PtyEvent(
+          kind: 'session_badge',
+          sessionId: inactiveSessionId,
+          payload: const <String, Object?>{'text': 'Deploy'},
+        ),
+      );
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(inactiveSessionId);
+      await tester.pump(const Duration(milliseconds: 40));
 
-    expect(
-      container.read(sessionControllerProvider).activeSessionId,
-      activeSessionId,
-    );
-    expect(find.byKey(Key('shell-tab-badge-$tabSessionId')), findsOneWidget);
-    expect(
-      find.byWidgetPredicate(
-        (widget) =>
-            widget is Tooltip &&
-            widget.message?.startsWith('OSC 1337 badge: Deploy\n') == true &&
-            widget.message?.contains('($inactiveSessionId) · inactive pane') ==
-                true &&
-            widget.message?.contains('Click to focus this pane.') == true,
-      ),
-      findsOneWidget,
-    );
+      expect(
+        container.read(sessionControllerProvider).activeSessionId,
+        activeSessionId,
+      );
+      expect(find.byKey(Key('shell-tab-badge-$tabSessionId')), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Tooltip &&
+              widget.message?.startsWith('OSC 1337 badge: Deploy\n') == true &&
+              widget.message?.contains(
+                    '($inactiveSessionId) · inactive pane',
+                  ) ==
+                  true &&
+              widget.message?.contains('Click to focus this pane.') == true,
+        ),
+        findsOneWidget,
+      );
 
-    await tester.tap(find.byKey(Key('shell-tab-badge-$tabSessionId')));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byKey(Key('shell-tab-badge-$tabSessionId')));
+      await tester.pumpAndSettle();
 
-    expect(
-      container.read(sessionControllerProvider).activeSessionId,
-      inactiveSessionId,
-    );
-  });
+      expect(
+        container.read(sessionControllerProvider).activeSessionId,
+        inactiveSessionId,
+      );
+    },
+  );
 
-  testWidgets('OSC 52 paste read labels empty clipboard preview', (
+  desktopTestWidgets('OSC 52 paste read labels empty clipboard preview', (
     tester,
   ) async {
     final fakeBindings = FakePtyBackend();
@@ -4130,71 +4220,73 @@ void main() {
   });
 
   for (final action in ['New terminal in current directory', 'Split right']) {
-    testWidgets('$action launches at the source cwd without injecting cd', (
-      tester,
-    ) async {
+    desktopTestWidgets(
+      '$action launches at the source cwd without injecting cd',
+      (tester) async {
+        final fakeBindings = FakePtyBackend();
+        await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+        fakeBindings.enqueueEvent(
+          1,
+          const PtyEvent(
+            kind: 'shell_context',
+            sessionId: '1',
+            payload: <String, Object?>{
+              'source': 'osc7',
+              'cwd': "/tmp/项目 with spaces/'quoted'",
+              'hostname': 'localhost',
+            },
+          ),
+        );
+        await tester.pump(const Duration(milliseconds: 40));
+        final writesBefore = fakeBindings.writes.length;
+
+        await _tapTabContextMenuAction(tester, action);
+
+        expect(
+          fakeBindings.lastCreatedSessionPayload!['launch'],
+          containsPair('cwd', "/tmp/项目 with spaces/'quoted'"),
+        );
+        expect(fakeBindings.writes.skip(writesBefore), isEmpty);
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(ShellScreen)),
+        );
+        expect(container.read(sessionControllerProvider).activeSessionId, '2');
+      },
+    );
+  }
+
+  desktopTestWidgets(
+    'split preserves the source profile instead of the default',
+    (tester) async {
       final fakeBindings = FakePtyBackend();
       await _pumpShellScreen(tester, fakeBindings: fakeBindings);
-      fakeBindings.enqueueEvent(
-        1,
-        const PtyEvent(
-          kind: 'shell_context',
-          sessionId: '1',
-          payload: <String, Object?>{
-            'source': 'osc7',
-            'cwd': "/tmp/项目 with spaces/'quoted'",
-            'hostname': 'localhost',
-          },
-        ),
-      );
-      await tester.pump(const Duration(milliseconds: 40));
-      final writesBefore = fakeBindings.writes.length;
-
-      await _tapTabContextMenuAction(tester, action);
-
-      expect(
-        fakeBindings.lastCreatedSessionPayload!['launch'],
-        containsPair('cwd', "/tmp/项目 with spaces/'quoted'"),
-      );
-      expect(fakeBindings.writes.skip(writesBefore), isEmpty);
       final container = ProviderScope.containerOf(
         tester.element(find.byType(ShellScreen)),
       );
-      expect(container.read(sessionControllerProvider).activeSessionId, '2');
-    });
-  }
+      final controller = container.read(sessionControllerProvider.notifier);
+      final profile = defaultTerminalProfile().copyWith(
+        id: 'custom-shell',
+        name: 'Custom shell',
+        cwd: '/custom/start',
+      );
+      controller.createSession(profile);
+      await tester.pumpAndSettle();
+      await _tapTabContextMenuAction(tester, 'Split right', sessionId: '2');
+      final pane = container
+          .read(sessionControllerProvider)
+          .tabs
+          .last
+          .effectivePanes
+          .last;
+      expect(pane.profileId, 'custom-shell');
+      expect(
+        fakeBindings.lastCreatedSessionPayload!['launch'],
+        containsPair('cwd', '/custom/start'),
+      );
+    },
+  );
 
-  testWidgets('split preserves the source profile instead of the default', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
-    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ShellScreen)),
-    );
-    final controller = container.read(sessionControllerProvider.notifier);
-    final profile = defaultTerminalProfile().copyWith(
-      id: 'custom-shell',
-      name: 'Custom shell',
-      cwd: '/custom/start',
-    );
-    controller.createSession(profile);
-    await tester.pumpAndSettle();
-    await _tapTabContextMenuAction(tester, 'Split right', sessionId: '2');
-    final pane = container
-        .read(sessionControllerProvider)
-        .tabs
-        .last
-        .effectivePanes
-        .last;
-    expect(pane.profileId, 'custom-shell');
-    expect(
-      fakeBindings.lastCreatedSessionPayload!['launch'],
-      containsPair('cwd', '/custom/start'),
-    );
-  });
-
-  testWidgets(
+  desktopTestWidgets(
     'failed same-directory launch never writes into the old session',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -4226,33 +4318,34 @@ void main() {
     },
   );
 
-  testWidgets('split does not inherit a remote-reported local shell cwd', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
-    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
-    final initialLaunch = fakeBindings.lastCreatedSessionPayload!['launch'];
-    fakeBindings.enqueueEvent(
-      1,
-      const PtyEvent(
-        kind: 'shell_context',
-        sessionId: '1',
-        payload: <String, Object?>{
-          'source': 'osc7',
-          'cwd': '/remote/only',
-          'hostname': 'remote.example',
-        },
-      ),
-    );
-    await tester.pump(const Duration(milliseconds: 40));
-    await _tapTabContextMenuAction(tester, 'Split right');
-    expect(
-      (fakeBindings.lastCreatedSessionPayload!['launch']! as Map)['cwd'],
-      (initialLaunch! as Map)['cwd'],
-    );
-  });
+  desktopTestWidgets(
+    'split does not inherit a remote-reported local shell cwd',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      final initialLaunch = fakeBindings.lastCreatedSessionPayload!['launch'];
+      fakeBindings.enqueueEvent(
+        1,
+        const PtyEvent(
+          kind: 'shell_context',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'osc7',
+            'cwd': '/remote/only',
+            'hostname': 'remote.example',
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 40));
+      await _tapTabContextMenuAction(tester, 'Split right');
+      expect(
+        (fakeBindings.lastCreatedSessionPayload!['launch']! as Map)['cwd'],
+        (initialLaunch! as Map)['cwd'],
+      );
+    },
+  );
 
-  testWidgets(
+  desktopTestWidgets(
     'OSC shell context remote cwd disables local duplicate affordance',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -4286,55 +4379,61 @@ void main() {
     },
   );
 
-  testWidgets('visible split tab badge does not mark hidden overflow tabs', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
+  desktopTestWidgets(
+    'visible split tab badge does not mark hidden overflow tabs',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
 
-    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
 
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ShellScreen)),
-    );
-    final controller = container.read(sessionControllerProvider.notifier);
-    final profile = defaultTerminalProfile();
-    controller.splitActiveSession(profile, TerminalSplitAxis.horizontal);
-    await tester.pumpAndSettle();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final controller = container.read(sessionControllerProvider.notifier);
+      final profile = defaultTerminalProfile();
+      controller.splitActiveSession(profile, TerminalSplitAxis.horizontal);
+      await tester.pumpAndSettle();
 
-    final visibleSplitTab = container
-        .read(sessionControllerProvider)
-        .tabs
-        .firstWhere((tab) => tab.effectivePanes.length > 1);
-    final inactiveSplitSessionId = visibleSplitTab.effectivePanes
-        .firstWhere((pane) => pane.sessionId != visibleSplitTab.activeSessionId)
-        .sessionId;
+      final visibleSplitTab = container
+          .read(sessionControllerProvider)
+          .tabs
+          .firstWhere((tab) => tab.effectivePanes.length > 1);
+      final inactiveSplitSessionId = visibleSplitTab.effectivePanes
+          .firstWhere(
+            (pane) => pane.sessionId != visibleSplitTab.activeSessionId,
+          )
+          .sessionId;
 
-    fakeBindings.enqueueEvent(
-      inactiveSplitSessionId,
-      PtyEvent(
-        kind: 'session_badge',
-        sessionId: inactiveSplitSessionId,
-        payload: const <String, Object?>{'text': 'Deploy'},
-      ),
-    );
-    container
-        .read(terminalRuntimeControllerProvider)
-        .refreshSession(inactiveSplitSessionId);
+      fakeBindings.enqueueEvent(
+        inactiveSplitSessionId,
+        PtyEvent(
+          kind: 'session_badge',
+          sessionId: inactiveSplitSessionId,
+          payload: const <String, Object?>{'text': 'Deploy'},
+        ),
+      );
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(inactiveSplitSessionId);
 
-    for (var index = 0; index < 11; index += 1) {
-      controller.createSession(profile);
-    }
-    await tester.pumpAndSettle();
+      for (var index = 0; index < 11; index += 1) {
+        controller.createSession(profile);
+      }
+      await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('shell-tab-overflow-button')), findsOneWidget);
-    expect(
-      find.byKey(Key('shell-tab-badge-${visibleSplitTab.sessionId}')),
-      findsOneWidget,
-    );
-    expect(find.byKey(const Key('shell-tab-overflow-badge')), findsNothing);
-  });
+      expect(
+        find.byKey(const Key('shell-tab-overflow-button')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(Key('shell-tab-badge-${visibleSplitTab.sessionId}')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('shell-tab-overflow-badge')), findsNothing);
+    },
+  );
 
-  testWidgets(
+  desktopTestWidgets(
     'overflow tab new output dot can focus an inactive pane inside a hidden split tab',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -4438,96 +4537,97 @@ void main() {
     },
   );
 
-  testWidgets('overflow new output marker can focus a hidden split pane', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
+  desktopTestWidgets(
+    'overflow new output marker can focus a hidden split pane',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
 
-    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
 
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ShellScreen)),
-    );
-    final controller = container.read(sessionControllerProvider.notifier);
-    final profile = defaultTerminalProfile();
-    for (var index = 0; index < 11; index += 1) {
-      controller.createSession(profile);
-    }
-    controller.splitActiveSession(profile, TerminalSplitAxis.horizontal);
-    controller.activateSession('1');
-    await tester.pumpAndSettle();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final controller = container.read(sessionControllerProvider.notifier);
+      final profile = defaultTerminalProfile();
+      for (var index = 0; index < 11; index += 1) {
+        controller.createSession(profile);
+      }
+      controller.splitActiveSession(profile, TerminalSplitAxis.horizontal);
+      controller.activateSession('1');
+      await tester.pumpAndSettle();
 
-    final splitTab = container
-        .read(sessionControllerProvider)
-        .tabs
-        .firstWhere((tab) => tab.sessionId == '12');
-    final inactiveSplitSessionId = splitTab.effectivePanes
-        .firstWhere((pane) => pane.sessionId != splitTab.activeSessionId)
-        .sessionId;
+      final splitTab = container
+          .read(sessionControllerProvider)
+          .tabs
+          .firstWhere((tab) => tab.sessionId == '12');
+      final inactiveSplitSessionId = splitTab.effectivePanes
+          .firstWhere((pane) => pane.sessionId != splitTab.activeSessionId)
+          .sessionId;
 
-    fakeBindings.setFrame(inactiveSplitSessionId, <String, Object?>{
-      'rows': <Object?>[
-        <String, Object?>{
-          'index': 0,
-          'text': 'hidden pane output',
-          'style_runs': <Object?>[],
-        },
-      ],
-      'cursor': <String, Object?>{'row': 0, 'col': 18, 'visible': true},
-      'selection': null,
-      'viewport_rows': 24,
-      'viewport_cols': 80,
-      'dirty_ranges': <Object?>[
-        <String, Object?>{'start': 0, 'end': 1},
-      ],
-      'scrollback_offset': 0,
-      'scrollback_max_offset': 0,
-    });
-    container
-        .read(terminalRuntimeControllerProvider)
-        .refreshSession(inactiveSplitSessionId);
-    await tester.pump(const Duration(milliseconds: 40));
+      fakeBindings.setFrame(inactiveSplitSessionId, <String, Object?>{
+        'rows': <Object?>[
+          <String, Object?>{
+            'index': 0,
+            'text': 'hidden pane output',
+            'style_runs': <Object?>[],
+          },
+        ],
+        'cursor': <String, Object?>{'row': 0, 'col': 18, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': <Object?>[
+          <String, Object?>{'start': 0, 'end': 1},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+      });
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(inactiveSplitSessionId);
+      await tester.pump(const Duration(milliseconds: 40));
 
-    expect(
-      find.byKey(const Key('shell-tab-overflow-new-output')),
-      findsOneWidget,
-    );
-    expect(
-      container.read(sessionControllerProvider).activeSessionId,
-      isNot(inactiveSplitSessionId),
-    );
+      expect(
+        find.byKey(const Key('shell-tab-overflow-new-output')),
+        findsOneWidget,
+      );
+      expect(
+        container.read(sessionControllerProvider).activeSessionId,
+        isNot(inactiveSplitSessionId),
+      );
 
-    await tester.tap(find.byKey(const Key('shell-tab-overflow-button')));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('shell-tab-overflow-panel')), findsOneWidget);
-    expect(
-      find.byKey(const Key('shell-tab-overflow-new-output')),
-      findsNothing,
-    );
+      await tester.tap(find.byKey(const Key('shell-tab-overflow-button')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('shell-tab-overflow-panel')), findsOneWidget);
+      expect(
+        find.byKey(const Key('shell-tab-overflow-new-output')),
+        findsNothing,
+      );
 
-    await tester.tap(find.byKey(const Key('shell-tab-overflow-button')));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('shell-tab-overflow-panel')), findsNothing);
-    expect(
-      find.byKey(const Key('shell-tab-overflow-new-output')),
-      findsOneWidget,
-    );
+      await tester.tap(find.byKey(const Key('shell-tab-overflow-button')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('shell-tab-overflow-panel')), findsNothing);
+      expect(
+        find.byKey(const Key('shell-tab-overflow-new-output')),
+        findsOneWidget,
+      );
 
-    await tester.tap(find.byKey(const Key('shell-tab-overflow-new-output')));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('shell-tab-overflow-new-output')));
+      await tester.pumpAndSettle();
 
-    expect(
-      container.read(sessionControllerProvider).activeSessionId,
-      inactiveSplitSessionId,
-    );
-    expect(find.byKey(const Key('shell-tab-overflow-panel')), findsNothing);
-    expect(
-      find.byKey(const Key('shell-tab-overflow-new-output')),
-      findsNothing,
-    );
-  });
+      expect(
+        container.read(sessionControllerProvider).activeSessionId,
+        inactiveSplitSessionId,
+      );
+      expect(find.byKey(const Key('shell-tab-overflow-panel')), findsNothing);
+      expect(
+        find.byKey(const Key('shell-tab-overflow-new-output')),
+        findsNothing,
+      );
+    },
+  );
 
-  testWidgets(
+  desktopTestWidgets(
     'hidden overflow new output marker prioritizes inactive pane in active hidden split tab',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -4633,69 +4733,72 @@ void main() {
     },
   );
 
-  testWidgets('OSC notification stays in the tab instead of a snackbar', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
+  desktopTestWidgets(
+    'OSC notification stays in the tab instead of a snackbar',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
 
-    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
-    await _tapTabContextMenuAction(tester, 'Split right');
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      await _tapTabContextMenuAction(tester, 'Split right');
 
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ShellScreen)),
-    );
-    final splitState = container.read(sessionControllerProvider);
-    final activeSessionId = splitState.activeSessionId!;
-    final inactiveSessionId = splitState.tabs.single.effectivePanes
-        .firstWhere((pane) => pane.sessionId != activeSessionId)
-        .sessionId;
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final splitState = container.read(sessionControllerProvider);
+      final activeSessionId = splitState.activeSessionId!;
+      final inactiveSessionId = splitState.tabs.single.effectivePanes
+          .firstWhere((pane) => pane.sessionId != activeSessionId)
+          .sessionId;
 
-    fakeBindings.enqueueEvent(
-      inactiveSessionId,
-      PtyEvent(
-        kind: 'session_notification',
-        sessionId: inactiveSessionId,
-        payload: const <String, Object?>{
-          'source': 'osc777',
-          'title': 'Build',
-          'message': 'Inactive pane done',
-        },
-      ),
-    );
-    container
-        .read(terminalRuntimeControllerProvider)
-        .refreshSession(inactiveSessionId);
-    await tester.pump(const Duration(milliseconds: 40));
+      fakeBindings.enqueueEvent(
+        inactiveSessionId,
+        PtyEvent(
+          kind: 'session_notification',
+          sessionId: inactiveSessionId,
+          payload: const <String, Object?>{
+            'source': 'osc777',
+            'title': 'Build',
+            'message': 'Inactive pane done',
+          },
+        ),
+      );
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(inactiveSessionId);
+      await tester.pump(const Duration(milliseconds: 40));
 
-    expect(find.byType(SnackBar), findsNothing);
+      expect(find.byType(SnackBar), findsNothing);
 
-    final notificationSignal = find.byKey(
-      Key('shell-tab-pane-signal-${splitState.tabs.single.sessionId}'),
-    );
-    expect(notificationSignal, findsOneWidget);
+      final notificationSignal = find.byKey(
+        Key('shell-tab-pane-signal-${splitState.tabs.single.sessionId}'),
+      );
+      expect(notificationSignal, findsOneWidget);
 
-    await tester.tap(notificationSignal);
-    await tester.pumpAndSettle();
+      await tester.tap(notificationSignal);
+      await tester.pumpAndSettle();
 
-    expect(find.text('Build'), findsOneWidget);
-    expect(find.textContaining('Inactive pane done'), findsOneWidget);
+      expect(find.text('Build'), findsOneWidget);
+      expect(find.textContaining('Inactive pane done'), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('shell-tab-notification-0-dismiss')));
-    await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const Key('shell-tab-notification-0-dismiss')),
+      );
+      await tester.pumpAndSettle();
 
-    expect(notificationSignal, findsNothing);
-    expect(
-      container.read(sessionControllerProvider).activeSessionId,
-      activeSessionId,
-    );
-  });
+      expect(notificationSignal, findsNothing);
+      expect(
+        container.read(sessionControllerProvider).activeSessionId,
+        activeSessionId,
+      );
+    },
+  );
 
   for (final scenario in [
     (source: 'osc9', theme: ThemeMode.light, textScale: 1.0),
     (source: 'osc777', theme: ThemeMode.dark, textScale: 1.0),
     (source: 'osc99', theme: ThemeMode.dark, textScale: 2.0),
   ]) {
-    testWidgets(
+    desktopTestWidgets(
       'manual notification removal supports ${scenario.source} without an ID',
       (tester) async {
         tester.platformDispatcher.textScaleFactorTestValue = scenario.textScale;
@@ -4775,7 +4878,7 @@ void main() {
     );
   }
 
-  testWidgets(
+  desktopTestWidgets(
     'manual notification clear all covers every tab pane and hidden history',
     (tester) async {
       final backend = FakePtyBackend();
@@ -4904,192 +5007,194 @@ void main() {
     },
   );
 
-  testWidgets('OSC 99 system notification keeps stable ID, expiry and close', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
-    final delivered = <Map<String, Object?>>[];
-    final closed = <String>[];
+  desktopTestWidgets(
+    'OSC 99 system notification keeps stable ID, expiry and close',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      final delivered = <Map<String, Object?>>[];
+      final closed = <String>[];
 
-    await _pumpShellScreen(
-      tester,
-      fakeBindings: fakeBindings,
-      notificationSender:
-          ({required title, body, identifier, expiresAfterMs}) async {
-            delivered.add({
-              'title': title,
-              'body': body,
-              'identifier': identifier,
-              'expiresAfterMs': expiresAfterMs,
-            });
-          },
-      notificationCloser: (identifier) async {
-        closed.add(identifier);
-      },
-    );
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ShellScreen)),
-    );
-    final tabCountBefore = container
-        .read(sessionControllerProvider)
-        .tabs
-        .length;
-    await _tapCommandMenuAction(tester, const Key('shell-top-new-tab'));
-    await _chooseDefaultLocalSession(tester);
-    expect(
-      container.read(sessionControllerProvider).tabs,
-      hasLength(tabCountBefore + 1),
-    );
-
-    for (final event in <PtyEvent>[
-      const PtyEvent(
-        kind: 'session_notification',
-        sessionId: '1',
-        payload: <String, Object?>{
-          'source': 'osc99',
-          'action': 'show',
-          'id': 'build',
-          'title': 'Build',
-          'message': 'Started',
-          'expiresAfterMs': 250,
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        notificationSender:
+            ({required title, body, identifier, expiresAfterMs}) async {
+              delivered.add({
+                'title': title,
+                'body': body,
+                'identifier': identifier,
+                'expiresAfterMs': expiresAfterMs,
+              });
+            },
+        notificationCloser: (identifier) async {
+          closed.add(identifier);
         },
-      ),
-      const PtyEvent(
-        kind: 'session_notification',
-        sessionId: '1',
-        payload: <String, Object?>{
-          'source': 'osc99',
-          'action': 'update',
-          'id': 'build',
-          'title': 'Build',
-          'message': 'Complete',
-          'expiresAfterMs': 500,
-        },
-      ),
-    ]) {
-      fakeBindings.enqueueEvent('1', event);
-      container.read(terminalRuntimeControllerProvider).refreshSession('1');
-      await tester.pump();
-    }
-
-    expect(delivered, hasLength(2));
-    expect(
-      delivered.map((notification) => notification['identifier']).toSet(),
-      <Object?>{'ianvs-terminal.osc.1.build'},
-    );
-    expect(delivered.first['expiresAfterMs'], 250);
-    expect(delivered.last['expiresAfterMs'], 500);
-    expect(delivered.last['body'], 'Complete');
-
-    fakeBindings.enqueueEvent(
-      '1',
-      const PtyEvent(
-        kind: 'session_notification',
-        sessionId: '1',
-        payload: <String, Object?>{
-          'source': 'osc99',
-          'action': 'close',
-          'id': 'build',
-          'title': '',
-          'message': '',
-        },
-      ),
-    );
-    container.read(terminalRuntimeControllerProvider).refreshSession('1');
-    await tester.pump();
-
-    expect(closed, <String>['ianvs-terminal.osc.1.build']);
-    expect(
-      container
+      );
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final tabCountBefore = container
           .read(sessionControllerProvider)
           .tabs
-          .first
-          .paneFor('1')!
-          .recentNotifications,
-      isEmpty,
-    );
-  });
+          .length;
+      await _tapCommandMenuAction(tester, const Key('shell-top-new-tab'));
+      await _chooseDefaultLocalSession(tester);
+      expect(
+        container.read(sessionControllerProvider).tabs,
+        hasLength(tabCountBefore + 1),
+      );
 
-  testWidgets('command finished notification identifies inactive split pane', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
-    final notifications = <Map<String, String?>>[];
-
-    await _pumpShellScreen(
-      tester,
-      fakeBindings: fakeBindings,
-      notificationSender:
-          ({required title, body, identifier, expiresAfterMs}) async {
-            notifications.add({
-              'title': title,
-              'body': body,
-              'identifier': identifier,
-            });
+      for (final event in <PtyEvent>[
+        const PtyEvent(
+          kind: 'session_notification',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'osc99',
+            'action': 'show',
+            'id': 'build',
+            'title': 'Build',
+            'message': 'Started',
+            'expiresAfterMs': 250,
           },
-    );
+        ),
+        const PtyEvent(
+          kind: 'session_notification',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'osc99',
+            'action': 'update',
+            'id': 'build',
+            'title': 'Build',
+            'message': 'Complete',
+            'expiresAfterMs': 500,
+          },
+        ),
+      ]) {
+        fakeBindings.enqueueEvent('1', event);
+        container.read(terminalRuntimeControllerProvider).refreshSession('1');
+        await tester.pump();
+      }
 
-    await _tapTabContextMenuAction(tester, 'Split right');
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ShellScreen)),
-    );
-    final paneOneTitle = container
-        .read(sessionControllerProvider)
-        .tabs
-        .single
-        .paneFor('1')!
-        .title;
+      expect(delivered, hasLength(2));
+      expect(
+        delivered.map((notification) => notification['identifier']).toSet(),
+        <Object?>{'ianvs-terminal.osc.1.build'},
+      );
+      expect(delivered.first['expiresAfterMs'], 250);
+      expect(delivered.last['expiresAfterMs'], 500);
+      expect(delivered.last['body'], 'Complete');
 
-    fakeBindings.enqueueEvent(
-      1,
-      const PtyEvent(
-        kind: 'shell_context',
-        sessionId: '1',
-        payload: <String, Object?>{
-          'source': 'osc7',
-          'cwd': '/srv/app',
-          'hostname': 'remote.example',
-          'username': 'deploy',
-        },
-      ),
-    );
-    container.read(terminalRuntimeControllerProvider).refreshSession('1');
-    await tester.pump();
+      fakeBindings.enqueueEvent(
+        '1',
+        const PtyEvent(
+          kind: 'session_notification',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'osc99',
+            'action': 'close',
+            'id': 'build',
+            'title': '',
+            'message': '',
+          },
+        ),
+      );
+      container.read(terminalRuntimeControllerProvider).refreshSession('1');
+      await tester.pump();
 
-    fakeBindings.enqueueEvent(
-      1,
-      const PtyEvent(
-        kind: 'shell_hook',
-        sessionId: '1',
-        payload: <String, Object?>{
-          'hook': 'command_finished',
-          'command': 'deploy staging --token super-secret',
-          'exit_code': 0,
-        },
-      ),
-    );
-    container.read(terminalRuntimeControllerProvider).refreshSession('1');
-    await tester.pump(const Duration(milliseconds: 40));
+      expect(closed, <String>['ianvs-terminal.osc.1.build']);
+      expect(
+        container
+            .read(sessionControllerProvider)
+            .tabs
+            .first
+            .paneFor('1')!
+            .recentNotifications,
+        isEmpty,
+      );
+    },
+  );
 
-    expect(notifications, hasLength(1));
-    expect(
-      notifications.single['title'],
-      'Command finished on deploy@remote.example in $paneOneTitle · pane 1',
-    );
-    expect(notifications.single['body'], 'Exit code 0');
-    expect(
-      notifications.single['identifier'],
-      startsWith('ianvs-terminal.command.1.'),
-    );
-    for (final field in const <String>['title', 'body', 'identifier']) {
-      final value = notifications.single[field] ?? '';
-      expect(value, isNot(contains('deploy staging --token super-secret')));
-      expect(value, isNot(contains('--token')));
-      expect(value, isNot(contains('super-secret')));
-    }
-  });
+  desktopTestWidgets(
+    'command finished notification identifies inactive split pane',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      final notifications = <Map<String, String?>>[];
 
-  testWidgets(
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        notificationSender:
+            ({required title, body, identifier, expiresAfterMs}) async {
+              notifications.add({
+                'title': title,
+                'body': body,
+                'identifier': identifier,
+              });
+            },
+      );
+
+      await _tapTabContextMenuAction(tester, 'Split right');
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final paneOneTitle = container
+          .read(sessionControllerProvider)
+          .tabs
+          .single
+          .paneFor('1')!
+          .title;
+
+      fakeBindings.enqueueEvent(
+        1,
+        const PtyEvent(
+          kind: 'shell_context',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'source': 'osc7',
+            'cwd': '/srv/app',
+            'hostname': 'remote.example',
+            'username': 'deploy',
+          },
+        ),
+      );
+      container.read(terminalRuntimeControllerProvider).refreshSession('1');
+      await tester.pump();
+
+      fakeBindings.enqueueEvent(
+        1,
+        const PtyEvent(
+          kind: 'shell_hook',
+          sessionId: '1',
+          payload: <String, Object?>{
+            'hook': 'command_finished',
+            'command': 'deploy staging --token super-secret',
+            'exit_code': 0,
+          },
+        ),
+      );
+      container.read(terminalRuntimeControllerProvider).refreshSession('1');
+      await tester.pump(const Duration(milliseconds: 40));
+
+      expect(notifications, hasLength(1));
+      expect(
+        notifications.single['title'],
+        'Command finished on deploy@remote.example in $paneOneTitle · pane 1',
+      );
+      expect(notifications.single['body'], 'Exit code 0');
+      expect(
+        notifications.single['identifier'],
+        startsWith('ianvs-terminal.command.1.'),
+      );
+      for (final field in const <String>['title', 'body', 'identifier']) {
+        final value = notifications.single[field] ?? '';
+        expect(value, isNot(contains('deploy staging --token super-secret')));
+        expect(value, isNot(contains('--token')));
+        expect(value, isNot(contains('super-secret')));
+      }
+    },
+  );
+
+  desktopTestWidgets(
     'activity bell and exit notifications identify inactive split pane',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -5231,52 +5336,56 @@ void main() {
     },
   );
 
-  testWidgets('shell shortcuts honor local config keybinding overrides', (
-    tester,
-  ) async {
-    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
-    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+  desktopTestWidgets(
+    'shell shortcuts honor local config keybinding overrides',
+    (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
 
-    final fakeBindings = FakePtyBackend();
-    final localConfigRepository = _MemoryLocalTerminalConfigRepository(
-      const LocalTerminalConfigDocument(
-        keybindings: LocalTerminalKeybindingsConfig(
-          overrides: {
-            TerminalActionId.openDefaults: LocalTerminalKeyBindingOverride(
-              binding: LocalTerminalKeyBinding(
-                scope: TerminalKeyBindingScope.focusedApp,
-                key: 'Key N',
-                meta: true,
+      final fakeBindings = FakePtyBackend();
+      final localConfigRepository = _MemoryLocalTerminalConfigRepository(
+        const LocalTerminalConfigDocument(
+          keybindings: LocalTerminalKeybindingsConfig(
+            overrides: {
+              TerminalActionId.openDefaults: LocalTerminalKeyBindingOverride(
+                binding: LocalTerminalKeyBinding(
+                  scope: TerminalKeyBindingScope.focusedApp,
+                  key: 'Key N',
+                  meta: true,
+                ),
               ),
-            ),
-          },
+            },
+          ),
         ),
-      ),
-    );
+      );
 
-    await _pumpShellScreen(
-      tester,
-      fakeBindings: fakeBindings,
-      localConfigRepository: localConfigRepository,
-    );
-    await tester.tap(find.byType(TerminalViewport));
-    await tester.pump();
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        localConfigRepository: localConfigRepository,
+      );
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
 
-    await tester.sendKeyDownEvent(
-      LogicalKeyboardKey.metaLeft,
-      platform: 'macos',
-    );
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyN, platform: 'macos');
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.keyN, platform: 'macos');
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft, platform: 'macos');
-    await tester.pumpAndSettle();
+      await tester.sendKeyDownEvent(
+        LogicalKeyboardKey.metaLeft,
+        platform: 'macos',
+      );
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyN, platform: 'macos');
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.keyN, platform: 'macos');
+      await tester.sendKeyUpEvent(
+        LogicalKeyboardKey.metaLeft,
+        platform: 'macos',
+      );
+      await tester.pumpAndSettle();
 
-    debugDefaultTargetPlatformOverride = null;
+      debugDefaultTargetPlatformOverride = null;
 
-    expect(find.byTooltip('Close defaults'), findsOneWidget);
-  });
+      expect(find.byTooltip('Close defaults'), findsOneWidget);
+    },
+  );
 
-  testWidgets('shortcut editor saves and hot-reloads an override', (
+  desktopTestWidgets('shortcut editor saves and hot-reloads an override', (
     tester,
   ) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
@@ -5342,7 +5451,7 @@ void main() {
     debugDefaultTargetPlatformOverride = null;
   });
 
-  testWidgets('shortcut editor restores defaults and hot-reloads them', (
+  desktopTestWidgets('shortcut editor restores defaults and hot-reloads them', (
     tester,
   ) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
@@ -5406,7 +5515,9 @@ void main() {
     (hook: 'unknown', bracketed: true, confirm: true, large: false),
     (hook: 'preexec', bracketed: true, confirm: true, large: true),
   ]) {
-    testWidgets('native paste uses session state $scenario', (tester) async {
+    desktopTestWidgets('native paste uses session state $scenario', (
+      tester,
+    ) async {
       final clipboardText = scenario.large
           ? '第一行\n  second line\n' * 1024
           : '第一行\n  second line';
@@ -5481,7 +5592,7 @@ void main() {
     });
   }
 
-  testWidgets('native paste confirms multiline text before sending', (
+  desktopTestWidgets('native paste confirms multiline text before sending', (
     tester,
   ) async {
     final clipboardText = [
@@ -5540,7 +5651,7 @@ void main() {
     expect(utf8.decode(fakeBindings.writes.single), contains(clipboardText));
   });
 
-  testWidgets('local paste config can disable multiline confirmation', (
+  desktopTestWidgets('local paste config can disable multiline confirmation', (
     tester,
   ) async {
     const clipboardText = 'one\ntwo';
@@ -5581,7 +5692,7 @@ void main() {
     expect(utf8.decode(fakeBindings.writes.single), contains(clipboardText));
   });
 
-  testWidgets('local paste config can force bracketed paste wrapping', (
+  desktopTestWidgets('local paste config can force bracketed paste wrapping', (
     tester,
   ) async {
     const clipboardText =
@@ -5629,7 +5740,9 @@ void main() {
     );
   });
 
-  testWidgets('marker-only forced bracketed paste is ignored', (tester) async {
+  desktopTestWidgets('marker-only forced bracketed paste is ignored', (
+    tester,
+  ) async {
     const clipboardText = '\x1B[200~\x1B[201~\u{009B}200~\u{009B}201~';
     final fakeBindings = FakePtyBackend();
     tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
@@ -5669,7 +5782,7 @@ void main() {
     expect(fakeBindings.writesBySession, isEmpty);
   });
 
-  testWidgets(
+  desktopTestWidgets(
     'local paste config can force plain paste despite terminal mode',
     (tester) async {
       const clipboardText = 'plain paste';
@@ -5727,7 +5840,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'command-v uses paste confirmation before sending multiline text',
     (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
@@ -5780,7 +5893,7 @@ void main() {
     },
   );
 
-  testWidgets('command-v honors forced bracketed paste wrapping', (
+  desktopTestWidgets('command-v honors forced bracketed paste wrapping', (
     tester,
   ) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
@@ -5843,7 +5956,7 @@ void main() {
     );
   });
 
-  testWidgets('command-v read-only paste does not read clipboard', (
+  desktopTestWidgets('command-v read-only paste does not read clipboard', (
     tester,
   ) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
@@ -5895,7 +6008,9 @@ void main() {
     expect(fakeBindings.writes, isEmpty);
   });
 
-  testWidgets('tab context menu hides pane zoom actions', (tester) async {
+  desktopTestWidgets('tab context menu hides pane zoom actions', (
+    tester,
+  ) async {
     await _pumpShellScreen(tester, fakeBindings: FakePtyBackend());
 
     await _openTabContextMenu(tester);
@@ -5904,7 +6019,7 @@ void main() {
     expect(find.text('Unzoom active pane'), findsNothing);
   });
 
-  testWidgets('tab context menu hides focus pane actions while zoomed', (
+  desktopTestWidgets('tab context menu hides focus pane actions while zoomed', (
     tester,
   ) async {
     await _pumpShellScreen(tester, fakeBindings: FakePtyBackend());
@@ -5926,7 +6041,7 @@ void main() {
     );
   });
 
-  testWidgets(
+  desktopTestWidgets(
     'modal barriers block native paste and terminal host input',
     (tester) async {
       var clipboardReads = 0;
@@ -5982,7 +6097,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'form fields keep command and native paste out of the terminal',
     (tester) async {
       var clipboardText = 'command paste';
@@ -6050,7 +6165,7 @@ void main() {
       'collapsed history',
       'alternate',
     ]) {
-      testWidgets(
+      desktopTestWidgets(
         '${viaMenu ? 'native' : 'command-a'} select all terminal $scenario',
         (tester) async {
           final fakeBindings = FakePtyBackend();
@@ -6148,7 +6263,7 @@ void main() {
     }
   }
 
-  testWidgets(
+  desktopTestWidgets(
     'control-a retains shell beginning-of-line behavior',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -6173,7 +6288,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'native select all targets the focused form field',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -6214,7 +6329,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'command-v pastes into the open search field instead of the terminal',
     (tester) async {
       const clipboardText = 'needle';
@@ -6259,7 +6374,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'native paste menu pastes into the open search field instead of the terminal',
     (tester) async {
       const clipboardText = 'native needle';
@@ -6304,29 +6419,30 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets('tab context menu disables split actions while pane is zoomed', (
-    tester,
-  ) async {
-    await _pumpShellScreen(tester, fakeBindings: FakePtyBackend());
+  desktopTestWidgets(
+    'tab context menu disables split actions while pane is zoomed',
+    (tester) async {
+      await _pumpShellScreen(tester, fakeBindings: FakePtyBackend());
 
-    await _tapTabContextMenuAction(tester, 'Split right');
-    await _tapActivePaneZoomAction(tester);
+      await _tapTabContextMenuAction(tester, 'Split right');
+      await _tapActivePaneZoomAction(tester);
 
-    await _openTabContextMenu(tester);
+      await _openTabContextMenu(tester);
 
-    expect(find.text('Split right'), findsOneWidget);
-    expect(find.text('Split down'), findsOneWidget);
-    expect(
-      find.textContaining(
-        'Unavailable: Unzoom the active pane to manage other panes.',
-      ),
-      findsNWidgets(4),
-    );
+      expect(find.text('Split right'), findsOneWidget);
+      expect(find.text('Split down'), findsOneWidget);
+      expect(
+        find.textContaining(
+          'Unavailable: Unzoom the active pane to manage other panes.',
+        ),
+        findsNWidgets(4),
+      );
 
-    expect(find.byType(TerminalViewport), findsOneWidget);
-  });
+      expect(find.byType(TerminalViewport), findsOneWidget);
+    },
+  );
 
-  testWidgets(
+  desktopTestWidgets(
     'tab context menu can reopen the most recently closed split pane',
     (tester) async {
       await _pumpShellScreen(tester, fakeBindings: FakePtyBackend());
@@ -6384,96 +6500,97 @@ void main() {
     },
   );
 
-  testWidgets('split tab semantics describe pane signals and new output', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
-    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+  desktopTestWidgets(
+    'split tab semantics describe pane signals and new output',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
 
-    await _tapTabContextMenuAction(tester, 'Split right');
+      await _tapTabContextMenuAction(tester, 'Split right');
 
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(ShellScreen)),
-    );
-    final splitState = container.read(sessionControllerProvider);
-    final tab = splitState.tabs.single;
-    final activeSessionId = splitState.activeSessionId!;
-    final inactiveSessionId = tab.effectivePanes
-        .firstWhere((pane) => pane.sessionId != activeSessionId)
-        .sessionId;
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(ShellScreen)),
+      );
+      final splitState = container.read(sessionControllerProvider);
+      final tab = splitState.tabs.single;
+      final activeSessionId = splitState.activeSessionId!;
+      final inactiveSessionId = tab.effectivePanes
+          .firstWhere((pane) => pane.sessionId != activeSessionId)
+          .sessionId;
 
-    fakeBindings.enqueueEvent(
-      inactiveSessionId,
-      PtyEvent(
-        kind: 'session_badge',
-        sessionId: inactiveSessionId,
-        payload: const <String, Object?>{'text': 'Deploy'},
-      ),
-    );
-    fakeBindings.enqueueEvent(
-      inactiveSessionId,
-      PtyEvent(
-        kind: 'session_progress',
-        sessionId: inactiveSessionId,
-        payload: const <String, Object?>{
-          'source': 'osc934',
-          'named': true,
-          'action': 'set',
-          'id': 'deploy',
-          'state': 'normal',
-          'percent': 42,
-          'label': 'Deploy',
-        },
-      ),
-    );
-    fakeBindings.enqueueEvent(
-      inactiveSessionId,
-      PtyEvent(
-        kind: 'session_notification',
-        sessionId: inactiveSessionId,
-        payload: const <String, Object?>{
-          'source': 'osc777',
-          'title': 'Deploy',
-          'message': 'Inactive pane done',
-        },
-      ),
-    );
-    fakeBindings.setFrame(inactiveSessionId, <String, Object?>{
-      'rows': <Object?>[
-        <String, Object?>{
-          'index': 0,
-          'text': 'inactive pane output',
-          'style_runs': <Object?>[],
-        },
-      ],
-      'cursor': <String, Object?>{'row': 0, 'col': 20, 'visible': true},
-      'selection': null,
-      'viewport_rows': 24,
-      'viewport_cols': 80,
-      'dirty_ranges': <Object?>[
-        <String, Object?>{'start': 0, 'end': 1},
-      ],
-      'scrollback_offset': 0,
-      'scrollback_max_offset': 0,
-    });
-    container
-        .read(terminalRuntimeControllerProvider)
-        .refreshSession(inactiveSessionId);
-    await tester.pump(const Duration(milliseconds: 40));
+      fakeBindings.enqueueEvent(
+        inactiveSessionId,
+        PtyEvent(
+          kind: 'session_badge',
+          sessionId: inactiveSessionId,
+          payload: const <String, Object?>{'text': 'Deploy'},
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        inactiveSessionId,
+        PtyEvent(
+          kind: 'session_progress',
+          sessionId: inactiveSessionId,
+          payload: const <String, Object?>{
+            'source': 'osc934',
+            'named': true,
+            'action': 'set',
+            'id': 'deploy',
+            'state': 'normal',
+            'percent': 42,
+            'label': 'Deploy',
+          },
+        ),
+      );
+      fakeBindings.enqueueEvent(
+        inactiveSessionId,
+        PtyEvent(
+          kind: 'session_notification',
+          sessionId: inactiveSessionId,
+          payload: const <String, Object?>{
+            'source': 'osc777',
+            'title': 'Deploy',
+            'message': 'Inactive pane done',
+          },
+        ),
+      );
+      fakeBindings.setFrame(inactiveSessionId, <String, Object?>{
+        'rows': <Object?>[
+          <String, Object?>{
+            'index': 0,
+            'text': 'inactive pane output',
+            'style_runs': <Object?>[],
+          },
+        ],
+        'cursor': <String, Object?>{'row': 0, 'col': 20, 'visible': true},
+        'selection': null,
+        'viewport_rows': 24,
+        'viewport_cols': 80,
+        'dirty_ranges': <Object?>[
+          <String, Object?>{'start': 0, 'end': 1},
+        ],
+        'scrollback_offset': 0,
+        'scrollback_max_offset': 0,
+      });
+      container
+          .read(terminalRuntimeControllerProvider)
+          .refreshSession(inactiveSessionId);
+      await tester.pump(const Duration(milliseconds: 40));
 
-    final semantics = tester.getSemantics(
-      find.bySemanticsIdentifier('shell-tab-${tab.sessionId}'),
-    );
-    expect(semantics.label, contains('badge Deploy from inactive pane'));
-    expect(
-      semantics.label,
-      contains('terminal progress: DEPLOY 42% from inactive pane'),
-    );
-    expect(semantics.label, contains('plus 1 other pane signal'));
-    expect(semantics.label, contains('new output in split pane'));
-  });
+      final semantics = tester.getSemantics(
+        find.bySemanticsIdentifier('shell-tab-${tab.sessionId}'),
+      );
+      expect(semantics.label, contains('badge Deploy from inactive pane'));
+      expect(
+        semantics.label,
+        contains('terminal progress: DEPLOY 42% from inactive pane'),
+      );
+      expect(semantics.label, contains('plus 1 other pane signal'));
+      expect(semantics.label, contains('new output in split pane'));
+    },
+  );
 
-  testWidgets(
+  desktopTestWidgets(
     'shell coalesces rapid window-width changes into the final terminal resize',
     (tester) async {
       tester.view.devicePixelRatio = 2.0;
@@ -6519,115 +6636,119 @@ void main() {
     },
   );
 
-  testWidgets('split panes each commit their debounced terminal resize', (
-    tester,
-  ) async {
-    tester.view.devicePixelRatio = 2.0;
-    tester.view.physicalSize = const Size(1600, 1200);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    addTearDown(tester.view.resetPhysicalSize);
+  desktopTestWidgets(
+    'split panes each commit their debounced terminal resize',
+    (tester) async {
+      tester.view.devicePixelRatio = 2.0;
+      tester.view.physicalSize = const Size(1600, 1200);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
 
-    final fakeBindings = FakePtyBackend();
-    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      final fakeBindings = FakePtyBackend();
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
 
-    await _openTabContextMenu(tester);
-    await tester.tap(find.text('Split right'));
-    await tester.pumpAndSettle();
-    await tester.pump(const Duration(milliseconds: 260));
-    await tester.pumpAndSettle();
+      await _openTabContextMenu(tester);
+      await tester.tap(find.text('Split right'));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 260));
+      await tester.pumpAndSettle();
 
-    final initialResizeCount = fakeBindings.resizeCalls.length;
+      final initialResizeCount = fakeBindings.resizeCalls.length;
 
-    tester.view.physicalSize = const Size(1480, 1200);
-    await tester.pump();
-    tester.view.physicalSize = const Size(1320, 1200);
-    await tester.pump(const Duration(milliseconds: 120));
+      tester.view.physicalSize = const Size(1480, 1200);
+      await tester.pump();
+      tester.view.physicalSize = const Size(1320, 1200);
+      await tester.pump(const Duration(milliseconds: 120));
 
-    expect(fakeBindings.resizeCalls.length, initialResizeCount);
+      expect(fakeBindings.resizeCalls.length, initialResizeCount);
 
-    await tester.pump(const Duration(milliseconds: 260));
+      await tester.pump(const Duration(milliseconds: 260));
 
-    final resizeCalls = fakeBindings.resizeCalls
-        .skip(initialResizeCount)
-        .toList(growable: false);
-    expect(resizeCalls.map((call) => call[0]), unorderedEquals(<int>[1, 2]));
+      final resizeCalls = fakeBindings.resizeCalls
+          .skip(initialResizeCount)
+          .toList(growable: false);
+      expect(resizeCalls.map((call) => call[0]), unorderedEquals(<int>[1, 2]));
 
-    for (final sessionId in const <String>['1', '2']) {
-      final renderObject = _renderTerminalViewportForPane(tester, sessionId);
-      final resizeCall = resizeCalls.singleWhere(
-        (call) => call[0] == int.parse(sessionId),
+      for (final sessionId in const <String>['1', '2']) {
+        final renderObject = _renderTerminalViewportForPane(tester, sessionId);
+        final resizeCall = resizeCalls.singleWhere(
+          (call) => call[0] == int.parse(sessionId),
+        );
+        expect(
+          resizeCall[1],
+          (renderObject.size.width / renderObject.debugCellSize.width).floor(),
+        );
+        expect(
+          resizeCall[2],
+          (renderObject.size.height / renderObject.debugCellSize.height)
+              .floor(),
+        );
+        expect(
+          resizeCall[3],
+          (renderObject.size.width * tester.view.devicePixelRatio).round(),
+        );
+        expect(
+          resizeCall[4],
+          (renderObject.size.height * tester.view.devicePixelRatio).round(),
+        );
+      }
+    },
+  );
+
+  desktopTestWidgets(
+    'terminal focus alone does not show the shell layout cue',
+    (tester) async {
+      await _pumpShellScreen(tester, fakeBindings: FakePtyBackend());
+
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
+
+      expect(find.byKey(const Key('shell-layout-focus-cue')), findsNothing);
+    },
+  );
+
+  desktopTestWidgets(
+    'shell passes theme-aware terminal colors into the viewport',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        themeMode: ThemeMode.light,
+      );
+
+      var renderObject = tester.allRenderObjects
+          .whereType<RenderTerminalViewport>()
+          .last;
+      expect(
+        renderObject.debugColors.canvasBackground.toARGB32(),
+        ThemeData.light().colorScheme.surfaceContainerLowest.toARGB32(),
       );
       expect(
-        resizeCall[1],
-        (renderObject.size.width / renderObject.debugCellSize.width).floor(),
+        renderObject.debugColors.foreground.toARGB32(),
+        ThemeData.light().colorScheme.onSurface.toARGB32(),
+      );
+
+      await _pumpShellScreen(
+        tester,
+        fakeBindings: fakeBindings,
+        themeMode: ThemeMode.dark,
+      );
+      renderObject = tester.allRenderObjects
+          .whereType<RenderTerminalViewport>()
+          .last;
+      expect(
+        renderObject.debugColors.canvasBackground.toARGB32(),
+        ThemeData.dark().colorScheme.surfaceContainerLowest.toARGB32(),
       );
       expect(
-        resizeCall[2],
-        (renderObject.size.height / renderObject.debugCellSize.height).floor(),
+        renderObject.debugColors.foreground.toARGB32(),
+        ThemeData.dark().colorScheme.onSurface.toARGB32(),
       );
-      expect(
-        resizeCall[3],
-        (renderObject.size.width * tester.view.devicePixelRatio).round(),
-      );
-      expect(
-        resizeCall[4],
-        (renderObject.size.height * tester.view.devicePixelRatio).round(),
-      );
-    }
-  });
+    },
+  );
 
-  testWidgets('terminal focus alone does not show the shell layout cue', (
-    tester,
-  ) async {
-    await _pumpShellScreen(tester, fakeBindings: FakePtyBackend());
-
-    await tester.tap(find.byType(TerminalViewport));
-    await tester.pump();
-
-    expect(find.byKey(const Key('shell-layout-focus-cue')), findsNothing);
-  });
-
-  testWidgets('shell passes theme-aware terminal colors into the viewport', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
-    await _pumpShellScreen(
-      tester,
-      fakeBindings: fakeBindings,
-      themeMode: ThemeMode.light,
-    );
-
-    var renderObject = tester.allRenderObjects
-        .whereType<RenderTerminalViewport>()
-        .last;
-    expect(
-      renderObject.debugColors.canvasBackground.toARGB32(),
-      ThemeData.light().colorScheme.surfaceContainerLowest.toARGB32(),
-    );
-    expect(
-      renderObject.debugColors.foreground.toARGB32(),
-      ThemeData.light().colorScheme.onSurface.toARGB32(),
-    );
-
-    await _pumpShellScreen(
-      tester,
-      fakeBindings: fakeBindings,
-      themeMode: ThemeMode.dark,
-    );
-    renderObject = tester.allRenderObjects
-        .whereType<RenderTerminalViewport>()
-        .last;
-    expect(
-      renderObject.debugColors.canvasBackground.toARGB32(),
-      ThemeData.dark().colorScheme.surfaceContainerLowest.toARGB32(),
-    );
-    expect(
-      renderObject.debugColors.foreground.toARGB32(),
-      ThemeData.dark().colorScheme.onSurface.toARGB32(),
-    );
-  });
-
-  testWidgets(
+  desktopTestWidgets(
     'launcher close shows a brief return cue at top right and keeps keyboard path',
     (tester) async {
       final fakeBindings = FakePtyBackend();
@@ -6662,30 +6783,31 @@ void main() {
     },
   );
 
-  testWidgets('defaults close restores the layout cue and keyboard path', (
-    tester,
-  ) async {
-    final fakeBindings = FakePtyBackend();
+  desktopTestWidgets(
+    'defaults close restores the layout cue and keyboard path',
+    (tester) async {
+      final fakeBindings = FakePtyBackend();
 
-    await _pumpShellScreen(tester, fakeBindings: fakeBindings);
+      await _pumpShellScreen(tester, fakeBindings: fakeBindings);
 
-    await tester.tap(find.byType(TerminalViewport));
-    await tester.pump();
+      await tester.tap(find.byType(TerminalViewport));
+      await tester.pump();
 
-    await _openCommandMenu(tester);
-    await tester.ensureVisible(find.text('Defaults & appearance'));
-    await tester.tap(find.text('Defaults & appearance'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Close defaults'));
-    await tester.pumpAndSettle();
+      await _openCommandMenu(tester);
+      await tester.ensureVisible(find.text('Defaults & appearance'));
+      await tester.tap(find.text('Defaults & appearance'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Close defaults'));
+      await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('shell-layout-focus-cue')), findsOneWidget);
-    expect(find.text('Back in shell'), findsOneWidget);
+      expect(find.byKey(const Key('shell-layout-focus-cue')), findsOneWidget);
+      expect(find.text('Back in shell'), findsOneWidget);
 
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.keyV, platform: 'macos');
-    await tester.pump();
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.keyV, platform: 'macos');
+      await tester.pump();
 
-    expect(fakeBindings.writes, isNotEmpty);
-    expect(fakeBindings.writes.last, 'v'.codeUnits);
-  });
+      expect(fakeBindings.writes, isNotEmpty);
+      expect(fakeBindings.writes.last, 'v'.codeUnits);
+    },
+  );
 }

@@ -55,23 +55,23 @@ void main() {
   // Geometry is theme-independent; exercise both phone width boundaries.
   for (final width in [320.0, 430.0]) {
     for (final isUser in [false, true]) {
-      testWidgets('mobile $width user=$isUser uses W-32 body width', (
-        tester,
-      ) async {
-        await mountFrame(tester, width: width, isUser: isUser);
-        final body = find.byKey(const Key('reading-body'));
-        final role = find.byKey(const ValueKey('ai-message-role-reading'));
-        expect(tester.getSize(body).width, closeTo(width - 32, .01));
-        expect(tester.getTopLeft(body).dx, closeTo(16, .01));
-        expect(tester.getTopLeft(role).dx, closeTo(16, .01));
-        expect(
-          tester.getBottomLeft(role).dy,
-          lessThan(tester.getTopLeft(body).dy),
-          reason: 'The role must not reserve a column beside the prose.',
-        );
-        expect(find.byType(ChatMessageFrame), findsOneWidget);
-        expect(tester.takeException(), isNull);
-      });
+      testWidgets(
+        'iOS $width user=$isUser keeps grouped message readable and labeled',
+        (tester) async {
+          await mountFrame(tester, width: width, isUser: isUser);
+          final body = find.byKey(const Key('reading-body'));
+          final bounds = tester.getRect(body);
+          expect(bounds.width, greaterThan(200));
+          expect(bounds.left, greaterThanOrEqualTo(16));
+          expect(bounds.right, lessThanOrEqualTo(width - 16));
+          expect(
+            find.bySemanticsLabel(RegExp(isUser ? '^You' : '^AI')),
+            findsWidgets,
+          );
+          expect(find.byType(ChatMessageFrame), findsNothing);
+          expect(tester.takeException(), isNull);
+        },
+      );
     }
   }
 
@@ -108,12 +108,14 @@ void main() {
     }
   }
 
-  testWidgets('wide tablet uses shared side-by-side layout', (tester) async {
+  testWidgets('iPad retains grouped message content and role semantics', (
+    tester,
+  ) async {
     await mountFrame(tester, width: 700);
     final body = find.byKey(const Key('reading-body'));
-    final role = find.byKey(const ValueKey('ai-message-role-reading'));
     expect(tester.getSize(body).width, greaterThan(400));
-    expect(tester.getTopLeft(body).dy, tester.getTopLeft(role).dy);
+    expect(find.bySemanticsLabel(RegExp('^AI')), findsWidgets);
+    expect(find.byType(ChatMessageFrame), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

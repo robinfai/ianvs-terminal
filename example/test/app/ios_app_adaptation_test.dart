@@ -360,7 +360,7 @@ void main() {
       );
       await tester.tap(find.byKey(const Key('ssh-more-settings-toggle')));
       await tester.pumpAndSettle();
-      final saveProfile = tester.widget<CheckboxListTile>(
+      final saveProfile = tester.widget<SwitchListTile>(
         find.byKey(const Key('ssh-save-profile')),
       );
       expect(saveProfile.value, isFalse);
@@ -378,6 +378,7 @@ void main() {
         'demo-password',
       );
       await tester.ensureVisible(find.byKey(const Key('ssh-connect')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('ssh-connect')));
       await tester.pumpAndSettle();
 

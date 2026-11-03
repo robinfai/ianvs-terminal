@@ -45,7 +45,7 @@ var requestIDFallback atomic.Uint64
 type requestIDContextKey struct{}
 
 type API struct {
-	desktopAppleFlows    desktopAppleFlows
+	desktopAppleFlows    *desktopAppleFlows
 	aiLimiter            *aiRateLimiter
 	purchaseLimiter      *peerRateLimiter
 	googleVerifier       *auth.AppleTokenVerifier
@@ -76,7 +76,7 @@ func newWithLogger(
 	logger *slog.Logger,
 ) *API {
 	api := &API{
-		desktopAppleFlows:    desktopAppleFlows{pending: make(map[string]desktopAppleFlow)},
+		desktopAppleFlows:    &desktopAppleFlows{pending: make(map[string]desktopAppleFlow)},
 		aiLimiter:            &aiRateLimiter{users: make(map[string][]*aiRateEvent)},
 		purchaseLimiter:      newAnonymousAuthRateLimiter(),
 		appleVerifier:        auth.NewAppleTokenVerifier(),

@@ -12,6 +12,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../support/desktop_test_platform.dart';
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_local_terminal_config_repository.dart';
@@ -66,7 +67,7 @@ Future<void> pumpShellScreen(
 }
 
 void main() {
-  testWidgets(
+  desktopTestWidgets(
     'shell screen renders a macOS toolbar and document tabs around the terminal',
     (tester) async {
       await pumpShellScreen(
@@ -109,29 +110,30 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets('gear command palette opens settings and terminal search', (
-    tester,
-  ) async {
-    await pumpShellScreen(
-      tester,
-      fakeBindings: FakePtyBackend(),
-      repository: MemoryProfileRepository(
-        TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
-      ),
-    );
-    await openShellCommand(tester, 'shell-command-defaults');
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('defaults-dialog')), findsOneWidget);
-    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('defaults-dialog')), findsNothing);
-    await openShellCommand(tester, 'shell-search-scrollback-top');
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('terminal-search-field')), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
+  desktopTestWidgets(
+    'gear command palette opens settings and terminal search',
+    (tester) async {
+      await pumpShellScreen(
+        tester,
+        fakeBindings: FakePtyBackend(),
+        repository: MemoryProfileRepository(
+          TerminalProfilesDocument(profiles: [defaultTerminalProfile()]),
+        ),
+      );
+      await openShellCommand(tester, 'shell-command-defaults');
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('defaults-dialog')), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('defaults-dialog')), findsNothing);
+      await openShellCommand(tester, 'shell-search-scrollback-top');
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('terminal-search-field')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
-  testWidgets(
+  desktopTestWidgets(
     'shell screen collapses into a dark empty state after closing the last tab',
     (tester) async {
       await pumpShellScreen(
@@ -169,7 +171,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'reference demo mode boots with three Shell tabs and no menu button',
     (tester) async {
       await pumpShellScreen(
@@ -189,10 +191,7 @@ void main() {
         ),
         findsNWidgets(3),
       );
-      expect(
-        find.byKey(const Key('shell-chrome-window-title')),
-        findsOneWidget,
-      );
+      expect(find.byKey(const Key('shell-chrome-window-title')), findsNothing);
       expect(find.bySemanticsIdentifier('shell-tab-demo-1'), findsOneWidget);
       expect(find.bySemanticsIdentifier('shell-tab-demo-2'), findsOneWidget);
       expect(find.bySemanticsIdentifier('shell-tab-demo-3'), findsOneWidget);

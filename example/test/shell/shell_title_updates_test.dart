@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../helpers/pump_app.dart';
+import '../support/desktop_test_platform.dart';
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_local_terminal_config_repository.dart';
@@ -18,7 +19,7 @@ import '../support/no_io_sampled_recording_library.dart';
 
 void main() {
   group('$ShellScreen live titles', () {
-    testWidgets(
+    desktopTestWidgets(
       'updates tab, pane and window titles without rebuilding the desktop body',
       (tester) async {
         tester.view.physicalSize = const Size(1200, 800);

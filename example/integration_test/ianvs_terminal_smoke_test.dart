@@ -242,6 +242,8 @@ void main() {
     );
     await tester.tap(find.byKey(const Key('profile-entry-shell-b')));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('profiles-open-selected')));
+    await tester.pumpAndSettle();
 
     await _waitForTab(tester, '2', selected: true);
     _expectSelectedTab(tester, '2');

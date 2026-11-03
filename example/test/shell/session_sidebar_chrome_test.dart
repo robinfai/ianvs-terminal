@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
 
+import '../support/desktop_test_platform.dart';
 import '../support/fake_pty_backend.dart';
 import '../support/memory_profile_repository.dart';
 import 'shell_screen_phase1a_test.dart' show pumpShellScreen;
@@ -58,7 +59,7 @@ void _expectCenteredTitle(WidgetTester tester) {
 }
 
 void main() {
-  testWidgets(
+  desktopTestWidgets(
     'sidebar resizing clamps, preserves width and keeps the terminal alive',
     (tester) async {
       final backend = FakePtyBackend();
@@ -155,7 +156,7 @@ void main() {
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'divider appears on hover or drag and supports keyboard resizing',
     (tester) async {
       await _pump(tester, FakePtyBackend());
@@ -208,7 +209,7 @@ void main() {
     },
   );
 
-  testWidgets(
+  desktopTestWidgets(
     'only the active directory branch uses accent folder and text colors',
     (tester) async {
       final backend = FakePtyBackend();

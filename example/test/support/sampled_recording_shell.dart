@@ -14,6 +14,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'desktop_test_platform.dart';
 import 'memory_app_preferences_repository.dart';
 import 'memory_paste_history_repository.dart';
 import 'memory_profile_repository.dart';
@@ -27,7 +28,7 @@ void sampledShellTest(
   String description,
   Future<void> Function(WidgetTester) body,
 ) {
-  testWidgets(description, (tester) async {
+  desktopTestWidgets(description, (tester) async {
     _cleanups.clear();
     try {
       await body(tester);

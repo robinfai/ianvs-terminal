@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:app/data/configuration/data_api_configuration.dart';
 import 'package:app/data/configuration/data_api_configuration_providers.dart';
 import 'package:app/data/configuration/data_api_configuration_repository.dart';
+import 'package:app/data/configuration/oauth_sign_in_panel.dart';
 import 'package:app/data/services/data_api_client.dart';
 import 'package:app/data/services/data_api_remote_session_store.dart';
 import 'package:app/data/services/data_api_runtime.dart';
@@ -189,16 +190,15 @@ void main() {
       await tester.ensureVisible(find.byKey(const Key('data-api-sign-out')));
       await tester.tap(find.byKey(const Key('data-api-sign-out')));
       await tester.pumpAndSettle();
-      await tester.enterText(
-        find.byKey(const Key('data-api-remote-username')),
-        'alice',
+      final panel = tester.widget<OAuthSignInPanel>(
+        find.byType(OAuthSignInPanel),
       );
-      await tester.enterText(
-        find.byKey(const Key('data-api-remote-password')),
-        'new-password',
+      await panel.onAuthenticated!(
+        DataApiRemoteLoginRequest.apple(
+          baseUri: baseUri,
+          encryptionKey: 'encryption-key-material',
+        ),
       );
-      await tester.pump();
-      await tester.tap(find.byKey(const Key('defaults-save')));
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('data-api-account-status')), findsOneWidget);

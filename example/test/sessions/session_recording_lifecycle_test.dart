@@ -170,7 +170,14 @@ void main() {
         expect(backend.actions.where((op) => op.endsWith('_release')), isEmpty);
         expect(backend.closedSessionIds, isEmpty);
         files.failPublication = false;
-        await _wait(() => library.activeClaims.isEmpty);
+        await _wait(
+          () =>
+              library.activeClaims.isEmpty &&
+              container
+                  .read(sessionControllerProvider)
+                  .recordingPendingSaveSessionIds
+                  .isEmpty,
+        );
         expect(
           container
               .read(sessionControllerProvider)
@@ -256,7 +263,14 @@ void main() {
         PtyEvent(kind: 'exit', sessionId: id, payload: const {'code': 0}),
       );
       container.read(terminalRuntimeControllerProvider).refreshSession(id);
-      await _wait(() => library.activeClaims.isEmpty);
+      await _wait(
+        () =>
+            library.activeClaims.isEmpty &&
+            container
+                .read(sessionControllerProvider)
+                .recordingPendingSaveSessionIds
+                .isEmpty,
+      );
       expect((await library.listRecordings()).single.state, 'finished');
       expect(backend.closedSessionIds, contains(id));
     },
