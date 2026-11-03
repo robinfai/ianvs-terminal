@@ -747,9 +747,7 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, ASWebAuthenticationPresenta
       }
     }
     guard event.type == .leftMouseDown,
-      let controller = contentViewController,
-      let content = contentView,
-      let parent = content.superview
+      let controller = contentViewController
     else { return false }
     let screenPoint = convertPoint(toScreen: event.locationInWindow)
     let topPoint = NSPoint(x: screenPoint.x - frame.minX,
@@ -759,10 +757,12 @@ class MainFlutterWindow: NSWindow, NSWindowDelegate, ASWebAuthenticationPresenta
       !shouldStartNativeWindowDrag(atMouseLocation: screenPoint),
       !standardWindowButtonFramesInScreenCoordinates().contains(where: {
         $0.contains(screenPoint)
-      }),
-      let hit = content.hitTest(parent.convert(event.locationInWindow, from: nil)),
-      hit === content || hit.isDescendant(of: content)
+      })
     else { return false }
+    // AppKit's transparent titlebar can sit outside the Flutter view's hit-test
+    // area. Falling through here lets AppKit turn a tab drag into a window drag.
+    // The measured chrome regions and native buttons above decide ownership;
+    // keep the full gesture with Flutter even when native hit-testing is nil.
     chromeMouseResponder = controller
     controller.mouseDown(with: event)
     return true

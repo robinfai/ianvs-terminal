@@ -40,6 +40,10 @@ private final class ChromeMouseTrackingController: NSViewController {
   override func mouseUp(with event: NSEvent) { received.append(event) }
 }
 
+private final class TransparentChromeView: NSView {
+  override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+
 class RunnerTests: XCTestCase {
 
   // This is a test-host scheduling budget, not the application's shutdown
@@ -745,6 +749,31 @@ class RunnerTests: XCTestCase {
       let point = close.convert(NSPoint(x: close.bounds.midX, y: close.bounds.midY), to: nil)
       XCTAssertFalse(window.forwardChromeMouseEvent(try event(.leftMouseDown, point.x, point.y)))
     }
+  }
+
+  func testTransparentTitlebarStillDeliversTabDragToFlutter() throws {
+    let window = DragTrackingMainFlutterWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
+      styleMask: [.titled, .closable, .resizable, .fullSizeContentView],
+      backing: .buffered, defer: false)
+    let controller = ChromeMouseTrackingController()
+    controller.view = TransparentChromeView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
+    window.contentViewController = controller
+    window.updateTitleBarLayout(sidebarWidth: nil, height: 54,
+      draggableRegions: [NSRect(x: 500, y: 0, width: 200, height: 54)])
+    let events = try [NSEvent.EventType.leftMouseDown, .leftMouseDragged, .leftMouseUp]
+      .enumerated().map { index, type in
+        try XCTUnwrap(NSEvent.mouseEvent(with: type,
+          location: NSPoint(x: 200 + index * 50, y: Int(window.frame.height) - 22),
+          modifierFlags: [], timestamp: Double(index), windowNumber: window.windowNumber,
+          context: nil, eventNumber: index, clickCount: 1, pressure: 1))
+      }
+    for event in events {
+      XCTAssertTrue(window.forwardChromeMouseEvent(event),
+        "Transparent native titlebar hit-testing must not steal a tab drag")
+    }
+    XCTAssertEqual(controller.received.count, 3)
+    XCTAssertNil(window.performedDragEvent)
   }
 
   func testTerminationWarningIncludesRetainedUnknownAndUnreviewedWork() {
