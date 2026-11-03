@@ -57,7 +57,12 @@ void main() {
       expect(harness.files.seeks.last, greaterThanOrEqualTo(100));
       expect(harness.backend.createdSessions, hasLength(sessions));
       expect(harness.backend.writes, hasLength(writes));
-      await tester.tap(find.byKey(const Key('recording-replay-viewport')));
+      // The fixture includes a clickable image at the viewport center. Focus
+      // the padding so Escape targets the player, not its image preview.
+      await tester.tapAt(
+        tester.getTopLeft(find.byKey(const Key('recording-replay-viewport'))) +
+            const Offset(2, 2),
+      );
       await tester.pump();
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
@@ -267,7 +272,12 @@ void main() {
     (tester) async {
       final harness = await pumpSampledShell(tester);
       await openSampledEntry(tester, harness);
-      await tester.tap(find.byKey(const Key('recording-replay-viewport')));
+      // The fixture includes a clickable image at the viewport center. Focus
+      // the padding so Escape targets the player, not its image preview.
+      await tester.tapAt(
+        tester.getTopLeft(find.byKey(const Key('recording-replay-viewport'))) +
+            const Offset(2, 2),
+      );
       await tester.pump();
       final replayFocus = FocusManager.instance.primaryFocus;
       expect(replayFocus?.debugLabel, 'sampled-recording-replay');
