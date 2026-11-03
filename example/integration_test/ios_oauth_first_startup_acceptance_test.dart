@@ -6,11 +6,14 @@ import 'package:app/data/configuration/oauth_sign_in_panel.dart';
 import 'package:app/data/services/data_api_client.dart';
 import 'package:app/data/services/portable_master_key.dart';
 import 'package:app/features/profiles/profile_models.dart';
+import 'package:app/features/sessions/session_controller.dart';
+import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/features/terminal/terminal.dart';
 import 'package:app/startup/app_startup_host.dart';
 import 'package:app/startup/app_startup_models.dart';
 import 'package:app/startup/production_app_startup.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
@@ -124,6 +127,7 @@ void main() {
     await login;
     await tester.pumpAndSettle();
     expect(coordinator.state, isA<AppStartupReady>());
+    await _waitForSshHome(tester);
     expect(tester.takeException(), isNull);
     expect(
       find.byKey(const Key('ios-ssh-profile-empty-state')),
@@ -154,6 +158,35 @@ void main() {
     ).readAsString();
     expect(persisted, isNot(contains('local-first-ssh-secret')));
   });
+}
+
+Future<void> _waitForSshHome(WidgetTester tester) async {
+  final container = ProviderScope.containerOf(
+    tester.element(find.byType(ShellScreen)),
+    listen: false,
+  );
+  final home = find.byKey(const Key('ios-ssh-profile-empty-state'));
+  final elapsed = Stopwatch()..start();
+
+  // AppStartupReady mounts the shell, whose session bootstrap still awaits
+  // filesystem I/O. pumpAndSettle only waits for frames, not that I/O.
+  while (elapsed.elapsed < const Duration(seconds: 30)) {
+    final session = container.read(sessionControllerProvider);
+    if (session.isReady && home.evaluate().isNotEmpty) {
+      return;
+    }
+    if (!session.isReady && session.lastError != null) {
+      fail('First-login shell bootstrap failed: ${session.lastError}');
+    }
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+
+  final session = container.read(sessionControllerProvider);
+  fail(
+    'First-login SSH home did not appear within 30 seconds: '
+    'isReady=${session.isReady}, lastError=${session.lastError}, '
+    'homeCount=${home.evaluate().length}',
+  );
 }
 
 final class _FixedPortableMasterKeyStorage implements PortableMasterKeyStorage {
