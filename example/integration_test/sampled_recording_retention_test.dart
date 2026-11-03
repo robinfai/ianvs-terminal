@@ -255,6 +255,17 @@ done""",
                 .isNotEmpty,
             'library visible',
           );
+          await _wait(
+            tester,
+            () =>
+                tester
+                    .widget<IconButton>(
+                      find.byKey(const Key('recording-library-refresh')),
+                    )
+                    .onPressed !=
+                null,
+            'library entries loaded',
+          );
         }
 
         Future<void> closeLibrary() async {
@@ -269,10 +280,23 @@ done""",
           );
         }
 
+        Future<void> revealEntry(Finder entry) async {
+          // Saved recordings are lazily built. CI window sizes may place the
+          // target below the viewport, where ensureVisible cannot find it.
+          final scrollable = find.descendant(
+            of: find.byKey(const Key('recording-library-scroll')),
+            matching: find.byType(Scrollable),
+          );
+          final position = tester.state<ScrollableState>(scrollable).position;
+          position.jumpTo(position.minScrollExtent);
+          await tester.pump();
+          await tester.scrollUntilVisible(entry, 200, scrollable: scrollable);
+          await tester.pumpAndSettle();
+        }
+
         Future<void> toggleKeep(String path, bool kept) async {
           final button = find.byKey(ValueKey('recording-actions-$path'));
-          await tester.ensureVisible(button);
-          await tester.pumpAndSettle();
+          await revealEntry(button);
           await tester.tap(button);
           await tester.pumpAndSettle();
           await tester.tap(
@@ -339,8 +363,7 @@ done""",
         final selected = find.byKey(
           ValueKey('recording-entry-${paths['playing']}'),
         );
-        await tester.ensureVisible(selected);
-        await tester.pumpAndSettle();
+        await revealEntry(selected);
         await tester.tap(selected);
         final player = find.byType(SampledReplaySurface);
         await _wait(
