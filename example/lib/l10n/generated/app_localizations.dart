@@ -7355,7 +7355,7 @@ abstract class AppLocalizations {
   /// No description provided for @mobileStartLocally.
   ///
   /// In en, this message translates to:
-  /// **'Get started'**
+  /// **'Continue without signing in'**
   String get mobileStartLocally;
 
   /// No description provided for @mobileLocalWelcome.

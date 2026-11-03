@@ -111,6 +111,7 @@ func TestOAuthRequestShapeReachesIdentityVerification(t *testing.T) {
 func TestPasswordAuthenticationDisabledStillAllowsOAuthChallenge(t *testing.T) {
 	cfg, _, _ := testAPI(t, config.ModeRemote)
 	cfg.PasswordAuthEnabled = false
+	cfg.AllowRegistration = true
 	handler := testAPIHandler(t, cfg)
 	for _, path := range []string{"/v1/auth/login/begin", "/v1/auth/register/begin", "/v1/auth/register/complete"} {
 		response := request(t, handler, http.MethodPost, path, map[string]any{}, nil)
@@ -138,4 +139,25 @@ func TestAuthenticatedIdentityEndpointsUseSessionAndRejectForgedProof(t *testing
 	proof["user_id"] = "another-account"
 	response = request(t, handler, http.MethodPost, "/v1/auth/identities", proof, headers)
 	assertTypedError(t, response, http.StatusBadRequest, "invalid_json")
+}
+
+func TestHealthSeparatesOAuthRegistrationFromPasswordAuthentication(t *testing.T) {
+	for _, registration := range []bool{false, true} {
+		cfg, _, _ := testAPI(t, config.ModeRemote)
+		cfg.AllowRegistration = registration
+		cfg.PasswordAuthEnabled = false
+		handler := testAPIHandler(t, cfg)
+		response := request(t, handler, http.MethodGet, "/healthz", nil, nil)
+		var body map[string]any
+		if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &body) != nil {
+			t.Fatal("health unavailable")
+		}
+		if body["allow_registration"] != registration || body["password_auth_enabled"] != false {
+			t.Fatal("registration and password policy were conflated")
+		}
+		for _, endpoint := range []string{"/v1/auth/login/begin", "/v1/auth/register/begin"} {
+			response = request(t, handler, http.MethodPost, endpoint, map[string]any{}, nil)
+			assertTypedError(t, response, http.StatusForbidden, "password_auth_disabled")
+		}
+	}
 }

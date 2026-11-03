@@ -4747,7 +4747,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Pinch to zoom, then drag to explore the recording.';
 
   @override
-  String get mobileStartLocally => 'Get started';
+  String get mobileStartLocally => 'Continue without signing in';
 
   @override
   String get mobileLocalWelcome => 'Your terminals, with you';

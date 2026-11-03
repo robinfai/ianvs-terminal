@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import 'data/services/data_api_client.dart';
 import 'data/services/data_api_runtime.dart';
 import 'data/services/portable_master_key.dart';
@@ -22,6 +24,7 @@ final class PersistenceRepositoryComposition {
     required this.pasteHistory,
     required this.sync,
     required this.configureSyncRuntime,
+    required this.runtimeSource,
   });
 
   factory PersistenceRepositoryComposition.forRuntime(
@@ -87,6 +90,7 @@ final class PersistenceRepositoryComposition {
           : null,
     );
     final repositories = bindings.wrap(sync);
+    final runtimeSource = ValueNotifier<DataApiRuntime?>(runtime);
     return PersistenceRepositoryComposition._(
       profiles: repositories.profiles,
       preferences: repositories.preferences,
@@ -96,6 +100,7 @@ final class PersistenceRepositoryComposition {
       ),
       pasteHistory: repositories.pasteHistory,
       sync: sync,
+      runtimeSource: runtimeSource,
       configureSyncRuntime: (nextRuntime) async {
         final active = nextRuntime != null && nextRuntime.canAccessResources;
         await sync.setTransport(
@@ -117,6 +122,9 @@ final class PersistenceRepositoryComposition {
               : null,
           nextClose: nextRuntime?.close,
         );
+        // Publish the installed credentials to AI and other runtime consumers.
+        // Updating only the sync transport leaves them using the startup token.
+        runtimeSource.value = nextRuntime;
       },
     );
   }
@@ -127,6 +135,7 @@ final class PersistenceRepositoryComposition {
   final TerminalLayoutRepository terminalLayout;
   final PasteHistoryRepositoryPort pasteHistory;
   final LocalFirstSyncCoordinator sync;
+  final ValueListenable<DataApiRuntime?> runtimeSource;
   bool get usesDataApi =>
       sync.client != null && sync.phase != LocalFirstSyncPhase.disabled;
   final Future<void> Function(DataApiRuntime?) configureSyncRuntime;

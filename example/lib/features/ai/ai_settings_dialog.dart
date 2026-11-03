@@ -325,8 +325,22 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
       _error = null;
     });
     try {
-      await widget.settings.save(remove ? null : _value);
-      if (mounted) _finish(!remove);
+      if (!remove || widget.settings.customConfiguration != null) {
+        await widget.settings.save(remove ? null : _value);
+      }
+      if (mounted) {
+        if (remove) {
+          setState(() {
+            _customize = false;
+            _officialModel = widget.settings.officialModel;
+            _approvalMode = widget.settings.officialApprovalMode;
+            _approvalSensitivity = widget.settings.officialApprovalSensitivity;
+            _connection.invalidate();
+          });
+        } else {
+          _finish(true);
+        }
+      }
     } on Object catch (failure) {
       if (mounted) {
         final code = failure is AiFailure ? failure.code : 'storage';
@@ -759,7 +773,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
       ),
     );
     final actions = <Widget>[
-      if (widget.settings.configuration != null)
+      if (_customize || widget.settings.configuration != null)
         TextButton(
           key: const Key('ai-remove-settings'),
           onPressed: _busy || _detecting ? null : () => _save(remove: true),

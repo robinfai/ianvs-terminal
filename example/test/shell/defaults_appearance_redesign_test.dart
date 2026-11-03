@@ -305,6 +305,9 @@ void main() {
       await tester.tap(find.byKey(const Key('ai-remove-settings')));
       await tester.pumpAndSettle();
       expect(settings.configuration, isNull);
+      expect(find.byKey(const Key('ai-settings-dialog')), findsOneWidget);
+      expect(find.text('Official AI service'), findsOneWidget);
+      expect(find.byKey(const Key('ai-custom-connection')), findsOneWidget);
       expect(find.text(missing), findsNothing);
       expect(find.text('trail-local-mock'), findsNothing);
       expect(tester.takeException(), isNull);

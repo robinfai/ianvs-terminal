@@ -525,6 +525,8 @@ paths:
                   status: {type: string, const: ok}
                   mode: {type: string, enum: [local, remote]}
                   server_id: {type: string}
+                  allow_registration: {type: boolean, description: Whether new OAuth accounts may be created; independent of password authentication.}
+                  password_auth_enabled: {type: boolean, description: Whether standalone username/password authentication is enabled.}
                   google_web_client_id: {type: string, description: Public Google Web client ID; empty when disabled.}
                   google_ios_client_id: {type: string}
                   google_macos_client_id: {type: string}

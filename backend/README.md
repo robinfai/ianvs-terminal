@@ -504,6 +504,6 @@ Google 配置仅包含公开客户端 ID（不需要 Web client secret）：
 
 这些配置自动加入服务端 audience 白名单；可通过 `google_client_ids` 补充受信任客户端。AppAuth 使用系统浏览器、PKCE 和服务端 nonce；iOS/macOS `Info.plist` 必须登记对应反转客户端 ID 的 URL scheme。Web 使用 Google Identity Services，授权 JavaScript 来源必须与部署来源完全一致。私钥、密钥或客户端 secret 不得下发至客户端。当前测试部署仅允许指定测试账号，Google 同意页面沿用 ianvs-cloud 项目既有品牌名称。
 
-独立账号密码登录/注册默认关闭（`password_auth_enabled: false`）。当前 Trail 仅展示 Apple / Google 登录；历史账号的密码仅用于首次 OAuth 关联验证，不签发独立密码登录会话。`allow_registration` 继续控制 OAuth“创建新账号”，不要用它代替密码登录开关。
+独立账号密码登录/注册默认关闭（`password_auth_enabled: false`）。当前 Trail 仅展示 Apple / Google 登录；历史账号的密码仅用于首次 OAuth 关联验证，不签发独立密码登录会话。`allow_registration` 继续控制 OAuth“创建新账号”，不要用它代替密码登录开关。 对外开放第三方注册时应设置 `allow_registration: true`、`password_auth_enabled: false`。`GET /healthz` 分别返回这两个公开能力，客户端据此展示新账号创建入口；注册关闭不影响已绑定身份登录或历史账号关联。
 
 已登录用户可通过 `GET /v1/auth/identities` 查看已关联提供方，并通过 `POST /v1/auth/identities` 提交新的 `provider / identity_token / nonce`。服务端以当前 Bearer 会话确定目标账号，验证提供方证明后绑定；不接受目标用户 ID，不转移已有身份，不合并账号，不新建账号。已关联状态只返回提供方名称。

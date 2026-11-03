@@ -38,6 +38,7 @@ class _OAuthSignInPanelState extends State<OAuthSignInPanel> {
   bool _busy = false;
   bool _linking = false;
   bool _needsChoice = false;
+  bool _registrationAllowed = true;
   bool _passwordLink = false;
   bool _capacity = false;
   bool _replaceOldest = false;
@@ -132,6 +133,10 @@ class _OAuthSignInPanelState extends State<OAuthSignInPanel> {
   }
 
   Future<void> _signIn(String provider) => _run(() async {
+    final configuration = await _client.oauthConfiguration();
+    if (!mounted) return;
+    // Older services omit this capability; their create endpoint remains authoritative.
+    _registrationAllowed = configuration['allow_registration'] != false;
     _proof = await _identity(provider);
     if (!mounted) return;
     await _submit();
@@ -206,6 +211,8 @@ class _OAuthSignInPanelState extends State<OAuthSignInPanel> {
       if (e.code == 'oauth_account_choice_required') {
         _needsChoice = true;
         _linking = false;
+      } else if (e.code == 'apple_registration_disabled') {
+        _registrationAllowed = false;
       } else {
         _capacity = e.code == 'auth_session_capacity';
         _error = switch (e.code) {
@@ -306,23 +313,32 @@ class _OAuthSignInPanelState extends State<OAuthSignInPanel> {
         ] else ...[
           Text(
             _text(
-              _linking ? '关联历史账号' : '首次登录',
+              _linking ? '关联已有账号' : '首次登录',
               _linking ? 'Link an existing account' : 'First sign-in',
             ),
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 12),
           if (!_linking) ...[
-            FilledButton(
-              onPressed: _busy ? null : () => setState(() => _linking = true),
-              child: Text(_text('关联历史账号', 'Link an existing account')),
-            ),
+            if (_registrationAllowed) ...[
+              FilledButton(
+                onPressed: _busy
+                    ? null
+                    : () => _run(() => _submit(action: 'create')),
+                child: Text(_text('创建新账号', 'Create a new account')),
+              ),
+            ] else ...[
+              Text(
+                _text(
+                  '此服务暂不开放新账号注册。你可以关联已有账号，或暂不登录继续使用。',
+                  'This service is not accepting new accounts. Link an existing account or continue without signing in.',
+                ),
+              ),
+            ],
             const SizedBox(height: 8),
             OutlinedButton(
-              onPressed: _busy
-                  ? null
-                  : () => _run(() => _submit(action: 'create')),
-              child: Text(_text('创建新账号', 'Create a new account')),
+              onPressed: _busy ? null : () => setState(() => _linking = true),
+              child: Text(_text('关联已有账号', 'Link an existing account')),
             ),
           ] else ...[
             if (!_passwordLink) ...[

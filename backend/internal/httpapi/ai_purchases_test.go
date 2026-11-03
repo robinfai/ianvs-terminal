@@ -173,18 +173,36 @@ func TestAIPurchasedBalanceReserveSettleAndDailyReset(t *testing.T) {
 	}
 }
 func TestAIPurchaseHistoryIsolationAndUsageTotals(t *testing.T) {
-	api, _ := purchaseTestAPI(t)
+	api, db := purchaseTestAPI(t)
 	ctx := context.Background()
 	for i, user := range []string{"one", "two"} {
 		id := []string{"123", "456"}[i]
-		if _, err := api.creditApplePurchase(ctx, user, purchaseTransaction(api, user, id)); err != nil {
+		purchase, err := api.creditApplePurchase(ctx, user, purchaseTransaction(api, user, id))
+		if err != nil {
 			t.Fatal(err)
+		}
+		if user == "one" {
+			// The timestamp can contain another transaction's ID. Isolation must
+			// compare structured IDs, not search the entire serialized response.
+			purchase.CreatedAt = time.Date(2026, time.November, 3, 9, 6, 4, 456000000, time.UTC)
+			if err := saveAIPurchase(db, purchase, false); err != nil {
+				t.Fatal(err)
+			}
 		}
 	}
 	w := httptest.NewRecorder()
 	api.aiPurchases(w, httptest.NewRequest("GET", "/", nil), model.User{ID: "one"}, "")
-	if w.Code != 200 || !strings.Contains(w.Body.String(), "123") || strings.Contains(w.Body.String(), "456") {
+	if w.Code != 200 {
 		t.Fatal(w.Body.String())
+	}
+	var history struct {
+		Data []aiPurchase `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &history); err != nil {
+		t.Fatal(err)
+	}
+	if len(history.Data) != 1 || history.Data[0].TransactionID != "123" {
+		t.Fatalf("unexpected purchase history: %+v", history.Data)
 	}
 	w = httptest.NewRecorder()
 	api.aiUsage(w, httptest.NewRequest("GET", "/", nil), model.User{ID: "one"}, "")

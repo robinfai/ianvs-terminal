@@ -70,10 +70,12 @@ function IdentityButtons({apple, google, onProof, busy}: {apple?: AppleWebConfig
   </div>
 }
 
-export function AppleSignIn({ config, googleClientId }: { config?: AppleWebConfig | null; googleClientId?: string }) {
+export function AppleSignIn({ config, googleClientId, allowRegistration = true }: { config?: AppleWebConfig | null; googleClientId?: string; allowRegistration?: boolean }) {
   const session = useSession()
   const [proof,setProof] = useState<Proof | null>(null)
   const [link,setLink] = useState(false)
+  const [registrationRejected,setRegistrationRejected] = useState(false)
+  const canRegister = allowRegistration && !registrationRejected
   const [passwordLink,setPasswordLink] = useState(false)
   const [username,setUsername] = useState('')
   const [password,setPassword] = useState('')
@@ -95,6 +97,7 @@ export function AppleSignIn({ config, googleClientId }: { config?: AppleWebConfi
     } catch (e) {
       if (e instanceof ApiError && e.code==='oauth_account_choice_required') { setProof(identity);return }
       const code=e instanceof ApiError ? e.code : ''
+      if (code === 'apple_registration_disabled') {setRegistrationRejected(true);return}
       setCapacity(code==='auth_session_capacity')
       setError(({
         invalid_credentials:'账号或密码不正确。',
@@ -109,8 +112,8 @@ export function AppleSignIn({ config, googleClientId }: { config?: AppleWebConfi
   }
   return <section className="stack" aria-label="账户登录">
     {!proof ? <IdentityButtons apple={config} google={googleClientId} busy={busy} onProof={p=>submit(p)} /> : <>
-      <h2>{link ? '关联历史账号' : '首次登录'}</h2>
-      {!link ? <><Button variant="primary" disabled={busy} onClick={()=>setLink(true)}>关联历史账号</Button><Button disabled={busy} onClick={()=>void submit(proof,'create')}>创建新账号</Button></> : <>
+      <h2>{link ? '关联已有账号' : '首次登录'}</h2>
+      {!link ? <>{canRegister ? <Button variant="primary" disabled={busy} onClick={()=>void submit(proof,'create')}>创建新账号</Button> : <Notice>此服务暂不开放新账号注册，请关联已有账号。</Notice>}<Button disabled={busy} onClick={()=>setLink(true)}>关联已有账号</Button></> : <>
         {!passwordLink ? <><IdentityButtons apple={proof.provider==='google' ? config : null} google={proof.provider==='apple' ? googleClientId : undefined} busy={busy} onProof={other=>submit(proof,'link',other)} /><Button disabled={busy} onClick={()=>setPasswordLink(true)}>使用账号密码关联</Button></> : <>
           <TextField label="用户名" value={username} disabled={busy} onChange={e=>setUsername(e.target.value)} autoComplete="username" />
           <TextField label="密码" type="password" value={password} disabled={busy} onChange={e=>setPassword(e.target.value)} autoComplete="current-password" />

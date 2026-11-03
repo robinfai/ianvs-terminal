@@ -177,3 +177,34 @@ account identity remained present and repeated manual syncs returned to the
 idle action without failure/conflict controls. The fullscreen-dialog feedback
 regression test also passes (14 sync-panel tests). Healthy-screen evidence:
 `/private/tmp/trail-sync-phone-final-success.png`.
+
+### 2026-11-03: independent OAuth registration and password policy
+
+Production was found with both `allow_registration: false` and
+`password_auth_enabled: false`. The intended policy is now deployed as
+`allow_registration: true` and `password_auth_enabled: false`: verified Apple /
+Google identities may explicitly create accounts, while standalone password login
+and registration remain forbidden. Historical password proof remains available
+only within verified OAuth account linking; existing identities still sign in
+without creating another account.
+
+The health response exposes both non-secret capabilities separately. Flutter and
+Web prioritize account creation over linking for first sign-in and hide creation
+when registration is disabled. Flutter's local-use action explicitly says it
+continues without signing in. Client UI changes require an updated app build;
+existing clients can already retry creation against the updated backend.
+
+Deployed `ianvs-api:oauth-registration-20261103` (image `7b6dcfc7f0ca`) to cloud.
+A loopback-only candidate used SQLite online-backup copies with integrity checks.
+Production retained its live data and original user counts. Public HTTPS checks
+passed for health/capabilities, disabled password endpoints, OAuth challenge and
+forged-identity rejection. These checks do not substitute for real provider
+consent/new-account acceptance on a physical phone.
+
+Private backups are at `/var/backups/ianvs-api/oauth-registration-20261103`.
+The stopped prior container is `ianvs-api-before-registration-20261103`.
+Rollback restores the prior configuration and container, retaining the current
+live database; never replace newer user data with the saved snapshot casually.
+
+Validation: Go full race suite, 10 Web unit tests, 2 browser registration-policy
+flows, 29 Flutter registration/link/startup tests, and targeted static analysis.

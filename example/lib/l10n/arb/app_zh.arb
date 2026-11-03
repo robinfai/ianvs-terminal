@@ -1206,7 +1206,7 @@
   "mobileHidePlaybackControls": "仅查看画面",
   "mobileResetZoom": "还原缩放",
   "mobileReplayZoomHint": "双指缩放，拖动画面查看细节。",
-  "mobileStartLocally": "开始使用",
+  "mobileStartLocally": "暂不登录，开始使用",
   "mobileLocalWelcome": "随时连接你的终端",
   "mobileLocalWelcomeDetail": "连接你的 SSH 服务器。连接配置与偏好保存在本机，也可以稍后设置同步。",
   "mobileSetUpSync": "设置同步",
