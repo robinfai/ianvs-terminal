@@ -302,7 +302,11 @@ void main() {
       );
       try {
         await IOOverrides.runWithIOOverrides(() async {
-          final backend = CodexAcpBackend(configuration);
+          final stages = <AiConnectionStage>[];
+          final backend = CodexAcpBackend(
+            configuration,
+            onConnectionStage: stages.add,
+          );
           final events = <Map<String, Object?>>[];
           try {
             await backend
@@ -313,6 +317,13 @@ void main() {
                   cancellation: AiCancellation(),
                 )
                 .timeout(const Duration(seconds: 15));
+            expect(stages, [
+              AiConnectionStage.launch,
+              AiConnectionStage.handshake,
+              AiConnectionStage.session,
+              AiConnectionStage.model,
+              AiConnectionStage.reply,
+            ]);
             final deadline = DateTime.now().add(const Duration(seconds: 5));
             while (!terminal
                 .viewportFor(terminalSession)

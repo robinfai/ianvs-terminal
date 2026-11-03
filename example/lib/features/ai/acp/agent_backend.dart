@@ -19,3 +19,6 @@ abstract interface class AgentBackend {
 }
 
 typedef AgentBackendFactory = AgentBackend Function(AiConfiguration config);
+
+/// Observable connection operations, never simulated progress.
+enum AiConnectionStage { launch, handshake, session, model, reply, request }
