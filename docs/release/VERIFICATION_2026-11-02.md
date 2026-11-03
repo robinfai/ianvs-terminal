@@ -32,18 +32,32 @@ interactive verification on macOS 14, 15, or 26, or on Intel hardware.
 
 ## Upgrade acceptance
 
+Completed on 2026-11-03 (Asia/Shanghai), using the actual signed GitHub releases.
+
 - The release workflow succeeded and published v0.1.1 (953). Its test-channel
   appcast now advertises 0.1.1; the original 0.1.0 ZIP checksum is unchanged.
-- Cleared only `SULastCheckTime` and launched the original signed 0.1.0. Its
-  process logged successful EdDSA verification of the appcast at 20:06:18 local
-  time, without first using the manual Check for Updates command.
-- A Software Update window is listed in the native Window menu. However,
-  automation currently sees only the terminal window. A later manual check and
-  quit diagnostic did not expose the update/confirmation dialogs to automation.
-  A process sample confirms it is waiting in the quit confirmation's modal loop.
-- Installation/relaunch and the resulting installed version are **not yet
-  verified**. User assistance bringing the dialog forward is pending. Do not
-  describe this as a completed end-to-end upgrade.
+- Cleared only `SULastCheckTime` and relaunched the original signed 0.1.0 in a
+  temporary acceptance directory. Process 95099 logged successful EdDSA
+  appcast verification at 20:29:50 on November 2. Its Software Update window
+  appeared without invoking Check for Updates in this launch.
+- The offer showed 0.1.1 available and 0.1.0 installed. Sparkle downloaded
+  the release and showed Ready to Install.
+- Selected Install and Relaunch, then cancelled Trail's quit confirmation.
+  The same process remained running and the on-disk version remained 0.1.0 (896).
+- Reopened the downloaded update, selected Install and Relaunch, and confirmed
+  Quit. Sparkle replaced the app in the same directory and automatically
+  relaunched it as process 97319. Both Info.plist and the live About window
+  reported **0.1.1 (953)**. No manual bundle replacement or re-signing was used.
+- The updated app passed `codesign --verify --deep --strict`, `stapler validate`,
+  and `spctl --assess --type execute`; Gatekeeper reported Notarized Developer ID.
+- A subsequent Check for Updates displayed “You're up to date” and identified
+  Trail 0.1.1 as the newest available version.
+- Native accessibility automation operated the update/quit dialogs after the
+  window-control tool repeatedly selected the terminal instead of the dialog.
+  Testing used the acceptance copy, not `/Applications/Trail.app`.
+
+![Update offer](evidence-20261103/update-offer-0.1.1.png)
+![Installed version after Sparkle relaunch](evidence-20261103/updated-0.1.1.png)
 
 ## Window activation follow-up
 
@@ -55,4 +69,7 @@ unchanged. This is not included in the already-published 0.1.1 archive.
 
 All 40 local native tests passed, including new regressions for modal priority,
 preserving a visible update window, hidden-window fallback, and keeping Flutter
-as the shutdown target. Actual old-to-new upgrade acceptance remains pending.
+as the shutdown target. The follow-up commit is `0f360cb2` and its
+[macOS Update Checks CI](https://github.com/robinfai/ianvs-terminal/actions/runs/41444169400)
+also passed on macOS 15. The real 0.1.0 → 0.1.1 upgrade above passed; this later
+focus refinement is source-verified and awaits a subsequent release.
