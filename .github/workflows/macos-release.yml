@@ -213,6 +213,7 @@ jobs:
             gh release create "$tag" --draft --target "$RELEASE_COMMIT" --title "Trail $RELEASE_VERSION" "${flags[@]}"
           fi
           gh release upload "$tag" "$RELEASE_OUTPUT/Trail-$RELEASE_VERSION-macOS-universal.zip" \
+            "$RELEASE_OUTPUT/Trail-$RELEASE_VERSION-macOS-universal.dmg" \
             "$RELEASE_OUTPUT/appcast.xml" "$RELEASE_OUTPUT/SHA256SUMS" --clobber
           if [[ "$RELEASE_PRERELEASE" == true ]]; then
             gh release edit "$tag" --draft=false --prerelease --latest=false

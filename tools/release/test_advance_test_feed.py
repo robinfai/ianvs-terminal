@@ -17,6 +17,14 @@ class TestChannelAdvance(unittest.TestCase):
             archive = 'a' * 64 + '  Trail-0.1.0-macOS-universal.zip\n'
             sums.write_text(archive + 'b' * 64 + '  appcast.xml\n')
             self.assertTrue(advance(old, new, sums).startswith(archive))
+            image = 'c' * 64 + '  Trail-0.1.0-macOS-universal.dmg\n'
+            sums.write_text(archive + image + 'b' * 64 + '  appcast.xml\n')
+            self.assertTrue(advance(old, new, sums).startswith(archive + image))
+            for invalid in [image + image, 'invalid  Trail-0.1.0-macOS-universal.dmg\n']:
+                sums.write_text(archive + invalid)
+                with self.subTest(checksums=invalid), self.assertRaises(ValueError):
+                    advance(old, new, sums)
+            sums.write_text(archive + image + 'b' * 64 + '  appcast.xml\n')
             for version, build in [('0.1.0', 701), ('0.1.1', 700), ('0.2.0', 702)]:
                 with self.subTest(version=version, build=build), self.assertRaises(ValueError):
                     advance(old, feed('bad', version, build), sums)
