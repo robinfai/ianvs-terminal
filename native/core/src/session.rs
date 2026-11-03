@@ -60,12 +60,12 @@ mod protocol_callbacks;
 mod protocol_host;
 mod pty_reader;
 mod recording;
-#[cfg(test)]
-mod search_snapshot_tests;
-mod semantic_snapshot;
 mod recording_snapshot;
 mod sampled_recording;
 mod sampled_recording_requests;
+#[cfg(test)]
+mod search_snapshot_tests;
+mod semantic_snapshot;
 pub use sampled_recording::{
     sampled_recording_status, start_sampled_recording, stop_sampled_recording,
 };
