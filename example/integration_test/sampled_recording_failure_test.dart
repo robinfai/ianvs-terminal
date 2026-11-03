@@ -43,6 +43,9 @@ String _hook(Map<String, Object?> value) {
 String _script() => [
   r"printf 'READY-FOR-DISK-FAILURE\n'",
   'while IFS= read -r token; do',
+  // Only the fault command floods the writer. Ordinary input must measure
+  // terminal responsiveness, not another round of fault-injection sleeps.
+  r'if [ "$token" = fault ]; then',
   'n=0',
   r'while [ "$n" -lt 128 ]; do',
   _hook({
@@ -53,6 +56,7 @@ String _script() => [
   'sleep 0.02',
   r'n=$((n + 1))',
   'done',
+  'fi',
   r'''printf '\033[2J\033[HLIVE-AFTER-FAILURE:%s\n' "$token"''',
   'done',
 ].join('\n');
@@ -448,6 +452,11 @@ void main() {
           isTrue,
         );
         expect(tester.testTextInput.hasAnyClients, isTrue);
+        await _wait(
+          tester,
+          () => liveText().contains('LIVE-AFTER-FAILURE:fault'),
+          'fault injection completes before measuring keyboard response',
+        );
         await tester.sendKeyEvent(LogicalKeyboardKey.keyK, character: 'k');
         tester.testTextInput.enterText('k');
         await tester.pump();
@@ -537,6 +546,9 @@ void main() {
           const JsonEncoder.withIndent('  ').convert(report),
           flush: true,
         );
+        if (report['passed'] != true) {
+          debugPrint('RECORDING_FAILURE_DIAGNOSTICS=${jsonEncode(report)}');
+        }
         debugPrint('RECORDING_FAILURE_ACCEPTANCE=${run.path}');
         WidgetController.hitTestWarningShouldBeFatal = previousHitTestPolicy;
       }
