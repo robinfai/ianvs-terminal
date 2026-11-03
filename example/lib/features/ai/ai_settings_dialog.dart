@@ -335,7 +335,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
             _officialModel = widget.settings.officialModel;
             _approvalMode = widget.settings.officialApprovalMode;
             _approvalSensitivity = widget.settings.officialApprovalSensitivity;
-            _tested = false;
+            _connection.invalidate();
           });
         } else {
           _finish(true);
