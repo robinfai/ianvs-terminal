@@ -35,6 +35,7 @@ void main() {
       () async {
         final hostResult = await Process.run('/bin/hostname', const <String>[]);
         expect(hostResult.exitCode, 0);
+        // Fish can report the DNS hostname with different casing than /bin/hostname.
         final expectedHost = hostResult.stdout.toString().trim();
         expect(expectedHost, isNotEmpty);
         final root = await Directory.systemTemp.createTemp('recorded-shell-');
@@ -130,10 +131,12 @@ void main() {
                   (event) =>
                       event.kind == SampledTimelineKind.commandStarted &&
                       event.command == command &&
-                      event.hostname == expectedHost,
+                      event.hostname?.toLowerCase() ==
+                          expectedHost.toLowerCase(),
                 ),
                 hasLength(1),
-                reason: '$shell must preserve exact command text',
+                reason:
+                    '$shell must preserve exact command text and host identity',
               );
               expect(
                 timeline.events.where(
