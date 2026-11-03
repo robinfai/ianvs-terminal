@@ -49,7 +49,7 @@ void main() {
     // declared features are available, including both ZMODEM capabilities.
     expect(capabilities.features, features);
     expect(capabilities.frameSchemaVersions, ['terminal-frame-diff-v1']);
-    expect(capabilities.recordingSchemaVersions, [1]);
+    expect(capabilities.recordingSchemaVersions, [2]);
   });
 
   test(

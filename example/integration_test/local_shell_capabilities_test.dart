@@ -26,8 +26,8 @@ import '../test/support/memory_app_preferences_repository.dart';
 import '../test/support/memory_local_terminal_config_repository.dart';
 import '../test/support/memory_paste_history_repository.dart';
 import '../test/support/memory_profile_repository.dart';
-import '../test/support/no_io_local_session_recording_repository.dart';
 import '../test/support/no_io_local_terminal_layout_repository.dart';
+import '../test/support/no_io_sampled_recording_library.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -79,8 +79,8 @@ void main() {
           localTerminalLayoutRepositoryProvider.overrideWithValue(
             noIoLocalTerminalLayoutRepository(),
           ),
-          localSessionRecordingRepositoryProvider.overrideWithValue(
-            noIoLocalSessionRecordingRepository(),
+          sampledRecordingLibraryProvider.overrideWithValue(
+            noIoSampledRecordingLibrary(),
           ),
         ],
       );

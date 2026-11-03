@@ -5,7 +5,7 @@ import 'dart:io';
 import 'package:app/app.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/pty/pty.dart';
-import 'package:app/features/recording/local_session_recording_repository.dart';
+import 'package:app/features/recording/sampled_recording_library.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/shell/shell_screen.dart';
 import 'package:flutter/widgets.dart';
@@ -41,8 +41,9 @@ void main() {
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           noIoLocalTerminalLayoutRepository(),
         ),
-        localSessionRecordingRepositoryProvider.overrideWithValue(
-          LocalSessionRecordingRepository(
+        sampledRecordingLibraryProvider.overrideWith(
+          (ref) => SampledRecordingLibrary(
+            files: ref.read(sampledRecordingFileApiProvider),
             directoryResolver: () async => scratch,
           ),
         ),

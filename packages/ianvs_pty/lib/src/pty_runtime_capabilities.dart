@@ -6,6 +6,7 @@ const String ptyRuntimeFeatureLocalZshComposerV1 = 'composer-zsh-local.v1';
 
 const int ptyRuntimeCapabilitiesSchemaVersion = 1;
 const String ptyRuntimeContractV1 = 'ianvs-runtime-contract-v1';
+const String ptyRuntimeFeatureSessionRecordingV2 = 'session-recording.v2';
 const String ptyRuntimeFeatureSftpDirectoryListingV1 =
     'ssh-sftp-directory-listing.v1';
 const String ptyRuntimeFeatureSftpFileOperationsV1 =

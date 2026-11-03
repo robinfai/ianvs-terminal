@@ -11,7 +11,7 @@ import 'package:app/features/preferences/app_preferences_models.dart';
 import 'package:app/features/preferences/app_preferences_repository.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/profiles/profile_repository.dart';
-import 'package:app/features/recording/local_session_recording_repository.dart';
+import 'package:app/features/recording/sampled_recording_library.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/sessions/session_ports.dart';
 import 'package:app/features/sessions/session_shutdown.dart';
@@ -23,10 +23,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_test/flutter_test.dart' as testing;
 import 'package:ianvs_pty/ianvs_pty.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart' as terminal;
 
 import '../support/fake_pty_backend.dart';
+import '../support/no_io_sampled_recording_library.dart';
 
 Future<void> _waitForCondition({
   required bool Function() condition,
@@ -282,37 +284,26 @@ class _TransientLocalTerminalLayoutRepository
 }
 
 class _EmptyLocalSessionRecordingRepository
-    extends LocalSessionRecordingRepository {
+    extends NoIoSampledRecordingLibrary {
   @override
-  Future<LocalSessionRecordingRecoveryResult> recoverNativeRecordings() async {
-    return const LocalSessionRecordingRecoveryResult(
-      recoveredPaths: <String>[],
-      pendingJobIds: <String>[],
-      orphanPaths: <String>[],
-      failures: <LocalSessionRecordingRecoveryFailure>[],
-    );
+  Future<SampledRecordingRecovery> recover() async {
+    return const SampledRecordingRecovery(0, 0, []);
   }
 }
 
-class _BlockingRecoveryRecordingRepository
-    extends LocalSessionRecordingRepository {
+class _BlockingRecoveryRecordingRepository extends NoIoSampledRecordingLibrary {
   final Completer<void> recoveryStarted = Completer<void>();
   final Completer<void> allowRecovery = Completer<void>();
   int recoveryAttempts = 0;
 
   @override
-  Future<LocalSessionRecordingRecoveryResult> recoverNativeRecordings() async {
+  Future<SampledRecordingRecovery> recover() async {
     recoveryAttempts += 1;
     if (!recoveryStarted.isCompleted) {
       recoveryStarted.complete();
     }
     await allowRecovery.future;
-    return const LocalSessionRecordingRecoveryResult(
-      recoveredPaths: <String>[],
-      pendingJobIds: <String>[],
-      orphanPaths: <String>[],
-      failures: <LocalSessionRecordingRecoveryFailure>[],
-    );
+    return const SampledRecordingRecovery(0, 0, []);
   }
 }
 
@@ -475,7 +466,7 @@ ProviderContainer _sshReconnectionContainer(
       ),
     ],
   );
-  addTearDown(container.dispose);
+  _registerCleanup(container.dispose);
   return container;
 }
 
@@ -587,12 +578,28 @@ class _DelayedFramePtyBackend extends _CountingPtyBackend {
   }
 }
 
+List<dynamic Function()>? _desktopCleanups;
+void _registerCleanup(dynamic Function() callback) {
+  final cleanups = _desktopCleanups;
+  if (cleanups == null) {
+    testing.addTearDown(callback);
+  } else {
+    cleanups.add(callback);
+  }
+}
+
 void testDesktop(String description, WidgetTesterCallback callback) {
   testWidgets(description, (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    _desktopCleanups = [];
     try {
       await callback(tester);
     } finally {
+      final cleanups = _desktopCleanups!;
+      _desktopCleanups = null;
+      for (final cleanup in cleanups.reversed) {
+        await cleanup();
+      }
       debugDefaultTargetPlatformOverride = null;
     }
   });
@@ -721,7 +728,7 @@ void main() {
           localTerminalLayoutRepositoryProvider.overrideWithValue(
             _TestLocalTerminalLayoutRepository(null),
           ),
-          localSessionRecordingRepositoryProvider.overrideWithValue(
+          sampledRecordingLibraryProvider.overrideWithValue(
             _EmptyLocalSessionRecordingRepository(),
           ),
           sessionPollingEnabledProvider.overrideWithValue(false),
@@ -793,14 +800,14 @@ void main() {
           localTerminalLayoutRepositoryProvider.overrideWithValue(
             _TestLocalTerminalLayoutRepository(null),
           ),
-          localSessionRecordingRepositoryProvider.overrideWithValue(
+          sampledRecordingLibraryProvider.overrideWithValue(
             recordingRepository,
           ),
           sessionPollingEnabledProvider.overrideWithValue(false),
           driverWarmUpRefreshEnabledProvider.overrideWithValue(false),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
       final controller = container.read(sessionControllerProvider.notifier);
       await recordingRepository.recoveryStarted.future;
 
@@ -864,14 +871,14 @@ void main() {
           localTerminalLayoutRepositoryProvider.overrideWithValue(
             _TestLocalTerminalLayoutRepository(null),
           ),
-          localSessionRecordingRepositoryProvider.overrideWithValue(
+          sampledRecordingLibraryProvider.overrideWithValue(
             _EmptyLocalSessionRecordingRepository(),
           ),
           sessionPollingEnabledProvider.overrideWithValue(false),
           driverWarmUpRefreshEnabledProvider.overrideWithValue(false),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
       final controller = container.read(sessionControllerProvider.notifier);
       await configRepository.repairStarted.future;
 
@@ -927,14 +934,14 @@ void main() {
           localTerminalLayoutRepositoryProvider.overrideWithValue(
             _TestLocalTerminalLayoutRepository(null),
           ),
-          localSessionRecordingRepositoryProvider.overrideWithValue(
+          sampledRecordingLibraryProvider.overrideWithValue(
             _EmptyLocalSessionRecordingRepository(),
           ),
           sessionPollingEnabledProvider.overrideWithValue(false),
           driverWarmUpRefreshEnabledProvider.overrideWithValue(false),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
       final controller = container.read(sessionControllerProvider.notifier);
       await profileRepository.loadStarted.future;
 
@@ -974,7 +981,7 @@ void main() {
         sessionControllerProvider.overrideWith(_TestSessionController.new),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
     final controller = container.read(sessionControllerProvider.notifier);
 
     controller.reportRuntimeError('ZMODEM transport failed');
@@ -1004,7 +1011,7 @@ void main() {
     final coreClient = FakePtyBackend();
     final container = ProviderContainer(
       overrides: [
-        localSessionRecordingRepositoryProvider.overrideWithValue(
+        sampledRecordingLibraryProvider.overrideWithValue(
           _EmptyLocalSessionRecordingRepository(),
         ),
         localTerminalConfigRepositoryProvider.overrideWithValue(
@@ -1020,7 +1027,7 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     final controller = container.read(sessionControllerProvider.notifier);
 
@@ -1065,7 +1072,7 @@ void main() {
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
     final controller = container.read(sessionControllerProvider.notifier);
     final runtime = container.read(terminalRuntimeControllerProvider);
 
@@ -1114,7 +1121,7 @@ void main() {
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
       final controller = container.read(sessionControllerProvider.notifier);
       final runtime = container.read(terminalRuntimeControllerProvider);
 
@@ -1157,7 +1164,7 @@ void main() {
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     final controller = container.read(sessionControllerProvider.notifier);
     controller.createSession(defaultTerminalProfile().copyWith(id: 'shell-1'));
@@ -1194,7 +1201,7 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     final controller = container.read(sessionControllerProvider.notifier);
 
@@ -1226,7 +1233,7 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     final controller = container.read(sessionControllerProvider.notifier);
     controller.createSession(defaultTerminalProfile().copyWith(id: 'shell-1'));
@@ -1274,7 +1281,7 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     final controller = container.read(sessionControllerProvider.notifier);
     controller.createSession(defaultTerminalProfile().copyWith(id: 'left'));
@@ -1320,7 +1327,7 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     final controller = container.read(sessionControllerProvider.notifier);
     controller.createSession(defaultTerminalProfile().copyWith(id: 'one'));
@@ -1381,7 +1388,7 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     final controller = container.read(sessionControllerProvider.notifier);
     controller.createSession(defaultTerminalProfile().copyWith(id: 'one'));
@@ -1430,7 +1437,7 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     final controller = container.read(sessionControllerProvider.notifier);
 
@@ -1467,7 +1474,7 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     final controller = container.read(sessionControllerProvider.notifier);
 
@@ -1495,7 +1502,7 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     final controller = container.read(sessionControllerProvider.notifier);
 
@@ -1541,7 +1548,7 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     final controller = container.read(sessionControllerProvider.notifier);
     final profile = defaultTerminalProfile().copyWith(id: 'shell-1');
@@ -1603,7 +1610,7 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     final controller = container.read(sessionControllerProvider.notifier);
     final profile = defaultTerminalProfile().copyWith(id: 'shell-1');
@@ -1656,7 +1663,7 @@ void main() {
           ),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
 
       final controller = container.read(sessionControllerProvider.notifier);
       final profile = defaultTerminalProfile().copyWith(id: 'shell-1');
@@ -1712,7 +1719,7 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     final controller = container.read(sessionControllerProvider.notifier);
     final profile = defaultTerminalProfile().copyWith(id: 'shell-1');
@@ -1763,7 +1770,7 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     final controller = container.read(sessionControllerProvider.notifier);
     final profile = defaultTerminalProfile().copyWith(id: 'shell-1');
@@ -1809,7 +1816,7 @@ void main() {
           ),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
       final controller = container.read(sessionControllerProvider.notifier);
       final runtime = container.read(terminalRuntimeControllerProvider);
       final profile = defaultTerminalProfile().copyWith(id: 'shell-1');
@@ -1865,7 +1872,7 @@ void main() {
           ),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
 
       final controller = container.read(sessionControllerProvider.notifier);
       final profile = defaultTerminalProfile().copyWith(id: 'shell-1');
@@ -1912,7 +1919,7 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     final controller = container.read(sessionControllerProvider.notifier);
     final profile = defaultTerminalProfile().copyWith(id: 'shell-1');
@@ -1961,7 +1968,7 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     final controller = container.read(sessionControllerProvider.notifier);
     final profile = defaultTerminalProfile().copyWith(id: 'shell-1');
@@ -2014,7 +2021,7 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     final controller = container.read(sessionControllerProvider.notifier);
     final profile = defaultTerminalProfile().copyWith(id: 'shell-1');
@@ -2058,7 +2065,7 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     final controller = container.read(sessionControllerProvider.notifier);
     final profile = defaultTerminalProfile().copyWith(id: 'shell-1');
@@ -2110,7 +2117,7 @@ void main() {
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     final controller = container.read(sessionControllerProvider.notifier);
     final runtime = container.read(terminalRuntimeControllerProvider);
@@ -2164,7 +2171,7 @@ void main() {
           ),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
 
       final controller = container.read(sessionControllerProvider.notifier);
       final profile = defaultTerminalProfile().copyWith(id: 'shell-1');
@@ -2210,7 +2217,7 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     final controller = container.read(sessionControllerProvider.notifier);
     controller.createSession(defaultTerminalProfile().copyWith(id: 'shell-1'));
@@ -2281,7 +2288,7 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     final controller = container.read(sessionControllerProvider.notifier);
     controller.createSession(defaultTerminalProfile().copyWith(id: 'shell-1'));
@@ -2319,7 +2326,7 @@ void main() {
           ),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
 
       final controller = container.read(sessionControllerProvider.notifier);
       controller.createSession(
@@ -2371,7 +2378,7 @@ void main() {
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     final controller = container.read(sessionControllerProvider.notifier);
     controller.createSession(defaultTerminalProfile().copyWith(id: 'shell-1'));
@@ -2432,7 +2439,7 @@ void main() {
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     final controller = container.read(sessionControllerProvider.notifier);
     controller.createSession(defaultTerminalProfile().copyWith(id: 'shell-1'));
@@ -2492,7 +2499,7 @@ void main() {
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     Map<String, Object?> frameWithTitle(String title) {
       return <String, Object?>{
@@ -2584,7 +2591,7 @@ void main() {
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     Map<String, Object?> frameWithText(String text) {
       return <String, Object?>{
@@ -2682,7 +2689,7 @@ void main() {
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
     container
         .read(sessionControllerProvider.notifier)
         .createSession(defaultTerminalProfile());
@@ -2949,7 +2956,7 @@ void main() {
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
       final controller = container.read(sessionControllerProvider.notifier);
       final profile = defaultTerminalProfile();
       controller.createSession(profile);
@@ -3050,7 +3057,7 @@ void main() {
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
 
       final controller = container.read(sessionControllerProvider.notifier);
       controller.createSession(
@@ -3141,7 +3148,7 @@ void main() {
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     container
         .read(sessionControllerProvider.notifier)
@@ -3209,7 +3216,7 @@ void main() {
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
 
       final controller = container.read(sessionControllerProvider.notifier);
       controller.createSession(
@@ -3303,7 +3310,7 @@ void main() {
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     final controller = container.read(sessionControllerProvider.notifier);
     controller.createSession(defaultTerminalProfile().copyWith(id: 'legacy'));
@@ -3379,13 +3386,13 @@ void main() {
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
         ),
-        localSessionRecordingRepositoryProvider.overrideWithValue(
+        sampledRecordingLibraryProvider.overrideWithValue(
           _EmptyLocalSessionRecordingRepository(),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     container.read(sessionControllerProvider);
     await tester.pump(const Duration(milliseconds: 50));
@@ -3455,13 +3462,13 @@ void main() {
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
         ),
-        localSessionRecordingRepositoryProvider.overrideWithValue(
+        sampledRecordingLibraryProvider.overrideWithValue(
           _EmptyLocalSessionRecordingRepository(),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     container.read(sessionControllerProvider);
     await tester.pump(const Duration(milliseconds: 50));
@@ -3553,13 +3560,13 @@ void main() {
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
         ),
-        localSessionRecordingRepositoryProvider.overrideWithValue(
+        sampledRecordingLibraryProvider.overrideWithValue(
           _EmptyLocalSessionRecordingRepository(),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     container.read(sessionControllerProvider);
     await tester.pump(const Duration(milliseconds: 50));
@@ -3694,13 +3701,13 @@ void main() {
           localTerminalLayoutRepositoryProvider.overrideWithValue(
             _TestLocalTerminalLayoutRepository(null),
           ),
-          localSessionRecordingRepositoryProvider.overrideWithValue(
+          sampledRecordingLibraryProvider.overrideWithValue(
             _EmptyLocalSessionRecordingRepository(),
           ),
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
 
       container.read(sessionControllerProvider);
       await tester.pump(const Duration(milliseconds: 50));
@@ -3774,13 +3781,13 @@ void main() {
           localTerminalLayoutRepositoryProvider.overrideWithValue(
             _TestLocalTerminalLayoutRepository(null),
           ),
-          localSessionRecordingRepositoryProvider.overrideWithValue(
+          sampledRecordingLibraryProvider.overrideWithValue(
             _EmptyLocalSessionRecordingRepository(),
           ),
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
 
       container.read(sessionControllerProvider);
       await tester.pump(const Duration(milliseconds: 50));
@@ -3853,13 +3860,13 @@ void main() {
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
         ),
-        localSessionRecordingRepositoryProvider.overrideWithValue(
+        sampledRecordingLibraryProvider.overrideWithValue(
           _EmptyLocalSessionRecordingRepository(),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     container.read(sessionControllerProvider);
     await tester.pump(const Duration(milliseconds: 50));
@@ -3962,13 +3969,13 @@ void main() {
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
         ),
-        localSessionRecordingRepositoryProvider.overrideWithValue(
+        sampledRecordingLibraryProvider.overrideWithValue(
           _EmptyLocalSessionRecordingRepository(),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     container.read(sessionControllerProvider);
     await tester.pump(const Duration(milliseconds: 50));
@@ -4026,13 +4033,13 @@ void main() {
           localTerminalLayoutRepositoryProvider.overrideWithValue(
             _TestLocalTerminalLayoutRepository(null),
           ),
-          localSessionRecordingRepositoryProvider.overrideWithValue(
+          sampledRecordingLibraryProvider.overrideWithValue(
             _EmptyLocalSessionRecordingRepository(),
           ),
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
 
       container.read(sessionControllerProvider);
       await tester.pump(const Duration(milliseconds: 50));
@@ -4090,13 +4097,13 @@ void main() {
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
         ),
-        localSessionRecordingRepositoryProvider.overrideWithValue(
+        sampledRecordingLibraryProvider.overrideWithValue(
           _EmptyLocalSessionRecordingRepository(),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     container.read(sessionControllerProvider);
     await tester.pump(const Duration(milliseconds: 50));
@@ -4199,13 +4206,13 @@ void main() {
           localTerminalLayoutRepositoryProvider.overrideWithValue(
             _TestLocalTerminalLayoutRepository(null),
           ),
-          localSessionRecordingRepositoryProvider.overrideWithValue(
+          sampledRecordingLibraryProvider.overrideWithValue(
             _EmptyLocalSessionRecordingRepository(),
           ),
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
 
       container.read(sessionControllerProvider);
       await tester.pump(const Duration(milliseconds: 50));
@@ -4414,13 +4421,13 @@ void main() {
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
         ),
-        localSessionRecordingRepositoryProvider.overrideWithValue(
+        sampledRecordingLibraryProvider.overrideWithValue(
           _EmptyLocalSessionRecordingRepository(),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     container.read(sessionControllerProvider);
     await tester.pump(const Duration(milliseconds: 50));
@@ -4510,13 +4517,13 @@ void main() {
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
         ),
-        localSessionRecordingRepositoryProvider.overrideWithValue(
+        sampledRecordingLibraryProvider.overrideWithValue(
           _EmptyLocalSessionRecordingRepository(),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     container.read(sessionControllerProvider);
     await tester.pump(const Duration(milliseconds: 50));
@@ -4707,13 +4714,13 @@ void main() {
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           _TestLocalTerminalLayoutRepository(null),
         ),
-        localSessionRecordingRepositoryProvider.overrideWithValue(
+        sampledRecordingLibraryProvider.overrideWithValue(
           _EmptyLocalSessionRecordingRepository(),
         ),
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     container.read(sessionControllerProvider);
     await tester.pump(const Duration(milliseconds: 50));
@@ -4866,13 +4873,13 @@ void main() {
           localTerminalLayoutRepositoryProvider.overrideWithValue(
             _TestLocalTerminalLayoutRepository(null),
           ),
-          localSessionRecordingRepositoryProvider.overrideWithValue(
+          sampledRecordingLibraryProvider.overrideWithValue(
             _EmptyLocalSessionRecordingRepository(),
           ),
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
 
       container.read(sessionControllerProvider);
       await tester.pump(const Duration(milliseconds: 50));
@@ -4933,7 +4940,7 @@ void main() {
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
 
       final controller = container.read(sessionControllerProvider.notifier);
       controller.createSession(
@@ -4994,7 +5001,7 @@ void main() {
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
 
       final controller = container.read(sessionControllerProvider.notifier);
       controller.createSession(
@@ -5058,7 +5065,7 @@ void main() {
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     final controller = container.read(sessionControllerProvider.notifier);
     controller.createSession(defaultTerminalProfile().copyWith(id: 'shell-1'));
@@ -5110,7 +5117,7 @@ void main() {
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     final controller = container.read(sessionControllerProvider.notifier);
     controller.createSession(defaultTerminalProfile().copyWith(id: 'shell-1'));
@@ -5160,7 +5167,7 @@ void main() {
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
 
       final clipboardEvents = <terminal.TerminalSessionClipboardEvent>[];
       final subscription = container
@@ -5170,7 +5177,7 @@ void main() {
           .where((event) => event is terminal.TerminalSessionClipboardEvent)
           .cast<terminal.TerminalSessionClipboardEvent>()
           .listen(clipboardEvents.add);
-      addTearDown(subscription.cancel);
+      _registerCleanup(subscription.cancel);
 
       final controller = container.read(sessionControllerProvider.notifier);
       controller.createSession(
@@ -5227,7 +5234,7 @@ void main() {
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     final controller = container.read(sessionControllerProvider.notifier);
     controller.createSession(defaultTerminalProfile().copyWith(id: 'shell-1'));
@@ -5277,7 +5284,7 @@ void main() {
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
     container.read(sessionOsc52PromptControllerProvider).setHandler((
       request,
     ) async {
@@ -5344,7 +5351,7 @@ void main() {
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
 
       final controller = container.read(sessionControllerProvider.notifier);
       controller.createSession(
@@ -5404,7 +5411,7 @@ void main() {
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
     container.read(sessionOsc52PromptControllerProvider).setHandler((
       request,
     ) async {
@@ -5500,7 +5507,7 @@ void main() {
           sessionPollingEnabledProvider.overrideWithValue(false),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
       final controller = container.read(sessionControllerProvider.notifier);
       controller.createSession(
         defaultTerminalProfile().copyWith(id: 'shell-1'),
@@ -5559,7 +5566,7 @@ void main() {
       'iOS startup requires an explicit default profile: $configured',
       () async {
         debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
-        addTearDown(() => debugDefaultTargetPlatformOverride = null);
+        _registerCleanup(() => debugDefaultTargetPlatformOverride = null);
         final container = ProviderContainer(
           overrides: [
             ptySessionBackendProvider.overrideWithValue(_SshStartupBackend()),
@@ -5595,7 +5602,7 @@ void main() {
             ),
           ],
         );
-        addTearDown(container.dispose);
+        _registerCleanup(container.dispose);
         container.read(sessionControllerProvider.notifier);
         await Future<void>.delayed(const Duration(milliseconds: 100));
         final state = container.read(sessionControllerProvider);
@@ -5627,7 +5634,7 @@ void main() {
           ),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
 
       container.read(sessionControllerProvider.notifier);
       await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -5653,7 +5660,7 @@ void main() {
           ),
         ],
       );
-      addTearDown(apiContainer.dispose);
+      _registerCleanup(apiContainer.dispose);
 
       await expectLater(
         apiContainer.read(sessionBootstrapServiceProvider).prepare(),
@@ -5668,7 +5675,7 @@ void main() {
           ),
         ],
       );
-      addTearDown(localContainer.dispose);
+      _registerCleanup(localContainer.dispose);
 
       await expectLater(
         localContainer.read(sessionBootstrapServiceProvider).prepare(),
@@ -5684,7 +5691,7 @@ void main() {
     );
     final container = ProviderContainer(
       overrides: [
-        localSessionRecordingRepositoryProvider.overrideWithValue(
+        sampledRecordingLibraryProvider.overrideWithValue(
           _EmptyLocalSessionRecordingRepository(),
         ),
         localTerminalConfigRepositoryProvider.overrideWithValue(
@@ -5697,7 +5704,7 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     final states = <SessionState>[];
     container.listen<SessionState>(
@@ -5778,7 +5785,7 @@ void main() {
           ),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
 
       container.read(sessionControllerProvider.notifier);
       await _waitForCondition(
@@ -5871,7 +5878,7 @@ void main() {
             ),
           ],
         );
-        addTearDown(container.dispose);
+        _registerCleanup(container.dispose);
 
         container.read(sessionControllerProvider.notifier);
         await _waitForCondition(
@@ -5967,7 +5974,7 @@ void main() {
         ],
       );
       final container = makeContainer();
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
 
       final controller = container.read(sessionControllerProvider.notifier);
       await _waitForCondition(
@@ -5999,7 +6006,7 @@ void main() {
       );
 
       final restarted = makeContainer();
-      addTearDown(restarted.dispose);
+      _registerCleanup(restarted.dispose);
       restarted.read(sessionControllerProvider.notifier);
       await _waitForCondition(
         condition: () => restarted.read(sessionControllerProvider).isReady,
@@ -6043,7 +6050,7 @@ void main() {
           ),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
 
       final controller = container.read(sessionControllerProvider.notifier);
       await _waitForCondition(
@@ -6091,7 +6098,7 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     final controller = container.read(sessionControllerProvider.notifier);
     await _waitForCondition(
@@ -6146,7 +6153,7 @@ void main() {
           ),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
 
       final controller = container.read(sessionControllerProvider.notifier);
       await _waitForCondition(
@@ -6188,7 +6195,7 @@ void main() {
           ),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
 
       final controller = container.read(sessionControllerProvider.notifier);
       await _waitForCondition(
@@ -6211,7 +6218,7 @@ void main() {
     final layoutRepository = _TestLocalTerminalLayoutRepository(null);
     final container = ProviderContainer(
       overrides: [
-        localSessionRecordingRepositoryProvider.overrideWithValue(
+        sampledRecordingLibraryProvider.overrideWithValue(
           _EmptyLocalSessionRecordingRepository(),
         ),
         localTerminalConfigRepositoryProvider.overrideWithValue(
@@ -6233,7 +6240,7 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     final controller = container.read(sessionControllerProvider.notifier);
     await _waitForCondition(
@@ -6270,7 +6277,7 @@ void main() {
     );
     final container = ProviderContainer(
       overrides: [
-        localSessionRecordingRepositoryProvider.overrideWithValue(
+        sampledRecordingLibraryProvider.overrideWithValue(
           _EmptyLocalSessionRecordingRepository(),
         ),
         localTerminalConfigRepositoryProvider.overrideWithValue(
@@ -6283,7 +6290,7 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     final controller = container.read(sessionControllerProvider.notifier);
     await _waitForCondition(
@@ -6327,7 +6334,7 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     container.read(sessionControllerProvider.notifier);
     await _waitForCondition(
@@ -6370,7 +6377,7 @@ void main() {
       );
       final container = ProviderContainer(
         overrides: [
-          localSessionRecordingRepositoryProvider.overrideWithValue(
+          sampledRecordingLibraryProvider.overrideWithValue(
             _EmptyLocalSessionRecordingRepository(),
           ),
           localTerminalConfigRepositoryProvider.overrideWithValue(
@@ -6385,7 +6392,7 @@ void main() {
           ),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
 
       container.read(sessionControllerProvider.notifier);
       await Future<void>.delayed(const Duration(milliseconds: 80));
@@ -6426,7 +6433,7 @@ void main() {
     final coreClient = coreBindings;
     final container = ProviderContainer(
       overrides: [
-        localSessionRecordingRepositoryProvider.overrideWithValue(
+        sampledRecordingLibraryProvider.overrideWithValue(
           _EmptyLocalSessionRecordingRepository(),
         ),
         localTerminalConfigRepositoryProvider.overrideWithValue(
@@ -6444,7 +6451,7 @@ void main() {
         sessionPollingEnabledProvider.overrideWithValue(false),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     container.read(sessionControllerProvider.notifier);
     await Future<void>.delayed(const Duration(milliseconds: 120));
@@ -6471,7 +6478,7 @@ void main() {
       final coreClient = coreBindings;
       final container = ProviderContainer(
         overrides: [
-          localSessionRecordingRepositoryProvider.overrideWithValue(
+          sampledRecordingLibraryProvider.overrideWithValue(
             _EmptyLocalSessionRecordingRepository(),
           ),
           localTerminalConfigRepositoryProvider.overrideWithValue(
@@ -6490,7 +6497,7 @@ void main() {
           driverWarmUpRefreshEnabledProvider.overrideWithValue(true),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
 
       container.read(sessionControllerProvider.notifier);
       await Future<void>.delayed(const Duration(milliseconds: 450));
@@ -6520,7 +6527,7 @@ void main() {
       final coreClient = coreBindings;
       final container = ProviderContainer(
         overrides: [
-          localSessionRecordingRepositoryProvider.overrideWithValue(
+          sampledRecordingLibraryProvider.overrideWithValue(
             _EmptyLocalSessionRecordingRepository(),
           ),
           localTerminalConfigRepositoryProvider.overrideWithValue(
@@ -6539,7 +6546,7 @@ void main() {
           driverWarmUpRefreshEnabledProvider.overrideWithValue(true),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
 
       container.read(sessionControllerProvider.notifier);
       await Future<void>.delayed(const Duration(milliseconds: 450));
@@ -6556,7 +6563,7 @@ void main() {
       final coreClient = coreBindings;
       final container = ProviderContainer(
         overrides: [
-          localSessionRecordingRepositoryProvider.overrideWithValue(
+          sampledRecordingLibraryProvider.overrideWithValue(
             _EmptyLocalSessionRecordingRepository(),
           ),
           localTerminalConfigRepositoryProvider.overrideWithValue(
@@ -6579,7 +6586,7 @@ void main() {
           ),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
 
       container.read(sessionControllerProvider.notifier);
       await Future<void>.delayed(const Duration(milliseconds: 80));
@@ -6624,7 +6631,7 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     container.read(sessionControllerProvider.notifier);
     await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -6660,7 +6667,7 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     container.read(sessionControllerProvider.notifier);
     await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -6712,7 +6719,7 @@ void main() {
           localTerminalConfigRepositoryProvider.overrideWithValue(config),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
       final controller = container.read(sessionControllerProvider.notifier);
       await Future<void>.delayed(const Duration(milliseconds: 50));
       final first = container
@@ -6787,7 +6794,7 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     container.read(sessionControllerProvider.notifier);
     await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -6825,7 +6832,7 @@ void main() {
           ),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
 
       container.read(sessionControllerProvider.notifier);
       await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -6872,7 +6879,7 @@ void main() {
           ),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
 
       container.read(sessionControllerProvider.notifier);
       await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -6931,7 +6938,7 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     final controller = container.read(sessionControllerProvider.notifier);
     await _waitForCondition(
@@ -6978,7 +6985,7 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     final controller = container.read(sessionControllerProvider.notifier);
     await _waitForCondition(
@@ -7029,7 +7036,7 @@ void main() {
           ),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
 
       container.read(sessionControllerProvider.notifier);
       await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -7094,7 +7101,7 @@ void main() {
           ),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
 
       container.read(sessionControllerProvider.notifier);
       await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -7130,7 +7137,7 @@ void main() {
       );
       final container = ProviderContainer(
         overrides: [
-          localSessionRecordingRepositoryProvider.overrideWithValue(
+          sampledRecordingLibraryProvider.overrideWithValue(
             _EmptyLocalSessionRecordingRepository(),
           ),
           localTerminalConfigRepositoryProvider.overrideWithValue(
@@ -7144,7 +7151,7 @@ void main() {
           ),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
 
       await Future<void>.delayed(const Duration(milliseconds: 10));
       final controller = container.read(sessionControllerProvider.notifier);
@@ -7186,7 +7193,7 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     await Future<void>.delayed(const Duration(milliseconds: 10));
     final controller = container.read(sessionControllerProvider.notifier);
@@ -7226,7 +7233,7 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
 
     final controller = container.read(sessionControllerProvider.notifier);
     await Future<void>.delayed(const Duration(milliseconds: 60));
@@ -7267,7 +7274,7 @@ void main() {
           ),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
 
       final controller = container.read(sessionControllerProvider.notifier);
       await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -7326,7 +7333,7 @@ void main() {
           ),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
 
       final controller = container.read(sessionControllerProvider.notifier);
       await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -7380,7 +7387,7 @@ void main() {
           ),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
 
       final controller = container.read(sessionControllerProvider.notifier);
       await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -7442,7 +7449,7 @@ void main() {
           ),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
       final controller = container.read(sessionControllerProvider.notifier);
       controller.createSession(profile);
       final id = container.read(sessionControllerProvider).activeSessionId!;
@@ -7670,7 +7677,7 @@ void main() {
       ),
     );
     final container = _sshReconnectionContainer(bindings, profile);
-    addTearDown(container.dispose);
+    _registerCleanup(container.dispose);
     final controller = container.read(sessionControllerProvider.notifier);
     final background = controller.createSession(profile)!;
     final active = controller.createSession(profile)!;
@@ -7777,7 +7784,7 @@ void main() {
           ),
         ],
       );
-      addTearDown(container.dispose);
+      _registerCleanup(container.dispose);
 
       final controller = container.read(sessionControllerProvider.notifier);
       controller.createSession(sshProfile);

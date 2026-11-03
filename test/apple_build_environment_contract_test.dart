@@ -351,13 +351,13 @@ exit 73
   });
 
   test('iOS ABI verification ignores the Xcode debug stub executable', () {
-    final source = File('tools/verify_ios_simulator.sh').readAsStringSync();
-
-    expect(source, contains(r'link_images=("$executable")'));
-    expect(
-      source,
-      contains(r'link_images=("$ios_app/$executable_name.debug.dylib")'),
-    );
+    final caller = File('tools/verify_ios_simulator.sh').readAsStringSync();
+    final source = File(
+      'tools/verify_ios_native_exports.sh',
+    ).readAsStringSync();
+    expect(caller, contains('tools/verify_ios_native_exports.sh'));
+    expect(source, contains(r'if [[ -f "$app/$name.debug.dylib" ]]'));
+    expect(source, contains(r'image="$app/$name.debug.dylib"'));
   });
 
   test('iOS Rust build separates host and target Apple SDK roots', () {

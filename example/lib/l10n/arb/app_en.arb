@@ -3793,7 +3793,6 @@
     }
   },
   "developmentMasterKeyStorageDescription": "The development master key is stored in a local file accessible only to your user account. It does not access Keychain, sync to iCloud, or share storage with the release app.",
-  "acceptanceDeviceOnlyMasterKeyStorageDescription": "This acceptance build keeps its master key in this device''s Keychain. It does not sync to iCloud or share the release app''s key. Encrypted data cannot be restored on another device.",
   "syncLocalOnly": "Saved on this device. API sync is optional.",
   "syncUpToDate": "Sync is ready.",
   "syncInProgress": "Merging and syncing…",
@@ -4080,6 +4079,120 @@
   },
   "mobileCapabilitiesPendingHelp": "Pending capabilities have no initialization check or observed event evidence yet.",
   "mobileExternalKeyboardHelp": "Use these shortcuts with an external keyboard. Tap a binding to edit it and choose its scope while recording.",
+  "sampledRecordingDisclosure": "Sampled screens and observed commands; brief output or commands without hooks may be missing.",
+  "sampledRecordingInterrupted": "Recording interrupted",
+  "sampledTimelineFirst": "First command page",
+  "sampledTimelinePrevious": "Previous command page",
+  "sampledTimelineNext": "Next command page",
+  "sampledTimelineEmpty": "No command events on this page. Screens remain available when shell hooks are missing.",
+  "sampledHookUnavailable": "Command tracking unavailable",
+  "sampledHookAvailable": "Command tracking available",
+  "sampledCommandStarted": "Started",
+  "sampledCommandExit": "Exit {code}",
+  "@sampledCommandExit": {
+    "placeholders": {
+      "code": {
+        "type": "int"
+      }
+    }
+  },
+  "recordingSearchTitle": "Search recordings",
+  "recordingSearchCoverage": "Search saved hook commands and sampled screen text. Active recordings and unsampled output are not included.",
+  "recordingSearchQuery": "Command or screen text",
+  "recordingSearchHost": "Host, including nested SSH",
+  "recordingSearchAll": "Commands and screen text",
+  "recordingSearchCommands": "Commands only",
+  "recordingSearchScreens": "Screen text only",
+  "recordingSearchDates": "Recording dates",
+  "recordingSearchClearFilters": "Clear filters",
+  "recordingSearchProgress": "Searching recordings: {scanned} of {total}",
+  "recordingSearchSkipped": "{count} recordings could not be searched",
+  "recordingSearchEmpty": "No matching saved text. Try another phrase or wider filters.",
+  "recordingSearchHint": "Enter text or choose a filter. Select a result to open its recorded moment.",
+  "recordingSearchUnknownHost": "Unknown host",
+  "recordingSearchFirstPage": "First search page",
+  "recordingSearchPreviousPage": "Previous search page",
+  "recordingSearchNextPage": "Next search page",
+  "recordingSearchPage": "Page {page}",
+  "@recordingSearchProgress": {
+    "placeholders": {
+      "scanned": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "@recordingSearchSkipped": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "@recordingSearchPage": {
+    "placeholders": {
+      "page": {
+        "type": "int"
+      }
+    }
+  },
+  "recordingRetentionTitle": "Recording retention",
+  "recordingRetentionExplanation": "Ordinary recordings are cleaned up by both age and total storage. Kept, active and open recordings are protected. If protected files fill the budget, new recording cannot start.",
+  "recordingRetentionUsage": "Library currently uses {gib} GiB.",
+  "recordingRetentionDays": "Retention days",
+  "recordingRetentionCapacity": "Storage budget (GiB)",
+  "recordingRetentionDaysError": "Enter a whole number from 1 to 36500.",
+  "recordingRetentionCapacityError": "Enter a positive storage limit below 8388608 GiB.",
+  "recordingRetentionApplyWarning": "Saving applies cleanup immediately. Deleted recordings cannot be recovered. Existing NDJSON files are not managed by this policy.",
+  "recordingRetentionSave": "Save and apply",
+  "recordingRetentionApplying": "Applying…",
+  "recordingRetentionLoadError": "Could not read settings or storage usage. Review the displayed values before saving to replace the settings. {detail}",
+  "recordingRetentionApplyError": "Could not finish applying cleanup. Settings may already be saved; retry after resolving this problem. {detail}",
+  "recordingKeep": "Keep recording",
+  "recordingUnkeep": "Allow automatic cleanup",
+  "recordingKept": "Kept",
+  "recordingDeleteTitle": "Delete recording?",
+  "recordingDeleteWarning": "Permanently delete “{name}”, including its recorded screens, commands and assets? This cannot be undone.",
+  "recordingDeleteInUse": "Close replay before deleting",
+  "recordingManageError": "Could not update the recording: {detail}",
+  "@recordingRetentionUsage": {
+    "placeholders": {
+      "gib": {
+        "type": "String"
+      }
+    }
+  },
+  "@recordingRetentionLoadError": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
+  "@recordingRetentionApplyError": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
+  "@recordingDeleteWarning": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "@recordingManageError": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
+  "acceptanceDeviceOnlyMasterKeyStorageDescription": "This acceptance build keeps its master key in this device''s Keychain. It does not sync to iCloud or share the release app''s key. Encrypted data cannot be restored on another device.",
   "terminalModeNormal": "Normal terminal",
   "terminalModeBlocks": "Block + AI",
   "terminalModeRecheck": "Recheck Command Block support",

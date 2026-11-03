@@ -319,6 +319,12 @@ pub fn request_session(
                 "blockId":block.map(command_blocks::identity),
                 "running":block.map(|z| z.is_open()), "exitCode":block.and_then(|z| z.exit_code)}))
         }
+        "terminal.sampled_recording_start"
+        | "terminal.sampled_recording_status"
+        | "terminal.sampled_recording_stop"
+        | "terminal.sampled_recording_release" => request_json_response(
+            sampled_recording_requests::request(session_id, operation, request),
+        ),
         "ssh.sftp.list_directory_start" => {
             let Some(path) = request
                 .get("path")

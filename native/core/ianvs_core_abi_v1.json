@@ -13,6 +13,7 @@
   "functions": {
     "ianvs_bytes_free": "void ianvs_bytes_free(uint8_t *ptr, uintptr_t len);",
     "ianvs_ping": "int ianvs_ping(void);",
+    "ianvs_recording_file_request_v2_json": "char *ianvs_recording_file_request_v2_json(const char *request_json);",
     "ianvs_replay_session_checkpoint_capture": "uint64_t ianvs_replay_session_checkpoint_capture(uint64_t session_id);",
     "ianvs_replay_session_checkpoint_restore": "int ianvs_replay_session_checkpoint_restore(uint64_t session_id, uint64_t checkpoint_id);",
     "ianvs_replay_session_create_v1": "uint64_t ianvs_replay_session_create_v1(const char *session_config_json);",

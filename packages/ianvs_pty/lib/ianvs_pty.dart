@@ -5,4 +5,5 @@ export 'src/pty_host_request_v1.dart';
 export 'src/pty_runtime_capabilities.dart';
 export 'src/pty_runtime_envelope.dart';
 export 'src/pty_session_request_v1.dart';
+export 'src/recording_file_api.dart';
 export 'src/ssh_config_importer.dart';

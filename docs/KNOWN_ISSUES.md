@@ -18,11 +18,13 @@
 - benchmark smoke 覆盖正确性和轻量时延门槛；CPU/RSS 阈值需要安静宿主运行，尚无跨机器长期对比基线。
 - SSH 自动化覆盖认证、ProxyJump、host-key 与转发；更宽的服务器版本、发行版和真实网络环境仍需验证。
 - 字体/DPI、Unicode cluster、Powerline / Nerd Font 的实际观感，以及 trackpad 和宿主快捷键，需要[人工检查](compatibility/MANUAL_VERIFICATION.md)。
-- 长录制的容量、内存与快照恢复改进见[录制存储提案](recording/STORAGE_PROPOSAL.md)，尚未实施。
+- 录制四批次已按用户修订的约两小时范围完成验收：连续录制 1 小时 54 分 43 秒，独立回放、搜索、定位、文件校验及资源审查通过。末尾超时已复现为测试工具发送的 Escape 进入 Bash，与下一条命令首字母 p 触发历史搜索；改用菜单 Cancel 后，短对照的录制、正常保存与新进程重开全部通过。原始失败报告保留，不宣称 24 小时稳定性。首次搜索准备约需 9–12 秒；详见[验收结果及限制](recording/ACCEPTANCE_RESULT.md)。
 
-## 当前门禁阻塞
+- Bash 的 DEBUG hook 可能只报告复合输入行的首个简单命令；录制不会从按键或画面补造其余命令。内置 Bash/Zsh/Fish hook 已补充安装时获取的主机名；未提供主机元数据的其他 hook 仍无法按主机筛选，完整应用短测已覆盖实际嵌套 SSH 主机切换及跨录制主机筛选；实际约两小时录制与独立重开已结束，尾部超时已复现并归因为外部测试按键干扰。
 
-- 本机 CLT 27 SDK 与链接器不匹配。命令级指定 Xcode 26.2 的 `SDKROOT` 可避开该链接错误，不需改项目配置。
+## 环境与其他平台限制
+
+- 本机 CLT 27 SDK 与链接器不匹配。命令级指定 Xcode 26.2 的 `SDKROOT` 可避开该链接错误，不需改项目配置。 当前录制实现的完整 macOS 门禁已通过，见录制验收结果。
 - 工作区 iOS Bundle ID / signing 设置与 Apple identity 合同不一致；Runner simulator destination 匹配失败使本地优先启动 gate 尚未运行到断言。
 - macOS 视觉 golden 位于 `example/test/design/goldens/`，使用共享字体配置与精确像素比较；运行环境的 Flutter 和系统字体版本差异仍可能影响结果。
 

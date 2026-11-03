@@ -12,6 +12,7 @@ import '../test/support/fake_pty_backend.dart';
 import '../test/support/macos_integration_test_lifecycle.dart';
 import '../test/support/memory_app_preferences_repository.dart';
 import '../test/support/memory_profile_repository.dart';
+import '../test/support/no_io_sampled_recording_library.dart';
 
 Future<void> _pumpSmokeApp(
   WidgetTester tester, {
@@ -25,6 +26,9 @@ Future<void> _pumpSmokeApp(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        sampledRecordingLibraryProvider.overrideWithValue(
+          noIoSampledRecordingLibrary(),
+        ),
         ptySessionBackendProvider.overrideWithValue(fakeBindings),
         profileRepositoryProvider.overrideWithValue(repository),
         appPreferencesRepositoryProvider.overrideWithValue(

@@ -104,6 +104,15 @@ PROFILE=debug "$ROOT_DIR/tools/build_core.sh"
   flutter test -d macos integration_test/composer_acceptance_test.dart
   flutter test -d macos integration_test/desktop_unified_workspace_test.dart
   flutter test -d macos integration_test/ai_streaming_acceptance_test.dart
+  IANVS_CORE_LIB="$CORE_DIR/target/debug/libianvs_core.dylib" \
+    flutter test -d macos integration_test/sampled_recording_acceptance_test.dart \
+      "--dart-define=IANVS_RECORDING_ACCEPTANCE_OUTPUT=$ROOT_DIR/build/recording_bench/adaptive/macos-ui"
+  IANVS_CORE_LIB="$CORE_DIR/target/debug/libianvs_core.dylib" \
+    flutter test -d macos integration_test/sampled_recording_failure_test.dart \
+      "--dart-define=IANVS_RECORDING_FAILURE_OUTPUT=$ROOT_DIR/build/recording_bench/adaptive/macos-disk-full"
+  IANVS_CORE_LIB="$CORE_DIR/target/debug/libianvs_core.dylib" \
+    flutter test -d macos integration_test/sampled_recording_retention_test.dart \
+      "--dart-define=IANVS_RECORDING_RETENTION_OUTPUT=$ROOT_DIR/build/recording_bench/adaptive/macos-retention"
   flutter test -d macos \
     integration_test/macos_keychain_profile_secret_test.dart
   flutter build macos --debug

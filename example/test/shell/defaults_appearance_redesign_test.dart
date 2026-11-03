@@ -262,7 +262,10 @@ void main() {
       onSelection: (_) {},
     );
     expect(find.byKey(const Key('defaults-ai-settings')), findsOneWidget);
-    expect(find.byKey(const Key('defaults-ai-connection-status')), findsNothing);
+    expect(
+      find.byKey(const Key('defaults-ai-connection-status')),
+      findsNothing,
+    );
     store.pending.completeError(StateError('unreadable fixture'));
     await tester.pumpAndSettle();
     expect(

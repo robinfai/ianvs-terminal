@@ -4295,10 +4295,6 @@ class AppLocalizationsZh extends AppLocalizations {
       '开发版主密钥存储在仅当前用户可读写的本地文件中，不访问钥匙串，不同步到 iCloud，也不与正式版共享。';
 
   @override
-  String get acceptanceDeviceOnlyMasterKeyStorageDescription =>
-      '验收版主密钥仅保存在此设备的钥匙串中，不同步到 iCloud、不与正式版共享。加密数据无法在其他设备上恢复。';
-
-  @override
   String get syncLocalOnly => '数据保存在本机，API 同步为可选功能。';
 
   @override
@@ -4991,6 +4987,173 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String get mobileExternalKeyboardHelp =>
       '连接外接键盘后可使用这些快捷键。点按组合键可修改，作用范围在录制时设置。';
+
+  @override
+  String get sampledRecordingDisclosure =>
+      '保存采样画面和已捕获命令；短暂输出及无 hook 的命令可能未被记录。';
+
+  @override
+  String get sampledRecordingInterrupted => '录制已中断';
+
+  @override
+  String get sampledTimelineFirst => '命令首页';
+
+  @override
+  String get sampledTimelinePrevious => '上一页命令';
+
+  @override
+  String get sampledTimelineNext => '下一页命令';
+
+  @override
+  String get sampledTimelineEmpty => '当前页没有命令事件。缺少 shell hook 时仍可查看采样画面。';
+
+  @override
+  String get sampledHookUnavailable => '命令追踪不可用';
+
+  @override
+  String get sampledHookAvailable => '命令追踪已恢复';
+
+  @override
+  String get sampledCommandStarted => '开始执行';
+
+  @override
+  String sampledCommandExit(int code) {
+    return '退出状态 $code';
+  }
+
+  @override
+  String get recordingSearchTitle => '搜索录制';
+
+  @override
+  String get recordingSearchCoverage =>
+      '搜索已保存的 hook 命令和采样屏幕文字；不包含正在录制的会话或未采样输出。';
+
+  @override
+  String get recordingSearchQuery => '命令或屏幕文字';
+
+  @override
+  String get recordingSearchHost => '主机（包含嵌套 SSH）';
+
+  @override
+  String get recordingSearchAll => '命令和屏幕文字';
+
+  @override
+  String get recordingSearchCommands => '仅命令';
+
+  @override
+  String get recordingSearchScreens => '仅屏幕文字';
+
+  @override
+  String get recordingSearchDates => '录制日期';
+
+  @override
+  String get recordingSearchClearFilters => '清除筛选';
+
+  @override
+  String recordingSearchProgress(int scanned, int total) {
+    return '正在搜索录制：$scanned / $total';
+  }
+
+  @override
+  String recordingSearchSkipped(int count) {
+    return '$count 份录制暂时无法搜索';
+  }
+
+  @override
+  String get recordingSearchEmpty => '没有匹配的已存文字。可以尝试其他关键词或扩大筛选范围。';
+
+  @override
+  String get recordingSearchHint => '输入文字或选择筛选条件，点击结果可回到对应的录制时刻。';
+
+  @override
+  String get recordingSearchUnknownHost => '主机未知';
+
+  @override
+  String get recordingSearchFirstPage => '搜索首页';
+
+  @override
+  String get recordingSearchPreviousPage => '搜索上一页';
+
+  @override
+  String get recordingSearchNextPage => '搜索下一页';
+
+  @override
+  String recordingSearchPage(int page) {
+    return '第 $page 页';
+  }
+
+  @override
+  String get recordingRetentionTitle => '录制保留设置';
+
+  @override
+  String get recordingRetentionExplanation =>
+      '普通录制按保留时间和总容量自动清理。已标记保留、正在录制或读取的内容受到保护；受保护内容占满容量时，无法开始新录制。';
+
+  @override
+  String recordingRetentionUsage(String gib) {
+    return '录制库当前占用 $gib GiB。';
+  }
+
+  @override
+  String get recordingRetentionDays => '保留天数';
+
+  @override
+  String get recordingRetentionCapacity => '容量上限（GiB）';
+
+  @override
+  String get recordingRetentionDaysError => '请输入 1 到 36500 之间的整数。';
+
+  @override
+  String get recordingRetentionCapacityError => '请输入大于 0、小于 8388608 GiB 的容量。';
+
+  @override
+  String get recordingRetentionApplyWarning =>
+      '保存后立即执行清理，删除的录制无法恢复。此策略不管理已有 NDJSON 文件。';
+
+  @override
+  String get recordingRetentionSave => '保存并应用';
+
+  @override
+  String get recordingRetentionApplying => '正在应用…';
+
+  @override
+  String recordingRetentionLoadError(String detail) {
+    return '无法读取设置或占用空间。保存会替换设置，请先检查当前显示的数值。$detail';
+  }
+
+  @override
+  String recordingRetentionApplyError(String detail) {
+    return '清理未能完成，设置可能已经保存。请解决问题后重试。$detail';
+  }
+
+  @override
+  String get recordingKeep => '保留录制';
+
+  @override
+  String get recordingUnkeep => '允许自动清理';
+
+  @override
+  String get recordingKept => '已保留';
+
+  @override
+  String get recordingDeleteTitle => '删除录制？';
+
+  @override
+  String recordingDeleteWarning(String name) {
+    return '永久删除“$name”及其录制画面、命令和资源？此操作无法撤销。';
+  }
+
+  @override
+  String get recordingDeleteInUse => '请先关闭回放再删除';
+
+  @override
+  String recordingManageError(String detail) {
+    return '无法更新录制：$detail';
+  }
+
+  @override
+  String get acceptanceDeviceOnlyMasterKeyStorageDescription =>
+      '验收版主密钥仅保存在此设备的钥匙串中，不同步到 iCloud、不与正式版共享。加密数据无法在其他设备上恢复。';
 
   @override
   String get terminalModeNormal => '普通终端';

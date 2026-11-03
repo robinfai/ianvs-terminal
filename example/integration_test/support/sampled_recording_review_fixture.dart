@@ -1,0 +1,120 @@
+// Rust-generated reader responses, embedded for device-only design review.
+// Source: native/core/tests/fixtures/recording/sampled_file_v2.json.
+import 'dart:convert';
+
+Map<String, dynamic> sampledRecordingReviewFixture() =>
+    jsonDecode('''
+{
+  "inspect": {
+    "completion": "finished",
+    "error": null,
+    "metadata": {
+      "hostname": "fixture.local",
+      "recording_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "started_at_unix_millis": 1790438400000,
+      "title": "采样回放 fixture"
+    },
+    "source_bytes": 8101,
+    "summary": {
+      "duration_micros": 10001000,
+      "record_count": 33,
+      "semantic_count": 22,
+      "visual_count": 11
+    },
+    "verified_bytes": 8101
+  },
+  "seek": {
+    "screen": {
+      "assets": [
+        {
+          "asset_id": 3,
+          "asset_version": 1,
+          "digest": [
+            127,
+            24,
+            154,
+            38,
+            14,
+            232,
+            9,
+            198,
+            149,
+            12,
+            45,
+            90,
+            196,
+            174,
+            201,
+            3,
+            81,
+            246,
+            112,
+            5,
+            9,
+            215,
+            12,
+            40,
+            14,
+            232,
+            243,
+            231,
+            5,
+            213,
+            122,
+            240
+          ],
+          "height": 1,
+          "width": 2
+        }
+      ],
+      "frame_base64": "ChZ0ZXJtaW5hbC1mcmFtZS1kaWZmLXYxEAEaDRILZnJhbWUgNiDpm6oaHggBEhpjb3BpYWJsZSBzdHJ1Y3R1cmVkIHNjcmVlbiIAMAI4UIIBAKoBIQgBEAEaBAgDEAEiBWtpdHR5KAEwKDgCQAFIAlABYAJwAQ==",
+      "offset_micros": 6000000,
+      "sequence": 6
+    }
+  },
+  "timeline": {
+    "events": [
+      {
+        "command": "printf '%s' 'quoted 雪-0'",
+        "command_id": "c0",
+        "context_id": "root",
+        "cwd": "/tmp/fixture",
+        "exit_code": null,
+        "hostname": "fixture.local",
+        "kind": "command_started",
+        "offset_micros": 100
+      },
+      {
+        "command": "printf '%s' 'quoted 雪-0'",
+        "command_id": "c0",
+        "context_id": "root",
+        "cwd": "/tmp/fixture",
+        "exit_code": 7,
+        "hostname": "fixture.local",
+        "kind": "command_finished",
+        "offset_micros": 500
+      },
+      {
+        "command": "printf '%s' 'quoted 雪-1'",
+        "command_id": "c1",
+        "context_id": "root",
+        "cwd": "/tmp/fixture",
+        "exit_code": null,
+        "hostname": "fixture.local",
+        "kind": "command_started",
+        "offset_micros": 1000100
+      }
+    ],
+    "next_cursor": 754
+  },
+  "asset": {
+    "asset_id": 3,
+    "asset_version": 1,
+    "height": 1,
+    "rgba_base64": "/wAA/wD/AP8=",
+    "width": 2
+  }
+}
+
+''')
+        as Map<String, dynamic>;

@@ -8,7 +8,7 @@ import 'package:app/features/ai/terminal_ai_controller.dart';
 import 'package:app/features/ai/terminal_ai_workspace.dart';
 import 'package:app/features/config/local_terminal_config_models.dart';
 import 'package:app/features/profiles/profile_models.dart';
-import 'package:app/features/recording/local_session_recording_repository.dart';
+import 'package:app/features/recording/sampled_recording_library.dart';
 import 'package:app/features/sessions/session_controller.dart';
 import 'package:app/features/sessions/session_state.dart';
 import 'package:app/features/shell/shell_action_registry.dart';
@@ -28,8 +28,9 @@ import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_local_terminal_config_repository.dart';
 import '../support/memory_paste_history_repository.dart';
 import '../support/memory_profile_repository.dart';
-import '../support/no_io_local_session_recording_repository.dart';
 import '../support/no_io_local_terminal_layout_repository.dart';
+import '../support/no_io_sampled_recording_library.dart';
+import '../support/sampled_recording_backend.dart';
 
 class _Store implements AiConfigurationStore {
   @override
@@ -122,119 +123,95 @@ class _Backend extends FakePtyBackend {
   }
 }
 
-class _RecordingBackend extends _Backend {
-  @override
-  String? requestSessionJson(String sessionId, String requestJson) {
-    final request = jsonDecode(requestJson) as Map<String, Object?>;
-    switch (request['kind']) {
-      case 'terminal.recording_start':
-        return jsonEncode({
-          'ok': true,
-          'max_events': 4096,
-          'max_payload_bytes': 8 * 1024 * 1024,
-        });
-      case 'terminal.recording_stop_prepare':
-        final job = request['job_id']! as String;
-        final directory = request['handoff_directory']! as String;
-        final path = '$directory/.ianvs-recording-handoff-$job.ndjson';
-        return jsonEncode({
-          'ok': true,
-          'job_id': job,
-          'handoff_path': path,
-          'error_path': '$path.error.json',
-        });
-    }
-    return super.requestSessionJson(sessionId, requestJson);
-  }
+class _RecordingBackend extends _Backend with SampledTestCapture {}
+
+Future<T?> _recordingIo<T>(WidgetTester tester, Future<T> Function() action) =>
+    action();
+
+bool _hasRecordingIo = false;
+void _testWithRecordingIo(
+  String description,
+  Future<void> Function(WidgetTester) body,
+) {
+  testWidgets(description, (tester) async {
+    await tester.runAsync(() async {
+      _hasRecordingIo = true;
+      try {
+        await body(tester);
+      } finally {
+        _hasRecordingIo = false;
+      }
+    });
+  });
 }
 
-// Exercise the production recording close gate without filesystem timing.
-class _BlockingRecordingRepository extends LocalSessionRecordingRepository
-    with NoIoLocalSessionRecordingRecovery {
-  _BlockingRecordingRepository()
-    : super(directoryResolver: () async => throw StateError('Unexpected I/O'));
-
+class _BlockingRecordingRepository extends SampledRecordingLibrary {
+  _BlockingRecordingRepository(this.tester)
+    : super(
+        files: NoSampledFileReads(),
+        directoryResolver: () async =>
+            Directory.systemTemp.createTempSync('recording-close-test-'),
+      );
+  final WidgetTester tester;
   final saveStarted = Completer<void>();
   final allowSave = Completer<void>();
   bool rejectSave = false;
 
   @override
-  Future<LocalSessionRecordingDestination> reserve({
-    required String runtimeSessionId,
-    required DateTime createdAtUtc,
-  }) async => LocalSessionRecordingDestination(
-    File('/unused-recording-fixture/$runtimeSessionId.ndjson'),
-    reservationNonce: '0123456789abcdef0123456789abcdef',
-  );
-
+  Future<SampledRecordingRecovery> recover() async =>
+      const SampledRecordingRecovery(0, 0, []);
   @override
-  Future<Directory> ensureNativeHandoffDirectory() async =>
-      Directory('/unused-recording-fixture/handoff');
-
+  Future<void> applyRetention() async {}
   @override
-  Future<TerminalRecordingFinalizeJob> reserveNativeRecordingJob({
+  Future<SampledRecordingClaim> reserve({
     required String sessionId,
-    required Directory handoffDirectory,
-    required LocalSessionRecordingDestination destination,
-    required List<TerminalRecordingSemanticEvent> semanticEvents,
-    String? displayName,
-  }) async {
-    const id = 'abcdef0123456789abcdef0123456789';
-    final path = '${handoffDirectory.path}/.ianvs-recording-handoff-$id.ndjson';
-    return TerminalRecordingFinalizeJob(
+    required int sessionEpoch,
+    required String title,
+    String? hostname,
+  }) async => (await _recordingIo(
+    tester,
+    () => super.reserve(
       sessionId: sessionId,
-      jobId: id,
-      handoffPath: path,
-      errorPath: '$path.error.json',
-    );
+      sessionEpoch: sessionEpoch,
+      title: title,
+      hostname: hostname,
+    ),
+  ))!;
+  @override
+  Future<SampledCaptureStatus> start(
+    SampledRecordingClaim claim,
+    SampledRecordingCaptureClient client,
+  ) async => (await _recordingIo(tester, () => super.start(claim, client)))!;
+  @override
+  Future<void> update(
+    SampledRecordingClaim claim,
+    SampledCaptureStatus status,
+  ) async {
+    await _recordingIo(tester, () => super.update(claim, status));
   }
 
   @override
-  void markNativeRecordingCaptureStartedSynchronously({
-    required TerminalRecordingFinalizeJob job,
-    required Directory handoffDirectory,
-  }) {}
-
-  @override
-  void prepareNativeRecordingJobMetadataSynchronously({
-    required TerminalRecordingFinalizeJob job,
-    required Directory handoffDirectory,
-    required List<TerminalRecordingSemanticEvent> semanticEvents,
-    String? displayName,
-  }) {}
-
-  @override
-  Future<void> registerNativeRecordingJob({
-    required TerminalRecordingFinalizeJob job,
-    required Directory handoffDirectory,
-    required LocalSessionRecordingDestination destination,
-    required List<TerminalRecordingSemanticEvent> semanticEvents,
-    String? displayName,
-  }) async {}
-
-  @override
-  Future<String> finalizeNativeRecording({
-    required TerminalRecordingFinalizeJob job,
-    required Directory handoffDirectory,
-    required LocalSessionRecordingDestination destination,
-    required List<TerminalRecordingSemanticEvent> semanticEvents,
-    String? displayName,
-    LocalSessionRecordingFinalizeCancellation? cancellation,
-    LocalSessionRecordingNativeJobStatusProbe? nativeJobStatusProbe,
+  Future<String> finish(
+    SampledRecordingClaim claim,
+    SampledRecordingCaptureClient client, {
+    Duration timeout = const Duration(seconds: 5),
   }) async {
     if (!saveStarted.isCompleted) saveStarted.complete();
     await allowSave.future;
     if (rejectSave) throw StateError('Recording save cancelled');
-    return destination.file.path;
+    return (await _recordingIo(
+      tester,
+      () => super.finish(claim, client, timeout: timeout),
+    ))!;
   }
-
-  @override
-  bool release(LocalSessionRecordingDestination destination) => true;
 }
 
 Future<void> _settle(WidgetTester tester) async {
   for (var i = 0; i < 6; i++) {
     await tester.pump(const Duration(milliseconds: 100));
+    if (_hasRecordingIo) {
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
   }
 }
 
@@ -243,7 +220,7 @@ _pump(
   WidgetTester tester,
   _Backend backend, {
   TargetPlatform platform = TargetPlatform.macOS,
-  LocalSessionRecordingRepository? recordingRepository,
+  SampledRecordingLibrary? recordingRepository,
   LocalTerminalConfigDocument? config,
 }) async {
   debugDefaultTargetPlatformOverride = platform;
@@ -290,8 +267,8 @@ _pump(
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           noIoLocalTerminalLayoutRepository(),
         ),
-        localSessionRecordingRepositoryProvider.overrideWithValue(
-          recordingRepository ?? noIoLocalSessionRecordingRepository(),
+        sampledRecordingLibraryProvider.overrideWithValue(
+          recordingRepository ?? noIoSampledRecordingLibrary(),
         ),
       ],
       child: app,
@@ -1344,11 +1321,14 @@ void main() {
     );
 
     for (final change in ['proposal', 'topology', 'attachment']) {
-      testWidgets(
+      _testWithRecordingIo(
         '$change changes during recording finalization reject stale close and resume recording',
         (tester) async {
           final backend = _RecordingBackend();
-          final recordings = _BlockingRecordingRepository();
+          final recordings = (await _recordingIo(
+            tester,
+            () async => _BlockingRecordingRepository(tester),
+          ))!;
           addTearDown(() {
             if (!recordings.allowSave.isCompleted) {
               recordings.allowSave.complete();
@@ -1403,11 +1383,14 @@ void main() {
       );
     }
 
-    testWidgets(
+    _testWithRecordingIo(
       'recording save rejection preserves the approved close target AI state',
       (tester) async {
         final backend = _RecordingBackend();
-        final recordings = _BlockingRecordingRepository()..rejectSave = true;
+        final recordings = (await _recordingIo(
+          tester,
+          () async => _BlockingRecordingRepository(tester),
+        ))!..rejectSave = true;
         addTearDown(() {
           if (!recordings.allowSave.isCompleted) {
             recordings.allowSave.complete();
@@ -1525,11 +1508,14 @@ void main() {
       debugDefaultTargetPlatformOverride = null;
     });
 
-    testWidgets(
+    _testWithRecordingIo(
       'pane close repeats proposal check after recording finalization',
       (tester) async {
         final backend = _RecordingBackend();
-        final recordings = _BlockingRecordingRepository();
+        final recordings = (await _recordingIo(
+          tester,
+          () async => _BlockingRecordingRepository(tester),
+        ))!;
         addTearDown(() {
           if (!recordings.allowSave.isCompleted) {
             recordings.allowSave.complete();
@@ -1640,11 +1626,14 @@ void main() {
     );
 
     for (final partial in [false, true]) {
-      testWidgets(
+      _testWithRecordingIo(
         'asynchronous ${partial ? 'partial' : 'complete'} close preserves a newly opened modal focus',
         (tester) async {
           final backend = _RecordingBackend();
-          final recordings = _BlockingRecordingRepository();
+          final recordings = (await _recordingIo(
+            tester,
+            () async => _BlockingRecordingRepository(tester),
+          ))!;
           addTearDown(() {
             if (!recordings.allowSave.isCompleted) {
               recordings.allowSave.complete();

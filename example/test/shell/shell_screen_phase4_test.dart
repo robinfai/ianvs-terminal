@@ -25,8 +25,8 @@ import 'package:ianvs_pty/ianvs_pty.dart';
 import '../support/fake_pty_backend.dart';
 import '../support/memory_app_preferences_repository.dart';
 import '../support/memory_profile_repository.dart';
-import '../support/no_io_local_session_recording_repository.dart';
 import '../support/no_io_local_terminal_layout_repository.dart';
+import '../support/no_io_sampled_recording_library.dart';
 
 Future<void> _pumpShellScreen(
   WidgetTester tester, {
@@ -65,8 +65,8 @@ Future<void> _pumpShellScreen(
         localTerminalConfigRepositoryProvider.overrideWithValue(
           localConfigRepository ?? _MemoryLocalTerminalConfigRepository(null),
         ),
-        localSessionRecordingRepositoryProvider.overrideWithValue(
-          noIoLocalSessionRecordingRepository(),
+        sampledRecordingLibraryProvider.overrideWithValue(
+          noIoSampledRecordingLibrary(),
         ),
         localTerminalLayoutRepositoryProvider.overrideWithValue(
           noIoLocalTerminalLayoutRepository(),

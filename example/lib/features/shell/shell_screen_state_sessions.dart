@@ -45,7 +45,9 @@ extension _ShellScreenStateSessions on _ShellScreenState {
     Size viewportSize,
     double devicePixelRatio,
   ) {
-    if (!mounted || !_sessionExists(sessionId)) {
+    if (!mounted ||
+        sessionController.isShuttingDown ||
+        !_sessionExists(sessionId)) {
       return;
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {

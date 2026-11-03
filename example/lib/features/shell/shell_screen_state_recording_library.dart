@@ -1,6 +1,42 @@
 part of 'shell_screen.dart';
 
 extension _ShellScreenRecordingLibraryState on _ShellScreenState {
+  Widget _buildRecordingShelf({
+    required AppThemeTokens palette,
+    required SessionController sessionController,
+    required String? activeSessionId,
+  }) => _SavedRecordingsShelf(
+    palette: palette,
+    entries: _recordingEntries,
+    mutationPaths: _recordingMutationPaths,
+    selectedPath: _selectedRecordingEntry?.path,
+    loading: _recordingLibraryLoading,
+    selectionLoading: _recordingSelectionLoading,
+    error: _recordingLibraryError,
+    onRefresh: () => unawaited(_loadRecordingLibrary()),
+    onOpenFile: () => unawaited(_openRecordingFromPicker()),
+    onSearch: () => unawaited(_searchSavedRecordings()),
+    onRetention: () => unawaited(_editRecordingRetention()),
+    onKeep: (entry) => unawaited(_setRecordingKeep(entry)),
+    onDelete: (entry) => unawaited(_deleteSavedRecording(entry)),
+    onRecent: activeSessionId == null
+        ? null
+        : () => unawaited(_openInstantReplay(_sessionState)),
+    onToggleRecording:
+        activeSessionId == null ||
+            _sessionState.recordingBusySessionIds.contains(activeSessionId)
+        ? null
+        : () => unawaited(
+            _toggleActiveSessionRecording(sessionController, activeSessionId),
+          ),
+    recording: _sessionState.recordingSessionIds.contains(activeSessionId),
+    pendingSave: _sessionState.recordingPendingSaveSessionIds.contains(
+      activeSessionId,
+    ),
+    onSelect: (entry) => unawaited(_selectRecording(entry)),
+    onClose: _closeRecordingLibrary,
+  );
+
   Future<void> _openRecordingLibrary({FocusNode? returnFocus}) async {
     if (_recordingShelfOpen) return;
     _recordingReturnFocus = returnFocus ?? FocusManager.instance.primaryFocus;
@@ -13,6 +49,8 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
   }
 
   void _invalidateRecordingOpen() {
+    _recordingOpenCancellation?.cancel();
+    _recordingOpenCancellation = null;
     _recordingOpenGeneration++;
     _recordingSelectionLoading = false;
   }
@@ -21,6 +59,8 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
       mounted && generation == _recordingOpenGeneration;
 
   int _beginRecordingOpen() {
+    _recordingOpenCancellation?.cancel();
+    _recordingOpenCancellation = terminal.RecordingFileCancellation();
     _mutateState(() {
       _recordingOpenGeneration++;
       _recordingSelectionLoading = true;
@@ -62,7 +102,7 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
     try {
       final sourcePath = await _chooseRecordingFile(generation);
       if (!_isCurrentRecordingOpen(generation) || sourcePath == null) return;
-      await _loadRecordingAtPath(sourcePath, generation);
+      await _loadRecordingAtPath(sourcePath, generation, fromPicker: true);
     } on Object catch (error) {
       _recordingOpenFailed(error, generation);
     } finally {
@@ -75,12 +115,12 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
     try {
       initialDirectory =
           (await ref
-                  .read(localSessionRecordingRepositoryProvider)
+                  .read(sampledRecordingLibraryProvider)
                   .ensureRecordingDirectory())
               .absolute
               .path;
     } on Object {
-      // A file can still be opened when the library directory is unavailable.
+      // The picker can still appear; opening reports the library error with retry.
     }
     if (!_isCurrentRecordingOpen(generation)) return null;
     return ref.read(shellRecordingFilePickerProvider)(
@@ -101,21 +141,50 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
     }
   }
 
-  Future<bool> _loadRecordingAtPath(String sourcePath, int generation) async {
-    final opened = await ref
-        .read(localSessionRecordingRepositoryProvider)
-        .openRecording(sourcePath);
-    if (!_isCurrentRecordingOpen(generation)) return false;
-    _showSelectedRecording(opened.entry, opened.recording);
+  Future<bool> _loadRecordingAtPath(
+    String sourcePath,
+    int generation, {
+    Duration? initialPosition,
+    bool fromPicker = false,
+  }) async {
+    if (_selectedRecordingEntry?.path == sourcePath &&
+        initialPosition == null) {
+      if (_isCurrentRecordingOpen(generation)) {
+        _mutateState(() => _recordingShelfOpen = false);
+      }
+      return true;
+    }
+    final library = ref.read(sampledRecordingLibraryProvider);
+    final opened = fromPicker
+        ? await library.openPickedRecording(
+            sourcePath,
+            cancellation: _recordingOpenCancellation,
+          )
+        : await library.openRecording(
+            sourcePath,
+            cancellation: _recordingOpenCancellation,
+          );
+    if (!_isCurrentRecordingOpen(generation)) {
+      await opened.close();
+      return false;
+    }
+    _showSelectedRecording(
+      opened,
+      initialPosition: initialPosition ?? Duration.zero,
+    );
     return true;
+  }
+
+  void _releaseSelectedRecording() {
+    final owner = _selectedRecordingOwner;
+    _selectedRecordingOwner = null;
+    if (owner != null) unawaited(owner.close());
   }
 
   void _recordingOpenFailed(Object error, int generation) {
     if (!_isCurrentRecordingOpen(generation)) return;
     final l10n = context.l10n;
     final message = switch (error) {
-      LocalSessionRecordingUnsupportedSchemaException() =>
-        l10n.recordingOpenUnsupported,
       terminal.TerminalRecordingFormatException(
         code: terminal
                 .TerminalRecordingFormatErrorCode
@@ -138,16 +207,19 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
   }
 
   void _showSelectedRecording(
-    LocalSessionRecordingEntry entry,
-    terminal.TerminalRecording recording,
-  ) {
+    SampledOpenedRecording opened, {
+    Duration initialPosition = Duration.zero,
+  }) {
+    _releaseSelectedRecording();
     FocusManager.instance.primaryFocus?.unfocus();
     _mutateState(() {
       _recordingShelfOpen = false;
       _recordingReturnFocus = null;
       _instantReplayLayoutSession = null;
-      _selectedRecordingEntry = entry;
-      _selectedRecording = recording;
+      _selectedRecordingOwner = opened;
+      _selectedRecordingEntry = opened.entry;
+      _selectedRecording = opened.recording;
+      _selectedRecordingInitialPosition = initialPosition;
       _recordingPlaybackGeneration++;
     });
   }
@@ -164,7 +236,7 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
     });
     try {
       final entries = await ref
-          .read(localSessionRecordingRepositoryProvider)
+          .read(sampledRecordingLibraryProvider)
           .listRecordings();
       if (!mounted) {
         return;
@@ -191,16 +263,99 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
     }
   }
 
-  Future<void> _selectRecording(LocalSessionRecordingEntry entry) async {
+  Future<void> _searchSavedRecordings() async {
+    final hit = await showRecordingSearch(
+      context: context,
+      library: ref.read(sampledRecordingLibraryProvider),
+    );
+    if (!mounted || hit == null) return;
+    final generation = _beginRecordingOpen();
+    try {
+      await _loadRecordingAtPath(
+        hit.path,
+        generation,
+        initialPosition: hit.offset,
+      );
+    } on Object catch (error) {
+      _recordingOpenFailed(error, generation);
+    } finally {
+      _finishRecordingOpen(generation);
+    }
+  }
+
+  Future<void> _editRecordingRetention() async {
+    final applied = await showRecordingRetention(
+      context: context,
+      library: ref.read(sampledRecordingLibraryProvider),
+    );
+    if (mounted && applied == true) await _loadRecordingLibrary();
+  }
+
+  Future<void> _setRecordingKeep(SampledRecordingEntry entry) =>
+      _mutateRecording(
+        entry,
+        () => ref
+            .read(sampledRecordingLibraryProvider)
+            .setKeep(entry.path, !entry.keep),
+      );
+
+  Future<void> _deleteSavedRecording(SampledRecordingEntry entry) async {
+    if (_selectedRecordingEntry?.path == entry.path) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(context.l10n.recordingDeleteTitle),
+        content: SingleChildScrollView(
+          child: Text(context.l10n.recordingDeleteWarning(entry.displayName)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(context.l10n.cancel),
+          ),
+          FilledButton(
+            key: const Key('recording-delete-confirm'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(context.l10n.delete),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true) return;
+    await _mutateRecording(
+      entry,
+      () =>
+          ref.read(sampledRecordingLibraryProvider).deleteRecording(entry.path),
+    );
+  }
+
+  Future<void> _mutateRecording(
+    SampledRecordingEntry entry,
+    Future<void> Function() action,
+  ) async {
+    if (_recordingMutationPaths.contains(entry.path)) return;
+    _mutateState(() => _recordingMutationPaths.add(entry.path));
+    try {
+      await action();
+      if (mounted) await _loadRecordingLibrary();
+    } on Object catch (error) {
+      if (mounted) {
+        final message = context.l10n.recordingManageError('$error');
+        _mutateState(() => _recordingLibraryError = message);
+        _showShellSnackBar(message);
+      }
+    } finally {
+      if (mounted) {
+        _mutateState(() => _recordingMutationPaths.remove(entry.path));
+      }
+    }
+  }
+
+  Future<void> _selectRecording(SampledRecordingEntry entry) async {
     if (!entry.isReadable || _recordingSelectionLoading) return;
     final generation = _beginRecordingOpen();
     try {
-      final recording = await ref
-          .read(localSessionRecordingRepositoryProvider)
-          .load(entry.path);
-      if (_isCurrentRecordingOpen(generation)) {
-        _showSelectedRecording(entry, recording);
-      }
+      await _loadRecordingAtPath(entry.path, generation);
     } on Object catch (error) {
       _recordingOpenFailed(error, generation);
     } finally {
@@ -209,6 +364,7 @@ extension _ShellScreenRecordingLibraryState on _ShellScreenState {
   }
 
   void _closeRecordingReplay() {
+    _releaseSelectedRecording();
     _mutateState(() {
       _invalidateRecordingOpen();
       _selectedRecordingEntry = null;
