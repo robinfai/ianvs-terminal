@@ -77,4 +77,25 @@ python3 "$root/tools/release/macos_release.py" appcast "$app" "$archive" "$RELEA
   --signature "$signature"
 "$SPARKLE_TOOLS/sign_update" --ed-key-file "$SPARKLE_KEY_FILE" "$RELEASE_OUTPUT/appcast.xml"
 "$SPARKLE_TOOLS/sign_update" --ed-key-file "$SPARKLE_KEY_FILE" --verify "$RELEASE_OUTPUT/appcast.xml"
-(cd "$RELEASE_OUTPUT" && shasum -a 256 "$(basename "$archive")" appcast.xml > SHA256SUMS)
+# First-install disk image uses the same signed, stapled app as the update ZIP.
+dmg="$RELEASE_OUTPUT/Trail-$RELEASE_VERSION-macOS-universal.dmg"
+dmg_stage=$(mktemp -d)
+trap 'rm -rf "$dmg_stage"' EXIT
+ditto "$app" "$dmg_stage/Trail.app"
+ln -s /Applications "$dmg_stage/Applications"
+hdiutil create -volname "Trail $RELEASE_VERSION" -srcfolder "$dmg_stage" \
+  -format UDZO -ov "$dmg"
+codesign --force --sign "$MACOS_SIGNING_IDENTITY" --timestamp "$dmg"
+codesign --verify --strict --verbose=2 "$dmg"
+xcrun notarytool submit "$dmg" "${notary_auth[@]}" --wait --timeout 45m --output-format json > "$RELEASE_OUTPUT/notarization-dmg.json"
+python3 - "$RELEASE_OUTPUT/notarization-dmg.json" <<'PY'
+import json, sys
+result = json.load(open(sys.argv[1]))
+if result.get('status') != 'Accepted':
+    raise SystemExit('Apple DMG notarization was not accepted: ' + str(result.get('status')))
+PY
+xcrun stapler staple "$dmg"
+xcrun stapler validate "$dmg"
+hdiutil verify "$dmg"
+spctl --assess --type open --context context:primary-signature --verbose=2 "$dmg"
+(cd "$RELEASE_OUTPUT" && shasum -a 256 "$(basename "$archive")" "$(basename "$dmg")" appcast.xml > SHA256SUMS)

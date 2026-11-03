@@ -95,8 +95,13 @@ the keychain/files are deleted at job completion.
 The workflow builds a universal app, signs nested Mach-O binaries and bundles
 inside-out, verifies both architectures, submits to Apple, requires `Accepted`,
 staples the ticket, runs Gatekeeper assessment, then packages/signs the final
-archive bytes. It uploads the ZIP, signed `appcast.xml`, and `SHA256SUMS`.
-The ZIP can be extracted and Trail.app moved to Applications for first install.
+archive bytes. It also creates a compressed DMG containing the same app and an
+Applications shortcut, signs and notarizes the DMG, staples its ticket, and
+verifies the image and Gatekeeper assessment before publishing.
+It uploads the ZIP, DMG, signed `appcast.xml`, and `SHA256SUMS` (covering both
+archives and the feed). Sparkle continues to use the ZIP.
+For first install, open the DMG and drag Trail.app to Applications. The ZIP
+remains available for manual extraction.
 
 PR checks run release helper tests, real EdDSA validation/tampering tests, build
 the macOS client, and run RunnerTests (including safe shutdown and update config).
@@ -153,7 +158,7 @@ Linefold，无需为每个 app 重新申请证书。保留 Trail 自己的 bundl
 gh workflow run macos-release.yml --repo robinfai/ianvs-terminal --ref main -f version=0.1.0
 ```
 
-该操作签名、公证并发布 `v0.1.0`，产物为 universal ZIP、签名 appcast 和 SHA256SUMS。
+该操作签名、公证并发布 `v0.1.0`，产物为 universal ZIP、DMG、签名 appcast 和 SHA256SUMS。
 不设置 Latest。0.1.x 测试版共用 `v0.1.0/appcast.xml`，使已发布的 0.1.0
 无需重新安装即可发现 0.1.1。每次发布先完成签名、公证及新版本发布，再更新
 该签名清单和对应校验文件；旧 ZIP 和标签保持不变。后续正式版需另行规划 stable feed 迁移。发布后仍需在真实 macOS 上下载、
