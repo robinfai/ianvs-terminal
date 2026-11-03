@@ -123,6 +123,8 @@ verify_ios_native_exports "$IOS_APP" "$simulator_arch"
     integration_test/ios_sandbox_shell_acceptance_test.dart
   "${apple_build_env[@]}" flutter test -d "$IOS_SIMULATOR_UDID" \
     integration_test/compact_mobile_acceptance_test.dart
+  "${apple_build_env[@]}" flutter test -d "$IOS_SIMULATOR_UDID" \
+    integration_test/ios_oauth_first_startup_acceptance_test.dart
 )
 
 if [ "$VERIFY_APPLE_FULL" = "1" ]; then

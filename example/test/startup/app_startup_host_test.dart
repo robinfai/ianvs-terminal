@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:app/app_bootstrap.dart';
 import 'package:app/data/configuration/data_api_configuration.dart';
 import 'package:app/data/configuration/data_api_configuration_repository.dart';
 import 'package:app/data/configuration/oauth_sign_in_panel.dart';
@@ -9,6 +10,7 @@ import 'package:app/data/services/portable_master_key.dart';
 import 'package:app/features/ai/ai_settings.dart';
 import 'package:app/features/recording/local_session_recording_repository.dart';
 import 'package:app/features/sessions/session_controller.dart';
+import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/persistence_repository_composition.dart';
 import 'package:app/platform/app_shutdown_coordinator.dart';
 import 'package:app/startup/app_startup_coordinator.dart';
@@ -55,6 +57,45 @@ void main() {
       variant: TargetPlatformVariant.only(platform),
     );
   }
+  testWidgets(
+    'first OAuth login mounts an interactive real iOS shell',
+    (tester) async {
+      final harness = _HostHarness.create(
+        initialSetupRequirement: AppStartupDataSetupRequirement.required,
+        localDataApiAvailable: false,
+      );
+      addTearDown(() => _disposeHarness(tester, harness));
+      await tester.pumpWidget(
+        harness.host(
+          runtimeBuilder: (graph) => buildIanvsTerminalRuntimeRoot(
+            graph: graph,
+            enableSessionPolling: false,
+            enableShellAnimations: false,
+          ),
+        ),
+      );
+      await harness.coordinator.start();
+      await tester.pumpAndSettle();
+      final panel = tester.widget<OAuthSignInPanel>(
+        find.byType(OAuthSignInPanel),
+      );
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      final login = panel.onAuthenticated!(
+        DataApiRemoteLoginRequest.apple(baseUri: panel.baseUri),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+      await login;
+      expect(harness.coordinator.state, isA<AppStartupReady>());
+      expect(tester.takeException(), isNull);
+      expect(find.byType(ShellScreen), findsOneWidget);
+      expect(find.byType(Scaffold), findsWidgets);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+  );
+
   for (final brightness in Brightness.values) {
     for (final recovery in [false, true]) {
       testWidgets(

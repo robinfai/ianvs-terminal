@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate monotonic test-channel updates and preserve the baseline ZIP checksum."""
+"""Validate monotonic test-channel updates and preserve baseline archive checksums."""
 import argparse
 import re
 import xml.etree.ElementTree as ET
@@ -24,7 +24,10 @@ def advance(old_feed, new_feed, old_checksums):
     archives = [line for line in lines if line.endswith('  Trail-0.1.0-macOS-universal.zip')]
     if len(archives) != 1 or not re.fullmatch(r'[a-f0-9]{64}  Trail-0\.1\.0-macOS-universal\.zip', archives[0]):
         raise ValueError('Missing baseline archive checksum')
-    return archives[0] + '\n' + hashlib.sha256(new_feed.read_bytes()).hexdigest() + '  appcast.xml\n'
+    images = [line for line in lines if line.endswith('  Trail-0.1.0-macOS-universal.dmg')]
+    if len(images) > 1 or (images and not re.fullmatch(r'[a-f0-9]{64}  Trail-0\.1\.0-macOS-universal\.dmg', images[0])):
+        raise ValueError('Invalid baseline disk image checksum')
+    return '\n'.join(archives + images) + '\n' + hashlib.sha256(new_feed.read_bytes()).hexdigest() + '  appcast.xml\n'
 
 
 if __name__ == '__main__':
