@@ -1,4 +1,5 @@
 command stty sane
+printf '\033]6973;@@NONCE@@;@@CONTEXT@@;received;1\007'
 set -gx IANVS_SHELL_INTEGRATION 1
 set -l __iv_source installed
 set -l __iv_registered 0

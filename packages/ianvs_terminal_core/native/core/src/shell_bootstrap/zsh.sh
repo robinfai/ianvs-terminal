@@ -1,4 +1,7 @@
 command stty sane
+printf '\033]6973;@@NONCE@@;@@CONTEXT@@;received;1\007'
+PS1=$__iv_prompt PS2=$__iv_prompt2
+unset __iv_prompt __iv_prompt2
 setopt ZLE RCS GLOBAL_RCS
 IANVS_SHELL_INTEGRATION=1
 # /etc/zshenv was already loaded by zsh. Preserve the actual ZDOTDIR.

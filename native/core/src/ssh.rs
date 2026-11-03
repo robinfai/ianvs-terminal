@@ -1950,7 +1950,7 @@ async fn run_ssh_session(
                     if !bytes.is_empty() {
                         pending_output.push(bytes)?;
                     }
-                    if announced && !bootstrap.checking() && !bootstrap_input.is_empty() {
+                    if announced && !bootstrap.blocks_input() && !bootstrap_input.is_empty() {
                         pending_input.append(&mut bootstrap_input);
                     }
                 }
@@ -1959,7 +1959,7 @@ async fn run_ssh_session(
             _ = forward_requests.next(), if !forward_requests.is_empty() => {},
             command = commands.recv() => match command {
                 Some(SshCommand::Data(input)) => {
-                    if !announced || shell_integration.as_ref().is_some_and(|b| b.checking()) {
+                    if shell_integration.as_ref().is_some_and(|b| !b.accepts_input() || b.blocks_input()) {
                         bootstrap_input.push_back(input);
                     } else {
                         pending_input.push_back(input);
@@ -2077,8 +2077,9 @@ async fn run_ssh_session(
                                 pending_input.push_back(reserve_ssh_input(&protocol_input_budget, &reply, false)?);
                             }
                         }
-                        if bootstrap.ready && !announced {
-                            // Publish the check result before displaying the connected banner.
+                        if bootstrap.accepts_input() && !announced {
+                            // The payload is consumed: rc files may now ask for input.
+                            // Shell capabilities still wait for the authenticated Ready.
                             pending_output.push(processed.output)?;
                             pending_output.push(connected.clone())?;
                             announced = true;
@@ -2092,7 +2093,7 @@ async fn run_ssh_session(
                         data.to_vec()
                     };
                     if announced
-                        && !shell_integration.as_ref().is_some_and(|b| b.checking())
+                        && !shell_integration.as_ref().is_some_and(|b| b.blocks_input())
                         && !bootstrap_input.is_empty()
                     {
                         pending_input.append(&mut bootstrap_input);
