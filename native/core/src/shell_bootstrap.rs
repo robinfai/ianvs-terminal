@@ -209,7 +209,8 @@ fn body_with_composer(
         )
     } else if shell == "zsh" {
         // Canonical input lets ^U discard keys typed before InitShell. Keep each
-        // physical line below the PTY line limit, preserving one history event.
+        // physical line below the PTY line limit. Silence prompts before the
+        // multiline command; both commands remain excluded from history.
         let chunks: Vec<String> = escaped
             .chars()
             .collect::<Vec<_>>()
@@ -217,7 +218,7 @@ fn body_with_composer(
             .map(|chars| quote(&chars.iter().collect::<String>()))
             .collect();
         format!(
-            "\x15{marker}eval \"$(printf '%b' {})\"\n",
+            "\x15 __iv_prompt=$PS1 __iv_prompt2=$PS2; PS1= PS2=\n{marker}eval \"$(printf '%b' {})\"\n",
             chunks.join("\\\n")
         )
     } else {
@@ -230,6 +231,7 @@ struct Context {
     entered: bool,
     parent: String,
     started: Option<std::time::Instant>,
+    body_received: bool,
     completed: bool,
     available: bool,
     socket: Option<String>,
@@ -247,6 +249,7 @@ impl Context {
             entered: true,
             parent: String::new(),
             started: None,
+            body_received: false,
             completed: false,
             available: true,
             socket: None,
@@ -365,8 +368,14 @@ impl Bootstrap {
                 .get(&self.active)
                 .is_some_and(|ctx| ctx.started.is_some() && !ctx.completed)
     }
+    pub(crate) fn blocks_input(&self) -> bool {
+        self.checking() && !self.contexts[&self.active].body_received
+    }
+    pub(crate) fn accepts_input(&self) -> bool {
+        self.ready || self.contexts[&self.active].body_received
+    }
     fn take_input(&mut self) -> Vec<u8> {
-        if self.checking() {
+        if self.blocks_input() {
             Vec::new()
         } else {
             std::mem::take(&mut self.input)
@@ -582,6 +591,14 @@ impl Bootstrap {
                         );
                     }
                 }
+                "received" if fields.len() == 4 && ctx == self.active => {
+                    if let Some(context) = self.contexts.get_mut(ctx)
+                        && context.started.is_some()
+                        && !context.completed
+                    {
+                        context.body_received = true;
+                    }
+                }
                 "ready" if fields.len() == 6 => {
                     let pending = self.contexts.get(ctx).is_some_and(|c| !c.entered);
                     if ctx != self.active && (fields[3] != "unsupported" || !self.confirm_ssh(ctx))
@@ -774,7 +791,7 @@ struct UserWriter {
 impl Write for UserWriter {
     fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
         let mut state = self.state.lock().unwrap();
-        if state.checking() {
+        if state.blocks_input() {
             if state.input.len() + bytes.len() > 65536 {
                 return Err(std::io::Error::other(
                     "shell initialization input buffer is full",
@@ -841,11 +858,13 @@ impl Read for BootstrapReader {
                     }
                 }
             }
-        }
-        let input = self.state.lock().unwrap().take_input();
-        if !input.is_empty() {
-            self.writer.write_all(&input)?;
-            self.writer.flush()?;
+            // Received may be a control-only frame. Release buffered input even
+            // when an rc read waits silently and there is no display output.
+            let input = self.state.lock().unwrap().take_input();
+            if !input.is_empty() {
+                self.writer.write_all(&input)?;
+                self.writer.flush()?;
+            }
         }
         let n = out.len().min(self.queued.len());
         for byte in &mut out[..n] {
@@ -1278,6 +1297,20 @@ mod tests {
                     writer.write_all(&reply).unwrap();
                     writer.flush().unwrap();
                 }
+                if rc.contains("__RC_QUESTION__")
+                    && output
+                        .windows(b"__RC_QUESTION__".len())
+                        .any(|w| w == b"__RC_QUESTION__")
+                    && !output
+                        .windows(b"__ANSWER_SENT__".len())
+                        .any(|w| w == b"__ANSWER_SENT__")
+                {
+                    assert!(!bootstrap.ready, "rc must precede Ready");
+                    assert!(bootstrap.accepts_input() && !bootstrap.blocks_input());
+                    writer.write_all(b"n\n").unwrap();
+                    writer.flush().unwrap();
+                    output.extend(b"__ANSWER_SENT__");
+                }
             }
         }
         let initial_events = events(&output);
@@ -1326,6 +1359,16 @@ mod tests {
         let _ = reader_thread.join();
         let text = String::from_utf8_lossy(&output);
         assert!(exited && bootstrap.ready, "shell {shell}: {text}");
+        assert!(
+            !text.contains("dquote cmdsubst>"),
+            "bootstrap leaked prompts: {text}"
+        );
+        if rc.contains("__RC_QUESTION__") {
+            assert!(
+                text.contains("__RC_ANSWER_n__"),
+                "rc did not receive input: {text}"
+            );
+        }
         let events = events(&output);
         let ready = events
             .iter()
@@ -1413,6 +1456,34 @@ mod tests {
             ),
             "hook_conflict",
         );
+    }
+    #[test]
+    fn received_only_unlocks_active_initialized_context() {
+        let mut b = Bootstrap::new("test".into(), true);
+        b.feed(b"\x1b]6973;test;root;received;1\x07");
+        assert!(!b.accepts_input());
+        b.feed(b"\x1b]6973;test;root;init;zsh\x07");
+        assert!(b.blocks_input());
+        b.input.extend(b"n\n");
+        b.feed(b"\x1b]6973;wrong;root;received;1\x07");
+        assert!(b.blocks_input());
+        b.feed(b"\x1b]6973;test;root;received;1\x07");
+        assert!(b.checking());
+        assert!(!b.ready);
+        assert!(b.accepts_input());
+        assert!(!b.blocks_input());
+        assert_eq!(b.take_input(), b"n\n");
+    }
+    #[cfg(unix)]
+    #[test]
+    fn zsh_rc_can_ask_for_input_before_ready() {
+        if std::path::Path::new("/bin/zsh").exists() {
+            real_shell(
+                "/bin/zsh",
+                "printf '__RC_QUESTION__'; read answer; printf '__RC_ANSWER_%s__\\n' \"$answer\"",
+                "installed",
+            );
+        }
     }
     #[cfg(unix)]
     #[test]

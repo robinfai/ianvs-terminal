@@ -1,5 +1,6 @@
 __IANVS_BOOTSTRAPPING=1
 command stty sane
+printf '\033]6973;@@NONCE@@;@@CONTEXT@@;received;1\007'
 IANVS_SHELL_INTEGRATION=1
 # The entire payload was read before user rc files can change history policy.
 # SSH starts with login configuration; ordinary child shells use .bashrc.
