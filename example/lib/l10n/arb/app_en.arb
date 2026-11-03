@@ -3841,7 +3841,7 @@
   "mobileHidePlaybackControls": "View content only",
   "mobileResetZoom": "Reset zoom",
   "mobileReplayZoomHint": "Pinch to zoom, then drag to explore the recording.",
-  "mobileStartLocally": "Get started",
+  "mobileStartLocally": "Continue without signing in",
   "mobileLocalWelcome": "Your terminals, with you",
   "mobileLocalWelcomeDetail": "Connect to your SSH servers. Connections and preferences stay on this device. Sync is optional and can be set up later.",
   "mobileSetUpSync": "Set up sync",

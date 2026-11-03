@@ -11,9 +11,10 @@ export function ConnectPage() {
   const [error, setError] = useState<string | null>(null)
   const [appleWeb, setAppleWeb] = useState<AppleWebConfig | null>(null)
   const [googleClientId, setGoogleClientId] = useState('')
+  const [allowRegistration, setAllowRegistration] = useState(true)
   const detect = async () => {
     setMode('detecting'); setError(null)
-    try { const health = await new DataApiClient({ baseUrl: session.baseUrl }).health(); setMode(health.mode); setAppleWeb(health.apple_web ?? null); setGoogleClientId(health.google_web_client_id ?? '') }
+    try { const health = await new DataApiClient({ baseUrl: session.baseUrl }).health(); setMode(health.mode); setAppleWeb(health.apple_web ?? null); setGoogleClientId(health.google_web_client_id ?? ''); setAllowRegistration(health.allow_registration !== false) }
     catch (err) {
       // The existing local service protects health with its sidecar token.
       if (err instanceof ApiError && (err.status === 401 || err.status === 403)) setMode('local')
@@ -27,7 +28,7 @@ export function ConnectPage() {
       <div className="terminal-login__body">
         <div className="terminal-login__intro"><p className="terminal-line">连接你的工作空间</p><h1 id="login-title">登录 Ianvs</h1><p>管理 SSH 配置与账户会话。登录无需数据密钥，敏感内容在需要时于本地解锁。</p></div>
         {mode === 'detecting' && <div className="row"><Spinner label="正在连接服务" /><span>正在检查服务…</span></div>}
-        {mode === 'remote' && (appleWeb || googleClientId) && <AppleSignIn config={appleWeb} googleClientId={googleClientId} />}
+        {mode === 'remote' && (appleWeb || googleClientId) && <AppleSignIn config={appleWeb} googleClientId={googleClientId} allowRegistration={allowRegistration} />}
         {mode === 'remote' && !appleWeb && !googleClientId && <Notice tone="error">此服务尚未配置 Apple 或 Google 登录。</Notice>}
         {mode === 'local' && <LocalForm />}
         {mode === 'error' && <div className="stack"><Notice tone="error" role="alert">{error}</Notice><Button onClick={detect}>重新连接</Button></div>}

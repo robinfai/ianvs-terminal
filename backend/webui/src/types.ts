@@ -8,6 +8,8 @@ export interface AppleWebConfig {
 }
 
 export interface Health {
+  allow_registration?: boolean
+  password_auth_enabled?: boolean
   google_web_client_id?: string
   apple_web?: AppleWebConfig | null
   status: 'ok'

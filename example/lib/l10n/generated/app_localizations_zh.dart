@@ -4439,7 +4439,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get mobileReplayZoomHint => '双指缩放，拖动画面查看细节。';
 
   @override
-  String get mobileStartLocally => '开始使用';
+  String get mobileStartLocally => '暂不登录，开始使用';
 
   @override
   String get mobileLocalWelcome => '随时连接你的终端';

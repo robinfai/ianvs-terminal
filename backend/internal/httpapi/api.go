@@ -156,6 +156,8 @@ func (a *API) health(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status":                 "ok",
+		"allow_registration":     a.cfg.Mode == config.ModeRemote && a.cfg.AllowRegistration,
+		"password_auth_enabled":  a.cfg.Mode == config.ModeRemote && a.cfg.PasswordAuthEnabled,
 		"mode":                   a.cfg.Mode,
 		"server_id":              a.store.ServerID(),
 		"apple_web":              a.cfg.AppleWeb,
