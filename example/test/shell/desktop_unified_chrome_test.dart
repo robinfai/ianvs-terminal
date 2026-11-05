@@ -293,8 +293,17 @@ void main() {
           await tester.pumpAndSettle();
         }
         final id = container.read(sessionControllerProvider).activeSessionId!;
+        await tester.pump(const Duration(milliseconds: 150));
+        await tester.pumpAndSettle();
+        final terminalGeometry = List<int>.of(backend.resizeCalls.last);
         await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
         await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 150));
+        await tester.pumpAndSettle();
+        final aiGeometry = List<int>.of(backend.resizeCalls.last);
+        expect(aiGeometry[1], lessThan(terminalGeometry[1]));
+        expect(aiGeometry[2], terminalGeometry[2]);
+        expect(aiGeometry[3], lessThan(terminalGeometry[3]));
         final modeRect = tester.getRect(
           find.byKey(const Key('ai-workspace-mode')),
         );
@@ -369,6 +378,20 @@ void main() {
         await tester.pumpAndSettle();
         task.setDraft('帮我看看哪个目录占用最多');
         await tester.pumpAndSettle();
+        // The chat width cap, not the hidden full-width viewport, owns columns.
+        for (final width in [1066.0, 1800.0, 2000.0, 866.0]) {
+          tester.view.physicalSize = Size(width, 468);
+          await tester.binding.setSurfaceSize(Size(width, 468));
+          await tester.pumpAndSettle();
+          await tester.pump(const Duration(milliseconds: 150));
+          await tester.pumpAndSettle();
+          if (width == 866) {
+            expect(backend.resizeCalls.last, aiGeometry);
+          } else {
+            expect(backend.resizeCalls.last[1], greaterThan(aiGeometry[1]));
+            expect(backend.resizeCalls.last[2], aiGeometry[2]);
+          }
+        }
         final writes = backend.writes.length;
         await tester.tap(
           find.descendant(
@@ -379,6 +402,10 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.byKey(const Key('ai-observer-viewport')), findsNothing);
         expect(find.byType(TerminalAiWorkspace), findsNothing);
+        await tester.pump(const Duration(milliseconds: 150));
+        await tester.pumpAndSettle();
+        expect(backend.resizeCalls.last, terminalGeometry);
+
         expect(
           tester.getRect(find.byKey(const Key('ai-workspace-mode'))),
           modeRect,

@@ -61,6 +61,7 @@ class TerminalAiWorkspace extends StatefulWidget {
     this.commandSession,
     this.targetLabel = '',
     this.timelineBuilder,
+    this.onTerminalOutputWidth,
     this.onInspectContext,
     this.onShowEvidence,
     this.onOpenLink,
@@ -93,6 +94,9 @@ class TerminalAiWorkspace extends StatefulWidget {
   final ComposerPaneSession? commandSession;
   final String targetLabel;
   final AiTimelineBuilder? timelineBuilder;
+
+  /// Measured chat output width, excluding journal gutter and block padding.
+  final ValueChanged<double?>? onTerminalOutputWidth;
   final ValueChanged<AiBlockContext>? onInspectContext;
   final ValueChanged<AiEvidenceReference>? onShowEvidence;
   final ValueChanged<String>? onOpenLink;
@@ -183,6 +187,28 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
       Theme.of(context).platform == TargetPlatform.macOS &&
       !widget.fullScreenTerminal;
   double get _readingWidth => _journal ? 1200 : _aiReadingWidth;
+  double? _reportedOutputWidth;
+  int _outputWidthRevision = 0;
+
+  void _reportOutputWidth(double availableWidth) {
+    final margin = availableWidth < 600 ? 12.0 : 40.0;
+    final readingWidth = (availableWidth - margin * 2).clamp(
+      0.0,
+      _readingWidth,
+    );
+    // Journal marker gutter (36) and the flat command block's two 8px insets.
+    final width = _journal
+        ? (readingWidth - 52).clamp(1.0, double.infinity)
+        : null;
+    if (_reportedOutputWidth == width) return;
+    _reportedOutputWidth = width;
+    final revision = ++_outputWidthRevision;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && revision == _outputWidthRevision) {
+        widget.onTerminalOutputWidth?.call(width);
+      }
+    });
+  }
 
   @override
   void initState() {
@@ -3461,6 +3487,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, bounds) {
+      _reportOutputWidth(bounds.maxWidth);
       final compact = bounds.maxHeight < 360 || bounds.maxWidth < 600;
       // Phone landscape keyboards can leave barely two control rows. Keep the
       // draft and primary action on one row without resizing the underlying PTY.

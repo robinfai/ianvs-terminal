@@ -651,6 +651,17 @@ extension _ShellScreenAi on _ShellScreenState {
         key: ValueKey('ai-workspace-$sessionId'),
         controller: _aiFor(sessionId),
         modelCatalog: ref.read(aiModelCatalogProvider),
+        onTerminalOutputWidth: (width) {
+          if (!mounted || !_openAiSessions.contains(sessionId)) return;
+          if (_aiTerminalOutputWidths[sessionId] == width) return;
+          _mutateState(() {
+            if (width == null) {
+              _aiTerminalOutputWidths.remove(sessionId);
+            } else {
+              _aiTerminalOutputWidths[sessionId] = width;
+            }
+          });
+        },
         active: active,
         canInteract: () =>
             mounted &&

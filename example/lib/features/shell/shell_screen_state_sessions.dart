@@ -126,6 +126,7 @@ extension _ShellScreenStateSessions on _ShellScreenState {
   }
 
   void _clearViewportMetricsForSession(String sessionId) {
+    _aiTerminalOutputWidths.remove(sessionId);
     _viewportResizeTimers.remove(sessionId)?.cancel();
     _scheduledViewportSizes.remove(sessionId);
     _committedViewportSizes.remove(sessionId);

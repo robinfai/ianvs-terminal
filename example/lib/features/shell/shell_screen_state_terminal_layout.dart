@@ -733,8 +733,8 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
             color: palette.panel,
             child: Stack(
               children: [
-                // AI covers this layout without changing the PTY's viewport.
-                // Only real window/keyboard metrics may resize the terminal.
+                // The hidden viewport remains the sole resize owner. In AI mode
+                // its column count follows the measured chat output width.
                 ExcludeFocus(
                   excluding: _openAiSessions.contains(sessionId),
                   child: ExcludeSemantics(
@@ -785,10 +785,25 @@ extension _ShellScreenStateTerminalLayout on _ShellScreenState {
                           Expanded(
                             child: LayoutBuilder(
                               builder: (context, terminalConstraints) {
-                                final viewportSize = _terminalContentSizeFor(
+                                final terminalSize = _terminalContentSizeFor(
                                   terminalConstraints,
                                   terminalViewportPadding,
                                 );
+                                final aiWidth =
+                                    _openAiSessions.contains(sessionId) &&
+                                        composerSession?.fullScreen != true &&
+                                        !viewportController
+                                            .frame
+                                            .modes
+                                            .alternateScreen
+                                    ? _aiTerminalOutputWidths[sessionId]
+                                    : null;
+                                final viewportSize = aiWidth == null
+                                    ? terminalSize
+                                    : Size(
+                                        aiWidth.clamp(1.0, terminalSize.width),
+                                        terminalSize.height,
+                                      );
                                 final devicePixelRatio =
                                     MediaQuery.devicePixelRatioOf(context);
                                 final scheduledSize =

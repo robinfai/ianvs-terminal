@@ -272,6 +272,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   final Map<String, FocusNode> _terminalFocusNodes = {};
   final FocusNode _searchFocusNode = FocusNode(debugLabel: 'shell-search');
   final Map<String, Size> _scheduledViewportSizes = {};
+  final Map<String, double> _aiTerminalOutputWidths = {};
   final Map<String, Size> _committedViewportSizes = {};
   final Map<String, Size> _measuredTerminalCellSizes = {};
   final Map<({String tabId, String sessionId}), GlobalKey>
