@@ -1366,7 +1366,7 @@ void main() {
       final titleRect = tester.getRect(tabOneTitle);
       await _hoverShellTab(tester, '1');
       final closeRect = tester.getRect(tabOneClose);
-      expect(titleRect.left, closeTo(tabOneRect.left + 12, 1));
+      expect(titleRect.left, closeTo(tabOneRect.left + 8, 1));
       expect(closeRect.left, greaterThanOrEqualTo(tabOneRect.right - 32));
       expect(closeRect.right, lessThanOrEqualTo(tabOneRect.right - 4));
 

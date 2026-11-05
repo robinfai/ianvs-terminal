@@ -4,6 +4,7 @@ import 'package:ianvs_terminal/ianvs_terminal.dart';
 
 import '../../platform/clipboard_bridge.dart';
 import '../../ui/app_ui.dart';
+import 'terminal_ai_journal.dart';
 
 /// A projection of the current terminal, with no capability to write to a PTY.
 ///
@@ -177,6 +178,16 @@ class _TerminalAiObserverState extends State<TerminalAiObserver> {
                   ),
                 ),
               ),
+              if (Theme.of(context).platform == TargetPlatform.macOS &&
+                  widget.onBack != null &&
+                  MediaQuery.sizeOf(context).width >= 700)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: AiWorkspaceModeSwitch(
+                    aiSelected: false,
+                    onAi: widget.onBack,
+                  ),
+                ),
               IconButton(
                 key: const Key('ai-observer-target'),
                 constraints: const BoxConstraints(minWidth: 44, minHeight: 44),

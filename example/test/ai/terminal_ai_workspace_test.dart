@@ -19,6 +19,7 @@ import 'package:ianvs_terminal/ianvs_terminal.dart';
 
 import '../design/configuration_capture_binding.dart';
 import '../design/visual_capture_fonts.dart';
+import '../helpers/ai_workspace_actions.dart' show openAiDesktopMore;
 import 'ai_approval_test.dart' show ControlledReviewer;
 import 'terminal_ai_recovery_test.dart' show RecoveringTerminal;
 import 'terminal_ai_tasks_test.dart' show source;
@@ -140,6 +141,42 @@ void main() {
       await tester.pumpAndSettle();
     }
   }
+
+  testWidgets('macOS composer attaches a snapshot without submitting', (
+    tester,
+  ) async {
+    await prepare();
+    terminal.context = contextFor(lastBlock: source);
+    await controller.refreshContext();
+    await mount(
+      tester,
+      size: const Size(866, 468),
+      platform: TargetPlatform.macOS,
+    );
+    controller.setDraft('Keep this draft');
+    await tester.pumpAndSettle();
+    final modelRect = tester.getRect(
+      find.byKey(const Key('ai-composer-model')),
+    );
+    final sendRect = tester.getRect(find.byKey(const Key('ai-send')));
+    expect(modelRect.bottom, lessThan(sendRect.top));
+    await tester.tap(find.byKey(const Key('ai-attach-context')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Attach latest command output'));
+    await tester.pumpAndSettle();
+    expect(controller.attachments.single.command, source.command);
+    expect(controller.draft, 'Keep this draft');
+    expect(terminal.writes, isEmpty);
+    expect(api.requests, isEmpty);
+    expect(tester.takeException(), isNull);
+    await mount(
+      tester,
+      size: const Size(640, 468),
+      scale: 2,
+      platform: TargetPlatform.macOS,
+    );
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'history menu contains started tasks and excludes unsent drafts',
@@ -343,8 +380,8 @@ void main() {
       await controller.ask('分析磁盘占用，给出清理建议，先不执行清理。');
       await tester.pumpAndSettle();
       if (scene.name.startsWith('desktop')) {
-        final gutter = scene.size.width < 600 ? 12.0 : 24.0;
-        final width = (scene.size.width - gutter * 2).clamp(0.0, 880.0);
+        final gutter = scene.size.width < 600 ? 12.0 : 40.0;
+        final width = (scene.size.width - gutter * 2).clamp(0.0, 1200.0);
         final timeline = tester.getRect(find.byType(CommandTimelineView));
         final composer = tester.getRect(
           find.byKey(const Key('ai-command-surface')),
@@ -411,7 +448,7 @@ void main() {
       expect(controller.draft, 'Keep this draft while resizing');
       final rect = tester.getRect(find.byType(CommandTimelineView));
       expect(rect.center.dx, closeTo(width / 2, .1));
-      expect(rect.width, lessThanOrEqualTo(880));
+      expect(rect.width, lessThanOrEqualTo(1200));
       expect(tester.takeException(), isNull);
     }
   });
@@ -491,13 +528,15 @@ void main() {
     for (final (label, name) in [
       ('Session tasks', 'tasks'),
       ('New task', 'new'),
-      ('AI connection', 'connection'),
-      ('Collapse to read-only terminal', 'return'),
+      ('More task actions', 'more'),
     ]) {
       await mouse.moveTo(tester.getCenter(find.byTooltip(label)));
       await tester.pump(const Duration(seconds: 1));
       await tester.pump(const Duration(milliseconds: 250));
-      expect(find.text(label), findsOneWidget);
+      expect(
+        find.text(label),
+        label == 'New task' ? findsNWidgets(2) : findsOneWidget,
+      );
       await _capture(tester, 'desktop-tooltip-$name');
       await mouse.moveTo(const Offset(0, 300));
       await tester.pumpAndSettle();
@@ -685,6 +724,7 @@ void main() {
             await tester.pumpAndSettle();
             await tester.tap(find.text('AI connection'));
           } else {
+            await openAiDesktopMore(tester);
             await tester.tap(find.byKey(const Key('ai-open-settings')));
           }
           await tester.pump();
@@ -812,7 +852,9 @@ void main() {
             findsOneWidget,
           );
           expect(
-            find.byKey(const Key('ai-close')).hitTestable(),
+            find
+                .byKey(Key(size.width < 600 ? 'ai-close' : 'ai-header-more'))
+                .hitTestable(),
             findsOneWidget,
           );
           expect(tester.takeException(), isNull);

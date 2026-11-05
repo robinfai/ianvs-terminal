@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import '../../ui/app_ui.dart';
 import '../sessions/session_controller.dart';
 import '../terminal/terminal.dart' as terminal;
 import 'sftp_file_actions.dart';
+import 'sftp_image_preview.dart';
 
 final sftpDirectoryDataSourceProvider = Provider<SftpDirectoryDataSource>((
   ref,
@@ -668,6 +670,44 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
     }
   }
 
+  Future<void> _openFile(SftpDirectoryEntry entry) async {
+    if (!isSftpPreviewImage(entry.name)) return _downloadFile(entry);
+    final source = _fileDataSource;
+    if (source == null) return;
+    final revision = _locationRevision;
+    final target = widget.target;
+    final remotePath = _childSftpPath(_path, entry.name);
+    await showDialog<void>(
+      context: context,
+      builder: (_) => SftpImagePreview(
+        name: entry.name,
+        load: () async {
+          _requireLocation(revision);
+          final temporary = await Directory.systemTemp.createTemp(
+            'trail-image-',
+          );
+          try {
+            final file = File('${temporary.path}/preview');
+            await source.downloadFile(
+              SftpFileTransferRequest(
+                target: target,
+                remotePath: remotePath,
+                localPath: file.path,
+              ),
+            );
+            _requireLocation(revision);
+            return await file.readAsBytes();
+          } finally {
+            await temporary.delete(recursive: true);
+          }
+        },
+        onDownload: () async {
+          if (_locationIsCurrent(revision)) await _downloadFile(entry);
+        },
+      ),
+    );
+  }
+
   Future<void> _downloadFile(SftpDirectoryEntry entry) async {
     final revision = _locationRevision;
     final target = widget.target;
@@ -1082,7 +1122,7 @@ class _SftpSidePanelState extends State<SftpSidePanel> {
                               ? null
                               : _createDirectory,
                           onOpenDirectory: _openDirectory,
-                          onDownloadFile: _downloadFile,
+                          onDownloadFile: _openFile,
                           onShowContextMenu: _showEntryMenu,
                           busyPaths: _busyPaths,
                           isRemotePathBusy: (remotePath) =>
@@ -1572,7 +1612,7 @@ class _SftpDirectoryRow extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         onTap: busy
             ? null
-            : mobile && entry.isFile
+            : mobile && entry.isFile && !isSftpPreviewImage(entry.name)
             ? showMenu
             : onOpen,
         onSecondaryTapDown: (details) =>
@@ -1630,7 +1670,7 @@ class _SftpDirectoryRow extends StatelessWidget {
           focusColor: palette.selected.withValues(alpha: 0.72),
           onTap: busy
               ? null
-              : mobile && entry.isFile
+              : mobile && entry.isFile && !isSftpPreviewImage(entry.name)
               ? showMenu
               : onOpen,
         ),

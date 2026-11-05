@@ -476,7 +476,7 @@ extension _WorkspaceComposer on _TerminalAiWorkspaceState {
       tooltip: t('Command editing actions', '命令编辑操作'),
       enabled: _paneInteractive && !c.followUpEnded,
       icon: Icon(
-        Icons.more_horiz,
+        _journal ? LucideIcons300.ellipsis : Icons.more_horiz,
         size: 18,
         semanticLabel: t('Command editing actions', '命令编辑操作'),
       ),

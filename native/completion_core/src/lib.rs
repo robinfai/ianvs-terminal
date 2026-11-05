@@ -370,6 +370,20 @@ mod contract_tests {
         }
     }
     #[test]
+    fn vi_family_requests_file_completion_for_arguments() {
+        for command in ["vi", "vim", "nvim"] {
+            let text = format!("{command} REA");
+            let plan = local_context(&q(&text, utf16_len(&text))).unwrap();
+            assert_eq!(plan.templates, ["filepaths"]);
+            assert_eq!(plan.prefix, "REA");
+            assert_eq!(plan.start, command.len() + 1);
+            assert_eq!(plan.end, text.len());
+        }
+        assert!(local_context(&q("vi -c REA", 9)).is_none());
+        assert!(local_context(&q("vi -", 4)).is_none());
+    }
+
+    #[test]
     fn edits_middle_without_consuming_suffix() {
         let batch = query(q("git che --help", 7)).unwrap();
         let edit = batch.items.iter().find(|i| i.label == "checkout").unwrap();

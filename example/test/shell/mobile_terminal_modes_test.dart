@@ -1127,7 +1127,7 @@ void main() {
     input.sendText('stale before rebuild');
     expect(backend.writes, hasLength(count));
     await _settle(tester);
-    await tester.tap(find.byKey(const Key('ai-observer-back')));
+    await returnToAiWorkspace(tester);
     await _settle(tester);
     input.sendText('stale after return');
     expect(backend.writes, hasLength(count));
@@ -1212,7 +1212,7 @@ void main() {
       expect(ai.draft, 'ls ./');
       expect(backend.submissions, isEmpty);
       await _settle(tester);
-      await tester.tap(find.byKey(const Key('ai-observer-back')));
+      await returnToAiWorkspace(tester);
       await _settle(tester);
       ai.chooseInputIntent(InputIntentChoice.ai);
       await _settle(tester);
@@ -1292,12 +1292,10 @@ void main() {
             tester,
             'desktop-unified-${brightness.name}-${size.width.toInt()}-scale-$scale',
           );
-          await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+          await tester.tap(find.byKey(const Key('ai-mode-terminal')));
           await _settle(tester);
-          expect(
-            find.byKey(const Key('ai-observer-viewport')).hitTestable(),
-            findsOneWidget,
-          );
+          expect(find.byType(TerminalAiWorkspace).hitTestable(), findsNothing);
+          expect(find.byKey(const Key('ai-observer-viewport')), findsNothing);
           expect(ai.draft, '中文草稿\n第二行');
           await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
           await tester.sendKeyEvent(LogicalKeyboardKey.keyI);
@@ -1772,13 +1770,21 @@ void main() {
         compactMobile: platform == TargetPlatform.iOS,
       );
       await _settle(tester);
-      await _expectReadOnlyObservation(tester, backend);
-      expect(
-        tester
-            .widget<TextButton>(find.byKey(const Key('ai-observer-take-over')))
-            .onPressed,
-        isNull,
-      );
+      if (platform == TargetPlatform.iOS) {
+        await _expectReadOnlyObservation(tester, backend);
+        expect(
+          tester
+              .widget<TextButton>(
+                find.byKey(const Key('ai-observer-take-over')),
+              )
+              .onPressed,
+          isNull,
+        );
+      } else {
+        expect(find.byType(TerminalAiWorkspace).hitTestable(), findsNothing);
+        expect(find.byKey(const Key('ai-observer-viewport')), findsNothing);
+        expect(backend.writes, isEmpty);
+      }
       expect(ai.taskId, taskId);
       expect(ai.draft, 'Keep this SSH follow-up');
       expect(ai.attachments, [evidence]);

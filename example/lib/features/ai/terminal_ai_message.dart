@@ -3,6 +3,7 @@ import 'package:ianvs_agent_chat/ianvs_agent_chat.dart';
 import 'package:ianvs_agent_core/ianvs_agent_core.dart';
 
 import '../../ui/components/app_grouped_section.dart';
+import 'terminal_ai_journal.dart';
 
 /// Host identity and localized role, with the shared conversation surface.
 class TerminalAiMessageFrame extends StatelessWidget {
@@ -23,6 +24,45 @@ class TerminalAiMessageFrame extends StatelessWidget {
     final platform = Theme.of(context).platform;
     final mobile =
         platform == TargetPlatform.iOS || platform == TargetPlatform.android;
+    if (platform == TargetPlatform.macOS) {
+      final marker = isUser
+          ? Text(
+              zh ? '你' : 'You',
+              key: ValueKey('ai-message-role-$entryId'),
+              style: TextStyle(color: theme.textPrimary),
+            )
+          : Icon(
+              Icons.auto_awesome_outlined,
+              key: ValueKey('ai-message-role-$entryId'),
+              size: 18,
+              color: theme.textPrimary,
+              semanticLabel: 'AI',
+            );
+      return Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: theme.contentMaxWidth),
+          child: TerminalAiJournalRow(
+            key: ValueKey('ai-message-frame-$entryId'),
+            marker: marker,
+            connected: !isUser,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 10, 8, 18),
+              child: SizedBox(
+                width: double.infinity,
+                child: Align(
+                  alignment: Alignment.topLeft,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 880),
+                    child: child,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     if (context.usesAppleGroups) {
       return Padding(
         key: ValueKey('ai-message-frame-$entryId'),

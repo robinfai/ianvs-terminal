@@ -251,17 +251,26 @@ void main() {
       await settings.loaded;
       addTearDown(settings.dispose);
       final profile = defaultTerminalProfile();
+      DefaultsAndAppearanceSelection? selection;
       await _pumpDefaultsDialogLauncher(
         tester,
         profiles: [profile],
         configuredDefaultProfileId: profile.id,
         effectiveDefaultProfileId: profile.id,
         aiSettings: settings,
-        onSelection: (_) {},
+        onSelection: (value) => selection = value,
       );
+      await tester.ensureVisible(
+        find.byKey(const Key('defaults-terminal-mode-options')),
+      );
+      await tester.tap(find.byKey(const Key('defaults-terminal-mode-options')));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const Key('default-terminal-mode-normal')).last,
+      );
+      await tester.pumpAndSettle();
       final entry = find.byKey(const Key('defaults-ai-settings'));
       const missing = 'Official service';
-      const saved = 'Configured';
       expect(find.text(missing), findsNothing);
       await tester.tap(entry);
       await tester.pumpAndSettle();
@@ -271,8 +280,11 @@ void main() {
       await tester.tap(find.byKey(const Key('ai-use-mock')));
       await tester.tap(find.byKey(const Key('ai-save-settings')));
       await tester.pumpAndSettle();
-      expect(find.text(saved), findsNothing);
-      expect(find.text(missing), findsNothing);
+      expect(find.byKey(const Key('defaults-dialog')), findsNothing);
+      expect(selection, isNotNull);
+      expect(selection!.preferredTerminalMode, TerminalViewMode.normal);
+      await tester.tap(find.byKey(const Key('open-defaults-profile-test')));
+      await tester.pumpAndSettle();
       await tester.tap(entry);
       await tester.pumpAndSettle();
       await tester.enterText(
@@ -287,7 +299,10 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(settings.configuration!.model, 'trail-mock');
-      expect(find.text(saved), findsNothing);
+      expect(find.byKey(const Key('defaults-dialog')), findsNothing);
+      expect(selection, isNull);
+      await tester.tap(find.byKey(const Key('open-defaults-profile-test')));
+      await tester.pumpAndSettle();
       await tester.tap(entry);
       await tester.pumpAndSettle();
       store.fail = true;
@@ -305,11 +320,36 @@ void main() {
       await tester.tap(find.byKey(const Key('ai-remove-settings')));
       await tester.pumpAndSettle();
       expect(settings.configuration, isNull);
+      expect(find.byKey(const Key('defaults-dialog')), findsNothing);
       expect(find.text(missing), findsNothing);
       expect(find.text('trail-local-mock'), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('AI official save uses the settings confirmation exit', (
+    tester,
+  ) async {
+    final settings = AiSettingsController(MemoryAiStore(null));
+    await settings.loaded;
+    addTearDown(settings.dispose);
+    DefaultsAndAppearanceSelection? selection;
+    await _pumpDefaultsDialogLauncher(
+      tester,
+      profiles: [],
+      configuredDefaultProfileId: null,
+      effectiveDefaultProfileId: null,
+      aiSettings: settings,
+      onSelection: (value) => selection = value,
+    );
+    await tester.tap(find.byKey(const Key('defaults-ai-settings')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('ai-save-official')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('defaults-dialog')), findsNothing);
+    expect(selection, isNotNull);
+    expect(tester.takeException(), isNull);
+  });
 
   for (final save in [true, false]) {
     testWidgets(

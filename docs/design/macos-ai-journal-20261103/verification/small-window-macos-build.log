@@ -1,0 +1,6 @@
+The following plugins do not support Swift Package Manager for macos:
+  - irondash_engine_context
+  - super_native_extensions
+This will become an error in a future version of Flutter. Please contact the plugin maintainers to request Swift Package Manager adoption.
+Building macOS application...                                   
+✓ Built build/macos/Build/Products/Debug/Trail Development.app

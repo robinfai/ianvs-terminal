@@ -415,11 +415,15 @@ void main() {
         await tester.pump(const Duration(milliseconds: 16));
       }
       final tallBlockId = blocks.blocks.last.id;
+      final collapsedHeight = tester
+          .getSize(find.byKey(ValueKey('command-block-$tallBlockId')))
+          .height;
+      // Journal blocks use half of the current reading viewport as preview.
       expect(
-        tester
-            .getSize(find.byKey(ValueKey('command-block-$tallBlockId')))
-            .height,
-        lessThanOrEqualTo(normalTerminalSize.height / 3),
+        collapsedHeight,
+        lessThanOrEqualTo(
+          tester.getSize(find.byType(TerminalCommandBlocksView)).height / 2,
+        ),
       );
       await capture('block-default-height');
       await tester.tap(find.byKey(ValueKey('block-expand-$tallBlockId')));
@@ -428,7 +432,7 @@ void main() {
         tester
             .getSize(find.byKey(ValueKey('command-block-$tallBlockId')))
             .height,
-        greaterThan(normalTerminalSize.height / 3),
+        greaterThan(collapsedHeight),
       );
       await capture('block-expanded-height');
       // The expanded block initially contains only the native preview page.
@@ -664,6 +668,12 @@ void main() {
         find.byWidgetPredicate(
           (widget) => widget is CommandBlockTerminal && widget.block.running,
         ),
+      );
+      await until(
+        tester,
+        () => runningTerminal.liveFocus!.hasFocus,
+        diagnostics: () =>
+            'running block focus: ${FocusManager.instance.primaryFocus}',
       );
       expect(runningTerminal.liveFocus!.hasFocus, isTrue);
       await capture('native-running');
@@ -939,7 +949,17 @@ void main() {
           tester,
           () =>
               find.byType(TerminalAiWorkspace).evaluate().isEmpty &&
-              terminalText().contains(program.ready),
+              (program.name == 'vim'
+                  // Resizing from chat width to the full terminal dismisses
+                  // Vim's intro screen; verify its alternate screen and real
+                  // insertion below rather than depending on that banner.
+                  ? container
+                        .read(sessionControllerProvider.notifier)
+                        .viewportFor(id)
+                        .frame
+                        .modes
+                        .alternateScreen
+                  : terminalText().contains(program.ready)),
           diagnostics: () =>
               '${program.name}: ${container.read(sessionControllerProvider).tabs.first.activePane.terminalMode.unavailableReason}; '
               'owner=${model.ownership}; draft=${model.editor.text}; status=${model.status}; '
@@ -1039,8 +1059,13 @@ void main() {
             .read(sessionControllerProvider)
             .terminalViewportPadding;
         final cell = backgroundViewport.measuredCellSize!;
-        final expectedColumns = ((size.width - padding * 2) / cell.width)
-            .floor();
+        // Measure the stable reading viewport: individual blocks are virtualized
+        // and may not be mounted during the post-command scroll adjustment.
+        // The journal gutter is 36px and flat block padding is 8px per side.
+        final readingWidth = tester
+            .getSize(find.byType(TerminalCommandBlocksView))
+            .width;
+        final expectedColumns = ((readingWidth - 52) / cell.width).floor();
         final expectedRows = ((size.height - padding * 2) / cell.height)
             .floor();
         final live = container

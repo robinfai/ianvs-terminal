@@ -47,6 +47,21 @@ class CodexAcpBackend implements AgentBackend {
         environment: readAcpDiscoveryEnvironment(),
       ).discover();
 
+  /// Opens an isolated metadata session without a prompt or terminal tools.
+  static Future<List<AiModelOption>> listModels(
+    AiConfiguration configuration,
+  ) async {
+    final backend = CodexAcpBackend(configuration, reviewOnly: true);
+    try {
+      await backend._connect(AiCancellation(), configureModel: false);
+      return backend._availableModels;
+    } finally {
+      await backend.dispose();
+    }
+  }
+
+  List<AiModelOption> _availableModels = const [];
+
   static Map<String, Object?> profile(String model) => {
     'model': model,
     'model_reasoning_effort': 'high',
@@ -82,7 +97,10 @@ class CodexAcpBackend implements AgentBackend {
     },
   };
 
-  Future<void> _connect(AiCancellation cancellation) async {
+  Future<void> _connect(
+    AiCancellation cancellation, {
+    bool configureModel = true,
+  }) async {
     void check() {
       cancellation.check();
       if (_disposed) throw const AiFailure('cancelled');
@@ -199,6 +217,15 @@ class CodexAcpBackend implements AgentBackend {
         .where((o) => o['category'] == 'model' || o['id'] == 'model')
         .firstOrNull;
     if (model == null) throw const AiFailure('acp_model');
+    _availableModels = [
+      for (final option in (model['options'] as List? ?? const []))
+        if (option is Map && option['value'] is String)
+          AiModelOption(
+            option['value'] as String,
+            name: option['name'] as String?,
+          ),
+    ];
+    if (!configureModel) return;
     onConnectionStage?.call(AiConnectionStage.model);
     final configured = await rpc.configure(
       sessionId: _session!,

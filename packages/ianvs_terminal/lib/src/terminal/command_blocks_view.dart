@@ -52,6 +52,31 @@ class CommandBlockTimelineItem {
   final WidgetBuilder? builder;
 }
 
+/// Optional host presentation for an embedded transcript. Does not change
+/// block state, output rendering, input ownership or timeline identities.
+class CommandTimelinePresentation extends InheritedWidget {
+  const CommandTimelinePresentation({
+    required super.child,
+    this.flatBlocks = false,
+    this.padding,
+    this.decorateBlock,
+    super.key,
+  });
+  final bool flatBlocks;
+  final EdgeInsets? padding;
+  final Widget Function(BuildContext, CommandBlockTimelineItem, Widget)?
+  decorateBlock;
+
+  static CommandTimelinePresentation? of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<CommandTimelinePresentation>();
+
+  @override
+  bool updateShouldNotify(CommandTimelinePresentation oldWidget) =>
+      flatBlocks != oldWidget.flatBlocks ||
+      padding != oldWidget.padding ||
+      decorateBlock != oldWidget.decorateBlock;
+}
+
 /// A selectable, session-local command transcript. The host retains its native
 /// terminal for PTY input and switches back for alternate-screen/mouse apps.
 class TerminalCommandBlocksView extends StatefulWidget {
@@ -544,6 +569,7 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
   @override
   Widget build(BuildContext context) {
     final tokens = ComposerTheme.of(context);
+    final presentation = CommandTimelinePresentation.of(context);
     return Material(
       color: tokens.surface,
       child: Focus(
@@ -661,41 +687,57 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
                                   followTail: () =>
                                       _follow &&
                                       _selectedTimelineBlocks.isEmpty,
-                                  padding: EdgeInsets.fromLTRB(
-                                    10,
-                                    0,
-                                    10,
-                                    _readerLayout ? 0 : 16,
-                                  ),
+                                  padding:
+                                      presentation?.padding ??
+                                      EdgeInsets.fromLTRB(
+                                        10,
+                                        0,
+                                        10,
+                                        _readerLayout ? 0 : 16,
+                                      ),
                                   itemIds: [for (final item in _items) item.id],
                                   itemBuilder: (context, index) {
                                     final item = _items[index];
                                     final block = c.blocks
                                         .where((b) => b.id == item.blockId)
                                         .firstOrNull;
+                                    final content =
+                                        item.builder?.call(context) ??
+                                        (block == null
+                                            ? Padding(
+                                                padding: const EdgeInsets.all(
+                                                  12,
+                                                ),
+                                                child: Text(
+                                                  t(
+                                                    'Output is no longer retained',
+                                                    '输出已不再保留',
+                                                  ),
+                                                ),
+                                              )
+                                            : _readerLayout
+                                            ? _compactBlock(block, tokens)
+                                            : _block(
+                                                c.displayBlock(block),
+                                                tokens,
+                                                constraints.maxHeight /
+                                                    (presentation?.flatBlocks ==
+                                                            true
+                                                        ? 2
+                                                        : 3),
+                                              ));
                                     return KeyedSubtree(
                                       key: ValueKey(item.id),
                                       child:
-                                          item.builder?.call(context) ??
-                                          (block == null
-                                              ? Padding(
-                                                  padding: const EdgeInsets.all(
-                                                    12,
-                                                  ),
-                                                  child: Text(
-                                                    t(
-                                                      'Output is no longer retained',
-                                                      '输出已不再保留',
-                                                    ),
-                                                  ),
-                                                )
-                                              : _readerLayout
-                                              ? _compactBlock(block, tokens)
-                                              : _block(
-                                                  c.displayBlock(block),
-                                                  tokens,
-                                                  constraints.maxHeight / 3,
-                                                )),
+                                          item.blockId != null &&
+                                              presentation?.decorateBlock !=
+                                                  null
+                                          ? presentation!.decorateBlock!(
+                                              context,
+                                              item,
+                                              content,
+                                            )
+                                          : content,
                                     );
                                   },
                                 ),
@@ -779,6 +821,7 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
     double previewHeight,
   ) {
     final selected = c.selected.contains(block.id);
+    final flat = CommandTimelinePresentation.of(context)?.flatBlocks == true;
     final folded = !block.running && c.collapsed.contains(block.id);
     final expanded = c.expandedOutput.contains(block.id);
     final lineHeight =
@@ -800,8 +843,7 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
     // divider and inter-block spacing before allocating whole output rows.
     final chromeHeight =
         48 +
-        textHeight(tokens.resultStyle) +
-        8 +
+        (flat ? 0 : textHeight(tokens.resultStyle) + 8) +
         textHeight(tokens.metadataStyle) +
         (c.compact ? 12 : 24) +
         (c.compact ? 2 : 8) +
@@ -842,14 +884,14 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
                       color: tokens.border,
                       width: tokens.highContrast ? 1.5 : 1,
                     )
-                  : c.dividers
+                  : c.dividers && !flat
                   ? Border(bottom: BorderSide(color: tokens.divider))
                   : null,
               borderRadius: selected ? BorderRadius.circular(8) : null,
             ),
             child: Padding(
               padding: EdgeInsets.symmetric(
-                horizontal: 10,
+                horizontal: flat ? 8 : 10,
                 vertical: summaryOnly
                     ? 0
                     : c.compact
@@ -867,14 +909,35 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
                             Expanded(
                               child: Tooltip(
                                 message: block.cwd,
-                                child: Text(
-                                  block.cwd.isEmpty
-                                      ? t('Terminal', '终端')
-                                      : block.cwd,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: tokens.contextStyle,
-                                ),
+                                child: flat
+                                    ? _BlockCommandTitle(
+                                        commandKey: _commandKeys.putIfAbsent(
+                                          block.id,
+                                          GlobalKey.new,
+                                        ),
+                                        tokens: tokens,
+                                        onTap: () => _select(block.id),
+                                        child: Text(
+                                          block.command.isEmpty
+                                              ? t('Command', '命令')
+                                              : block.command,
+                                          style: tokens.resultStyle.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                          maxLines: expanded ? null : 1,
+                                          overflow: expanded
+                                              ? TextOverflow.clip
+                                              : TextOverflow.ellipsis,
+                                        ),
+                                      )
+                                    : Text(
+                                        block.cwd.isEmpty
+                                            ? t('Terminal', '终端')
+                                            : block.cwd,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: tokens.contextStyle,
+                                      ),
                               ),
                             ),
                             if (c.bookmarks.contains(block.id))
@@ -934,29 +997,30 @@ class _CommandBlocksViewState extends State<TerminalCommandBlocksView> {
                             ),
                           ],
                         ),
-                        _BlockCommandTitle(
-                          commandKey: _commandKeys.putIfAbsent(
-                            block.id,
-                            GlobalKey.new,
-                          ),
-                          tokens: tokens,
-                          onTap: () => _select(block.id),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            child: Text(
-                              block.command.isEmpty
-                                  ? t('Command', '命令')
-                                  : block.command,
-                              style: tokens.resultStyle.copyWith(
-                                fontWeight: FontWeight.w600,
+                        if (!flat)
+                          _BlockCommandTitle(
+                            commandKey: _commandKeys.putIfAbsent(
+                              block.id,
+                              GlobalKey.new,
+                            ),
+                            tokens: tokens,
+                            onTap: () => _select(block.id),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: Text(
+                                block.command.isEmpty
+                                    ? t('Command', '命令')
+                                    : block.command,
+                                style: tokens.resultStyle.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                maxLines: expanded ? null : 1,
+                                overflow: expanded
+                                    ? TextOverflow.clip
+                                    : TextOverflow.ellipsis,
                               ),
-                              maxLines: expanded ? null : 1,
-                              overflow: expanded
-                                  ? TextOverflow.clip
-                                  : TextOverflow.ellipsis,
                             ),
                           ),
-                        ),
                         if (!block.running && c.filtering.contains(block.id))
                           _BlockFilterEditor(
                             key: ValueKey('filter-${block.id}'),

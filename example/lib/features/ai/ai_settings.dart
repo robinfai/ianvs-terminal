@@ -191,6 +191,30 @@ class AiSettingsController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// An open model menu belongs to the connection it loaded. Do not apply a
+  /// stale result to a connection edited elsewhere while the menu was open.
+  Future<bool> selectModel(
+    String model, {
+    required AiConfiguration expected,
+  }) async {
+    await loaded;
+    final current = configuration;
+    if (_disposed || current == null || !current.hasSameValues(expected)) {
+      return false;
+    }
+    final id = model.trim();
+    if (id == current.model) return true;
+    final preference = usesGateway
+        ? AiConfiguration.official(
+            model: id,
+            approvalMode: current.approvalMode,
+            approvalSensitivity: current.approvalSensitivity,
+          )
+        : AiConfiguration.fromJson({...current.toJson(), 'model': id});
+    await save(preference);
+    return true;
+  }
+
   @override
   void dispose() {
     _disposed = true;

@@ -12,6 +12,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart';
+import 'package:lucide_icons_flutter/lucide_icons_300.dart';
 
 import '../helpers/pump_app.dart';
 
@@ -143,7 +144,7 @@ void main() {
         final state = tester.getRect(
           find.byKey(const Key('desktop-status-state')),
         );
-        final icon = tester.getRect(find.byIcon(Icons.info_outline));
+        final icon = tester.getRect(find.byIcon(LucideIcons300.info));
         expect(bar.right - icon.right, lessThanOrEqualTo(20));
         expect(icon.left - state.right, inInclusiveRange(0, 12));
         expect(

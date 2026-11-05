@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../helpers/ai_workspace_actions.dart' show openAiDesktopMore;
+
 void main() {
   for (final phone in [false, true]) {
     testWidgets('workspace preview collapse retains the task (phone=$phone)', (
@@ -39,6 +41,7 @@ void main() {
           await tester.pumpAndSettle();
           await tester.tap(find.byKey(const Key('ai-observe-terminal')));
         } else {
+          await openAiDesktopMore(tester);
           await tester.tap(find.byKey(const Key('ai-close')));
         }
         await tester.pumpAndSettle();
@@ -73,6 +76,7 @@ void main() {
             await tester.pumpAndSettle();
             await tester.tap(find.byKey(const Key('ai-observe-terminal')));
           } else {
+            await openAiDesktopMore(tester);
             await tester.tap(find.byKey(const Key('ai-close')));
           }
           await tester.pumpAndSettle();
@@ -125,6 +129,7 @@ void main() {
       expect(task.canApprove, isTrue);
       final pending = task.pending;
       final transcript = task.transcript.toList();
+      await openAiDesktopMore(tester);
       await tester.tap(find.byKey(const Key('ai-close')));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('ai-preview-observation')), findsOneWidget);

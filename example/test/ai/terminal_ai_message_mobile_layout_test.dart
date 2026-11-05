@@ -90,18 +90,12 @@ void main() {
           final role = find.byKey(const ValueKey('ai-message-role-reading'));
           expect(tester.getSize(body).width, lessThanOrEqualTo(800));
           expect(tester.getSize(body).width, greaterThan(200));
-          if (width < 600) {
-            expect(
-              tester.getBottomLeft(role).dy,
-              lessThan(tester.getTopLeft(body).dy),
-            );
-          } else {
-            expect(tester.getTopLeft(body).dy, tester.getTopLeft(role).dy);
-            expect(
-              tester.getTopLeft(body).dx,
-              greaterThan(tester.getTopRight(role).dx),
-            );
-          }
+          // The macOS journal keeps its role in the left gutter at every width.
+          expect(tester.getTopLeft(body).dy, tester.getTopLeft(role).dy);
+          expect(
+            tester.getTopLeft(body).dx,
+            greaterThan(tester.getTopRight(role).dx),
+          );
           expect(tester.takeException(), isNull);
         },
       );

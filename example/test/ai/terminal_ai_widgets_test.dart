@@ -484,7 +484,10 @@ void main() {
       addTearDown(settings.dispose);
       await tester.pumpWidget(
         MaterialApp(
-          theme: buildIanvsTerminalTheme(Brightness.light),
+          theme: buildIanvsTerminalTheme(
+            Brightness.light,
+            platform: TargetPlatform.macOS,
+          ),
           home: Builder(
             builder: (context) => Scaffold(
               body: TextButton(
@@ -497,6 +500,12 @@ void main() {
       );
       await tester.tap(find.text('Configure'));
       await tester.pumpAndSettle();
+      expect(
+        ModalRoute.of(
+          tester.element(find.byKey(const Key('ai-settings-dialog'))),
+        ),
+        isA<DialogRoute<Object?>>(),
+      );
       await tester.tap(find.byKey(const Key('ai-custom-connection')));
       await tester.pumpAndSettle();
       await tester.ensureVisible(find.byKey(const Key('ai-use-mock')));

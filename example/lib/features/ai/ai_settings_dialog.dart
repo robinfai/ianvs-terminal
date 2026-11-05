@@ -5,9 +5,11 @@ import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/material.dart';
 
 import '../../ui/components/app_configuration_field.dart';
+import '../../ui/components/app_dialog_scaffold.dart';
 import '../../ui/components/app_dropdown_form_field.dart';
 import '../../ui/components/app_grouped_section.dart';
 import '../../ui/components/app_notifications.dart';
+import '../../ui/foundation/app_motion.dart';
 import 'acp/acp_installation.dart';
 import 'acp/codex_acp_backend.dart';
 import 'ai_connection_test.dart';
@@ -36,7 +38,13 @@ Future<void> showAiSettings(
           reverseTransitionDuration: Duration.zero,
         )
       : MaterialPageRoute<bool>(builder: buildSettings);
-  final result = await Navigator.of(context).push<bool>(route);
+  final result = Theme.of(context).platform == TargetPlatform.macOS
+      ? await showDialog<bool>(
+          context: context,
+          animationStyle: appDialogAnimation(context),
+          builder: buildSettings,
+        )
+      : await Navigator.of(context).push<bool>(route);
   if (!context.mounted || result == null) return;
   if (onSaved != null) {
     onSaved(result);
@@ -60,10 +68,12 @@ class AiSettingsDialog extends StatefulWidget {
     this.discoverAcp,
     this.connectionTestRunner,
     this.onDone,
+    this.canSave = true,
     super.key,
   });
   final AiSettingsController settings;
   final AiConnectionTestRunner? connectionTestRunner;
+  final bool canSave;
 
   /// When provided, render inside the existing settings navigation.
   final ValueChanged<bool?>? onDone;
@@ -521,7 +531,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
           ),
           FilledButton(
             key: const Key('ai-save-official'),
-            onPressed: _busy
+            onPressed: _busy || !widget.canSave
                 ? null
                 : () async {
                     setState(() => _working = true);
@@ -762,7 +772,9 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
       if (widget.settings.configuration != null)
         TextButton(
           key: const Key('ai-remove-settings'),
-          onPressed: _busy || _detecting ? null : () => _save(remove: true),
+          onPressed: _busy || _detecting || !widget.canSave
+              ? null
+              : () => _save(remove: true),
           child: Text(t('Use official service', '使用官方服务')),
         ),
       TextButton(
@@ -771,7 +783,9 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
       ),
       FilledButton(
         key: const Key('ai-save-settings'),
-        onPressed: _loaded && !_busy && !_detecting ? _save : null,
+        onPressed: _loaded && !_busy && !_detecting && widget.canSave
+            ? _save
+            : null,
         child: Text(t('Save', '保存')),
       ),
     ];
@@ -845,6 +859,17 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
       ],
     );
     if (widget.onDone != null) return body;
+    if (Theme.of(context).platform == TargetPlatform.macOS) {
+      return AppDialogScaffold(
+        title: title,
+        width: 680,
+        height: 640,
+        expandBody: true,
+        bodyPadding: EdgeInsets.zero,
+        onClose: () => _finish(null),
+        body: body,
+      );
+    }
     return Scaffold(
       backgroundColor: context.groupedBackground,
       appBar: AppBar(title: const Text('AI')),

@@ -7,6 +7,7 @@ import 'package:app/features/shell/shell_screen.dart';
 import 'package:app/ui/app_ui.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ianvs_pty/ianvs_pty.dart';
@@ -312,6 +313,39 @@ Future<void> _clickFile(
 }
 
 void main() {
+  testWidgets(
+    'command-shift-f toggles remote files without terminal input',
+    (tester) async {
+      final backend = _FileBackend(remote: true);
+      await _pump(tester, backend, _Directories(), [], raw: true);
+      Future<void> toggle() async {
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+        await _settle(tester);
+      }
+
+      backend.writes.clear();
+      await toggle();
+      expect(find.byType(SftpSidePanel), findsOneWidget);
+      await toggle();
+      expect(find.byType(SftpSidePanel), findsNothing);
+      expect(
+        tester
+            .widget<TerminalViewport>(find.byType(TerminalViewport))
+            .focusNode!
+            .hasFocus,
+        isTrue,
+      );
+      await toggle();
+      expect(find.byType(SftpSidePanel), findsOneWidget);
+      expect(backend.writes, isEmpty);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
   testWidgets(
     'nested SFTP uses native route lease and rejects missing lease',
     (tester) async {

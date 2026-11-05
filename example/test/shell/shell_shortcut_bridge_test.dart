@@ -6,6 +6,21 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('Shell shortcut bridge', () {
+    test('command-shift-f defaults to SFTP without colliding with find', () {
+      expect(
+        ShellShortcutBridge.resolve(
+          key: LogicalKeyboardKey.keyF,
+          usesMetaShortcuts: true,
+          isMetaPressed: true,
+          isControlPressed: false,
+          isShiftPressed: true,
+          isAltPressed: false,
+          scope: TerminalKeyBindingScope.focusedApp,
+        ),
+        TerminalActionId.openSftpPanel,
+      );
+    });
+
     test('maps mac meta shortcut to default action', () {
       final action = ShellShortcutBridge.resolve(
         key: LogicalKeyboardKey.keyT,

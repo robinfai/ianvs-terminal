@@ -37,6 +37,7 @@ class _ShellWindowTitleBarState extends State<_ShellWindowTitleBar> {
   final GlobalKey _boundsKey = GlobalKey();
   final GlobalKey _titleKey = GlobalKey();
   final GlobalKey _trailingGapKey = GlobalKey();
+  final GlobalKey _sidebarModeKey = GlobalKey();
   bool _layoutScheduled = false;
   String? _lastLayout;
   @override
@@ -92,7 +93,12 @@ class _ShellWindowTitleBarState extends State<_ShellWindowTitleBar> {
           Rect.fromLTWH(
             bounds.left + widget.sidebarWidth,
             bounds.top,
-            bounds.width - widget.sidebarWidth,
+            math.max(
+              0,
+              (rect(_sidebarModeKey)?.left ?? bounds.right) -
+                  bounds.left -
+                  widget.sidebarWidth,
+            ),
             bounds.height,
           ),
       ];
@@ -203,7 +209,7 @@ class _ShellWindowTitleBarState extends State<_ShellWindowTitleBar> {
                             width: 16,
                             height: double.infinity,
                           ),
-                        if (widget.aiAction != null)
+                        if (widget.aiAction != null && !widget.sidebarOpen)
                           ConstrainedBox(
                             constraints: BoxConstraints(
                               maxWidth: widget.sidebarOpen
@@ -231,7 +237,7 @@ class _ShellWindowTitleBarState extends State<_ShellWindowTitleBar> {
                                 hoverBackgroundColor:
                                     widget.tone.hoverBackground,
                                 icon: Icon(
-                                  Icons.settings_outlined,
+                                  LucideIcons300.settings,
                                   color: widget.tone.mutedText,
                                 ),
                               ),
@@ -245,6 +251,13 @@ class _ShellWindowTitleBarState extends State<_ShellWindowTitleBar> {
                 ),
               ),
             ),
+            if (widget.sidebarOpen && widget.aiAction != null)
+              Positioned(
+                right: 16,
+                top: 0,
+                bottom: 0,
+                child: Center(key: _sidebarModeKey, child: widget.aiAction),
+              ),
           ],
         ),
       ),

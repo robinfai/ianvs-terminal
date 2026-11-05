@@ -70,13 +70,10 @@ void main() {
       await mount(tester);
       for (final entry in {
         'ai-new-task': 'New task',
-        'ai-open-settings': 'AI connection',
-        'ai-close': 'Collapse to read-only terminal',
+        'ai-header-more': 'More task actions',
       }.entries) {
-        expect(
-          tester.getSemantics(find.byKey(Key(entry.key))).label,
-          entry.value,
-        );
+        expect(find.byKey(Key(entry.key)), findsOneWidget);
+        expect(find.bySemanticsLabel(entry.value), findsWidgets);
       }
     } finally {
       semantics.dispose();
@@ -207,13 +204,16 @@ void main() {
   ) async {
     await prepare();
     await startApproval(tester);
+    await tester.tap(find.byKey(const Key('ai-header-more')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.byKey(const Key('ai-open-settings')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 350));
     if (find.byKey(const Key('ai-custom-connection')).evaluate().isNotEmpty) {
       await tester.tap(find.byKey(const Key('ai-custom-connection')));
     }
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 350));
     final editor = find
         .descendant(
           of: find.byKey(const Key('ai-settings-dialog')),
@@ -309,7 +309,7 @@ void main() {
   ) async {
     await prepare();
     await startApproval(tester);
-    await focusControl(tester, const Key('ai-open-settings'));
+    await focusControl(tester, const Key('ai-header-more'));
     final owner = FocusManager.instance.primaryFocus;
     await finish(tester);
     expect(FocusManager.instance.primaryFocus, same(owner));

@@ -1,0 +1,6 @@
+package:ianvs_markdown has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+package:ianvs_agent_chat has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/ai/codex_acp_backend_connection_test.dart
+00:00 +0: ACP model discovery performs metadata handshake without prompting or tools
+00:00 +1: All tests passed!

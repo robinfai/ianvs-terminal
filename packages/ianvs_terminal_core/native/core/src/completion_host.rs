@@ -354,6 +354,35 @@ mod tests {
         }
     }
     #[test]
+    fn vi_readme_completion_uses_current_directory_and_preserves_command() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("README.md"), "test").unwrap();
+        let query: CompletionQuery = serde_json::from_value(json!({
+            "schemaVersion": 1, "sessionEpoch": 1, "targetId": "local",
+            "contextRevision": 1, "editorRevision": 1, "selectionRevision": 1,
+            "catalogRevision": ianvs_completion_core::CATALOG_REVISION,
+            "policyRevision": 1, "text": "vi REA", "cursorUtf16": 6, "dialect": "zsh"
+        }))
+        .unwrap();
+        let plan = ianvs_completion_core::local_context(&query).unwrap();
+        let items = collect(
+            dir.path(),
+            None,
+            &plan,
+            &LocalPolicy {
+                files: true,
+                scripts: false,
+            },
+            &AtomicBool::new(false),
+        );
+        let edit = items.iter().find(|edit| edit.label == "README.md").unwrap();
+        assert_eq!((edit.replace_start_utf16, edit.replace_end_utf16), (3, 6));
+        let mut text = query.text.clone();
+        text.replace_range(3..6, &edit.new_text);
+        assert_eq!(text, "vi README.md");
+    }
+
+    #[test]
     fn files_keep_quoting_filters_and_cancellation() {
         let dir = tempfile::tempdir().unwrap();
         for name in ["normal", "a b;echo nope", "line\nbreak", "\u{1b}escape"] {

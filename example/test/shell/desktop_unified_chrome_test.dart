@@ -1,9 +1,12 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' show ImageByteFormat;
 
+import 'package:app/features/ai/ai_model_catalog.dart';
 import 'package:app/features/ai/ai_models.dart';
 import 'package:app/features/ai/ai_settings.dart';
 import 'package:app/features/ai/terminal_ai_controller.dart';
+import 'package:app/features/ai/terminal_ai_history_repository.dart';
 import 'package:app/features/ai/terminal_ai_workspace.dart';
 import 'package:app/features/profiles/profile_models.dart';
 import 'package:app/features/sessions/session_controller.dart';
@@ -15,6 +18,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ianvs_terminal/ianvs_terminal.dart' show InputIntentChoice;
 
 import '../design/visual_capture_fonts.dart';
 import '../support/fake_pty_backend.dart';
@@ -25,11 +29,63 @@ import '../support/memory_profile_repository.dart';
 import '../support/no_io_local_terminal_layout_repository.dart';
 import '../support/no_io_sampled_recording_library.dart';
 
+class _HeaderBackend extends FakePtyBackend {
+  @override
+  String? requestSessionJson(String sessionId, String requestJson) {
+    final request = jsonDecode(requestJson) as Map;
+    if (request['kind'] == 'completion.query') {
+      return jsonEncode({
+        'schemaVersion': 1,
+        'query': {...request}..remove('kind'),
+        'status': 'ok',
+        'items': <Object?>[],
+      });
+    }
+    if (request['kind'] == 'terminal.live_screen') {
+      return jsonEncode({'text': 'lighthouse> ', 'alternateScreen': false});
+    }
+    if (request['kind'] == 'composer.state') {
+      return jsonEncode({
+        'state': 'ready',
+        'contextId': 'root',
+        'lease': 'header-fixture',
+        'cwd': '/home/lighthouse',
+      });
+    }
+    return super.requestSessionJson(sessionId, requestJson);
+  }
+}
+
+class _MemoryAiHistory implements TerminalAiHistoryRepository {
+  @override
+  Future<List<Map<String, Object?>>> load() async => [];
+  @override
+  Future<void> save(
+    String id,
+    Map<String, Object?> document, {
+    Map<String, Object?>? previous,
+  }) async {}
+}
+
+class _CaptureCatalog extends AiModelCatalog {
+  @override
+  Future<List<AiModelOption>> choices(AiConfiguration configuration) async =>
+      const [
+        AiModelOption('gpt-4.1'),
+        AiModelOption('gpt-4.1-mini'),
+        AiModelOption('gpt-4o'),
+      ];
+}
+
 class _Store implements AiConfigurationStore {
+  _Store([this.value]);
+  AiConfiguration? value;
   @override
-  Future<AiConfiguration?> read() async => null;
+  Future<AiConfiguration?> read() async => value;
   @override
-  Future<void> write(AiConfiguration? configuration) async {}
+  Future<void> write(AiConfiguration? configuration) async {
+    value = configuration;
+  }
 }
 
 final _captureImages =
@@ -41,7 +97,7 @@ Future<void> _capture(WidgetTester tester, String name) async {
     find.byKey(const Key('unified-chrome-capture')),
   );
   await tester.runAsync(() async {
-    final image = await boundary.toImage();
+    final image = await boundary.toImage(pixelRatio: 2);
     final bytes = await image.toByteData(format: ImageByteFormat.png);
     final file = File('../build/desktop-prd-v1/iteration-1/$name.png');
     await file.parent.create(recursive: true);
@@ -56,14 +112,16 @@ Future<ProviderContainer> _pump(
   Size size = const Size(1200, 700),
   double scale = 1,
   Locale locale = const Locale('en'),
+  Brightness brightness = Brightness.light,
   ValueNotifier<double>? contentWidth,
+  AiConfiguration? configuration,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = size;
   await tester.binding.setSurfaceSize(size);
   addTearDown(tester.view.reset);
   addTearDown(() => tester.binding.setSurfaceSize(null));
-  final settings = AiSettingsController(_Store());
+  final settings = AiSettingsController(_Store(configuration));
   final defaultProfile = defaultTerminalProfile();
   final profile = _captureImages
       ? defaultProfile.copyWith(
@@ -76,13 +134,17 @@ Future<ProviderContainer> _pump(
         )
       : defaultProfile;
   final theme = buildIanvsTerminalTheme(
-    Brightness.light,
+    brightness,
     platform: TargetPlatform.macOS,
   );
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         aiSettingsProvider.overrideWithValue(settings),
+        terminalAiHistoryRepositoryProvider.overrideWithValue(
+          _MemoryAiHistory(),
+        ),
+        aiModelCatalogProvider.overrideWithValue(_CaptureCatalog()),
         ptySessionBackendProvider.overrideWithValue(backend),
         profileRepositoryProvider.overrideWithValue(
           MemoryProfileRepository(
@@ -109,7 +171,7 @@ Future<ProviderContainer> _pump(
         key: const Key('unified-chrome-capture'),
         child: MaterialApp(
           debugShowCheckedModeBanner: false,
-          theme: _captureImages ? withVisualCaptureFonts(theme) : theme,
+          theme: withVisualCaptureFonts(theme),
           locale: locale,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
@@ -141,8 +203,254 @@ Future<ProviderContainer> _pump(
   return ProviderScope.containerOf(tester.element(find.byType(ShellScreen)));
 }
 
+class _CaptureBinding extends AutomatedTestWidgetsFlutterBinding {
+  @override
+  bool get disableShadows => false;
+}
+
 void main() {
-  if (_captureImages) setUpAll(loadVisualCaptureFonts);
+  if (_captureImages) {
+    _CaptureBinding();
+  }
+  setUpAll(loadVisualCaptureFonts);
+
+  testWidgets(
+    'macOS settings opens over the shell as a modal',
+    (tester) async {
+      await _pump(tester, _HeaderBackend());
+      await tester.tap(find.byKey(const Key('shell-chrome-menu')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('shell-command-defaults')));
+      await tester.pumpAndSettle();
+      final dialog = find.byKey(const Key('defaults-dialog'));
+      expect(
+        ModalRoute.of(tester.element(dialog)),
+        isA<DialogRoute<Object?>>(),
+      );
+      expect(
+        tester
+            .getSize(
+              find
+                  .descendant(of: dialog, matching: find.byType(AppPanel))
+                  .first,
+            )
+            .width,
+        lessThan(1200),
+      );
+      expect(find.byKey(const Key('shell-chrome-bar')), findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+      expect(dialog, findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+    variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+  );
+
+  for (final brightness in Brightness.values) {
+    testWidgets(
+      'AI and editable terminal share a persistent mode switch ${brightness.name}',
+      (tester) async {
+        final layouts = <Map<Object?, Object?>>[];
+        const bridge = MethodChannel('app/window_bridge');
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(bridge, (
+          call,
+        ) async {
+          if (call.method == 'setTitleBarLayout') {
+            layouts.add((call.arguments as Map).cast<Object?, Object?>());
+          }
+          return null;
+        });
+        addTearDown(
+          () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            bridge,
+            null,
+          ),
+        );
+        final backend = _HeaderBackend();
+        final container = await _pump(
+          tester,
+          backend,
+          size: const Size(866, 468),
+          configuration: const AiConfiguration(
+            endpoint: 'https://fixture.test/v1',
+            apiKey: 'fixture',
+            model: 'gpt-4.1',
+          ),
+          brightness: brightness,
+          locale: const Locale('zh'),
+        );
+        final sessions = container.read(sessionControllerProvider.notifier);
+        if (container.read(sessionControllerProvider).activeSessionId == null) {
+          sessions.createSession(defaultTerminalProfile());
+        }
+        await tester.pumpAndSettle();
+        if (find
+            .byKey(const Key('session-sidebar'))
+            .hitTestable()
+            .evaluate()
+            .isNotEmpty) {
+          await tester.tap(find.byKey(const Key('shell-toggle-sidebar')));
+          await tester.pumpAndSettle();
+        }
+        final id = container.read(sessionControllerProvider).activeSessionId!;
+        await tester.pump(const Duration(milliseconds: 150));
+        await tester.pumpAndSettle();
+        final terminalGeometry = List<int>.of(backend.resizeCalls.last);
+        await tester.tap(find.byKey(Key('terminal-ai-open-$id')));
+        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 150));
+        await tester.pumpAndSettle();
+        final aiGeometry = List<int>.of(backend.resizeCalls.last);
+        expect(aiGeometry[1], lessThan(terminalGeometry[1]));
+        expect(aiGeometry[2], terminalGeometry[2]);
+        expect(aiGeometry[3], lessThan(terminalGeometry[3]));
+        final modeRect = tester.getRect(
+          find.byKey(const Key('ai-workspace-mode')),
+        );
+        final task = tester
+            .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
+            .controller;
+        task.setDraft('帮我看看哪个目录占用最多');
+        FocusManager.instance.primaryFocus?.unfocus();
+        await tester.pumpAndSettle();
+        final banner = find.byKey(const Key('shell-runtime-error-dismiss'));
+        if (banner.evaluate().isNotEmpty) {
+          await tester.tap(banner);
+          await tester.pumpAndSettle();
+        }
+        final header = tester.getRect(
+          find.byKey(const Key('ai-journal-header')),
+        );
+        final chrome = tester.getRect(
+          find.byKey(const Key('shell-chrome-bar')),
+        );
+        expect(header.top, closeTo(chrome.bottom, .1));
+        expect(header.left, closeTo(chrome.left, .1));
+        final regions = (layouts.last['draggableRegions']! as List)
+            .cast<Map<Object?, Object?>>()
+            .map(
+              (r) => Rect.fromLTWH(
+                (r['x']! as num).toDouble(),
+                (r['y']! as num).toDouble(),
+                (r['width']! as num).toDouble(),
+                (r['height']! as num).toDouble(),
+              ),
+            );
+        for (final key in [
+          'ai-workspace-mode',
+          'ai-header-more',
+          'ai-new-task',
+        ]) {
+          final center = tester.getCenter(find.byKey(Key(key)));
+          expect(
+            regions.any((r) => r.contains(center)),
+            isFalse,
+            reason: '$key must not drag the native window',
+          );
+        }
+        await _capture(tester, 'ai-header-${brightness.name}');
+        final composerRect = tester.getRect(
+          find.byKey(const Key('ai-command-surface')),
+        );
+        await tester.tap(
+          find
+              .descendant(
+                of: find.byType(TerminalAiWorkspace),
+                matching: find.byType(EditableText),
+              )
+              .first,
+        );
+        await tester.pumpAndSettle();
+        expect(
+          tester.getRect(find.byKey(const Key('ai-command-surface'))),
+          composerRect,
+        );
+        await _capture(tester, 'ai-composer-focus-${brightness.name}');
+        FocusManager.instance.primaryFocus?.unfocus();
+        await tester.pumpAndSettle();
+        task.setDraft('');
+        task.chooseInputIntent(InputIntentChoice.ai);
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('ai-composer-model')));
+        await tester.pumpAndSettle();
+        await _capture(tester, 'ai-models-${brightness.name}');
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pumpAndSettle();
+        task.setDraft('帮我看看哪个目录占用最多');
+        await tester.pumpAndSettle();
+        // The chat width cap, not the hidden full-width viewport, owns columns.
+        for (final width in [1066.0, 1800.0, 2000.0, 866.0]) {
+          tester.view.physicalSize = Size(width, 468);
+          await tester.binding.setSurfaceSize(Size(width, 468));
+          await tester.pumpAndSettle();
+          await tester.pump(const Duration(milliseconds: 150));
+          await tester.pumpAndSettle();
+          if (width == 866) {
+            expect(backend.resizeCalls.last, aiGeometry);
+          } else {
+            expect(backend.resizeCalls.last[1], greaterThan(aiGeometry[1]));
+            expect(backend.resizeCalls.last[2], aiGeometry[2]);
+          }
+        }
+        final writes = backend.writes.length;
+        await tester.tap(
+          find.descendant(
+            of: find.byKey(const Key('ai-workspace-mode')),
+            matching: find.text('终端'),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('ai-observer-viewport')), findsNothing);
+        expect(find.byType(TerminalAiWorkspace), findsNothing);
+        await tester.pump(const Duration(milliseconds: 150));
+        await tester.pumpAndSettle();
+        expect(backend.resizeCalls.last, terminalGeometry);
+
+        expect(
+          tester.getRect(find.byKey(const Key('ai-workspace-mode'))),
+          modeRect,
+        );
+        await _capture(tester, 'ordinary-terminal-${brightness.name}');
+        expect(backend.writes.length, writes);
+        await tester.sendKeyEvent(
+          LogicalKeyboardKey.arrowRight,
+          platform: 'macos',
+        );
+        await tester.pump();
+        expect(backend.writes.last, '\x1b[C'.codeUnits);
+        expect(backend.writes.length, writes + 1);
+        await tester.sendKeyEvent(LogicalKeyboardKey.keyX, platform: 'macos');
+        tester.testTextInput.enterText('x');
+        await tester.pump();
+        expect(backend.writes.last, 'x'.codeUnits);
+        expect(backend.writes.length, writes + 2);
+        await tester.tap(
+          find.descendant(
+            of: find.byKey(const Key('ai-workspace-mode')),
+            matching: find.text('AI'),
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          tester
+              .widget<TerminalAiWorkspace>(find.byType(TerminalAiWorkspace))
+              .controller,
+          same(task),
+        );
+        expect(task.draft, '帮我看看哪个目录占用最多');
+        expect(backend.writes.length, writes + 2);
+        await tester.tap(find.byKey(const Key('ai-header-more')));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('ai-open-settings')), findsOneWidget);
+        expect(find.byKey(const Key('ai-close')), findsOneWidget);
+        expect(find.byKey(const Key('ai-observe-terminal')), findsNothing);
+        await _capture(tester, 'ai-header-menu-${brightness.name}');
+        expect(tester.takeException(), isNull);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
+  }
+
   for (final (width, scale, locale) in [
     (1200.0, 1.0, const Locale('en')),
     (640.0, 2.0, const Locale('en')),
@@ -260,7 +568,12 @@ void main() {
       final container = await _pump(
         tester,
         FakePtyBackend(),
-        size: const Size(1728, 1084),
+        size: const Size(866, 468),
+        configuration: const AiConfiguration(
+          endpoint: 'https://fixture.test/v1',
+          apiKey: 'fixture',
+          model: 'gpt-4.1',
+        ),
         contentWidth: width,
       );
       final sessions = container.read(sessionControllerProvider.notifier);
