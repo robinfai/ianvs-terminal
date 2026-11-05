@@ -300,12 +300,17 @@ class _SshOnlyShellEmptyState extends StatelessWidget {
   }
 
   Widget _buildCreateButton(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 16),
       child: Center(
         child: FilledButton.icon(
           key: const Key('ios-ssh-create-profile'),
           style: FilledButton.styleFrom(
+            // This is always a primary action, never a tonal button.
+            backgroundColor: colors.primary,
+            foregroundColor: colors.onPrimary,
+            iconColor: colors.onPrimary,
             minimumSize: const Size(200, 48),
             shape: const StadiumBorder(),
           ),

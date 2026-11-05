@@ -5,6 +5,8 @@ Version, signing identity and store requirements must be checked for each releas
 
 ## Product and policy
 
+- Distribution policy (user confirmed 2026-11-05): Trail is not distributed in France. Answer “No” to the App Store Connect export-compliance question about distribution in France unless the user explicitly changes this policy. This does not mean the app does not use encryption; answer cryptography questions according to the actual implementation.
+
 - [ ] Verify both one-time SSH and locally saved SSH profiles without an Ianvs account or remote API on the final archive.
 - [ ] Confirm the final App Store icon uses the intended brand and contains no transparency.
 - [x] App Store listing draft and privacy policy are present under `docs/app-store/`.
