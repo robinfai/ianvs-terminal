@@ -1059,14 +1059,13 @@ void main() {
             .read(sessionControllerProvider)
             .terminalViewportPadding;
         final cell = backgroundViewport.measuredCellSize!;
-        // AI uses the rendered command block's output width, not the hidden
-        // full-pane terminal width. Flat blocks have 8px padding on each side.
-        final blockWidth = tester
-            .getSize(
-              find.byKey(ValueKey('command-block-${blocks.blocks.last.id}')),
-            )
+        // Measure the stable reading viewport: individual blocks are virtualized
+        // and may not be mounted during the post-command scroll adjustment.
+        // The journal gutter is 36px and flat block padding is 8px per side.
+        final readingWidth = tester
+            .getSize(find.byType(TerminalCommandBlocksView))
             .width;
-        final expectedColumns = ((blockWidth - 16) / cell.width).floor();
+        final expectedColumns = ((readingWidth - 52) / cell.width).floor();
         final expectedRows = ((size.height - padding * 2) / cell.height)
             .floor();
         final live = container
