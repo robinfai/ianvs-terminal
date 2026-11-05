@@ -1049,7 +1049,14 @@ void main() {
             .read(sessionControllerProvider)
             .terminalViewportPadding;
         final cell = backgroundViewport.measuredCellSize!;
-        final expectedColumns = ((size.width - padding * 2) / cell.width)
+        // AI uses the rendered command block's output width, not the hidden
+        // full-pane terminal width. Flat blocks have 8px padding on each side.
+        final blockWidth = tester
+            .getSize(
+              find.byKey(ValueKey('command-block-${blocks.blocks.last.id}')),
+            )
+            .width;
+        final expectedColumns = ((blockWidth - 16 - padding * 2) / cell.width)
             .floor();
         final expectedRows = ((size.height - padding * 2) / cell.height)
             .floor();
