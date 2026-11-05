@@ -347,6 +347,17 @@ void main() {
 
       expect(find.byKey(const Key('ios-ssh-profile-list')), findsOne);
       expect(find.byKey(const Key('ios-ssh-create-profile')), findsOne);
+      final createLabel = find
+          .descendant(
+            of: find.byKey(const Key('ios-ssh-create-profile')),
+            matching: find.byType(RichText),
+          )
+          .last;
+      final renderedLabel = tester.widget<RichText>(createLabel);
+      expect(
+        renderedLabel.text.style?.color,
+        Theme.of(tester.element(createLabel)).colorScheme.onPrimary,
+      );
       await tester.tap(find.byKey(const Key('ios-ssh-create-profile')));
       await tester.pumpAndSettle();
 
