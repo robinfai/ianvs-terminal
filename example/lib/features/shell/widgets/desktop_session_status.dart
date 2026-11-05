@@ -156,7 +156,8 @@ class DesktopSessionStatus extends StatelessWidget {
                           child: Text(
                             Theme.of(context).platform ==
                                         TargetPlatform.macOS &&
-                                    current != null && !current.isExited &&
+                                    current != null &&
+                                    !current.isExited &&
                                     !readOnly &&
                                     !replaying &&
                                     !observing
