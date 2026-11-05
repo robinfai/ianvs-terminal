@@ -386,6 +386,7 @@ class _SshProfileListState extends State<_SshProfileList> {
           explicitChildNodes: true,
           child: TextField(
             key: const Key('ssh-profile-search'),
+            autofocus: !context.usesTouchControlDensity,
             controller: _search,
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(

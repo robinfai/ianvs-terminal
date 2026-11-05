@@ -20,6 +20,35 @@ String _materializeTestPrivateKey(String path) =>
     path.contains('jump') ? _testJumpPrivateKey : _testPrivateKey;
 
 void main() {
+  for (final platform in [TargetPlatform.macOS, TargetPlatform.iOS]) {
+    testWidgets('SSH search initial focus on $platform', (tester) async {
+      await _pumpLauncher(
+        tester,
+        profiles: [
+          _sshProfile('alpha', 'Alpha', 'alpha.example.test'),
+          _sshProfile('beta', 'Beta', 'beta.example.test'),
+        ],
+        imported: const SshProfileImportSnapshot(profiles: [], sourcePath: ''),
+        initialConnectionType: terminal.TerminalConnectionType.ssh,
+        theme: buildIanvsTerminalTheme(Brightness.light, platform: platform),
+        onClosed: (_) {},
+      );
+      final editable = tester.widget<EditableText>(
+        find.descendant(
+          of: find.byKey(const Key('ssh-profile-search')),
+          matching: find.byType(EditableText),
+        ),
+      );
+      expect(editable.focusNode.hasFocus, platform == TargetPlatform.macOS);
+      if (platform == TargetPlatform.macOS) {
+        tester.testTextInput.enterText('beta');
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('new-ssh-session-alpha')), findsNothing);
+        expect(find.byKey(const Key('new-ssh-session-beta')), findsOneWidget);
+      }
+    });
+  }
+
   testWidgets(
     'SSH field semantics keep independent values and mask secrets after sequential edits',
     (tester) async {
