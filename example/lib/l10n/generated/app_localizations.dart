@@ -9379,6 +9379,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Back up and repair terminal settings'**
   String get syncRepairTerminal;
+
+  /// No description provided for @sshPersistentConnection.
+  ///
+  /// In en, this message translates to:
+  /// **'No client timeout'**
+  String get sshPersistentConnection;
+
+  /// No description provided for @sshUnlimitedRetries.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlimited'**
+  String get sshUnlimitedRetries;
 }
 
 class _AppLocalizationsDelegate

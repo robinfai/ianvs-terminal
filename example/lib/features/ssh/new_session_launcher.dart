@@ -2636,11 +2636,9 @@ class _SshConnectionTimingFields extends StatelessWidget {
         child: AppTextFormField(
           key: const Key('ssh-connect-timeout'),
           autovalidateMode: AutovalidateMode.disabled,
-          controller: connectTimeout,
-          focusNode: connectTimeoutFocus,
-          keyboardType: TextInputType.number,
+          initialValue: context.l10n.sshPersistentConnection,
+          readOnly: true,
           decoration: _iconlessSshInputDecoration(context),
-          validator: (value) => validator(value, 1, 120),
         ),
       ),
       AppConfigurationField(
@@ -2662,11 +2660,9 @@ class _SshConnectionTimingFields extends StatelessWidget {
         child: AppTextFormField(
           key: const Key('ssh-keepalive-count'),
           autovalidateMode: AutovalidateMode.disabled,
-          controller: keepaliveCount,
-          focusNode: keepaliveCountFocus,
-          keyboardType: TextInputType.number,
+          initialValue: context.l10n.sshUnlimitedRetries,
+          readOnly: true,
           decoration: _iconlessSshInputDecoration(context),
-          validator: (value) => validator(value, 1, 100),
         ),
       ),
     ];

@@ -142,6 +142,17 @@ use HTTPS. The fixture starts at build 900001 and offers build 900002.
 Keep the test private key out of evidence/PR attachments. Stop the loopback server
 and close the test client after acceptance.
 
+## 发布前检查（2026-11-05 事故记录）
+
+0.1.4 曾因遗漏 `docs/release/0.1.4.md` 在版本选择步骤失败，自动更新仍显示
+0.1.3 为最新版本。以后每次手动发布前，必须确认目标版本说明文件存在于将要
+构建的 **远端 main 提交**，不能只存在于工作区或 PR 分支。
+
+- 触发前检查版本说明、目标提交、版本号和现有 release，缺少说明先补齐并合并。
+- 触发后跟进版本选择、构建、签名、公证、发布和测试通道 appcast 更新。
+- 只有 release 已公开且 appcast 指向新版本，才能报告“已发布/可自动更新”。
+- 本地构建成功、任务排队或触发成功均不等于已发布；失败必须说明原因。
+
 ## 0.1.0 测试版与跨项目凭据复用
 
 同一 Apple Developer 团队的 Developer ID Application 证书可用于 Trail 和

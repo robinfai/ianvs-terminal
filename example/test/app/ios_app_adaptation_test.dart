@@ -354,10 +354,7 @@ void main() {
           )
           .last;
       final renderedLabel = tester.widget<RichText>(createLabel);
-      expect(
-        renderedLabel.text.style?.color,
-        Theme.of(tester.element(createLabel)).colorScheme.onPrimary,
-      );
+      expect(renderedLabel.text.style?.color, Colors.white);
       await tester.tap(find.byKey(const Key('ios-ssh-create-profile')));
       await tester.pumpAndSettle();
 

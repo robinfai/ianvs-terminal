@@ -36,21 +36,21 @@ ThemeData withIdePresentation(ThemeData base) {
     panelRadius: 12,
     dialogRadius: touch ? 20 : 16,
   );
-  // Choose the foreground against the resolved accent, including iOS blue.
-  final onAccent = t.accent.computeLuminance() > 0.179
-      ? Colors.black
-      : Colors.white;
+  // Filled actions keep white content. iOS system blue is too light for
+  // normal-size white labels at 4.5:1, so use a deeper blue for filled surfaces
+  // while retaining the system accent for unfilled controls.
+  final filledAccent = apple ? const Color(0xFF006FE6) : t.accent;
   final scheme = base.colorScheme.copyWith(
-    primary: t.accent,
-    onPrimary: onAccent,
+    primary: filledAccent,
+    onPrimary: Colors.white,
     primaryContainer: t.selected,
     onPrimaryContainer: t.onSelected,
-    secondary: t.accent,
-    onSecondary: onAccent,
+    secondary: filledAccent,
+    onSecondary: Colors.white,
     secondaryContainer: t.selected,
     onSecondaryContainer: t.onSelected,
-    tertiary: t.accent,
-    onTertiary: onAccent,
+    tertiary: filledAccent,
+    onTertiary: Colors.white,
     surface: t.canvas,
     onSurface: t.text,
     onSurfaceVariant: t.muted,

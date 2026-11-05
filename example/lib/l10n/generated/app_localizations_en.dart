@@ -5928,4 +5928,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get syncRepairTerminal => 'Back up and repair terminal settings';
+
+  @override
+  String get sshPersistentConnection => 'No client timeout';
+
+  @override
+  String get sshUnlimitedRetries => 'Unlimited';
 }
