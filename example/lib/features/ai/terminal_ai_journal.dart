@@ -23,10 +23,12 @@ class AiWorkspaceModeSwitch extends StatelessWidget {
   Widget build(BuildContext context) {
     final zh = Localizations.localeOf(context).languageCode == 'zh';
     final palette = context.appTheme;
+    final compact = MediaQuery.sizeOf(context).width <= 640;
     Widget tab(bool ai, String label, IconData icon, VoidCallback? callback) {
       final selected = aiSelected == ai;
       return Semantics(
         selected: selected,
+        label: compact ? label : null,
         child: Container(
           decoration: BoxDecoration(
             border: Border(
@@ -46,14 +48,14 @@ class AiWorkspaceModeSwitch extends StatelessWidget {
             onPressed: selected ? () {} : callback,
             style: TextButton.styleFrom(
               foregroundColor: selected ? palette.focus : palette.textMuted,
-              minimumSize: const Size(64, 32),
-              padding: const EdgeInsets.symmetric(horizontal: 8),
+              minimumSize: Size(compact ? 32 : 64, 32),
+              padding: EdgeInsets.symmetric(horizontal: compact ? 4 : 8),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(6),
               ),
             ),
             icon: Icon(icon, size: 16),
-            label: Text(label, maxLines: 1),
+            label: compact ? const SizedBox.shrink() : Text(label, maxLines: 1),
           ),
         ),
       );

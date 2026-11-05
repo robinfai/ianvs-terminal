@@ -1861,44 +1861,55 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
               _savePosition();
               c.newTask();
             },
-            icon: const Icon(LucideIcons300.plus, size: 18),
+            icon: Icon(
+              LucideIcons300.plus,
+              size: 18,
+              semanticLabel: t('New task', '新任务'),
+            ),
           ),
-          PopupMenuButton<String>(
-            key: const Key('ai-header-more'),
-            tooltip: t('More task actions', '更多任务操作'),
-            popUpAnimationStyle: appDialogAnimation(context),
-            icon: const Icon(LucideIcons300.ellipsis, size: 18),
-            onSelected: (value) {
-              switch (value) {
-                case 'settings':
-                  unawaited(_openSettings());
-                case 'usage':
-                  unawaited(_openUsage());
-                case 'observe':
-                  _observeTerminal();
-                case 'close':
-                  _collapseTask();
-              }
-            },
-            itemBuilder: (_) => [
-              PopupMenuItem(
-                value: 'settings',
-                key: const Key('ai-open-settings'),
-                child: Text(t('AI connection', 'AI 连接')),
+          Semantics(
+            container: true,
+            child: PopupMenuButton<String>(
+              key: const Key('ai-header-more'),
+              tooltip: t('More task actions', '更多任务操作'),
+              popUpAnimationStyle: appDialogAnimation(context),
+              icon: Icon(
+                LucideIcons300.ellipsis,
+                size: 18,
+                semanticLabel: t('More task actions', '更多任务操作'),
               ),
-              if (c.settings.usesGateway)
+              onSelected: (value) {
+                switch (value) {
+                  case 'settings':
+                    unawaited(_openSettings());
+                  case 'usage':
+                    unawaited(_openUsage());
+                  case 'observe':
+                    _observeTerminal();
+                  case 'close':
+                    _collapseTask();
+                }
+              },
+              itemBuilder: (_) => [
                 PopupMenuItem(
-                  value: 'usage',
-                  key: const Key('ai-open-usage'),
-                  child: Text(t('AI quota and usage', 'AI 额度与用量')),
+                  value: 'settings',
+                  key: const Key('ai-open-settings'),
+                  child: Text(t('AI connection', 'AI 连接')),
                 ),
-              const PopupMenuDivider(),
-              PopupMenuItem(
-                value: 'close',
-                key: const Key('ai-close'),
-                child: Text(t('Switch to terminal', '切换到终端')),
-              ),
-            ],
+                if (c.settings.usesGateway)
+                  PopupMenuItem(
+                    value: 'usage',
+                    key: const Key('ai-open-usage'),
+                    child: Text(t('AI quota and usage', 'AI 额度与用量')),
+                  ),
+                const PopupMenuDivider(),
+                PopupMenuItem(
+                  value: 'close',
+                  key: const Key('ai-close'),
+                  child: Text(t('Switch to terminal', '切换到终端')),
+                ),
+              ],
+            ),
           ),
         ],
       );
@@ -3114,7 +3125,11 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     key: const Key('ai-attach-context'),
     tooltip: t('Attach terminal output', '附加终端输出'),
     enabled: _paneInteractive && !c.followUpEnded,
-    icon: const Icon(LucideIcons300.plus, size: 18),
+    icon: Icon(
+      LucideIcons300.plus,
+      size: 18,
+      semanticLabel: t('New task', '新任务'),
+    ),
     onSelected: (block) {
       if (!_paneInteractive || c.followUpEnded) return;
       c.attachContext(block);

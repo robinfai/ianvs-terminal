@@ -1,3 +1,9 @@
+## Full-suite follow-up — 2026-11-05
+
+The full Example suite passes 3,273 cases locally; its 14 native-dependent failures were rerun with the explicit core/ACP library paths and all 14 pass (8 environment-dependent skips in the first run). The 845-case visual suite passes with one existing skip. Full analysis and formatting checks pass.
+
+Fixed narrow macOS chrome overflow with a compact two-icon mode switch at widths up to 640, retained semantic labels, and updated old observer/title/tab assertions to the selected two-mode journal design. The macOS integration build succeeded but Vim's intro-banner assertion failed after the new chat-to-terminal resize; readiness now checks the alternate screen, followed by the existing real insertion/quit checks. Final remote integration results remain tracked on the PR.
+
 ## Main integration and release verification — 2026-11-05
 
 The release branch preserves main's staged connection diagnostics and reduced-motion routes. Integrated validation: 76 shell/model/settings/connection tests passed, 135 AI workspace/widget/preview tests passed, and 845 visual tests passed (one existing skip). The earlier phone fixed-size reduced-motion failures are resolved by the main integration.

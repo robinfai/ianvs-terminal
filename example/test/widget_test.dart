@@ -936,7 +936,7 @@ void main() {
     'tab strip uses compact tabs before overflowing',
     (tester) async {
       tester.view.devicePixelRatio = 1.0;
-      tester.view.physicalSize = const Size(1100, 700);
+      tester.view.physicalSize = const Size(1300, 700);
       addTearDown(() {
         tester.view.resetPhysicalSize();
         tester.view.resetDevicePixelRatio();

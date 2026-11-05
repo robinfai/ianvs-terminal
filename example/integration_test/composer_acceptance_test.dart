@@ -939,7 +939,17 @@ void main() {
           tester,
           () =>
               find.byType(TerminalAiWorkspace).evaluate().isEmpty &&
-              terminalText().contains(program.ready),
+              (program.name == 'vim'
+                  // Resizing from chat width to the full terminal dismisses
+                  // Vim's intro screen; verify its alternate screen and real
+                  // insertion below rather than depending on that banner.
+                  ? container
+                        .read(sessionControllerProvider.notifier)
+                        .viewportFor(id)
+                        .frame
+                        .modes
+                        .alternateScreen
+                  : terminalText().contains(program.ready)),
           diagnostics: () =>
               '${program.name}: ${container.read(sessionControllerProvider).tabs.first.activePane.terminalMode.unavailableReason}; '
               'owner=${model.ownership}; draft=${model.editor.text}; status=${model.status}; '

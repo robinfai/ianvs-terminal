@@ -50,9 +50,7 @@ void _expectCenteredTitle(WidgetTester tester) {
   }
   final title = tester.getCenter(titleFinder);
   final left = tester.getRect(find.byKey(_toggle)).right;
-  final right = tester
-      .getRect(find.byKey(const Key('terminal-ai-open-1')))
-      .left;
+  final right = tester.getRect(find.byKey(_gear)).left;
   expect(title.dx, closeTo((left + right) / 2, 0.1));
   expect(toggle.dy, gear.dy);
   expect(title.dy, closeTo(gear.dy, 0.1));

@@ -405,6 +405,8 @@ Iterable<File> _allowedShellExternalDependencies(Directory libDirectory) {
     // Shell consumes action identity and the unified timeline model; AI keeps
     // execution, approval and provider state behind its controller boundary.
     'features/ai/ai_models.dart',
+    'features/ai/ai_model_catalog.dart',
+    'features/ai/terminal_ai_journal.dart',
     'features/ai/unified_terminal_timeline.dart',
     'features/ai/ai_settings.dart',
     'features/ai/ai_settings_dialog.dart',

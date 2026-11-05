@@ -736,7 +736,7 @@ void main() {
         size: const Size(1000, 800),
       );
       expect(find.byKey(const Key('ai-mobile-composer')), findsNothing);
-      expect(find.byKey(const Key('ai-close')), findsOneWidget);
+      expect(find.byKey(const Key('ai-header-more')), findsOneWidget);
       expect(find.byKey(const Key('ai-expand-draft')), findsOneWidget);
       expect(tester.takeException(), isNull);
     },

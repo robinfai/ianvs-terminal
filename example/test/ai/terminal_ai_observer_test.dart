@@ -274,7 +274,7 @@ void main() {
         expect(backend.composerSubmissions, isEmpty);
         expect(ai.draft, 'echo retained draft');
         await _settle(tester);
-        await tester.tap(find.byKey(const Key('ai-observer-back')));
+        await returnToAiWorkspace(tester);
         await _settle(tester);
         workspace.onTakeOver!();
         send();
@@ -703,7 +703,7 @@ void main() {
       'escape',
     ]) {
       testWidgets(
-        '${platform.name} $entry collapses into read-only observation and preserves task',
+        '${platform.name} $entry returns to its terminal mode and preserves task',
         (tester) async {
           final backend = _Backend();
           final fixture = await _pump(
@@ -724,7 +724,13 @@ void main() {
           if (entry == 'escape') {
             await tester.sendKeyEvent(LogicalKeyboardKey.escape);
           } else if (entry == 'chrome') {
-            await tester.tap(find.byKey(Key('terminal-ai-open-${fixture.id}')));
+            await tester.tap(
+              find.byKey(
+                platform == TargetPlatform.macOS
+                    ? const Key('ai-mode-terminal')
+                    : Key('terminal-ai-open-${fixture.id}'),
+              ),
+            );
           } else {
             await observeAiTerminal(
               tester,
@@ -732,10 +738,22 @@ void main() {
             );
           }
           await _settle(tester);
-          expect(find.byType(TerminalAiObserver).hitTestable(), findsOneWidget);
+          expect(
+            find.byType(TerminalAiObserver).hitTestable(),
+            platform == TargetPlatform.macOS ? findsNothing : findsOneWidget,
+          );
+          if (platform == TargetPlatform.macOS) {
+            expect(
+              find.byType(TerminalAiWorkspace).hitTestable(),
+              findsNothing,
+            );
+          }
           expect(ai.taskId, task);
-          expect(ai.phase, AiPhase.thinking);
-          expect(ai.takenOver, isFalse);
+          expect(
+            ai.phase,
+            platform == TargetPlatform.macOS ? AiPhase.idle : AiPhase.thinking,
+          );
+          expect(ai.takenOver, platform == TargetPlatform.macOS);
           expect(ai.draft, 'Keep this unsent requirement');
           fixture.previousInput.sendText('old human callback');
           expect(backend.writes, isEmpty);
@@ -746,8 +764,11 @@ void main() {
             find.byType(TerminalAiWorkspace).hitTestable(),
             findsOneWidget,
           );
-          expect(ai.phase, AiPhase.thinking);
-          expect(ai.takenOver, isFalse);
+          expect(
+            ai.phase,
+            platform == TargetPlatform.macOS ? AiPhase.idle : AiPhase.thinking,
+          );
+          expect(ai.takenOver, platform == TargetPlatform.macOS);
           expect(ai.draft, 'Keep this unsent requirement');
           expect(backend.writes, isEmpty);
           expect(tester.takeException(), isNull);
@@ -927,7 +948,7 @@ void main() {
       expect(backend.writes, isEmpty);
       expect(backend.resizeCalls, hasLength(resizeCount));
       expect(tester.testTextInput.isVisible, isFalse);
-      await tester.tap(find.byKey(const Key('ai-observer-back')));
+      await returnToAiWorkspace(tester);
       await _settle(tester);
       expect(
         tester.state(find.byType(TerminalAiWorkspace)),

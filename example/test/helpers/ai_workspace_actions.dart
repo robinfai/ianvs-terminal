@@ -12,6 +12,11 @@ Future<void> observeAiTerminal(
   WidgetTester tester, {
   bool compactMobile = true,
 }) async {
+  if (!compactMobile &&
+      find.byKey(const Key('ai-mode-terminal')).evaluate().isNotEmpty) {
+    await tester.tap(find.byKey(const Key('ai-mode-terminal')));
+    return;
+  }
   if (compactMobile) await openAiMobileTaskMenu(tester);
   if (compactMobile &&
       find.byKey(const Key('ai-history-actions')).evaluate().isNotEmpty) {
@@ -21,7 +26,8 @@ Future<void> observeAiTerminal(
   if (!compactMobile &&
       find.byKey(const Key('ai-header-more')).evaluate().isNotEmpty) {
     await tester.tap(find.byKey(const Key('ai-header-more')));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
   }
   final action = find.byKey(
     Key(compactMobile ? 'ai-observe-terminal' : 'ai-close'),
@@ -35,5 +41,23 @@ Future<void> openAiDesktopMore(WidgetTester tester) async {
   if (more.evaluate().isNotEmpty) {
     await tester.tap(more);
     await tester.pumpAndSettle();
+  }
+}
+
+Future<void> returnToAiWorkspace(WidgetTester tester) async {
+  final back = find.byKey(const Key('ai-observer-back'));
+  if (back.evaluate().isNotEmpty) {
+    await tester.tap(back);
+  } else {
+    await tester.tap(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is TextButton &&
+            widget.key is ValueKey<String> &&
+            (widget.key! as ValueKey<String>).value.startsWith(
+              'terminal-ai-open-',
+            ),
+      ),
+    );
   }
 }
