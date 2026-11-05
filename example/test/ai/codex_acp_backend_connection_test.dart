@@ -195,6 +195,52 @@ Future<void> _probeOldBridge(Map<String, Object?> bridge) async {
 
 void main() {
   test(
+    'ACP model discovery performs metadata handshake without prompting or tools',
+    () async {
+      final fixture = await Directory.systemTemp.createTemp(
+        'trail-acp-models-',
+      );
+      final authentication = File('${fixture.path}/auth.json');
+      await authentication.writeAsString('{"fixture":true}');
+      final observer = _ProtocolObserver(
+        await HttpServer.bind(InternetAddress.loopbackIPv4, 0),
+      );
+      try {
+        await IOOverrides.runWithIOOverrides(() async {
+          final models = await CodexAcpBackend.listModels(
+            AiConfiguration.acp(
+              agentCommand: _dart(),
+              agentArguments: [
+                File('test/fixtures/acp_connection_agent.dart').absolute.path,
+                observer.uri.toString(),
+              ],
+              model: 'fixture-model',
+            ),
+          );
+          expect(models.map((m) => m.id), contains('fixture-model'));
+          expect(
+            observer.requests.where((r) => r['method'] == 'session/prompt'),
+            isEmpty,
+          );
+          expect(
+            observer.requests.where(
+              (r) => r['method'] == 'session/set_config_option',
+            ),
+            isEmpty,
+          );
+          final session = observer.requests.firstWhere(
+            (r) => r['method'] == 'session/new',
+          );
+          expect((session['params']! as Map)['mcpServers'], isEmpty);
+        }, _SyntheticAuthentication(authentication.path));
+      } finally {
+        await observer.dispose();
+        await fixture.delete(recursive: true);
+      }
+    },
+  );
+
+  test(
     'sparse ACP permission reaches host review without executing before approval',
     () async {
       final fixture = await Directory.systemTemp.createTemp(

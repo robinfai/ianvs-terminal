@@ -2,11 +2,21 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'acp/codex_acp_backend.dart';
 import 'ai_models.dart';
 
 /// OpenAI-compatible GET /models, shared by the official gateway and BYOK.
 class AiModelCatalog {
   const AiModelCatalog();
+
+  Future<List<AiModelOption>> choices(AiConfiguration configuration) async {
+    if (configuration.backend == AiBackendKind.acp) {
+      return CodexAcpBackend.listModels(configuration);
+    }
+    return [for (final id in await fetch(configuration)) AiModelOption(id)];
+  }
 
   Future<List<String>> fetch(AiConfiguration configuration) async {
     // Listing models does not require a selected model yet.
@@ -75,3 +85,7 @@ class AiModelCatalog {
     }
   }
 }
+
+final aiModelCatalogProvider = Provider<AiModelCatalog>(
+  (ref) => const AiModelCatalog(),
+);

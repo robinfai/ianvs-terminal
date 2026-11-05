@@ -1,0 +1,10 @@
+package:ianvs_markdown has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+package:ianvs_design has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+package:ianvs_agent_chat has `uses-material-design: true` set but the primary pubspec contains `uses-material-design: false`. If the application needs material icons, then `uses-material-design`  must be set to true.
+00:00 +0: loading /Users/robinfai/flutter_projects/ianvs-terminal/example/test/shell/defaults_appearance_redesign_test.dart
+00:00 +0: AI opens directly from top-level settings on TargetPlatform.iOS
+00:00 +1: AI opens directly from top-level settings on TargetPlatform.macOS
+00:01 +2: AI settings distinguishes loading from unreadable configuration
+00:02 +3: AI settings status follows saved configuration, not cancelled edits
+00:03 +4: AI official save uses the settings confirmation exit
+00:03 +5: All tests passed!

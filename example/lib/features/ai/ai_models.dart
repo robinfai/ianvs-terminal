@@ -4,6 +4,13 @@ import 'dart:typed_data';
 import 'package:ianvs_terminal/input_intent.dart'
     show InputIntent, InputIntentContext, classifyInputIntent;
 
+/// A model advertised by the configured API or ACP agent.
+class AiModelOption {
+  const AiModelOption(this.id, {String? name}) : name = name ?? id;
+  final String id;
+  final String name;
+}
+
 enum AiBackendKind { llm, acp }
 
 enum AiApprovalMode { manual, smart }

@@ -51,6 +51,21 @@ Widget aiWorkspaceEvidencePreview() =>
     const AiWorkspacePreview(dark: true, completed: true);
 
 @Preview(
+  name: 'AI journal · macOS · Light',
+  group: 'Terminal',
+  size: Size(1248, 950),
+)
+Widget aiJournalLightPreview() => const AiWorkspacePreview(completed: true);
+
+@Preview(
+  name: 'AI journal · macOS · Narrow',
+  group: 'Terminal',
+  size: Size(600, 800),
+)
+Widget aiJournalNarrowPreview() =>
+    const AiWorkspacePreview(dark: true, completed: true);
+
+@Preview(
   name: 'AI workspace · Phone fixed text',
   group: 'Terminal',
   size: Size(390, 844),

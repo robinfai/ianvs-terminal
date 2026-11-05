@@ -8,6 +8,7 @@ import 'package:ianvs_agent_chat/ianvs_agent_chat.dart';
 import 'package:ianvs_agent_core/ianvs_agent_core.dart';
 import 'package:ianvs_design/ianvs_design.dart' show IanvsTypographyContext;
 import 'package:ianvs_terminal/ianvs_terminal.dart';
+import 'package:lucide_icons_flutter/lucide_icons_300.dart';
 
 import '../../ui/app_ui.dart';
 import '../../ui/components/app_prompt_surface.dart';
@@ -15,7 +16,9 @@ import '../terminal_composer/command_shortcuts_dialog.dart';
 import '../terminal_composer/composer_pane.dart';
 import '../terminal_composer/terminal_mode.dart';
 import 'ai_approval_notice.dart';
+import 'ai_composer_model_menu.dart';
 import 'ai_mobile_history_sheet.dart';
+import 'ai_model_catalog.dart';
 import 'ai_models.dart';
 import 'ai_request_indicator.dart';
 import 'ai_settings_dialog.dart';
@@ -23,6 +26,7 @@ import 'ai_strings.dart';
 import 'ai_usage_page.dart';
 import 'ios_voice_input.dart';
 import 'terminal_ai_controller.dart';
+import 'terminal_ai_journal.dart';
 import 'terminal_ai_message.dart';
 import 'terminal_ai_target_notice.dart';
 
@@ -52,6 +56,7 @@ class TerminalAiWorkspace extends StatefulWidget {
     this.active = true,
     this.canInteract,
     this.compactMobile = false,
+    this.modelCatalog = const AiModelCatalog(),
     this.unifiedWorkspace = false,
     this.commandSession,
     this.targetLabel = '',
@@ -67,6 +72,7 @@ class TerminalAiWorkspace extends StatefulWidget {
     super.key,
   });
   final TerminalAiController controller;
+  final AiModelCatalog modelCatalog;
 
   /// Collapse into read-only observation without cancelling this task.
   final VoidCallback onClose;
@@ -173,6 +179,11 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
       Theme.of(context).platform == TargetPlatform.iOS ||
       Theme.of(context).platform == TargetPlatform.android;
 
+  bool get _journal =>
+      Theme.of(context).platform == TargetPlatform.macOS &&
+      !widget.fullScreenTerminal;
+  double get _readingWidth => _journal ? 1200 : _aiReadingWidth;
+
   @override
   void initState() {
     super.initState();
@@ -199,6 +210,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     _input.addListener(_saveDraft);
     _commandEditor?.addListener(_commandEditorChanged);
     _focus.addListener(_commandEditorChanged);
+    _focus.addListener(_promptFocusChanged);
     _scroll = CommandTimelineScrollController(
       initialScrollOffset: c.readingOffset,
       onReadingAnchorChanged: (anchor) {
@@ -540,6 +552,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     c.removeListener(_changed);
     _input.removeListener(_saveDraft);
     _focus.removeListener(_commandEditorChanged);
+    _focus.removeListener(_promptFocusChanged);
     _commandEditor?.removeListener(_commandEditorChanged);
     if (_commandEditor case final model?) {
       widget.commandSession!.releaseDraftEditor(model);
@@ -847,17 +860,21 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
       label: ConstrainedBox(
         // RawChip derives its content height from the label, then positions
         // the independent deletion slot within that height.
-        constraints: const BoxConstraints(minHeight: 44, maxWidth: 260),
+        constraints: BoxConstraints(
+          minHeight: _journal ? 20 : 44,
+          maxWidth: 260,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(block.command, maxLines: 1, overflow: TextOverflow.ellipsis),
-            Text(
-              range,
-              key: const Key('ai-context-range'),
-              style: Theme.of(context).textTheme.labelSmall,
-            ),
+            if (!_journal)
+              Text(
+                range,
+                key: const Key('ai-context-range'),
+                style: Theme.of(context).textTheme.labelSmall,
+              ),
             if (coverage.isNotEmpty)
               Text(
                 coverage,
@@ -875,9 +892,9 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
         key: ValueKey('ai-context-delete-${block.id}'),
         size: 18,
       ),
-      deleteIconBoxConstraints: const BoxConstraints.tightFor(
-        width: 44,
-        height: 44,
+      deleteIconBoxConstraints: BoxConstraints.tightFor(
+        width: _journal ? 28 : 44,
+        height: _journal ? 28 : 44,
       ),
       onPressed: () => _inspect(block),
       onDeleted: !removable || c.followUpEnded || !_paneInteractive
@@ -992,8 +1009,11 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
       final rawInput = content.metadata['rawInput'];
       final terminalTool =
           rawInput is Map && rawInput['server'] == 'trail_terminal';
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      final body = Padding(
+        padding: EdgeInsets.symmetric(
+          horizontal: _journal ? 8 : 16,
+          vertical: 8,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -1035,6 +1055,14 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
           ],
         ),
       );
+      return _journal
+          ? TerminalAiJournalRow(
+              icon: content.role == ChatMessageRole.tool
+                  ? Icons.terminal_outlined
+                  : Icons.auto_awesome_outlined,
+              child: body,
+            )
+          : body;
     }
     final evidence = entry.role == 'assistant' && widget.onShowEvidence != null
         ? _evidence(entry).toList()
@@ -1729,177 +1757,268 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     ],
   );
 
-  Widget _header(bool compact, {bool singleRow = false}) => Padding(
-    padding: EdgeInsets.fromLTRB(12, singleRow ? 0 : 4, 4, singleRow ? 0 : 4),
-    child: SizedBox(
-      height: singleRow ? 44 : null,
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (!singleRow || !widget.fullScreenTerminal)
-                  Text(
-                    c.taskTitle.isEmpty
-                        ? t('Terminal / New task', '终端 / 新任务')
-                        : c.taskTitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
-                if (widget.fullScreenTerminal)
-                  Tooltip(
-                    message:
-                        c.context?.runningCommand ??
-                        t('Full-screen terminal', '全屏终端'),
-                    child: Text(
-                      t(
-                        'Terminal program: ${c.context?.runningCommand ?? "Full-screen terminal"}',
-                        '终端程序：${c.context?.runningCommand ?? "全屏终端"}',
-                      ),
-                      key: const Key('ai-terminal-program'),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ),
-                if (compact && !_inlineActivity)
-                  Semantics(
-                    container: true,
-                    liveRegion: true,
-                    label: _announcedStatus,
-                    excludeSemantics: true,
-                    child: Tooltip(
-                      message: _status,
-                      child: Text(
-                        _status,
-                        key: const Key('ai-task-status'),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          if (singleRow && c.attachments.isNotEmpty)
-            _pendingContexts(compact: true),
-          if (!singleRow || c.attachments.isEmpty)
-            PopupMenuButton<String>(
-              popUpAnimationStyle: appDialogAnimation(context),
-              tooltip: t('Session tasks', '会话任务'),
-              icon: Icon(
-                Icons.history,
-                size: 20,
-                semanticLabel: t('Session tasks', '会话任务'),
-              ),
-              onSelected: (id) {
-                if (id == 'settings') {
-                  unawaited(_openSettings());
-                } else {
-                  _savePosition();
-                  c.selectTask(id);
-                }
-              },
-              itemBuilder: (_) => [
-                for (final (index, task)
-                    in c.tasks.where((task) => task.started).indexed)
-                  PopupMenuItem(
-                    value: task.id,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          task.title.isNotEmpty
-                              ? task.title
-                              : task.commandName.isNotEmpty
-                              ? task.commandName
-                              : task.draft.isNotEmpty
-                              ? t('Draft', '草稿')
-                              : t('New task', '新任务'),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        Text(
-                          '${t('Task', '任务')} ${index + 1}${task.followUpEnded ? t(' · Follow-up ended', ' · 已结束跟进') : ''}${task.id == c.taskId ? t(' · Current', ' · 当前') : ''}',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: context.appTheme.textMuted),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                if (compact) ...[
-                  const PopupMenuDivider(),
-                  PopupMenuItem(
-                    value: 'settings',
-                    child: Text(t('AI connection', 'AI 连接')),
-                  ),
-                ],
-              ],
-            ),
-          if (singleRow)
-            _hideKeyboardButton()
-          else
-            IconButton(
-              key: const Key('ai-new-task'),
-              tooltip: t('New task', '新任务'),
-              onPressed: () {
-                _savePosition();
-                c.newTask();
-              },
-              icon: Icon(
-                Icons.add,
-                size: 20,
-                semanticLabel: t('New task', '新任务'),
-              ),
-            ),
-          if (!compact && c.settings.usesGateway)
-            IconButton(
-              key: const Key('ai-open-usage'),
-              tooltip: t('AI quota and usage', 'AI 额度与用量'),
-              onPressed: _openUsage,
-              icon: const Icon(Icons.account_balance_wallet_outlined),
-            ),
-          if (!compact)
-            IconButton(
-              key: const Key('ai-open-settings'),
-              tooltip: t('AI connection', 'AI 连接'),
-              onPressed: _openSettings,
-              icon: Icon(
-                Icons.settings_outlined,
-                semanticLabel: t('AI connection', 'AI 连接'),
-              ),
-            ),
-          if (singleRow) _taskActions(includeInlineActions: true),
-          IconButton(
-            key: const Key('ai-close'),
-            tooltip: t('Collapse to read-only terminal', '收起并只读查看终端'),
-            onPressed: _collapseTask,
-            icon: Icon(
-              Icons.close,
-              semanticLabel: t('Collapse to read-only terminal', '收起并只读查看终端'),
-            ),
-          ),
-          if (widget.onObserveTerminal != null)
-            IconButton(
-              key: const Key('ai-observe-terminal'),
-              tooltip: t('View terminal (read-only)', '只读查看终端'),
-              onPressed: _observeTerminal,
-              icon: Icon(
-                Icons.visibility_outlined,
-                semanticLabel: t('View terminal (read-only)', '只读查看终端'),
-              ),
-            ),
-        ],
-      ),
+  Widget _historyButton(bool compact) => PopupMenuButton<String>(
+    popUpAnimationStyle: appDialogAnimation(context),
+    tooltip: t('Session tasks', '会话任务'),
+    icon: Icon(
+      _journal ? LucideIcons300.history : Icons.history,
+      size: 18,
+      semanticLabel: t('Session tasks', '会话任务'),
     ),
+    onSelected: (id) {
+      if (id == 'settings') {
+        unawaited(_openSettings());
+      } else {
+        _savePosition();
+        c.selectTask(id);
+      }
+    },
+    itemBuilder: (_) => [
+      for (final (index, task) in c.tasks.where((task) => task.started).indexed)
+        PopupMenuItem(
+          value: task.id,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                task.title.isNotEmpty
+                    ? task.title
+                    : task.commandName.isNotEmpty
+                    ? task.commandName
+                    : task.draft.isNotEmpty
+                    ? t('Draft', '草稿')
+                    : t('New task', '新任务'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text(
+                '${t('Task', '任务')} ${index + 1}${task.followUpEnded ? t(' · Follow-up ended', ' · 已结束跟进') : ''}${task.id == c.taskId ? t(' · Current', ' · 当前') : ''}',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: context.appTheme.textMuted,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      if (compact) ...[
+        const PopupMenuDivider(),
+        PopupMenuItem(
+          value: 'settings',
+          child: Text(t('AI connection', 'AI 连接')),
+        ),
+      ],
+    ],
   );
+
+  Widget _journalHeader(bool compact) => LayoutBuilder(
+    builder: (context, bounds) {
+      final title = Text(
+        c.taskTitle.isEmpty ? t('New task', '新任务') : c.taskTitle,
+        key: const Key('ai-journal-title'),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(
+          context,
+        ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+      );
+      final actions = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _historyButton(false),
+          IconButton(
+            key: const Key('ai-new-task'),
+            tooltip: t('New task', '新任务'),
+            onPressed: () {
+              _savePosition();
+              c.newTask();
+            },
+            icon: const Icon(LucideIcons300.plus, size: 18),
+          ),
+          PopupMenuButton<String>(
+            key: const Key('ai-header-more'),
+            tooltip: t('More task actions', '更多任务操作'),
+            popUpAnimationStyle: appDialogAnimation(context),
+            icon: const Icon(LucideIcons300.ellipsis, size: 18),
+            onSelected: (value) {
+              switch (value) {
+                case 'settings':
+                  unawaited(_openSettings());
+                case 'usage':
+                  unawaited(_openUsage());
+                case 'observe':
+                  _observeTerminal();
+                case 'close':
+                  _collapseTask();
+              }
+            },
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                value: 'settings',
+                key: const Key('ai-open-settings'),
+                child: Text(t('AI connection', 'AI 连接')),
+              ),
+              if (c.settings.usesGateway)
+                PopupMenuItem(
+                  value: 'usage',
+                  key: const Key('ai-open-usage'),
+                  child: Text(t('AI quota and usage', 'AI 额度与用量')),
+                ),
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                value: 'close',
+                key: const Key('ai-close'),
+                child: Text(t('Switch to terminal', '切换到终端')),
+              ),
+            ],
+          ),
+        ],
+      );
+      return Padding(
+        key: const Key('ai-journal-header'),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 44),
+          child: Row(
+            children: [
+              Expanded(child: title),
+              actions,
+            ],
+          ),
+        ),
+      );
+    },
+  );
+
+  Widget _header(bool compact, {bool singleRow = false}) => _journal
+      ? _journalHeader(compact)
+      : Padding(
+          padding: EdgeInsets.fromLTRB(
+            12,
+            singleRow ? 0 : 4,
+            4,
+            singleRow ? 0 : 4,
+          ),
+          child: SizedBox(
+            height: singleRow ? 44 : null,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (!singleRow || !widget.fullScreenTerminal)
+                        Text(
+                          c.taskTitle.isEmpty
+                              ? t('Terminal / New task', '终端 / 新任务')
+                              : c.taskTitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                      if (widget.fullScreenTerminal)
+                        Tooltip(
+                          message:
+                              c.context?.runningCommand ??
+                              t('Full-screen terminal', '全屏终端'),
+                          child: Text(
+                            t(
+                              'Terminal program: ${c.context?.runningCommand ?? "Full-screen terminal"}',
+                              '终端程序：${c.context?.runningCommand ?? "全屏终端"}',
+                            ),
+                            key: const Key('ai-terminal-program'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
+                      if (compact && !_inlineActivity)
+                        Semantics(
+                          container: true,
+                          liveRegion: true,
+                          label: _announcedStatus,
+                          excludeSemantics: true,
+                          child: Tooltip(
+                            message: _status,
+                            child: Text(
+                              _status,
+                              key: const Key('ai-task-status'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                if (singleRow && c.attachments.isNotEmpty)
+                  _pendingContexts(compact: true),
+                if (!singleRow || c.attachments.isEmpty)
+                  _historyButton(compact),
+                if (singleRow)
+                  _hideKeyboardButton()
+                else
+                  IconButton(
+                    key: const Key('ai-new-task'),
+                    tooltip: t('New task', '新任务'),
+                    onPressed: () {
+                      _savePosition();
+                      c.newTask();
+                    },
+                    icon: Icon(
+                      Icons.add,
+                      size: 20,
+                      semanticLabel: t('New task', '新任务'),
+                    ),
+                  ),
+                if (!compact && c.settings.usesGateway)
+                  IconButton(
+                    key: const Key('ai-open-usage'),
+                    tooltip: t('AI quota and usage', 'AI 额度与用量'),
+                    onPressed: _openUsage,
+                    icon: const Icon(Icons.account_balance_wallet_outlined),
+                  ),
+                if (!compact)
+                  IconButton(
+                    key: const Key('ai-open-settings'),
+                    tooltip: t('AI connection', 'AI 连接'),
+                    onPressed: _openSettings,
+                    icon: Icon(
+                      Icons.settings_outlined,
+                      semanticLabel: t('AI connection', 'AI 连接'),
+                    ),
+                  ),
+                if (singleRow) _taskActions(includeInlineActions: true),
+                IconButton(
+                  key: const Key('ai-close'),
+                  tooltip: t('Collapse to read-only terminal', '收起并只读查看终端'),
+                  onPressed: _collapseTask,
+                  icon: Icon(
+                    Icons.close,
+                    semanticLabel: t(
+                      'Collapse to read-only terminal',
+                      '收起并只读查看终端',
+                    ),
+                  ),
+                ),
+                if (widget.onObserveTerminal != null)
+                  IconButton(
+                    key: const Key('ai-observe-terminal'),
+                    tooltip: t('View terminal (read-only)', '只读查看终端'),
+                    onPressed: _observeTerminal,
+                    icon: Icon(
+                      Icons.visibility_outlined,
+                      semanticLabel: t('View terminal (read-only)', '只读查看终端'),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
 
   Widget _historyResumeButton() => Padding(
     padding: const EdgeInsets.all(16),
@@ -2212,7 +2331,11 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                 TextButton(
                   key: const Key('ai-inspect-terminal'),
                   onPressed: _observeTerminal,
-                  child: Text(t('Inspect terminal (read-only)', '只读检查终端')),
+                  child: Text(
+                    _journal
+                        ? t('Open terminal', '打开终端')
+                        : t('Inspect terminal (read-only)', '只读检查终端'),
+                  ),
                 ),
               if (c.terminalError != null && widget.onConfigureTerminal != null)
                 TextButton.icon(
@@ -2520,12 +2643,22 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                     icon: Icons.undo,
                     showLabel: labelReturn,
                   ),
-                _navigationAction(
-                  key: const Key('ai-show-latest'),
-                  label: latestLabel,
-                  onPressed: _showLatest,
-                  icon: Icons.arrow_downward_outlined,
-                  showLabel: labelLatest,
+                ValueListenableBuilder<bool>(
+                  valueListenable: _following,
+                  builder: (_, following, child) =>
+                      _journal &&
+                          following &&
+                          !c.canApprove &&
+                          _returnOffset == null
+                      ? const SizedBox.shrink()
+                      : child!,
+                  child: _navigationAction(
+                    key: const Key('ai-show-latest'),
+                    label: latestLabel,
+                    onPressed: _showLatest,
+                    icon: Icons.arrow_downward_outlined,
+                    showLabel: labelLatest,
+                  ),
                 ),
               ],
             );
@@ -2622,6 +2755,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
               forceStrutHeight: true,
             ),
             decoration: InputDecoration(
+              filled: _journal ? false : null,
               hintText:
                   hintText ??
                   (widget.unifiedWorkspace
@@ -2633,7 +2767,11 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
               // text centered rather than adding empty space below a dense field.
               isDense: dense ? false : null,
               hintMaxLines: dense ? 1 : null,
-              contentPadding: dense ? EdgeInsets.zero : null,
+              contentPadding: dense
+                  ? EdgeInsets.zero
+                  : _journal
+                  ? const EdgeInsets.symmetric(vertical: 8)
+                  : null,
               border: InputBorder.none,
               enabledBorder: InputBorder.none,
               focusedBorder: InputBorder.none,
@@ -2837,10 +2975,17 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
     key: const Key('ai-expand-draft'),
     tooltip: t('Expand editor', '展开编辑'),
     onPressed: c.followUpEnded || !_paneInteractive ? null : _expandDraft,
-    constraints: const BoxConstraints.tightFor(width: 44, height: 44),
+    constraints: BoxConstraints.tightFor(
+      width: _journal ? 32 : 44,
+      height: _journal ? 32 : 44,
+    ),
     icon: Icon(
-      Icons.open_in_full,
-      size: _useCompactMobile ? 18 : 20,
+      _journal ? LucideIcons300.maximize2 : Icons.open_in_full,
+      size: _journal
+          ? 16
+          : _useCompactMobile
+          ? 18
+          : 20,
       semanticLabel: t('Expand editor', '展开编辑'),
     ),
   );
@@ -2876,6 +3021,8 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
         ? t('Run', '执行')
         : c.busy || c.canApprove
         ? t('Add requirement', '补充要求')
+        : _journal
+        ? t('Send', '发送')
         : t('Send to AI', '发送给 AI');
     return Tooltip(
       message: label,
@@ -2894,7 +3041,13 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                 visualDensity: VisualDensity.standard,
               )
             : FilledButton.styleFrom(
-                minimumSize: const Size(44, 44),
+                minimumSize: Size(44, _journal ? 32 : 44),
+                side: _journal ? BorderSide.none : null,
+                shape: _journal
+                    ? RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      )
+                    : null,
                 padding: EdgeInsets.symmetric(horizontal: iconOnly ? 10 : 12),
               ),
         child: iconOnly
@@ -2907,10 +3060,83 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                 size: _useCompactMobile ? 18 : null,
                 semanticLabel: label,
               )
+            : _journal
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(LucideIcons300.arrowUp, size: 16),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              )
             : Text(label),
       ),
     );
   }
+
+  void _promptFocusChanged() {
+    if (mounted && _journal) setState(() {});
+  }
+
+  Widget _attachContextMenu() => PopupMenuButton<AiBlockContext>(
+    key: const Key('ai-attach-context'),
+    tooltip: t('Attach terminal output', '附加终端输出'),
+    enabled: _paneInteractive && !c.followUpEnded,
+    icon: const Icon(LucideIcons300.plus, size: 18),
+    onSelected: (block) {
+      if (!_paneInteractive || c.followUpEnded) return;
+      c.attachContext(block);
+      _chooseInputIntent(InputIntentChoice.ai);
+      _focus.requestFocus();
+    },
+    itemBuilder: (_) {
+      final source = c.context;
+      final block = source?.lastBlock;
+      return [
+        if (block != null)
+          PopupMenuItem(
+            value: block.withFallbackSource(source!),
+            child: Text(t('Attach latest command output', '附加最近命令输出')),
+          )
+        else
+          PopupMenuItem(
+            enabled: false,
+            child: Text(t('No command output yet', '暂无可附加的命令输出')),
+          ),
+      ];
+    },
+  );
+
+  Widget _composerModelMenu() => AiComposerModelMenu(
+    settings: c.settings,
+    catalog: widget.modelCatalog,
+    enabled:
+        _paneInteractive && !c.busy && c.pending == null && !c.followUpEnded,
+    canSelect: () =>
+        mounted &&
+        widget.active &&
+        (widget.canInteract?.call() ?? true) &&
+        !c.busy &&
+        c.pending == null &&
+        !c.followUpEnded,
+    onConfigure: _openSettings,
+    onSelect: (model, expected) async {
+      final draft = c.draft;
+      final changed = await c.settings.selectModel(model, expected: expected);
+      // ACP configuration changes may start a new agent task;
+      // keep the user's unsubmitted draft in that task.
+      if (changed && mounted && c.draft != draft) {
+        c.setDraft(draft);
+      }
+      return changed;
+    },
+  );
 
   Widget _composer(
     bool compact, {
@@ -2991,7 +3217,11 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
             : 12,
       ),
       child: AppPromptSurface(
-        maxWidth: ChatTheme.of(context).contentMaxWidth,
+        maxWidth: _journal
+            ? double.infinity
+            : ChatTheme.of(context).contentMaxWidth,
+        quiet: _journal,
+        focused: _focus.hasFocus,
         padding: EdgeInsets.symmetric(
           horizontal: singleRow
               ? 6
@@ -3005,36 +3235,110 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (!short)
-              Row(
-                children: [
-                  Expanded(
-                    child: Tooltip(
-                      message:
-                          '${widget.targetLabel} · ${c.context?.cwd ?? ''}',
-                      child: Text.rich(
-                        TextSpan(
-                          children: [
-                            TextSpan(
-                              text: widget.targetLabel.isEmpty
-                                  ? t('Current terminal', '当前终端')
-                                  : widget.targetLabel,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            TextSpan(text: ' · ${c.context?.cwd ?? ''}'),
-                          ],
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              LayoutBuilder(
+                builder: (context, bounds) {
+                  final target = Row(
+                    children: [
+                      if (_journal) ...[
+                        Icon(
+                          LucideIcons300.squareTerminal,
+                          size: 16,
                           color: palette.textMuted,
                         ),
+                        const SizedBox(width: 10),
+                      ],
+                      Expanded(
+                        child: Tooltip(
+                          message:
+                              '${widget.targetLabel} · ${c.context?.cwd ?? ''}',
+                          child: Text.rich(
+                            TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: widget.targetLabel.isEmpty
+                                      ? t('Current terminal', '当前终端')
+                                      : widget.targetLabel,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                ),
+                                TextSpan(text: ' · ${c.context?.cwd ?? ''}'),
+                              ],
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(color: palette.textMuted),
+                          ),
+                        ),
                       ),
+                    ],
+                  );
+                  final review = TextButton.icon(
+                    key: const Key('ai-composer-review-policy'),
+                    onPressed: _openSettings,
+                    style: TextButton.styleFrom(
+                      foregroundColor: palette.textMuted,
                     ),
-                  ),
-                  if (c.attachments.isNotEmpty) _pendingContexts(),
-                ],
+                    icon: const Icon(LucideIcons300.shield, size: 16),
+                    label: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            c.settings.configuration?.approvalMode ==
+                                    AiApprovalMode.smart
+                                ? t('Smart review', '智能审核')
+                                : t('Confirm each', '每次确认'),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        const Icon(LucideIcons300.chevronDown, size: 12),
+                      ],
+                    ),
+                  );
+                  final controls = Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(child: review),
+                      Flexible(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 180),
+                          child: _composerModelMenu(),
+                        ),
+                      ),
+                    ],
+                  );
+                  final targetRow = Row(
+                    children: [
+                      Expanded(child: target),
+                      if (c.attachments.isNotEmpty) _pendingContexts(),
+                    ],
+                  );
+                  if (!_journal) return targetRow;
+                  if (bounds.maxWidth < 620 ||
+                      MediaQuery.textScalerOf(context).scale(1) > 1.3) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        targetRow,
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: controls,
+                        ),
+                      ],
+                    );
+                  }
+                  return Row(
+                    children: [
+                      Expanded(child: targetRow),
+                      const SizedBox(width: 8),
+                      controls,
+                    ],
+                  );
+                },
               ),
             if (c.attachments.isNotEmpty && !short)
               LayoutBuilder(
@@ -3083,7 +3387,13 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                 Expanded(
                   child: Align(
                     alignment: Alignment.centerLeft,
-                    child: _inputIntentMenu(),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_journal) _attachContextMenu(),
+                        Flexible(child: _inputIntentMenu()),
+                      ],
+                    ),
                   ),
                 ),
               if (_commandEditor != null) _commandActions(),
@@ -3129,6 +3439,8 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
             ? 0
             : bounds.maxWidth < 600
             ? 12
+            : _journal
+            ? 40
             : 24,
       ),
       child: Align(
@@ -3138,7 +3450,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
           constraints: BoxConstraints(
             maxWidth: _mobile || widget.fullScreenTerminal
                 ? double.infinity
-                : _aiReadingWidth,
+                : _readingWidth,
           ),
           child: SizedBox(width: double.infinity, child: child),
         ),
@@ -3200,10 +3512,24 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
             items.add(
               CommandBlockTimelineItem.content(
                 'approval-${entry.id}',
-                (_) => Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
-                  child: AiApprovalNotice(review: review, confirmed: true),
-                ),
+                (_) => _journal
+                    ? TerminalAiJournalRow(
+                        icon: Icons.check_circle_outline,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(8, 10, 8, 8),
+                          child: AiApprovalNotice(
+                            review: review,
+                            confirmed: true,
+                          ),
+                        ),
+                      )
+                    : Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+                        child: AiApprovalNotice(
+                          review: review,
+                          confirmed: true,
+                        ),
+                      ),
               ),
             );
           }
@@ -3285,7 +3611,9 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
             itemBuilder: (context, index) =>
                 items[index].builder?.call(context) ?? const SizedBox.shrink(),
           );
-      final timeline = context.usesAppleGroups
+      final timeline = _journal
+          ? TerminalAiJournal(child: rawTimeline)
+          : context.usesAppleGroups
           ? Theme(
               data: Theme.of(context).copyWith(
                 extensions: [
@@ -3304,6 +3632,8 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
         key: const Key('terminal-ai-workspace'),
         color: context.usesAppleGroups
             ? context.groupedBackground
+            : _journal
+            ? context.appTheme.panel
             : context.appTheme.canvas,
         child: ExcludeFocus(
           excluding: !widget.active,
@@ -3346,7 +3676,9 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
                           if (!tiny) _header(compact, singleRow: singleRow),
                           Divider(
                             height: 1,
-                            color: context.appTheme.borderStrong,
+                            color: _journal
+                                ? context.appTheme.border
+                                : context.appTheme.borderStrong,
                           ),
                           Expanded(
                             child: NotificationListener<ScrollNotification>(
@@ -3402,7 +3734,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
         data: ChatThemeData(
           colors: ChatTheme.of(context).colors,
           bodyFontSize: ChatTheme.of(context).bodyFontSize,
-          contentMaxWidth: _aiReadingWidth,
+          contentMaxWidth: _readingWidth,
         ),
         child: workspace,
       );

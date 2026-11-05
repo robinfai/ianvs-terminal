@@ -423,7 +423,11 @@ extension _ShellScreenAi on _ShellScreenState {
   void _toggleAi(String sessionId) {
     if (_openAiSessions.contains(sessionId) &&
         !_observedAiTargets.containsKey(sessionId)) {
-      _observeAiTerminal(sessionId);
+      if (defaultTargetPlatform == TargetPlatform.macOS) {
+        _takeOverAiInput(sessionId);
+      } else {
+        _observeAiTerminal(sessionId);
+      }
     } else {
       _openAi(sessionId);
     }
@@ -517,6 +521,14 @@ extension _ShellScreenAi on _ShellScreenState {
       final showTerminal =
           _openAiSessions.contains(sessionId) &&
           !_observedAiTargets.containsKey(sessionId);
+      if (defaultTargetPlatform == TargetPlatform.macOS) {
+        return AiWorkspaceModeSwitch(
+          aiButtonKey: Key('terminal-ai-open-$sessionId'),
+          aiSelected: showTerminal,
+          onTerminal: () => _takeOverAiInput(sessionId),
+          onAi: () => _openAi(sessionId),
+        );
+      }
       final label = showTerminal
           ? (chinese ? '只读查看终端' : 'View terminal (read-only)')
           : ai?.canApprove == true
@@ -638,6 +650,7 @@ extension _ShellScreenAi on _ShellScreenState {
       Widget workspace(bool dual) => TerminalAiWorkspace(
         key: ValueKey('ai-workspace-$sessionId'),
         controller: _aiFor(sessionId),
+        modelCatalog: ref.read(aiModelCatalogProvider),
         active: active,
         canInteract: () =>
             mounted &&
@@ -676,9 +689,13 @@ extension _ShellScreenAi on _ShellScreenState {
               )
             : onShowEvidence,
         fullScreenTerminal: fullScreenTerminal,
-        onClose: () => _observeAiTerminal(sessionId),
+        onClose: () => defaultTargetPlatform == TargetPlatform.macOS
+            ? _takeOverAiInput(sessionId)
+            : _observeAiTerminal(sessionId),
         onTakeOver: () => _takeOverAiInput(sessionId),
-        onObserveTerminal: () => _observeAiTerminal(sessionId),
+        onObserveTerminal: () => defaultTargetPlatform == TargetPlatform.macOS
+            ? _takeOverAiInput(sessionId)
+            : _observeAiTerminal(sessionId),
         onInspectOriginalTarget: retained
             ? () {
                 final original = _aiFor(sessionId).originalTarget?.sessionId;

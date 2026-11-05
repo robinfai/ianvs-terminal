@@ -1,4 +1,172 @@
+## Composer focus refinement — 2026-11-05
+
+final result: passed
+
+User refinement supersedes the blue focus treatment below: remove the glow and blue border; retain only a slightly darker neutral border, equal to hover. Border width and layout remain unchanged. High-contrast border and reduced-motion behavior are preserved.
+
+Inspected light focus render: `build/desktop-prd-v1/iteration-1/ai-composer-focus-light.png` (866 × 468 logical, 1732 × 936 capture). Existing two light/dark mode-round-trip tests pass, including the unchanged composer rectangle on focus. No new tests added for this styling-only change.
+
+---
+
+## Selected final macOS AI style — 2026-11-04
+
+final result: passed
+
+This supersedes the visual target and composer treatment in the older reports below. Scope is the user's selected small-window design: preserve the existing tabs/task-header structure, restore the outline icon style, and bring the remaining chrome/composer approximately 90–95% toward the supplied design. This is a qualitative fidelity target, not a computed pixel-similarity score. Conversation content is excluded as requested.
+
+### Visual truth and inspected evidence
+
+- Exact source: `/Users/robinfai/.codex/generated_images/01a1a0af-eec9-7f42-9ac0-8b50389d3466/exec-309e1de0-7de5-4a82-8192-c3177891e523.png`, 1706 × 922.
+- Final rendered Flutter screenshots: `docs/design/macos-ai-journal-20261103/final-style-20261104/ai-header-light.png`, `ai-header-dark.png`, `ai-composer-focus-light.png`, `ai-composer-focus-dark.png`, `ai-models-light.png`, `ai-models-dark.png`, `ordinary-terminal-light.png`, `ordinary-terminal-dark.png`.
+- Viewport: 866 × 468 logical points, captured at 2× (1732 × 936 pixels). Source normalized by approximately 1.015× for comparison. No browser CSS viewport applies to this native Flutter implementation.
+- Source and full-window implementation images were opened and visually compared. Header and composer remain legible at full capture resolution; extra crops were unnecessary. Light/dark, focus, disabled-send and open-list states were individually inspected.
+- Render fixture uses Local Shell, a new task, an unsent Chinese draft and a three-model API catalog. Source uses a completed disk query. Body/data differences are intentional and excluded; app-owned chrome, model/approval placement and composer proportions are the comparison surfaces. AppKit traffic lights and outer window corners remain OS-owned and are outside widget captures.
+
+### Findings and resolved iterations
+
+1. P2: initial replacement icons rendered as missing squares in captures. The visual harness now loads the actual Lucide300 font, and the built application FontManifest and font file were inspected to confirm that font is shipped. Replaced terminal, AI, history, new-task, settings, shield, chevrons, expand, send, menu, search/refresh/check and status-info glyphs with a consistent library outline style. Existing tab silhouette/sidebar-layout icon remain as requested.
+2. P2: initial composer kept the model chip/dividers in its bottom toolbar. Moved model and approval controls to the top right; removed chip fill/border/dividers, softened metadata and added terminal context icon. Added a working plus menu that attaches the current latest command snapshot through the existing controller; no remote request or command is submitted by attachment.
+3. P2: composer focus/hover and send-button shape did not match the selected direction. Added a pale theme-derived idle border, hover border and stable-layout blue focus ring; high-contrast uses the stronger border and reduced-motion disables animation. Removed the inherited send-button outline and used an upward-arrow + short Send label while preserving Run/Accept/Save/Add-requirement states.
+4. P2: compact split-pane composer header overflowed. Context and controls now use two rows when space/text scale requires it; regular small-window view retains the reference's single metadata row. Regression coverage includes a 640-wide 2× text attachment case and hidden split-pane approvals.
+5. P2 interaction regression: hiding a redundant Show latest action initially interrupted return-to-reading cancellation. It remains visible while a return anchor exists or an approval needs locating, and when not following output. The navigation regression test now passes without weakening its assertion.
+6. Test harness correction: standard chrome runs used Ahem while capture runs used real fonts, causing an expected tab to fall into overflow only outside capture mode. Both now use the same real text metrics. Icon-identity geometry assertions were updated to the new info glyph, retaining their placement assertions.
+
+No remaining actionable P0/P1/P2 within the requested macOS UI scope. P3: generated-source star/gear contour and platform font rasterization are approximated by the chosen real icon library and platform typography, rather than custom drawings. Native window controls were not recreated.
+
+### Completion evidence by requirement
+
+| Requirement | Current evidence |
+| --- | --- |
+| Existing tab and header layout retained | Full-window source/capture comparison; draggable-region and chrome geometry tests |
+| Fine outline icons and subdued borders/buttons | Final light/dark/focus captures; bundled Lucide300 font verified |
+| Only Terminal / AI; fixed switch | Mode geometry tests in both modes; normal terminal keyboard bytes verified |
+| Preserve draft and existing interactions | Mode round-trip, no-write checks, attachment snapshot/draft/no-request test, navigation tests |
+| ACP/API compatible model list, search only above 10 | Model menu suite covers both backends, 10/11 boundary, stale connection, retry and persistence; 7 passing in regression run |
+| Settings remain modal and shared save flow | Final chrome modal test and 5 AI settings tests, including saved/cancelled configuration and official save exit |
+| Responsive layout and supported states | 640/2× text, split panes, light/dark, menu, disabled send and focus screenshots/tests |
+| Build and static checks | macOS Debug app built; targeted Dart analysis no issues; diff whitespace check clean |
+
+### Validation and limits
+
+- Affected AI workspace/widget/preview/model/chrome/status regression run: **162 passed, 2 failed**. The two failures are the previously reproduced, unrelated `high contrast and reduced motion phone-fixed` dark/light baseline failures. See `final-style-regression-3.log`; this is not an all-suite-green claim.
+- Final screenshot and mode/geometry/focus/hidden-pane pass: **10 passed** (`final-style-captures.log`). Focus asserts unchanged composer rectangle.
+- AI settings regression: **5 passed** (`final-style-settings.log`).
+- Static analysis: no issues (`final-style-analyze.log`).
+- `flutter build macos --debug --no-pub`: successful (`final-style-macos-build.log`); existing Swift/plugin deprecation warnings remain.
+- This verifies native Flutter rendering and app build, not live SSH/model-service availability or every supported macOS release. No commit, release or publication performed. Unrelated worktree changes were preserved.
+
+---
+
+## macOS small-window AI / Terminal — 2026-11-03
+
+final result: passed
+
+Scope: the selected landscape window, persistent two-mode control, task toolbar, composer/model selector, borders, icons and modal settings. Conversation/terminal output content is explicitly excluded by the user.
+
+### Visual evidence and comparison
+
+- Source AI: `/Users/robinfai/.codex/generated_images/01a1a0af-eec9-7f42-9ac0-8b50389d3466/exec-3aa6bd04-8b8e-463e-a492-89fae11584df.png` (1706 × 922).
+- Source terminal: same directory, `exec-824c974f-d89a-49bd-bdf3-cce2a3a781e9.png` (1706 × 922).
+- Implementation: `build/desktop-prd-v1/iteration-1/ai-models-light.png`, `ai-models-dark.png`, `ai-header-light.png`, `ai-header-dark.png`, `ordinary-terminal-light.png`, `ordinary-terminal-dark.png` (1732 × 936; 866 × 468 logical at 2×).
+- Source and implementation were opened together in the same comparison inputs, for both complete AI and terminal windows. Normalize source to the requested 866 × 468 aspect/size, a 1.5% scale difference. Full images resolve toolbar, popup, composer and status-strip details; additional crops were unnecessary.
+- Capture states use a single local test session, empty AI task, configured API catalog and native font fallback. Source uses five SSH tabs, completed response and illustrative model groups. These data differences are intentional; the existing configuration stores one active backend, so the menu displays that backend’s real catalog, never fictional simultaneous connections.
+- Widget captures exclude AppKit traffic lights/window corners; native titlebar spacing is reserved and draggable-region tests exclude interactive controls. Native OS window decorations were not manually revalidated in this run.
+
+### Comparison history and findings
+
+1. P2: the initial 340 × 360 logical model dialog was oversized, obscured the titlebar and left empty space under three choices. Replaced fixed height with a content-sized constrained list, width 240, and anchored it above the model trigger. Removed Material Dialog’s default 280 minimum width. Post-fix captures keep the titlebar visible.
+2. P2: model trigger lacked the bounded chip treatment and the approval divider; selected check lacked accent color. Added theme-token border/panel fill, 6 px corner radius, matching separator, blue selection check and menu elevation. Post-fix light/dark captures inspected.
+3. Fixture-only error: fake backend omitted `completion.query`; runtime correctly reported missing response. Implemented a valid empty completion response in the test backend. Clean captures and unchanged production runtime handling confirm this was not a hidden application fix.
+4. No remaining actionable P0/P1/P2 within the requested UI scope. Standard menu arrow/popup-pointer differences and slightly larger row hit areas are acceptable desktop interaction choices, not additional modes.
+
+### Required fidelity surfaces
+
+- Typography: existing app theme retained; readable title/body/control hierarchy, ellipsis on model trigger, wrapping in list. Capture fonts use the repository’s visual font loader rather than asserting pixel-identical SF rasterization. All persistent controls remain visible at 640 logical width and 2× text scale in the chrome tests.
+- Layout: full-width native chrome, stable Terminal/AI location in both modes, separate 44 px task header, bounded composer, aligned lower actions, compact content-sized menu. No redundant mode control remains in the task header.
+- Colors/tokens: neutral surface/border tokens, blue selected text/underline/check, muted disabled controls. Both dark and light captures reviewed; colors are not hard-coded per widget.
+- Assets/icons: existing vector icon set, consistent small toolbar icons; no raster artwork required. Native traffic lights remain AppKit-owned.
+- Copy: only Terminal and AI mode labels. Settings remains modal. Real model IDs/names come from ACP session configuration metadata or API `/models`. Source model names are illustrative, not production constants. The existing input-intent and approval controls remain functional.
+
+### Verification and limits
+
+- `desktop_unified_chrome_test.dart`: 10 passed, including modal settings, light/dark mode round-trip, exact switch geometry, automatic terminal focus, arrow-key bytes and macOS text-input commit, draft preservation, no writes during mode change, no observer viewport/menu, narrow/text-scaled chrome and pending-approval source identity.
+- `ai_composer_model_menu_test.dart`: 7 passed. ACP/API 10 vs 11 threshold, ID/name search, selection persistence, unchanged approval policy, retry/Escape, stale connection/ownership rejection, no gateway-credential persistence.
+- `desktop_session_status_test.dart`: 12 passed. Error/read-only status retained outside the ordinary live-mode label simplification.
+- ACP native fixture discovery: passed; metadata handshake without prompts, tools or model-setting RPC.
+- Workspace/widget/preview regression: 132 passed; two pre-existing phone-fixed high-contrast tests still fail (also reproduced in `/tmp/ai-settings-baseline.log`). No blanket all-tests-pass claim.
+- Targeted analyzer: no issues. macOS Debug build validated on macOS 27.0.1; no claim that other supported OS versions or live SSH/remote-model services were manually tested.
+- No commit or publication performed. Existing unrelated release/startup changes preserved.
+
+Implementation checklist: selected chrome and composer implemented; two-mode input invariants tested; real backend-compatible model lists implemented; search threshold tested; modal preserved; rendered UI compared; known unrelated test limitations recorded.
+
+---
+
+## macOS configuration modal restoration — 2026-11-03
+
+Global configuration now uses a DialogRoute on macOS and the existing bounded settings panel (up to 880 × 640). Standalone AI connection configuration uses the existing AppDialogScaffold in a modal. Embedded AI settings keep their parent navigation; mobile page routes remain unchanged. Save callbacks and configuration persistence are unchanged.
+
+Validation: 22 focused shell/AI tests pass, including modal route identity, bounded global panel, Escape dismissal, underlying shell retention and AI configuration save/reload. Changed-file analysis and macOS debug build pass. A broader settings run passes 68 tests with four account tests failing; all four reproduce with the two production files restored to HEAD. Original working changes were restored after baseline validation. No live account operation was performed.
+
+## macOS AI header completion — 2026-11-03
+
+This follow-up supersedes the earlier decision to leave the shell/title bar out of scope and omit the Terminal/AI switch.
+
+- Fixed the blank main-window title row for a single AI session with the sidebar open. The sidebar keeps its native traffic-light reservation and existing controls; the task title, centered Terminal/AI selector, history, new task, and more menu now share the top row. A plain session uses zero explicit panes, which is included along with a one-pane tab.
+- Preserved normal chrome for split panes, hidden sidebar, auxiliary panels, and global notices. These surfaces still need their existing navigation. Narrow/scaled AI headers place the mode selector below the title/actions instead of colliding.
+- The Terminal segment opens the existing read-only observer; returning to AI retains the workspace element and draft without terminal writes. Settings, gateway usage when available, observe and collapse remain accessible in the more menu. The native drag region excludes the mode switch and action controls.
+- Inspected full-window light/dark captures at 1728 × 1084 and the more menu against selected direction 3. Evidence: [light](docs/design/macos-ai-journal-20261103/ai-header-light.png), [dark](docs/design/macos-ai-journal-20261103/ai-header-dark.png). These use an empty task/draft fixture rather than a live SSH transcript; native traffic lights are not rendered by widget captures.
+- Verification: 9 complete-shell tests pass, including header alignment, native drag hit regions, observer return, draft retention, menus, and existing sidebar approval routing. Broader UI run: 131 pass, 7 fail. Six existing settings-route lookup failures were reproduced in the previous baseline run; the seventh sidebar active-session initialization failure was reproduced with the original HEAD shell in this run. Assertions were not skipped or weakened.
+- Changed-file static analysis reports no issues. macOS debug build passes. Host remains macOS 27.0.1; real SSH/native-window dragging and other supported OS versions were not manually exercised.
+- Full-window header issues identified in the user's screenshot are resolved in the tested single-session/sidebar layout. Existing native/sidebar controls and the new-task shortcut intentionally remain in addition to the reference mock's minimal actions.
+
 # UI design QA
+
+## macOS AI task journal — 2026-11-03
+
+final result: passed
+
+Scope: implement selected direction 3 in the existing macOS AI workspace, preserving existing interactions. This is a native Flutter presentation change, not a new web prototype or a pixel-identical replacement of the application shell.
+
+### Visual truth and evidence
+
+- Selected source: `docs/design/macos-ai-journal-20261103/selected-direction.png` (1584 × 994 image pixels). The main workspace begins approximately at x=335; the sidebar and native title-bar scaffolding are outside this change.
+- Final production-widget renders: `light.png` and `dark.png` in the same folder, each 1248 × 950 logical/pixel units at DPR 1. No density resampling. Compare the source's right workspace region with these renders; source-generated text sizes are illustrative, while implementation retains existing application typography and terminal font settings.
+- Additional captures: `narrow-scaled.png`, 600 × 800 at DPR 1 with desktop text scale 2; `short.png`, 700 × 340 at DPR 1. The short view deliberately retains the existing scrollable composer and native output reader.
+- State: completed `df -h`, root total 79G / used 45G / free 31G / 60%, manual confirmation, AI conclusion, editable follow-up draft. In-memory fixtures, not a claim of an actual SSH operation. Earlier `ls`/`pwd` and the mock's extra “continue” turn are absent from this fixture; their absence is a data difference, not hidden UI.
+- Full-view comparison: source and final light/dark/scaled implementation images were supplied together in one image inspection call. Command, approval, output, response and composer were readable at this resolution, so additional crops were unnecessary.
+
+### Findings and iteration
+
+1. Initial capture: [P2] the dark composer inherited a contrasting filled editor rectangle. Removed fill only for the macOS AI plain editor, matching the existing command editor's transparent field. Final dark capture confirms one continuous composer surface.
+2. Initial capture: [P2] Markdown emphasis rendered ordinary capacity numbers in red. Added a scoped Markdown theme using the app's primary text token for emphasis/strong; error and terminal ANSI colors are unchanged. Final light/dark/scaled captures confirm neutral emphasized text.
+3. Initial capture: [P2] decorative command/approval markers used the dark primary-button blue on a dark surface. Switched to the existing focus token for readable marker contrast. Final dark capture confirms lighter markers.
+4. No remaining actionable P0/P1/P2 findings in the scoped workspace. This result does not certify the unchanged application shell or the pre-existing settings-page failures below.
+
+### Fidelity decisions
+
+- Typography: existing system/body fonts and terminal monospace remain configurable. Captures use the repository's deterministic Roboto/Noto CJK/JetBrains Mono fixtures and production icon font. Prose is left-aligned and bounded at 880 logical units; terminal/composer share a workspace measure up to 1200.
+- Layout: 36-point marker gutter, 8-point content inset; 40-point outer margins on regular macOS panes and 12 on narrow panes. Plain user turns, linked approval/command records, quiet command surfaces and aligned composer replace the mismatched bubbles and gutters.
+- Tokens: all new surfaces, separators, markers and text derive from AppThemeTokens/ComposerTheme/Markdown theme. No widget-local literal colors. Existing focus, selection, disabled, error and dark palettes remain in control.
+- Assets: existing production Material Symbols font; no custom illustration or new raster assets in the running UI.
+- Copy: approval explanation, output, status, target identity, input mode and button semantics remain controller-driven. The composer shows the existing approval policy on sufficiently wide/unscaled windows and opens the existing settings route.
+- Intentional deviations: retain history/new/settings/close/observe controls and status/navigation actions, rather than copying the mock's reduced menu. Do not add its duplicated Terminal/AI switch. Do not auto-collapse or regroup existing native history, which would change selection, scroll anchors and reading behavior. Source paths remain accessible through command-header tooltips; attached-output ranges remain available in context tooltips and inspection.
+
+### Validation
+
+- 130 application UI tests passed; 6 existing high-contrast/reduced-motion settings navigation tests failed at the pre-existing `ai-settings-dialog` route lookup. Replacing the affected production files with their HEAD originals reproduced all six failures; current files were restored afterward. Full logs and baseline evidence are beside the captures. These assertions were not weakened or skipped.
+- 42 shared terminal tests passed: timeline, input ownership, selection/copy, block folding, paging and mobile behavior.
+- New capture/interaction cases cover light, dark, 2× desktop text and short windows; verify shared content/composer alignment, native output, block selection, fold/unfold and action menus without additional terminal writes.
+- Final changed-file static analysis: no issues. `git diff --check` and `sync_terminal_core.dart --check` passed.
+- Final `flutter build macos --debug --no-pub` passed, producing `example/build/macos/Build/Products/Debug/Trail Development.app`.
+- Host: macOS 27.0.1 (26A434). Other supported macOS releases were not run. Screenshots are Flutter widget-engine renders, not live SSH/native-window acceptance; VoiceOver and full native keyboard integration were not manually audited in this pass.
+
+### Follow-up polish
+
+- [P3] Retain the existing always-available latest/status strip to preserve interaction expectations. It can be simplified separately with a dedicated scroll/focus specification.
+- [P3] The shell sidebar/title-bar layout and generic AI settings route are intentionally outside this workspace restyle.
+
+Implementation checklist: selected direction resolved; native components reused; light/dark/scaled/short captures inspected; interaction regressions run; source mirror synchronized; macOS package built.
+
 
 ## IDE presentation and icon redesign — 2026-10-31
 

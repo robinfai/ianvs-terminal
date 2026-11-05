@@ -1,3 +1,4 @@
+import '../helpers/ai_workspace_actions.dart' show openAiDesktopMore;
 import 'package:app/features/ai/terminal_ai_workspace.dart';
 import 'package:app/ui/previews/mobile_prd_component_previews.dart';
 import 'package:app/ui/previews/terminal_ai_workspace_preview.dart';
@@ -39,6 +40,7 @@ void main() {
           await tester.pumpAndSettle();
           await tester.tap(find.byKey(const Key('ai-observe-terminal')));
         } else {
+          await openAiDesktopMore(tester);
           await tester.tap(find.byKey(const Key('ai-close')));
         }
         await tester.pumpAndSettle();
@@ -73,6 +75,7 @@ void main() {
             await tester.pumpAndSettle();
             await tester.tap(find.byKey(const Key('ai-observe-terminal')));
           } else {
+            await openAiDesktopMore(tester);
             await tester.tap(find.byKey(const Key('ai-close')));
           }
           await tester.pumpAndSettle();
@@ -125,6 +128,7 @@ void main() {
       expect(task.canApprove, isTrue);
       final pending = task.pending;
       final transcript = task.transcript.toList();
+      await openAiDesktopMore(tester);
       await tester.tap(find.byKey(const Key('ai-close')));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('ai-preview-observation')), findsOneWidget);

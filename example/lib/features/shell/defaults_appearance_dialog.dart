@@ -976,6 +976,42 @@ class _DefaultsAndAppearanceDialogState
         _selectedKeybindings.disabledDefaultActions.isNotEmpty ||
         _selectedKeybindings.overrides.isNotEmpty;
 
+    final canConfirmSettings =
+        !_accountBusy &&
+        LocalTerminalKeyBindingResolver.conflicts(
+          LocalTerminalKeyBindingResolver.resolve(config: _selectedKeybindings),
+        ).isEmpty &&
+        selectedDataApiConfiguration != null &&
+        (!_requiresRemoteLogin || remoteLoginRequest != null);
+    Future<void> confirmSettings() async {
+      if (!canConfirmSettings) return;
+      if (_requiresRemoteLogin && widget.accountManager != null) {
+        await _authenticate();
+        return;
+      }
+      Navigator.of(context).pop(
+        DefaultsAndAppearanceSelection(
+          configuredDefaultProfileId: _selectedProfileId,
+          themeMode: _selectedThemeMode,
+          preferredTerminalMode: _selectedTerminalMode,
+          languageMode: _selectedLanguageMode,
+          terminalViewportPadding: _selectedTerminalViewportPadding,
+          restoreLayout: _selectedRestoreLayout,
+          sshWrapper: _selectedSshWrapper,
+          sshAutoInject: _selectedSshAutoInject,
+          osc52Policy: _selectedOsc52Policy,
+          openUrlPolicy: _selectedOpenUrlPolicy,
+          requestAttentionPolicy: _selectedRequestAttentionPolicy,
+          reportVariableDecisions: _selectedReportVariableDecisions,
+          keybindings: _selectedKeybindings,
+          dataApiConfiguration: selectedDataApiConfiguration,
+          dataApiRemoteLogin: remoteLoginRequest,
+          updatedProfile: _updatedProfileForPreset(effectiveProfile),
+          openProfiles: false,
+        ),
+      );
+    }
+
     return Semantics(
       identifier: 'defaults-dialog',
       container: true,
@@ -1126,6 +1162,7 @@ class _DefaultsAndAppearanceDialogState
                   listenable: widget.aiSettings!,
                   builder: (context, _) => AiSettingsDialog(
                     settings: widget.aiSettings!,
+                    canSave: canConfirmSettings,
                     onDone: (saved) {
                       if (saved != null) {
                         AppNotifications.message(
@@ -1136,10 +1173,11 @@ class _DefaultsAndAppearanceDialogState
                           kind: AppNoticeKind.success,
                         );
                       }
-                      setState(() {
-                        _selectedSection = _DefaultsSection.general;
-                        _mobileSectionOpen = false;
-                      });
+                      if (saved == null) {
+                        Navigator.of(context).pop();
+                      } else {
+                        unawaited(confirmSettings());
+                      }
                     },
                   ),
                 ),
@@ -2434,51 +2472,7 @@ class _DefaultsAndAppearanceDialogState
                     ],
                   );
                   final VoidCallback? saveSelection =
-                      _accountBusy ||
-                          LocalTerminalKeyBindingResolver.conflicts(
-                            LocalTerminalKeyBindingResolver.resolve(
-                              config: _selectedKeybindings,
-                            ),
-                          ).isNotEmpty ||
-                          selectedDataApiConfiguration == null ||
-                          (_requiresRemoteLogin &&
-                              remoteLoginRequest == null) ||
-                          !hasChanges
-                      ? null
-                      : () async {
-                          if (_requiresRemoteLogin &&
-                              widget.accountManager != null) {
-                            await _authenticate();
-                            return;
-                          }
-                          Navigator.of(context).pop(
-                            DefaultsAndAppearanceSelection(
-                              configuredDefaultProfileId: _selectedProfileId,
-                              themeMode: _selectedThemeMode,
-                              preferredTerminalMode: _selectedTerminalMode,
-                              languageMode: _selectedLanguageMode,
-                              terminalViewportPadding:
-                                  _selectedTerminalViewportPadding,
-                              restoreLayout: _selectedRestoreLayout,
-                              sshWrapper: _selectedSshWrapper,
-                              sshAutoInject: _selectedSshAutoInject,
-                              osc52Policy: _selectedOsc52Policy,
-                              openUrlPolicy: _selectedOpenUrlPolicy,
-                              requestAttentionPolicy:
-                                  _selectedRequestAttentionPolicy,
-                              reportVariableDecisions:
-                                  _selectedReportVariableDecisions,
-                              keybindings: _selectedKeybindings,
-                              dataApiConfiguration:
-                                  selectedDataApiConfiguration,
-                              dataApiRemoteLogin: remoteLoginRequest,
-                              updatedProfile: _updatedProfileForPreset(
-                                effectiveProfile,
-                              ),
-                              openProfiles: false,
-                            ),
-                          );
-                        };
+                      canConfirmSettings && hasChanges ? confirmSettings : null;
                   final confirmationActions = Wrap(
                     key: const Key('defaults-footer-confirmation-actions'),
                     spacing: theme.spacing.sm,

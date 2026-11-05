@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:ianvs_terminal/ianvs_terminal.dart'
     show CommandBlockReaderHostController, ComposerOwnership;
+import 'package:lucide_icons_flutter/lucide_icons_300.dart';
 
 import '../../../ui/app_ui.dart';
 import '../../ai/terminal_ai_controller.dart';
@@ -63,7 +64,9 @@ class DesktopSessionStatus extends StatelessWidget {
           : observing
           ? t('Read-only observer', '只读观察')
           : aiVisible
-          ? 'Block + AI'
+          ? (Theme.of(context).platform == TargetPlatform.macOS
+                ? 'AI'
+                : 'Block + AI')
           : currentComposer?.enabled == true
           ? 'Blocks'
           : t('Terminal', '终端');
@@ -151,7 +154,14 @@ class DesktopSessionStatus extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            constraints.maxWidth < 600
+                            Theme.of(context).platform ==
+                                        TargetPlatform.macOS &&
+                                    current != null && !current.isExited &&
+                                    !readOnly &&
+                                    !replaying &&
+                                    !observing
+                                ? '$target · $mode'
+                                : constraints.maxWidth < 600
                                 ? '$target · $owner'
                                 : '$target · $mode · $owner',
                             key: const Key('desktop-status-target'),
@@ -176,7 +186,7 @@ class DesktopSessionStatus extends StatelessWidget {
                         ),
                         if (onDetails != null) ...[
                           SizedBox(width: palette.spacing.sm),
-                          const Icon(Icons.info_outline, size: 16),
+                          const Icon(LucideIcons300.info, size: 16),
                         ],
                       ],
                     ),

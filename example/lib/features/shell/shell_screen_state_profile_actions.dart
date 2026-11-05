@@ -439,7 +439,7 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
     final activeSessionIdBeforeOpen = sessionState.activeSessionId;
     Widget buildDefaults(BuildContext dialogContext) {
       return DefaultsAndAppearanceDialog(
-        fullPage: true,
+        fullPage: Theme.of(context).platform != TargetPlatform.macOS,
         aiSettings: ref.read(aiSettingsProvider),
         accountManager: dataApiConfigurationRepository is DataApiAccountManager
             ? dataApiConfigurationRepository
@@ -494,7 +494,14 @@ extension _ShellScreenStateProfileActions on _ShellScreenState {
       backgroundColor: context.appTheme.panel,
       body: buildDefaults(context),
     );
-    final defaultsRoute = MediaQuery.disableAnimationsOf(context)
+    final TransitionRoute<DefaultsAndAppearanceSelection> defaultsRoute =
+        Theme.of(context).platform == TargetPlatform.macOS
+        ? DialogRoute<DefaultsAndAppearanceSelection>(
+            context: context,
+            builder: buildDefaults,
+            animationStyle: appDialogAnimation(context),
+          )
+        : MediaQuery.disableAnimationsOf(context)
         ? PageRouteBuilder<DefaultsAndAppearanceSelection>(
             pageBuilder: (context, animation, secondaryAnimation) =>
                 buildPage(context),
