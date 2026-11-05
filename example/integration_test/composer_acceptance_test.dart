@@ -415,11 +415,15 @@ void main() {
         await tester.pump(const Duration(milliseconds: 16));
       }
       final tallBlockId = blocks.blocks.last.id;
+      final collapsedHeight = tester
+          .getSize(find.byKey(ValueKey('command-block-$tallBlockId')))
+          .height;
+      // Journal blocks use half of the current reading viewport as preview.
       expect(
-        tester
-            .getSize(find.byKey(ValueKey('command-block-$tallBlockId')))
-            .height,
-        lessThanOrEqualTo(normalTerminalSize.height / 3),
+        collapsedHeight,
+        lessThanOrEqualTo(
+          tester.getSize(find.byType(TerminalCommandBlocksView)).height / 2,
+        ),
       );
       await capture('block-default-height');
       await tester.tap(find.byKey(ValueKey('block-expand-$tallBlockId')));
@@ -428,7 +432,7 @@ void main() {
         tester
             .getSize(find.byKey(ValueKey('command-block-$tallBlockId')))
             .height,
-        greaterThan(normalTerminalSize.height / 3),
+        greaterThan(collapsedHeight),
       );
       await capture('block-expanded-height');
       // The expanded block initially contains only the native preview page.
@@ -664,6 +668,12 @@ void main() {
         find.byWidgetPredicate(
           (widget) => widget is CommandBlockTerminal && widget.block.running,
         ),
+      );
+      await until(
+        tester,
+        () => runningTerminal.liveFocus!.hasFocus,
+        diagnostics: () =>
+            'running block focus: ${FocusManager.instance.primaryFocus}',
       );
       expect(runningTerminal.liveFocus!.hasFocus, isTrue);
       await capture('native-running');
