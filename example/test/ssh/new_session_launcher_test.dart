@@ -1236,8 +1236,8 @@ void main() {
     );
     await tester.tap(find.text('Host verification and advanced options'));
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.byKey(const Key('ssh-connect-timeout')));
-    await tester.enterText(find.byKey(const Key('ssh-connect-timeout')), '0');
+    await tester.ensureVisible(find.byKey(const Key('ssh-keepalive-seconds')));
+    await tester.enterText(find.byKey(const Key('ssh-keepalive-seconds')), '-1');
     await tester.ensureVisible(
       find.text('Host verification and advanced options'),
     );
@@ -1249,12 +1249,12 @@ void main() {
 
     final timeout = tester.widget<EditableText>(
       find.descendant(
-        of: find.byKey(const Key('ssh-connect-timeout')),
+        of: find.byKey(const Key('ssh-keepalive-seconds')),
         matching: find.byType(EditableText),
       ),
     );
     expect(timeout.focusNode.hasFocus, isTrue);
-    expect(find.text('Enter 1–120'), findsOneWidget);
+    expect(find.text('Enter 0–86400'), findsOneWidget);
   });
 
   testWidgets('X11 requires a 32-character hexadecimal cookie', (tester) async {

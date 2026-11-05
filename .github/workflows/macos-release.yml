@@ -91,7 +91,10 @@ jobs:
             [[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || {
               echo '::error::Version must be major.minor.patch'; exit 1;
             }
-            test -f "docs/release/$version.md"
+            if [[ ! -s "docs/release/$version.md" ]]; then
+              echo "::error::Missing release notes docs/release/$version.md. Merge non-empty release notes into main before dispatching."
+              exit 1
+            fi
             echo 'publish=true' >> "$GITHUB_OUTPUT"
           else
             version="1.1.$build"

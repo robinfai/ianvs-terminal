@@ -1613,5 +1613,7 @@
   "syncPreferences": "应用偏好",
   "syncTerminalConfig": "终端设置",
   "syncTerminalRepairRequired": "远端终端设置缺少标准字段或包含非标准值。可备份原始版本后修复，再重新同步。",
-  "syncRepairTerminal": "备份并修复终端设置"
+  "syncRepairTerminal": "备份并修复终端设置",
+  "sshPersistentConnection": "客户端不超时",
+  "sshUnlimitedRetries": "不限制"
 }

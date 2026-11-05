@@ -4389,5 +4389,7 @@
   "syncPreferences": "Preferences",
   "syncTerminalConfig": "Terminal settings",
   "syncTerminalRepairRequired": "Remote terminal settings contain missing or nonstandard fields. Back up and repair the original version, then retry sync.",
-  "syncRepairTerminal": "Back up and repair terminal settings"
+  "syncRepairTerminal": "Back up and repair terminal settings",
+  "sshPersistentConnection": "No client timeout",
+  "sshUnlimitedRetries": "Unlimited"
 }

@@ -5535,4 +5535,10 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get syncRepairTerminal => '备份并修复终端设置';
+
+  @override
+  String get sshPersistentConnection => '客户端不超时';
+
+  @override
+  String get sshUnlimitedRetries => '不限制';
 }

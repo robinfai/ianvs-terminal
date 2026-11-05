@@ -98,6 +98,7 @@ void main() {
             theme.filledButtonTheme.style?.minimumSize?.resolve({}),
             shared.filledButtonTheme.style?.minimumSize?.resolve({}),
           );
+          expect(theme.colorScheme.onPrimary, Colors.white);
           final primaryStyle = theme.filledButtonTheme.style!;
           expect(
             contrastRatio(

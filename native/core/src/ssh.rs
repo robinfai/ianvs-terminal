@@ -73,9 +73,11 @@ const SFTP_LIMITED_READ_CHUNK_BYTES: usize = 8 * 1024;
 const MAX_SFTP_DIRECTORY_WIRE_BYTES: usize = 8 * 1024 * 1024;
 const MAX_SFTP_FILE_TRANSFER_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 const SFTP_FILE_COPY_BUFFER_BYTES: usize = 64 * 1024;
-// Match OpenSSH's default LoginGraceTime so keyboard-interactive prompts do
-// not expire locally before a server using its default authentication window.
-const SSH_AUTH_INTERACTION_TIMEOUT: Duration = Duration::from_secs(120);
+// Desktop and iOS sessions remain alive until explicit cancellation or a
+// transport/server error. Use a finite, overflow-safe century for setup and
+// interactive waits; legacy per-profile deadlines no longer terminate sessions.
+const SSH_PERSISTENT_WAIT: Duration = Duration::from_secs(100 * 365 * 24 * 60 * 60);
+const SSH_AUTH_INTERACTION_TIMEOUT: Duration = SSH_PERSISTENT_WAIT;
 const MAX_PENDING_FORWARD_HANDSHAKES: usize = 64;
 const MAX_ACTIVE_FORWARD_RELAYS: usize = 64;
 const MAX_PENDING_X11_CONNECTIONS: usize = 32;
@@ -455,7 +457,7 @@ impl SshAuthClient {
                     .fingerprint(Default::default())
                     .to_string(),
             });
-        match tokio::time::timeout(Duration::from_secs(300), receiver).await {
+        match tokio::time::timeout(SSH_PERSISTENT_WAIT, receiver).await {
             Ok(Ok(accept)) => Ok(accept),
             Ok(Err(_)) => bail!("SSH host-key confirmation response channel closed"),
             Err(_) => {
@@ -1836,7 +1838,7 @@ async fn run_ssh_session(
 ) -> Result<u32> {
     let forward_runtime = ForwardRuntime::new(cancellation.clone());
     let diagnostics = SshConnectionDiagnostics::default();
-    let setup_timeout = Duration::from_secs(connection.connect_timeout_seconds.clamp(1, 120));
+    let setup_timeout = SSH_PERSISTENT_WAIT;
     let prepared = await_ssh_setup(
         prepare_ssh_session(
             &connection,
@@ -3251,7 +3253,9 @@ fn client_config(connection: &TerminalProfileConnection) -> Arc<client::Config> 
         maximum_packet_size: SSH_MAX_PACKET_BYTES,
         keepalive_interval: (connection.keepalive_seconds > 0)
             .then(|| Duration::from_secs(connection.keepalive_seconds)),
-        keepalive_max: connection.keepalive_count_max,
+        // Russh defines zero as unlimited unanswered heartbeats. This policy
+        // also applies to existing profiles and every ProxyJump hop.
+        keepalive_max: 0,
         nodelay: true,
         ..<_>::default()
     })
@@ -3683,7 +3687,7 @@ async fn connect_transport(
         forward_runtime.clone(),
         diagnostics,
     );
-    let timeout = Duration::from_secs(connection.connect_timeout_seconds.clamp(1, 120));
+    let timeout = SSH_PERSISTENT_WAIT;
     let connect = async {
         if let Some(proxy_command) = connection
             .proxy_command
@@ -3847,7 +3851,7 @@ async fn connect_stream_with_timeout<S>(
 where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
 {
-    let timeout = Duration::from_secs(connection.connect_timeout_seconds.clamp(1, 120));
+    let timeout = SSH_PERSISTENT_WAIT;
     await_ssh_operation(
         client::connect_stream(
             client_config(connection),
@@ -4416,8 +4420,52 @@ mod tests {
     }
 
     #[test]
-    fn keyboard_interactive_timeout_matches_openssh_default_login_grace_time() {
-        assert_eq!(SSH_AUTH_INTERACTION_TIMEOUT, Duration::from_secs(120));
+    fn persistent_ssh_ignores_legacy_disconnect_limits() {
+        let connection = TerminalProfileConnection {
+            keepalive_seconds: 30,
+            keepalive_count_max: 1,
+            connect_timeout_seconds: 1,
+            ..<_>::default()
+        };
+        let config = client_config(&connection);
+        assert_eq!(config.inactivity_timeout, None);
+        assert_eq!(config.keepalive_interval, Some(Duration::from_secs(30)));
+        assert_eq!(config.keepalive_max, 0);
+        assert!(SSH_AUTH_INTERACTION_TIMEOUT.as_secs() >= 100 * 365 * 24 * 60 * 60);
+    }
+
+    #[test]
+    fn persistent_ssh_setup_can_still_be_cancelled() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        runtime.block_on(async {
+            let auth = SshAuthClient::default();
+            let cancellation = SshCancellation::default();
+            let cancel = cancellation.clone();
+            tokio::spawn(async move {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+                cancel.cancel();
+            });
+            let result = tokio::time::timeout(
+                Duration::from_secs(1),
+                await_ssh_setup(
+                    std::future::pending::<Result<()>>(),
+                    SSH_PERSISTENT_WAIT,
+                    &auth,
+                    &cancellation,
+                ),
+            )
+            .await;
+            assert!(
+                result
+                    .unwrap()
+                    .unwrap_err()
+                    .to_string()
+                    .contains("cancelled")
+            );
+        });
     }
 
     #[test]
@@ -5026,7 +5074,7 @@ mod tests {
         });
     }
 
-    fn check_silent_handshake_timeout(transport: HandshakeTestTransport) {
+    fn check_silent_handshake_remains_cancellable(transport: HandshakeTestTransport) {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -5049,9 +5097,12 @@ mod tests {
                 true,
             )
             .await;
-            let error = tokio::time::timeout(Duration::from_secs(3), connect)
+            tokio::time::sleep(Duration::from_millis(1200)).await;
+            assert!(!connect.is_finished(), "legacy deadline must not close SSH");
+            cancellation.cancel();
+            let error = tokio::time::timeout(Duration::from_secs(1), connect)
                 .await
-                .expect("silent SSH peer escaped the configured network timeout")
+                .expect("silent SSH peer must remain cancellable")
                 .expect("connection task panicked")
                 .err()
                 .expect("silent SSH peer must not establish a connection");
@@ -5059,10 +5110,7 @@ mod tests {
                 HandshakeTestTransport::Direct => "connection",
                 HandshakeTestTransport::ProxyJumpStream => "connection through ProxyJump",
             };
-            assert_eq!(
-                error.to_string(),
-                format!("{operation} timed out after 1 seconds")
-            );
+            assert_eq!(error.to_string(), format!("{operation} was cancelled"));
             assert!(!auth.has_pending_interaction());
             assert!(auth.take_host_key_prompts().is_empty());
             shutdown_ssh_resources(&cancellation, &forward_runtime).await;
@@ -5120,13 +5168,13 @@ mod tests {
     }
 
     #[test]
-    fn direct_ssh_handshake_times_out_without_server_response() {
-        check_silent_handshake_timeout(HandshakeTestTransport::Direct);
+    fn direct_ssh_handshake_waits_until_cancelled_without_server_response() {
+        check_silent_handshake_remains_cancellable(HandshakeTestTransport::Direct);
     }
 
     #[test]
-    fn proxy_jump_handshake_times_out_without_server_response() {
-        check_silent_handshake_timeout(HandshakeTestTransport::ProxyJumpStream);
+    fn proxy_jump_handshake_waits_until_cancelled_without_server_response() {
+        check_silent_handshake_remains_cancellable(HandshakeTestTransport::ProxyJumpStream);
     }
 
     #[derive(Default)]
