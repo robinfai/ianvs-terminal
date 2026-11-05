@@ -1056,8 +1056,7 @@ void main() {
               find.byKey(ValueKey('command-block-${blocks.blocks.last.id}')),
             )
             .width;
-        final expectedColumns = ((blockWidth - 16 - padding * 2) / cell.width)
-            .floor();
+        final expectedColumns = ((blockWidth - 16) / cell.width).floor();
         final expectedRows = ((size.height - padding * 2) / cell.height)
             .floor();
         final live = container

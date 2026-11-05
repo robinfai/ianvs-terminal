@@ -88,6 +88,10 @@ extension _ShellScreenStateSftp on _ShellScreenState {
   }
 
   void _openSftpPanel(SessionState sessionState, String? sessionId) {
+    if (_isSftpPanelOpen && _sftpPanelSessionId == sessionId) {
+      _closeSftpPanel();
+      return;
+    }
     final target = _sftpTargetFor(sessionState, sessionId);
     if (target == null) {
       return;

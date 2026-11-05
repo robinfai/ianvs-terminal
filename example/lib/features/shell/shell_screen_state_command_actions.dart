@@ -877,7 +877,7 @@ extension _ShellScreenStateCommandActions on _ShellScreenState {
         if (currentSessionId == null) {
           return;
         }
-        _openSearch();
+        _toggleSearch();
         return;
 
       case TerminalActionId.defaults:

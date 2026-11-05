@@ -4037,6 +4037,18 @@ void main() {
 
       expect(find.byKey(const Key('terminal-search-bar')), findsOneWidget);
       expect(find.byKey(const Key('terminal-search-field')), findsOneWidget);
+      await _invokeNativeWindowBridge(
+        tester,
+        const MethodCall('nativeFind', <String, Object?>{'tag': 1}),
+      );
+      expect(find.byKey(const Key('terminal-search-bar')), findsNothing);
+      expect(
+        tester
+            .widget<TerminalViewport>(find.byType(TerminalViewport))
+            .focusNode!
+            .hasFocus,
+        isTrue,
+      );
       expect(fakeBindings.writes, isEmpty);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
@@ -5837,6 +5849,24 @@ void main() {
         'needle',
         'smart_case_substring',
       ]);
+      await _sendMetaShortcut(tester, LogicalKeyboardKey.keyF);
+      expect(find.byKey(const Key('terminal-search-bar')), findsNothing);
+      expect(
+        tester
+            .widget<TerminalViewport>(find.byType(TerminalViewport))
+            .focusNode!
+            .hasFocus,
+        isTrue,
+      );
+      await _sendMetaShortcut(tester, LogicalKeyboardKey.keyF);
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('terminal-search-field')))
+            .controller!
+            .text,
+        'needle',
+      );
+      expect(fakeBindings.writes, isEmpty);
     },
     variant: TargetPlatformVariant.only(TargetPlatform.macOS),
   );

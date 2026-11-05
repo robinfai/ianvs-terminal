@@ -146,6 +146,8 @@ extension _ShellScreenStateEvents on _ShellScreenState {
         _moveSearchMatch(-1);
         return;
       case NativeFindAction.show:
+        _toggleSearch();
+        return;
       case NativeFindAction.replace:
       case NativeFindAction.useSelection:
       case NativeFindAction.jumpToSelection:

@@ -1,6 +1,14 @@
 part of 'shell_screen.dart';
 
 extension _ShellScreenStateSearchCompletion on _ShellScreenState {
+  void _toggleSearch() {
+    if (_isSearchOpen) {
+      _closeSearch();
+    } else {
+      _openSearch();
+    }
+  }
+
   void _openSearch() {
     final activeSessionId = ref.read(sessionControllerProvider).activeSessionId;
     if (activeSessionId == null) {

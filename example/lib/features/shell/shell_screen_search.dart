@@ -538,8 +538,12 @@ class _TerminalSearchBarState extends State<_TerminalSearchBar> {
       }
       return KeyEventResult.handled;
     }
-    if (isMetaPressed && event.logicalKey == LogicalKeyboardKey.keyF) {
-      _focusAndSelectQuery();
+    if (isMetaPressed &&
+        !isControlPressed &&
+        !isShiftPressed &&
+        !HardwareKeyboard.instance.isAltPressed &&
+        event.logicalKey == LogicalKeyboardKey.keyF) {
+      widget.onClose();
       return KeyEventResult.handled;
     }
     if (isMetaPressed && event.logicalKey == LogicalKeyboardKey.keyA) {

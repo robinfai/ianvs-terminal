@@ -228,6 +228,13 @@ class ShellActionRegistry {
       id: TerminalActionId.openSftpPanel,
       label: 'open_sftp_panel',
       category: TerminalActionCategory.integration,
+      shortcutHint: 'cmd+shift+F',
+      defaultKeyBinding: TerminalKeyBinding(
+        scope: TerminalKeyBindingScope.focusedApp,
+        meta: true,
+        shift: true,
+        key: LogicalKeyboardKey.keyF,
+      ),
       terminalInputPolicy: TerminalInputPolicy.appFirst,
       icon: Icons.folder_open,
       requiresActiveSession: true,
