@@ -74,6 +74,36 @@
     }
   },
   {
+    "name": [
+      "vi",
+      "vim",
+      "nvim"
+    ],
+    "description": "Edit files",
+    "options": [
+      {
+        "name": "-c",
+        "description": "Execute editor command",
+        "args": {
+          "name": "command"
+        }
+      },
+      {
+        "name": "-u",
+        "description": "Use initialization file",
+        "args": {
+          "name": "file",
+          "template": "filepaths"
+        }
+      }
+    ],
+    "args": {
+      "name": "file",
+      "template": "filepaths",
+      "isVariadic": true
+    }
+  },
+  {
     "name": "git",
     "description": "Distributed version control",
     "options": [
