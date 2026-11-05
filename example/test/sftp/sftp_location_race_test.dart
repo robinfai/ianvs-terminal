@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:app/features/sftp/sftp_file_actions.dart';
+import 'package:app/features/sftp/sftp_image_preview.dart';
 import 'package:app/features/sftp/sftp_side_panel.dart';
 import 'package:app/ui/app_ui.dart';
 import 'package:file_selector/file_selector.dart';
@@ -10,6 +12,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _Source implements SftpDirectoryDataSource, SftpFileDataSource {
+  String fileName = 'notes.txt';
+  bool failDownload = false;
   bool failCreate = false;
   bool empty = false;
   final mutations = <SftpEntryMutationRequest>[];
@@ -24,9 +28,9 @@ class _Source implements SftpDirectoryDataSource, SftpFileDataSource {
             path: request.path,
             entries: empty
                 ? const []
-                : const [
+                : [
                     SftpDirectoryEntry(
-                      name: 'notes.txt',
+                      name: fileName,
                       kind: SftpDirectoryEntryKind.file,
                     ),
                   ],
@@ -36,6 +40,14 @@ class _Source implements SftpDirectoryDataSource, SftpFileDataSource {
   @override
   Future<void> downloadFile(SftpFileTransferRequest request) async {
     downloads.add(request);
+    if (failDownload) throw StateError('Download failed');
+    if (isSftpPreviewImage(fileName)) {
+      await File(request.localPath).writeAsBytes(
+        base64Decode(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1sAAAAASUVORK5CYII=',
+        ),
+      );
+    }
   }
 
   @override
@@ -56,9 +68,14 @@ class _Source implements SftpDirectoryDataSource, SftpFileDataSource {
 }
 
 class _Platform implements SftpFileActionPlatform {
+  int saveCalls = 0;
   final save = Completer<String?>();
   @override
-  Future<String?> chooseSaveLocation(String suggestedName) => save.future;
+  Future<String?> chooseSaveLocation(String suggestedName) {
+    saveCalls++;
+    return save.future;
+  }
+
   @override
   Future<Directory> createEditDirectory() =>
       throw StateError('Unexpected editor');
@@ -120,6 +137,50 @@ Future<void> _menu(WidgetTester tester) async {
 }
 
 void main() {
+  for (final fail in [false, true]) {
+    testWidgets('image click previews without Save dialog (failure: $fail)', (
+      tester,
+    ) async {
+      final source = _Source()
+        ..fileName = 'photo.PNG'
+        ..failDownload = fail;
+      final platform = _Platform();
+      await _pump(tester, ValueNotifier(0), source, platform);
+      await tester.tap(find.byKey(const Key('sftp-entry-photo.PNG')));
+      await tester.runAsync(() async {
+        await tester.pump();
+        // Allow real temporary-file IO to complete outside the fake clock.
+        for (var i = 0; i < 100; i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+          if (source.downloads.isNotEmpty &&
+              !await File(source.downloads.single.localPath).parent.exists()) {
+            break;
+          }
+        }
+      });
+      await tester.pumpAndSettle();
+      expect(find.byType(SftpImagePreview), findsOneWidget);
+      expect(source.downloads, hasLength(1));
+      expect(platform.saveCalls, 0);
+      await tester.runAsync(() async {
+        expect(
+          await File(source.downloads.single.localPath).parent.exists(),
+          isFalse,
+        );
+      });
+      expect(find.text('Retry'), fail ? findsOneWidget : findsNothing);
+      if (!fail) expect(find.byType(InteractiveViewer), findsOneWidget);
+      await tester.tap(find.text('Download'));
+      await tester.pump();
+      expect(platform.saveCalls, 1);
+      platform.save.complete(null);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.close).last);
+      await tester.pumpAndSettle();
+      expect(find.byType(SftpImagePreview), findsNothing);
+    });
+  }
+
   testWidgets(
     'upload requires destination confirmation and does not retarget after profile changes',
     (tester) async {

@@ -1,10 +1,11 @@
-import '../helpers/ai_workspace_actions.dart' show openAiDesktopMore;
 import 'package:app/features/ai/terminal_ai_workspace.dart';
 import 'package:app/ui/previews/mobile_prd_component_previews.dart';
 import 'package:app/ui/previews/terminal_ai_workspace_preview.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../helpers/ai_workspace_actions.dart' show openAiDesktopMore;
 
 void main() {
   for (final phone in [false, true]) {

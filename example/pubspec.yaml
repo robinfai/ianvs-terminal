@@ -47,18 +47,18 @@ dependencies:
   flutter_secure_storage: ^10.3.1
   ianvs_acp_runtime: ^0.2.0
   ianvs_agent_chat: ^0.3.1
-  ianvs_markdown: ^0.3.2
   ianvs_agent_core: ^0.1.0
   ianvs_design: ^0.4.0
+  ianvs_markdown: ^0.3.2
   ianvs_pty:
     path: ../packages/ianvs_pty
   ianvs_terminal:
     path: ../packages/ianvs_terminal
   intl: any
+  lucide_icons_flutter: ^4.0.1
   markdown: ^7.3.1
   path_provider: ^2.1.5
   sign_in_with_apple: ^8.2.0
-  lucide_icons_flutter: ^4.0.1
 
 dev_dependencies:
   analyzer: ^10.2.0

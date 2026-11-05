@@ -887,7 +887,7 @@ class _TerminalAiWorkspaceState extends State<TerminalAiWorkspace>
         // RawChip derives its content height from the label, then positions
         // the independent deletion slot within that height.
         constraints: BoxConstraints(
-          minHeight: _journal ? 20 : 44,
+          minHeight: _journal ? 28 : 44,
           maxWidth: 260,
         ),
         child: Column(

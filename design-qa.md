@@ -1,3 +1,13 @@
+## Main integration and release verification — 2026-11-05
+
+The release branch preserves main's staged connection diagnostics and reduced-motion routes. Integrated validation: 76 shell/model/settings/connection tests passed, 135 AI workspace/widget/preview tests passed, and 845 visual tests passed (one existing skip). The earlier phone fixed-size reduced-motion failures are resolved by the main integration.
+
+Follow-up fixes include PTY column sizing from the measured chat output width (restores full width on Terminal, preserves rows, follows window resizing), vi/vim/nvim file argument completion (12 matcher tests plus a real temporary README.md completion test), and matching the compact context-chip label minimum height to its delete slot. Reviewed macOS 26 (CI-generated) and macOS 27 (local) golden changes are restricted to the intended toolbar icons/mode labels and status footer. Full repository analysis passes with fatal infos enabled. Remote CI/publication status is recorded in the PR/release, rather than inferred from these local results.
+
+SFTP image preview: 31 file-action, location-race and touch-layout tests pass. Image taps bypass the save picker, successful and failed reads clean temporary files, and explicit Download remains available.
+
+---
+
 ## Composer focus refinement — 2026-11-05
 
 final result: passed

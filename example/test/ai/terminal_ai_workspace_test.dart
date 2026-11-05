@@ -1,4 +1,3 @@
-import '../helpers/ai_workspace_actions.dart' show openAiDesktopMore;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -20,6 +19,7 @@ import 'package:ianvs_terminal/ianvs_terminal.dart';
 
 import '../design/configuration_capture_binding.dart';
 import '../design/visual_capture_fonts.dart';
+import '../helpers/ai_workspace_actions.dart' show openAiDesktopMore;
 import 'ai_approval_test.dart' show ControlledReviewer;
 import 'terminal_ai_recovery_test.dart' show RecoveringTerminal;
 import 'terminal_ai_tasks_test.dart' show source;
