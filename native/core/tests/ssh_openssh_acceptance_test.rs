@@ -940,7 +940,7 @@ fn openssh_negative_paths_fail_fast() {
     );
 
     // Keep a real listener bound without speaking SSH. The first jump can
-    // establish TCP but must hit its one-second SSH handshake timeout, with
+    // establish TCP and remain pending past the legacy handshake deadline, with
     // no bind/drop race that could accidentally reach an unrelated service.
     let bad_jump_listener =
         TcpListener::bind(("127.0.0.1", 0)).expect("bad jump listener should bind");
@@ -960,13 +960,55 @@ fn openssh_negative_paths_fail_fast() {
         connect_timeout_seconds: 1,
         ..<_>::default()
     }];
-    assert_failed_session(
+    assert_pending_until_cancelled(
         spawn_ssh(bad_jump_target, 24, 100).expect("bad-jump transport should start"),
-        "bad ProxyJump endpoint",
-        &[
-            "could not connect to ProxyJump host 127.0.0.1",
-            "connection timed out after 1 seconds",
-        ],
     );
     drop(bad_jump_listener);
+}
+
+// Both the full Docker topology and this loopback-only regression exercise the
+// public runtime. A silent peer is pending, whereas bad credentials still fail.
+fn assert_pending_until_cancelled(mut runtime: SshRuntime) {
+    let started = Instant::now();
+    while started.elapsed() < Duration::from_millis(1500) {
+        assert!(
+            runtime
+                .child
+                .try_wait()
+                .expect("pending SSH status")
+                .is_none(),
+            "legacy one-second deadline disconnected the pending SSH session"
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+    runtime.child.kill().expect("manual cancellation");
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while runtime
+        .child
+        .try_wait()
+        .expect("cancelled SSH status")
+        .is_none()
+    {
+        assert!(
+            Instant::now() < deadline,
+            "manual cancellation did not stop SSH"
+        );
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+#[test]
+fn silent_proxy_jump_waits_past_legacy_timeout_and_can_be_cancelled() {
+    let listener = TcpListener::bind(("127.0.0.1", 0)).expect("silent jump listener");
+    let port = listener.local_addr().unwrap().port();
+    let mut connection = password_connection(22);
+    connection.proxy_jump = Some(format!("{TEST_USER}@127.0.0.1:{port}"));
+    connection.proxy_jump_profiles = vec![TerminalSshJumpProfile {
+        auth: TerminalSshAuthMethod::Password,
+        password: Some(TEST_PASSWORD.to_string()),
+        host_key_policy: TerminalSshHostKeyPolicy::Insecure,
+        connect_timeout_seconds: 1,
+        ..<_>::default()
+    }];
+    assert_pending_until_cancelled(spawn_ssh(connection, 24, 100).unwrap());
 }

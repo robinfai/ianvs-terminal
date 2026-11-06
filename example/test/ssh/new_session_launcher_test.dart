@@ -1237,7 +1237,10 @@ void main() {
     await tester.tap(find.text('Host verification and advanced options'));
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.byKey(const Key('ssh-keepalive-seconds')));
-    await tester.enterText(find.byKey(const Key('ssh-keepalive-seconds')), '-1');
+    await tester.enterText(
+      find.byKey(const Key('ssh-keepalive-seconds')),
+      '-1',
+    );
     await tester.ensureVisible(
       find.text('Host verification and advanced options'),
     );
