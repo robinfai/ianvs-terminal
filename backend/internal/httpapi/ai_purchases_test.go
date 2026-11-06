@@ -183,8 +183,21 @@ func TestAIPurchaseHistoryIsolationAndUsageTotals(t *testing.T) {
 	}
 	w := httptest.NewRecorder()
 	api.aiPurchases(w, httptest.NewRequest("GET", "/", nil), model.User{ID: "one"}, "")
-	if w.Code != 200 || !strings.Contains(w.Body.String(), "123") || strings.Contains(w.Body.String(), "456") {
-		t.Fatal(w.Body.String())
+	if w.Code != 200 {
+		t.Fatalf("purchase history status %d: %s", w.Code, w.Body.String())
+	}
+	var history struct {
+		Data []struct {
+			TransactionID string `json:"transaction_id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &history); err != nil {
+		t.Fatal(err)
+	}
+	// Compare transaction IDs, not arbitrary substrings in timestamps: a
+	// valid created_at can contain the other user's numeric transaction ID.
+	if len(history.Data) != 1 || history.Data[0].TransactionID != "123" {
+		t.Fatalf("unexpected purchase history: %s", w.Body.String())
 	}
 	w = httptest.NewRecorder()
 	api.aiUsage(w, httptest.NewRequest("GET", "/", nil), model.User{ID: "one"}, "")
