@@ -98,4 +98,4 @@ IANVS_SSH_E2E_WRONG_HOST_PUBLIC_KEY="$wrong_host_public_key" \
     --ignored --nocapture --test-threads=1
 
 printf '%s\n' \
-  'SSH acceptance passed: auth, host-key strict/accept-new, negative timeouts, two-hop ProxyJump, L/R/D ports, X11, and agent forwarding.'
+  'SSH acceptance passed: auth, host-key strict/accept-new, credential rejection, cancellable persistent waits, two-hop ProxyJump, L/R/D ports, X11, and agent forwarding.'
